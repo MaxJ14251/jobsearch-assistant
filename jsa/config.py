@@ -83,7 +83,14 @@ NO_FLOOR = "no_floor"
 
 @dataclass(frozen=True)
 class CompFloor:
-    """A parsed compensation_floor_usd. See docs/decisions/0001-*.md.
+    """A parsed compensation_floor_usd -- a THRESHOLD, not a preference.
+
+    It answers "below what number would I not take the job". Whether you
+    *prefer* more money is a different question, is true of everyone, and is
+    therefore not a setting -- see decision 7 in the ADR. `no_floor` means "no
+    threshold"; it does not mean pay is ignored.
+
+    See docs/decisions/0001-compensation-and-work-authorization.md.
 
     Three states are deliberately distinguishable, because "I have not decided"
     and "I have no floor" are different answers and conflating them is how the

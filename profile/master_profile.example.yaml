@@ -97,22 +97,28 @@ job_search_preferences:
   # --- compensation and authorization -------------------------------------
   # See docs/decisions/0001-compensation-and-work-authorization.md
   #
-  # compensation_floor_usd accepts three forms:
-  #     no_floor          you deliberately have none
-  #     95000             one figure
-  #     a map keyed to the `regions` block below, for when the answer is
-  #     genuinely two numbers (rent-free in one place, renting in another):
+  # This field is a THRESHOLD, not a preference. It answers "below what number
+  # would I not take the job", which is a different question from "do I prefer
+  # more money" -- everyone prefers more money, so that is handled
+  # automatically and is not a setting. Leaving no threshold here does NOT
+  # mean pay is ignored when ranking.
+  #
+  # Three forms:
+  #     no_floor          you have no threshold. Most people.
+  #     95000             one figure, in USD
+  #     a map keyed to the `regions` block below, for when the honest answer
+  #     is two numbers (rent-free in one place, renting in another):
   #         compensation_floor_usd:
   #           default: 95000
   #           pa: 85000
   #           sd: 110000
   #
   # null means "not yet decided". Discovery tolerates it; document generation
-  # refuses to run on it. Undecided and "no constraint" are different things.
+  # refuses to run on it. Undecided and "no threshold" are different answers.
   #
-  # Scoring does NOT currently use the floor: every jobs.salary_min in the
-  # tracker is null because nothing extracts salary yet. A floor wired in
-  # today would be a no-op that looked like a feature. See the ADR.
+  # Neither the threshold nor pay-ranking is implemented yet: every
+  # jobs.salary_min in the tracker is null because nothing extracts salary.
+  # Wiring either in today would be a no-op that looked like a feature.
   compensation_floor_usd: null   # no_floor | a number | a per-region map
   work_authorization: null       # e.g. "US citizen - no sponsorship required"
   needs_visa_sponsorship: null   # true/false

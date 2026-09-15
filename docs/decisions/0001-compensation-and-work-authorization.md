@@ -1,7 +1,10 @@
 # ADR 0001 — Compensation floor and work authorization
 
-Status: accepted
+Status: accepted, amended 2026-09-15
 Date: 2026-09-15
+Amendment: decision 7 added. The original draft modelled compensation only as
+a threshold, which silently meant "no floor" read as "pay plays no part in
+ranking". That is not what most people want and was caught before publication.
 Decided by: /software-design-council, chaired during the "make comp and work
 authorization real scoring inputs" goal.
 
@@ -113,6 +116,14 @@ extraction lands. Penalising unknown punishes half the board for the
 employer's disclosure policy. A role that does not post a salary is not a
 worse role.
 
+**The trap, recorded before anyone falls into it.** Once pay is a gradient
+(decision 7), "neutral" means unknown must score the **midpoint of the pay
+component, not zero**. Zero is the natural thing to write and it is wrong: it
+would quietly sink roughly half the board for the employer's disclosure
+policy, while looking like working code. Whoever implements the gradient must
+assert this directly — score two otherwise-identical jobs, one with a posted
+salary at the midpoint and one with none, and require the same total.
+
 ### 5. Drift is prevented mechanically, not by prose
 
 `master_profile.example.yaml` is committed and copied verbatim by
@@ -131,6 +142,35 @@ mid-pass on an IntegrityError.
 its scope. A test asserts these fields never appear in an outbound prompt.
 NVIDIA's free tier logs prompts.
 
+### 7. A floor is a threshold. Pay ranking is a gradient. They are separate.
+
+The original draft of this ADR modelled compensation only as a floor, so
+`no_floor` meant "compensation plays no part in ranking at all". Almost nobody
+wants that. The operator's own words: *open to any offer between 70k and 160k,
+but obviously the higher-paying job should rank higher.*
+
+Those are two different mechanisms and only one of them is a setting:
+
+| | What it does | Who needs it | Configurable |
+|---|---|---|---|
+| Floor | Excludes a job entirely | Rare — a hard budget constraint | **Yes**, optional |
+| Pay ranking | Orders jobs by pay | **Everyone** | **No** |
+
+`compensation_floor_usd` is therefore a **threshold only**. `no_floor` means
+"no threshold" — it does not mean pay is irrelevant.
+
+**Pay ranking is not a user setting**, and will not become one. `W_TITLE`,
+`W_LOCATION`, `W_KEYWORDS` and `W_SENIORITY` are module constants that nobody
+configures; a `W_COMPENSATION` alongside them is consistent rather than new. A
+preference nobody disagrees with does not need a knob, and adding one is
+speculative generality on a field every user has to read.
+
+**Neither is implemented yet.** Both wait on salary extraction — see Tripwire.
+When that lands, the work is: add `W_COMPENSATION` to the weight set,
+rebalance the existing four so they still sum to 1.0, map unknown to the
+midpoint (decision 4), and apply the floor, if one is set, as a hard reject
+separate from the gradient.
+
 ## Tripwire
 
 A test asserts `jobs.salary_min` is 100% null while the tracker holds rows.
@@ -147,7 +187,9 @@ who has to make a decision.
   floor is deliberately NOT on that required list: a floor governs which jobs
   to pursue, not what a resume says, and blocking document generation over it
   would fail for a reason unrelated to the document.
-- Ranking is unchanged by this ADR. Any future ranking change from
-  compensation is a separate, reviewed decision.
+- Ranking is unchanged by this ADR. Both the floor and the pay gradient are
+  decided here but deliberately unimplemented; see decision 7.
+- `no_floor` is a statement about thresholds only. Setting it does not opt out
+  of pay ranking, because pay ranking is not opt-in.
 - Salary extraction is out of scope and non-trivial: multi-level ranges,
   stipends, hourly versus annual, currency.

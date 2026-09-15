@@ -6,6 +6,11 @@ Pulls job listings from 50 company career systems, filters ~6,900 postings down 
 reviewable shortlist, extracts the disqualifying facts buried in the prose, and hands
 you the final call on every application.
 
+**United States only.** Non-US locations are excluded outright, not ranked low — so
+if you are job hunting outside the US, this will return nothing and the emptiness
+will not explain itself. That scope is deliberate; see
+[docs/decisions/0002-geographic-scope.md](docs/decisions/0002-geographic-scope.md).
+
 ## Quickstart
 
 ```bash
@@ -304,6 +309,14 @@ Worth knowing before you rely on this.
   part. `NULL` means "unknown", never "no".
 - **Nothing is submitted for you.** By design. The tool drafts and tracks; you apply
   and you send. There is no code path that transmits an application or a message.
+- **US-only, and it excludes rather than deprioritises.** A job in Berlin scores 0,
+  not "low". Internationalising is not a translation job: salary currency, what
+  "work authorization" means outside one country, and US-shaped city/state matching
+  all have to change together.
+- **Compensation does not affect ranking yet.** Nothing extracts salary from a
+  posting, so every `salary_min` is null. A pay floor you set is stored and
+  validated but not yet applied — deliberately, rather than shipping a filter that
+  silently does nothing.
 - **One user per checkout.** The profile and tracker are single-tenant, and the
   database is SQLite on local disk.
 - **Free API tiers log prompts.** Identity never reaches the model, but job
