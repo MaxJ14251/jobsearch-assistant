@@ -1,6 +1,6 @@
 # Agentic Job Search Assistant
 
-[![tests](https://github.com/your-name/jobsearch-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/your-name/jobsearch-assistant/actions/workflows/ci.yml)
+[![tests](https://github.com/MaxJ14251/jobsearch-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/MaxJ14251/jobsearch-assistant/actions/workflows/ci.yml)
 
 Pulls job listings from 50 company career systems, filters ~6,900 postings down to a
 reviewable shortlist, extracts the disqualifying facts buried in the prose, and hands
@@ -9,7 +9,7 @@ you the final call on every application.
 ## Quickstart
 
 ```bash
-git clone https://github.com/your-name/jobsearch-assistant && cd jobsearch-assistant
+git clone https://github.com/MaxJ14251/jobsearch-assistant && cd jobsearch-assistant
 python -m venv .venv && .venv/Scripts/python -m pip install -r requirements.txt
 cp .env.example .env                                        # add your API key
 cp profile/master_profile.example.yaml profile/master_profile.yaml

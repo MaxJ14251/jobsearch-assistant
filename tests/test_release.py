@@ -109,5 +109,42 @@ class TestReleaseFiles(unittest.TestCase):
         self.assertIn("scan_secrets.py --staged", hook)
 
 
+
+class TestProjectUrl(unittest.TestCase):
+    """A repo URL is the project's address; a profile URL is personal."""
+
+    def test_no_placeholder_urls_remain(self):
+        for rel in ("README.md", "jsa/config.py"):
+            text = (ROOT / rel).read_text(encoding="utf-8")
+            self.assertNotIn("your-name", text,
+                             f"{rel} still has the placeholder GitHub path")
+
+    def test_badge_and_clone_url_agree_with_project_url(self):
+        from jsa.config import PROJECT_URL
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn(f"{PROJECT_URL}/actions/workflows/ci.yml/badge.svg", readme)
+        self.assertIn(f"git clone {PROJECT_URL}", readme)
+
+    def test_user_agent_advertises_the_project(self):
+        from jsa.config import PROJECT_URL, user_agent
+        self.assertIn(PROJECT_URL, user_agent())
+
+    def test_repo_url_is_allowed_in_code_but_profile_url_is_not(self):
+        import tools.scan_secrets as scanner
+        # A synthetic handle: embedding the real one would make this file
+        # itself a scanner violation, which is how the last two bugs happened.
+        profile_url = "https://github.com/someuser"
+        repo_line = f"PROJECT_URL = \"{profile_url}/jobsearch-assistant\""
+        bare_line = f"see {profile_url} for more"
+        self.assertTrue(
+            scanner.is_project_url(repo_line, repo_line.index(profile_url),
+                                   profile_url),
+            "a repo URL must be allowed in code")
+        self.assertFalse(
+            scanner.is_project_url(bare_line, bare_line.index(profile_url),
+                                   profile_url),
+            "a bare profile URL must still be flagged outside authorship files")
+
+
 if __name__ == "__main__":
     unittest.main()

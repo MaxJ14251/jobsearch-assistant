@@ -324,28 +324,26 @@ class TestTrackPriority(unittest.TestCase):
 
 
 class TestNoPersonalDataCommitted(unittest.TestCase):
-    """This project is published. Nothing personal may live in tracked files."""
+    """This project is published. Nothing personal may live in tracked files.
 
-    TRACKED = ["jsa/config.py", "jsa/scoring.py", "jsa/sources.py", "jsa/cli.py",
-               "jsa/llm.py", "jsa/db.py", "jsa/discover.py", "db/schema.sql",
-               "README.md", "profile/master_profile.example.yaml",
-               ".env.example", "config/companies.yaml"]
+    Delegates to tools/scan_secrets.py rather than keeping a second list of
+    forbidden strings. The duplicate list drifted once already: the scanner
+    learned that a repo URL is not a profile link, and this test did not.
+    """
 
-    def test_no_personal_identifiers_in_tracked_files(self):
-        import pathlib
+    def test_scanner_reports_the_working_tree_clean(self):
+        import subprocess
+        import sys
         from jsa.config import ROOT
-        # Substrings that must never appear outside the gitignored profile.
-        forbidden = ["Example", "[street]", "521-[phone]", "MaxJ14251"]
-        offenders = []
-        for rel in self.TRACKED:
-            p = ROOT / rel
-            if not p.exists():
-                continue
-            low = p.read_text(encoding="utf-8", errors="ignore").lower()
-            for bad in forbidden:
-                if bad.lower() in low:
-                    offenders.append(f"{rel}: {bad}")
-        self.assertEqual(offenders, [], f"personal data in tracked files: {offenders}")
+
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "scan_secrets.py")],
+            cwd=ROOT, capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
+        )
+        self.assertEqual(
+            result.returncode, 0,
+            (result.stdout or "") + "\n" + (result.stderr or ""))
 
     def test_real_profile_is_gitignored(self):
         from jsa.config import ROOT

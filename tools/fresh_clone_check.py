@@ -14,7 +14,6 @@ in the instructions, not a quirk of the reader.
 from __future__ import annotations
 
 import fnmatch
-import re
 import shutil
 import subprocess
 import sys
@@ -23,35 +22,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# Values that must never appear in a published file. Read from the live profile
-# so the check cannot drift out of date as the profile changes.
-def secrets_to_scan() -> list[str]:
-    import yaml
-
-    found: list[str] = []
-    profile = ROOT / "profile" / "master_profile.yaml"
-    if profile.exists():
-        data = yaml.safe_load(profile.read_text(encoding="utf-8")) or {}
-        ident = data.get("identity") or {}
-        loc = ident.get("location") or {}
-        links = data.get("links") or {}
-        for value in (ident.get("full_name"), ident.get("email"),
-                      ident.get("phone"), loc.get("street"), loc.get("postal_code"),
-                      links.get("linkedin"), links.get("github")):
-            if isinstance(value, str) and len(value.strip()) >= 5:
-                found.append(value.strip())
-        # Digits-only phone, since formatting varies.
-        digits = re.sub(r"\D", "", ident.get("phone") or "")
-        if len(digits) >= 10:
-            found.append(digits[-10:])
-    env = ROOT / ".env"
-    if env.exists():
-        for line in env.read_text(encoding="utf-8").splitlines():
-            if "=" in line and not line.strip().startswith("#"):
-                value = line.split("=", 1)[1].strip().strip('"').strip("'")
-                if value and not value.startswith("<") and len(value) > 12:
-                    found.append(value)
-    return found
+# The personal-data scan is NOT reimplemented here. tools/scan_secrets.py is
+# the single source of truth; a second copy drifted out of sync twice (it did
+# not learn that a repo URL is a project address rather than a profile link),
+# and a check that disagrees with the one CI runs is worse than no check.
 
 
 def ignored_patterns() -> list[str]:
@@ -87,19 +61,12 @@ def make_clone(dest: Path) -> tuple[int, int]:
     return copied, skipped
 
 
-def scan(dest: Path, needles: list[str]) -> list[str]:
-    hits = []
-    for path in dest.rglob("*"):
-        if not path.is_file():
-            continue
-        try:
-            text = path.read_text(encoding="utf-8", errors="ignore")
-        except Exception:
-            continue
-        for needle in needles:
-            if needle.lower() in text.lower():
-                hits.append(f"{path.relative_to(dest)}: {needle[:24]!r}")
-    return hits
+def scan(dest: Path) -> tuple[int, str]:
+    """Run the real scanner against the clone, exactly as CI does."""
+    scanner = dest / "tools" / "scan_secrets.py"
+    if not scanner.exists():
+        return 1, "tools/scan_secrets.py is missing from the clone"
+    return run([sys.executable, str(scanner)], dest)
 
 
 def run(cmd: list[str], cwd: Path) -> tuple[int, str]:
@@ -114,9 +81,6 @@ def run(cmd: list[str], cwd: Path) -> tuple[int, str]:
 
 
 def main() -> int:
-    needles = secrets_to_scan()
-    print(f"scanning for {len(needles)} personal value(s)\n")
-
     with tempfile.TemporaryDirectory() as tmp:
         dest = Path(tmp) / "jobsearch"
         copied, skipped = make_clone(dest)
@@ -137,13 +101,17 @@ def main() -> int:
         print("=" * 70)
         print("2. PERSONAL DATA SCAN")
         print("=" * 70)
-        hits = scan(dest, needles)
-        if hits:
-            for h in hits[:20]:
-                print(f"   LEAK  {h}")
-            print(f"\n   {len(hits)} leak(s) — do not publish")
-        else:
-            print("   clean: no personal value appears in any published file")
+        # The clone has no profile of its own, so the scanner is also run from
+        # the real working tree: that run knows the personal values and looks
+        # for them across every tracked file.
+        tree_code, tree_out = run(
+            [sys.executable, str(ROOT / "tools" / "scan_secrets.py")], ROOT)
+        clone_code, clone_out = scan(dest)
+        print(f"   working tree : {'clean' if tree_code == 0 else 'LEAKS'}")
+        print(f"   fresh clone  : {'clean' if clone_code == 0 else 'LEAKS'}")
+        if tree_code or clone_code:
+            print((tree_out + clone_out)[-700:])
+        leaks = tree_code or clone_code
 
         print()
         print("=" * 70)
@@ -191,9 +159,9 @@ def main() -> int:
         print("=" * 70)
         print("VERDICT")
         print("=" * 70)
-        print(f"   personal data leaks : {len(hits)}")
+        print(f"   personal data leaks : {'none' if not leaks else 'FOUND'}")
         print(f"   README steps failing: {len(failures)} {failures if failures else ''}")
-        return 1 if (hits or failures) else 0
+        return 1 if (leaks or failures) else 0
 
 
 if __name__ == "__main__":

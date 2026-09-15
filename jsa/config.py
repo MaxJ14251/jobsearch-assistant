@@ -40,13 +40,15 @@ def load_dotenv(path: Path = ENV_PATH) -> list[str]:
         os.environ[key] = value
         loaded.append(key)
     return loaded
+
+
 PROFILE_PATH = ROOT / "profile" / "master_profile.yaml"
 COMPANIES_PATH = ROOT / "config" / "companies.yaml"
 SCHEMA_PATH = ROOT / "db" / "schema.sql"
 DB_PATH = Path(os.environ.get("JSA_DB", ROOT / "jobsearch.db"))
 OUTPUT_DIR = ROOT / "output"
 
-PROJECT_URL = "https://github.com/your-name/jobsearch-assistant"
+PROJECT_URL = "https://github.com/MaxJ14251/jobsearch-assistant"
 
 
 def user_agent() -> str:
@@ -66,6 +68,8 @@ def user_agent() -> str:
             contact = ""
     suffix = f"; contact {contact}" if contact else ""
     return f"jobsearch-assistant/0.1 (+{PROJECT_URL}{suffix})"
+
+
 REQUEST_TIMEOUT = 20.0
 POLITE_DELAY_S = 1.0  # between requests to the same host
 

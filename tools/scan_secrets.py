@@ -102,6 +102,21 @@ def personal_values() -> tuple[list[str], list[str]]:
     return never, authorship
 
 
+def is_project_url(text: str, index: int, value: str) -> bool:
+    """True when this hit is a repository URL rather than a profile link.
+
+    `https://github.com/<user>` is a personal profile and belongs only in
+    authorship files. `https://github.com/<user>/<repo>` is the project's own
+    address — it belongs in the README badge and in the User-Agent the tool
+    sends to job boards, which is code. Blocking the second because it
+    contains the first would force the tool to announce itself anonymously.
+    """
+    if "github.com/" not in value.lower():
+        return False
+    tail = text[index + len(value): index + len(value) + 2]
+    return tail.startswith("/") and len(tail) > 1 and tail[1] not in " \t\n\"'"
+
+
 def candidate_files(staged_only: bool) -> list[Path]:
     if staged_only:
         out = subprocess.run(
@@ -149,11 +164,15 @@ def main(argv: list[str]) -> int:
                 problems.append(f"{rel}: personal detail {value[:16]!r}")
         if path.name not in AUTHORSHIP_FILES:
             for value in authorship:
-                if value.lower() in lowered:
-                    problems.append(
-                        f"{rel}: author identity {value[:22]!r} "
-                        f"(allowed only in {', '.join(sorted(AUTHORSHIP_FILES))})"
-                    )
+                index = lowered.find(value.lower())
+                if index == -1:
+                    continue
+                if is_project_url(lowered, index, value.lower()):
+                    continue        # a repo URL, not a profile link
+                problems.append(
+                    f"{rel}: author identity {value[:22]!r} "
+                    f"(allowed only in {', '.join(sorted(AUTHORSHIP_FILES))})"
+                )
 
     scope = "staged files" if staged_only else "the working tree"
     if problems:
