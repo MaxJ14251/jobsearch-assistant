@@ -27,14 +27,27 @@ AUTHORSHIP_FILES = {"LICENSE", "README.md", "CONTRIBUTING.md"}
 
 SKIP_DIRS = {".git", ".venv", "__pycache__", "output", "documents", ".claude"}
 
-# The files values are READ FROM, plus the templates they are copied from.
-# Without the .example entries a fresh clone self-reports as leaking: the
-# profile there *is* the example, so every placeholder trivially matches
-# itself inside the committed template.
-SKIP_FILES = {
+# Two tiers, because "skip this file" was previously one list doing two jobs.
+#
+# NEVER_SCAN: local files that hold real values BY DESIGN. Both are gitignored
+# and so cannot reach a commit. Scanning them would block on the user's own key
+# every time git could not answer the ignore query.
+NEVER_SCAN = {
     ".env",
-    ".env.example",
     "master_profile.yaml",
+}
+
+# SKIP_PERSONAL_FILES: committed templates. Their placeholders are the very
+# strings the personal scan looks for, so a fresh clone would self-report as
+# leaking -- the profile there *is* the example, and every placeholder matches
+# itself. Personal matching is therefore skipped for these.
+#
+# Key and home-path detection still runs on them. Folding these into one skip
+# list had switched key detection off for .env.example, which is the single
+# most likely place for somebody to paste a real key by accident: the one file
+# that most needed the check was the one file exempt from it.
+SKIP_PERSONAL_FILES = {
+    ".env.example",
     "master_profile.example.yaml",
 }
 
@@ -199,6 +212,49 @@ def drop_ignored(paths: list[Path]) -> list[Path]:
     return [p for p in paths if str(p) not in ignored]
 
 
+def scan_text(name: str, rel: str, text: str,
+              never: list[str], authorship: list[str]) -> list[str]:
+    """Every rule that applies to one file, as a list of problem strings.
+
+    Split out of main() so the tiering is testable without writing a fake key
+    into a real repository file. `name` is the bare filename (it decides which
+    tier applies); `rel` is only used for the message.
+    """
+    found: list[str] = []
+
+    # Credential and home-path rules apply to EVERY scanned file, templates
+    # included. This is the part that .env.example used to be exempt from.
+    for label, pattern in KEY_PATTERNS:
+        if pattern.search(text):
+            found.append(f"{rel}: {label}")
+
+    for hit in home_path_hits(text)[:1]:
+        found.append(
+            f"{rel}: absolute home path {hit[:40]!r} "
+            f"(leaks the OS account name of the machine that built it)"
+        )
+
+    if name in SKIP_PERSONAL_FILES:
+        return found        # its "personal" values are placeholders by design
+
+    lowered = text.lower()
+    for value in never:
+        if value.lower() in lowered:
+            found.append(f"{rel}: personal detail {value[:16]!r}")
+    if name not in AUTHORSHIP_FILES:
+        for value in authorship:
+            index = lowered.find(value.lower())
+            if index == -1:
+                continue
+            if is_project_url(lowered, index, value.lower()):
+                continue        # a repo URL, not a profile link
+            found.append(
+                f"{rel}: author identity {value[:22]!r} "
+                f"(allowed only in {', '.join(sorted(AUTHORSHIP_FILES))})"
+            )
+    return found
+
+
 def main(argv: list[str]) -> int:
     staged_only = "--staged" in argv
     try:
@@ -211,39 +267,14 @@ def main(argv: list[str]) -> int:
     problems: list[str] = []
 
     for path in candidate_files(staged_only):
-        if not path.exists() or path.name in SKIP_FILES:
+        if not path.exists() or path.name in NEVER_SCAN:
             continue
         rel = path.relative_to(ROOT).as_posix()
         try:
             text = path.read_text(encoding="utf-8", errors="ignore")
         except Exception:
             continue
-
-        for label, pattern in KEY_PATTERNS:
-            if pattern.search(text):
-                problems.append(f"{rel}: {label}")
-
-        for hit in home_path_hits(text)[:1]:
-            problems.append(
-                f"{rel}: absolute home path {hit[:40]!r} "
-                f"(leaks the OS account name of the machine that built it)"
-            )
-
-        lowered = text.lower()
-        for value in never:
-            if value.lower() in lowered:
-                problems.append(f"{rel}: personal detail {value[:16]!r}")
-        if path.name not in AUTHORSHIP_FILES:
-            for value in authorship:
-                index = lowered.find(value.lower())
-                if index == -1:
-                    continue
-                if is_project_url(lowered, index, value.lower()):
-                    continue        # a repo URL, not a profile link
-                problems.append(
-                    f"{rel}: author identity {value[:22]!r} "
-                    f"(allowed only in {', '.join(sorted(AUTHORSHIP_FILES))})"
-                )
+        problems.extend(scan_text(path.name, rel, text, never, authorship))
 
     scope = "staged files" if staged_only else "the working tree"
     if problems:

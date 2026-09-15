@@ -235,5 +235,62 @@ class TestHomePathScan(unittest.TestCase):
                              "without git, every file must still be scanned")
 
 
+class TestScanTiering(unittest.TestCase):
+    """Skipping a file must not mean skipping every rule on it.
+
+    One SKIP_FILES list was doing two different jobs. The committed templates
+    belong on it for the personal scan -- their placeholders are the very
+    strings that scan looks for, so a fresh clone self-reported as leaking.
+    But the same entry also switched OFF key detection for .env.example: the
+    single most likely place to paste a real key by accident was the one file
+    exempt from looking for one.
+    """
+
+    FAKE_KEY = "nvapi-" + "FAKEKEYFORTESTINGONLY" + "0" * 30
+    NEVER = ["12 Elm Street", "5551234567"]
+    AUTHORSHIP = ["Dana Rivers"]
+
+    def check(self, name, text):
+        from tools.scan_secrets import scan_text
+        return scan_text(name, name, text, self.NEVER, self.AUTHORSHIP)
+
+    def test_real_key_in_env_example_is_caught(self):
+        """The regression. This returned nothing before the tiers were split."""
+        self.assertTrue(self.check(".env.example",
+                                   f"NVIDIA_API_KEY={self.FAKE_KEY}"))
+
+    def test_real_key_in_profile_template_is_caught(self):
+        self.assertTrue(self.check("master_profile.example.yaml",
+                                   f"note: {self.FAKE_KEY}"))
+
+    def test_templates_do_not_self_report_on_placeholders(self):
+        """Why the skip exists at all -- it must keep working."""
+        self.assertFalse(self.check(".env.example",
+                                    "NVIDIA_API_KEY=<nvapi-key-here>"))
+        self.assertFalse(self.check("master_profile.example.yaml",
+                                    "street: 12 Elm Street"))
+
+    def test_personal_values_still_blocked_in_code(self):
+        self.assertTrue(self.check("jsa/llm.py", "street: 12 Elm Street"))
+        self.assertTrue(self.check("jsa/llm.py", "by Dana Rivers"))
+
+    def test_author_name_still_allowed_in_authorship_files(self):
+        self.assertFalse(self.check("README.md", "by Dana Rivers"))
+
+    def test_live_files_are_never_scanned(self):
+        """.env holds a real key by design and is gitignored.
+
+        Blocking on it would make the scanner unusable on the author's own
+        machine any time git could not answer the ignore query.
+        """
+        from tools.scan_secrets import NEVER_SCAN, SKIP_PERSONAL_FILES
+        self.assertIn(".env", NEVER_SCAN)
+        self.assertIn("master_profile.yaml", NEVER_SCAN)
+        # The committed templates must NOT be on that list -- that was the bug.
+        self.assertNotIn(".env.example", NEVER_SCAN)
+        self.assertNotIn("master_profile.example.yaml", NEVER_SCAN)
+        self.assertIn(".env.example", SKIP_PERSONAL_FILES)
+
+
 if __name__ == "__main__":
     unittest.main()
