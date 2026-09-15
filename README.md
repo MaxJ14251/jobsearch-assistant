@@ -99,6 +99,34 @@ real years of experience, and the actual tech stack. **Nothing is rejected**; th
 appear in `matches` so the human decides.
 
 ```bash
+.venv/Scripts/python -m jsa save 421
+```
+Tracks a match as an application. This is deliberately explicit: a job you never
+pursued is not an application, and auto-creating one whenever you draft something
+would fill the pipeline with noise. One application per job is enforced by the
+database, so running it twice is safe.
+
+```bash
+.venv/Scripts/python -m jsa review          # everything awaiting your decision
+.venv/Scripts/python -m jsa review 7        # one item, in full
+.venv/Scripts/python -m jsa approve 7 --note "looks right"
+.venv/Scripts/python -m jsa reject 7 --feedback "lead with the support work"
+```
+The approval gate. **These commands, and the matching web routes, are the only
+ways a decision reaches `decided_by='human'`** — and the database refuses any
+other write, so it is a constraint rather than a convention. Feedback on a
+rejection is required: a redraft has nothing to work from without it. A decision
+is per document version and is never inherited by a redraft.
+
+```bash
+.venv/Scripts/python -m jsa applied 421
+```
+Records that **you** submitted it — the tool cannot observe that and never will.
+It does not require an approved document first. The approval gate exists to stop
+the agent acting on its own, not to stop you applying with a resume you wrote by
+hand; it notes the absence rather than blocking you.
+
+```bash
 .venv/Scripts/python -m jsa serve
 ```
 Local review dashboard on 127.0.0.1 — matches with their flags, the pipeline, and
