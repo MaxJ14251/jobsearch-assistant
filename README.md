@@ -99,6 +99,21 @@ real years of experience, and the actual tech stack. **Nothing is rejected**; th
 appear in `matches` so the human decides.
 
 ```bash
+.venv/Scripts/python -m jsa tailor 421 [--kind cover-letter] [--force]
+```
+Drafts an ATS-safe .docx from your profile bullets, records full provenance, and
+queues it for your approval. The job must be saved first. Every sentence traces
+to a bullet id or the draft is refused — a posting demanding Kubernetes gets a
+gap report, not a Kubernetes bullet.
+
+Two limits worth knowing. The model sees the first 4,000 characters of a
+posting, and **88% of postings in this tracker are longer than that** — so
+requirements stated late cannot influence the draft. The command says so when it
+truncates. And a redraft needs `--force`, producing a new version, a new file
+and a new pending approval; the old one is never overwritten, because approval
+is per version.
+
+```bash
 .venv/Scripts/python -m jsa save 421
 ```
 Tracks a match as an application. This is deliberately explicit: a job you never

@@ -23,6 +23,7 @@ See `tests/test_tailor.py::TestFabricationResistance`.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass, field
 from typing import Any, Iterable
@@ -32,6 +33,16 @@ from . import llm
 # A reworded bullet must retain this share of its source's meaningful words.
 # Below it, the text has drifted far enough to be asserting something new.
 MIN_SOURCE_OVERLAP = 0.45
+
+# How much of a posting the model is shown. 88% of the tracker's descriptions
+# are longer than this (median 5,668 chars, longest 10,661), so for most jobs
+# the back half is invisible to tailoring -- requirements stated late in a
+# posting cannot influence the draft. The number was previously inline and
+# unnamed; enrich.py independently uses 6000 for the same job, and the two have
+# never been reconciled. Raising it is a token-budget decision that needs its
+# own evidence, so for now it is named, measured, and surfaced by `jsa tailor`
+# rather than silently applied.
+MAX_DESCRIPTION_CHARS = 4000
 
 # Words carried by every bullet; they say nothing about whether meaning survived.
 _STOP = {
@@ -88,6 +99,9 @@ class TailoredDraft:
     keywords_matched: list[str] = field(default_factory=list)
     keywords_missing: list[str] = field(default_factory=list)
     model: str = ""
+    # Hash of the exact prompt that produced this draft. Recorded so a document
+    # can be traced back to its input without storing the input itself.
+    prompt_hash: str = ""
 
 
 # --- profile access ---------------------------------------------------------
@@ -102,7 +116,11 @@ def collect_bullets(profile: dict[str, Any]) -> dict[str, SourceBullet]:
                 id=b["id"], text=" ".join(b["text"].split()),
                 tags=tuple(b.get("tags") or []), family=exp.get("family", ""),
                 strength=int(b.get("strength", 2)), origin="experience",
-                parent=exp.get("company", ""),
+                # The ENTRY id, not the company. Two roles at one employer
+                # (Sales Representative and Installer, both at Riverton) collided on
+                # the company name, and the renderer printed one role's bullets
+                # under both.
+                parent=exp.get("id") or exp.get("company", ""),
             )
     for proj in profile.get("projects") or []:
         for b in proj.get("bullets") or []:
@@ -110,7 +128,7 @@ def collect_bullets(profile: dict[str, Any]) -> dict[str, SourceBullet]:
                 id=b["id"], text=" ".join(b["text"].split()),
                 tags=tuple(b.get("tags") or []), family=proj.get("family", ""),
                 strength=int(b.get("strength", 2)), origin="project",
-                parent=proj.get("name", ""),
+                parent=proj.get("id") or proj.get("name", ""),
             )
     return out
 
@@ -363,7 +381,7 @@ def tailor(
     listing = "\n".join(f'- [{b.id}] {b.text}' for b in chosen)
     prompt = PROMPT.format(
         title=job.get("title") or "the role",
-        description=description[:4000],
+        description=description[:MAX_DESCRIPTION_CHARS],
         summary=" ".join(summary["text"].split()),
         bullets=listing,
     )
@@ -398,5 +416,6 @@ def tailor(
         keywords_matched=matched,
         keywords_missing=missing,
         model=usage.model,
+        prompt_hash=hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:16],
     )
     return verify_draft(draft, profile)

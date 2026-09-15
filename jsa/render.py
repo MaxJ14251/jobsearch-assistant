@@ -117,7 +117,8 @@ def render_resume(
 
     exp_written = False
     for exp in profile.get("experience") or []:
-        texts = by_parent.get(f"experience::{exp.get('company')}")
+        texts = by_parent.get(
+            f"experience::{exp.get('id') or exp.get('company')}")
         if not texts:
             continue
         if not exp_written:
@@ -143,7 +144,8 @@ def render_resume(
 
     proj_written = False
     for proj in profile.get("projects") or []:
-        texts = by_parent.get(f"project::{proj.get('name')}")
+        texts = by_parent.get(
+            f"project::{proj.get('id') or proj.get('name')}")
         if not texts:
             continue
         if not proj_written:
@@ -268,5 +270,21 @@ def prompt_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
-def output_path(company: str, title: str, kind: str) -> Path:
-    return OUTPUT_DIR / slug(company) / slug(title) / f"{kind}.docx"
+def next_version(con: sqlite3.Connection, job_id: int | None, kind: str) -> int:
+    """The version a new document of this kind for this job would take."""
+    return int(con.execute(
+        "SELECT COALESCE(MAX(version), 0) + 1 FROM documents "
+        "WHERE job_id IS ? AND kind = ?", (job_id, kind),
+    ).fetchone()[0])
+
+
+def output_path(company: str, title: str, kind: str, version: int = 1) -> Path:
+    """Where a rendered document lives.
+
+    The version is in the FILENAME, not just the documents row. Without it a
+    redraft overwrites the file its predecessor's row still points at -- and
+    since approval is per version (ADR 0003 decision 3), an approved document
+    would silently come to mean different content than the human approved.
+    """
+    name = f"{kind}.docx" if version <= 1 else f"{kind}-v{version}.docx"
+    return OUTPUT_DIR / slug(company) / slug(title) / name

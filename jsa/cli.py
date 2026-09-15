@@ -269,6 +269,103 @@ def cmd_models(args: argparse.Namespace) -> int:
     return 0
 
 
+# --- tailoring ---------------------------------------------------------------
+# See docs/decisions/0003-application-lifecycle.md. The document is the unit
+# that gets approved, per version, so every redraft is a new row, a new file
+# and a new pending decision.
+
+KIND_ARG = {"resume": "resume", "cover-letter": "cover_letter"}
+
+
+def _cover_body(draft) -> str:
+    """Compose the letter from the ALREADY-VERIFIED draft.
+
+    Deliberately no second model call. Every sentence below has passed
+    verify_draft; asking a model for fresh prose here would open a fabrication
+    surface that nothing downstream checks.
+    """
+    parts = [draft.summary] + [b.text for b in draft.bullets[:3]]
+    return "\n\n".join(part for part in parts if part and part.strip())
+
+
+def cmd_tailor(args: argparse.Namespace) -> int:
+    from . import render
+    from .tailor import FabricationError, IdentityLeakError, UndecidedPreferenceError
+    from .tailor import tailor as build_draft
+
+    kind = KIND_ARG[args.kind]
+    con = db.connect()
+    try:
+        job = con.execute(
+            "SELECT j.*, c.name AS company FROM jobs j "
+            "LEFT JOIN companies c ON c.id = j.company_id WHERE j.id = ?",
+            (args.job_id,),
+        ).fetchone()
+        if job is None:
+            print(f"error: no job with id {args.job_id}", file=sys.stderr)
+            return 1
+        job = dict(job)
+
+        # ADR 0003 decision 1: an application is created explicitly.
+        application_id = approvals.require_application(con, args.job_id)
+
+        existing = render.next_version(con, args.job_id, kind) - 1
+        if existing and not args.force:
+            print(f"error: {kind} v{existing} already exists for job "
+                  f"{args.job_id}. Re-run with --force to draft v{existing + 1}.",
+                  file=sys.stderr)
+            return 1
+
+        profile = load_profile()
+        full = len(job.get("description") or "")
+        draft = build_draft(job, profile)
+
+        version = render.next_version(con, args.job_id, kind)
+        out = render.output_path(job.get("company") or "unknown",
+                                 job.get("title") or "role", kind, version)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        if kind == "resume":
+            render.render_resume(draft, profile, job, out)
+        else:
+            render.render_cover_letter(draft, profile, job, _cover_body(draft), out)
+
+        document_id = render.record(
+            con, job_id=args.job_id, kind=kind, path=out, draft=draft,
+            prompt_hash=draft.prompt_hash,
+        )
+        approvals.set_document_pointer(con, application_id, kind, document_id)
+        approvals.record_event(
+            con, application_id, "ready", actor="agent",
+            note=f"{kind} v{version} drafted, awaiting approval")
+        approval_id = approvals.queue(
+            con, "document", document_id,
+            f"{kind} v{version} for {job.get('title')} at {job.get('company')}")
+        con.commit()
+    except (approvals.ApprovalError, UndecidedPreferenceError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    except (FabricationError, IdentityLeakError) as exc:
+        # The guard fired. That is the system working, not a crash.
+        print(f"refused: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        con.close()
+
+    from .tailor import MAX_DESCRIPTION_CHARS
+    if full > MAX_DESCRIPTION_CHARS:
+        # Silent truncation is how a draft ends up ignoring a requirement that
+        # was stated in the part the model never saw.
+        print(f"note: posting is {full:,} chars; the model saw the first "
+              f"{MAX_DESCRIPTION_CHARS:,}", file=sys.stderr)
+    print(f"wrote {out}")
+    print(f"  document {document_id} v{version}  model {draft.model}")
+    print(f"  bullets  {', '.join(b.source_id for b in draft.bullets)}")
+    if draft.keywords_missing:
+        print(f"  gaps     {', '.join(draft.keywords_missing)}")
+    print(f"  approve  jsa approve {approval_id}")
+    return 0
+
+
 # --- application lifecycle and approval -------------------------------------
 # See docs/decisions/0003-application-lifecycle.md. These commands, and the web
 # routes that call the same approvals functions, are the only ways a decision
@@ -443,6 +540,14 @@ def main(argv: list[str] | None = None) -> int:
     p_serve.add_argument("--host", default="127.0.0.1")
     p_serve.add_argument("--port", type=int, default=8765)
     p_serve.set_defaults(func=cmd_serve)
+
+    p_tail = sub.add_parser("tailor", help="draft a resume or cover letter")
+    p_tail.add_argument("job_id", type=int)
+    p_tail.add_argument("--kind", choices=sorted(KIND_ARG), default="resume")
+    p_tail.add_argument(
+        "--force", action="store_true",
+        help="draft a new version when one already exists")
+    p_tail.set_defaults(func=cmd_tailor)
 
     p_save = sub.add_parser("save", help="track a match as an application")
     p_save.add_argument("job_id", type=int)
