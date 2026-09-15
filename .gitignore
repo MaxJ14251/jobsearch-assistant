@@ -1,0 +1,26 @@
+.venv/
+# Local agent tooling (downloaded skills) — not part of the product.
+# NOTE: .gitignore has no trailing-comment syntax; a comment on the same
+# line becomes part of the pattern and silently matches nothing.
+.claude/
+__pycache__/
+*.pyc
+
+# --- personal data: never commit -------------------------------------------
+# Your filled-in profile holds your name, home address, phone and email.
+# Commit profile/master_profile.example.yaml instead.
+profile/master_profile.yaml
+
+# API keys.
+.env
+
+# The tracker holds your real application history.
+*.db
+*.db-wal
+*.db-shm
+
+# Generated resumes and cover letters contain your contact details.
+output/
+documents/
+
+*.log

@@ -1,0 +1,542 @@
+# Target companies and feeds for job discovery.
+#
+# `verified: true` means `python -m jsa verify` actually got listings back from
+# this endpoint. Last verified: 2026-09-09.
+#
+# Board tokens are not derivable from a company name — a wrong token 404s, or
+# worse, silently returns someone else's board. Re-run `python -m jsa verify`
+# after any edit here. `discover` skips anything unverified.
+#
+# Fields by kind:
+#   greenhouse/lever/ashby/workable   board
+#   workday                           tenant, wd, site
+#   custom                            handler  (see jsa/sources.py CUSTOM)
+#   rss                               url
+
+sources:
+
+  # ==========================================================================
+  # LA / SoCal — local roles, where a coffee chat is actually possible
+  # ==========================================================================
+
+  - company: ZipRecruiter
+    slug: ziprecruiter
+    kind: greenhouse
+    board: ziprecruiter
+    hq: Santa Monica, CA
+    priority: 1
+    verified: true          # 44 listings, 14 of them Santa Monica
+
+  - company: Snap
+    slug: snap
+    kind: custom
+    handler: snap
+    careers_url: https://careers.snap.com/jobs
+    hq: Santa Monica, CA
+    priority: 1
+    verified: true          # 178 listings, 5 Santa Monica
+    # Snap's feed carries no job description, so keyword scoring contributes
+    # nothing here and its scores read lower than a comparable Greenhouse role.
+
+  - company: GoodRx
+    slug: goodrx
+    kind: workday
+    tenant: goodrx
+    wd: wd1
+    site: careers           # NOT 'GoodRx' — that 404s
+    careers_url: https://www.goodrx.com/jobs
+    hq: Santa Monica, CA
+    priority: 1
+    verified: true          # 14 listings
+
+  - company: System1
+    slug: system1
+    kind: lever
+    board: system1
+    hq: Marina del Rey, CA
+    priority: 2
+    verified: true          # 5 listings, all Los Angeles
+
+  - company: SpaceX
+    slug: spacex
+    kind: greenhouse
+    board: spacex
+    hq: Hawthorne, CA
+    priority: 2
+    verified: true          # 2,373 listings, 644 Hawthorne
+
+  - company: Rocket Lab
+    slug: rocket-lab
+    kind: greenhouse
+    board: rocketlab
+    hq: Long Beach, CA
+    priority: 2
+    verified: true          # 470 listings, 210 Long Beach
+
+  - company: Vast
+    slug: vast
+    kind: greenhouse
+    board: vast
+    hq: Long Beach, CA
+    priority: 2
+    verified: true          # 196 listings, 171 Long Beach
+
+  - company: Riot Games
+    slug: riot-games
+    kind: greenhouse
+    board: riotgames
+    careers_url: https://www.riotgames.com/en/work-with-us/jobs
+    hq: Los Angeles, CA
+    priority: 2
+    verified: true          # 143 listings
+
+  - company: Scopely
+    slug: scopely
+    kind: greenhouse
+    board: scopely
+    hq: Culver City, CA
+    priority: 2
+    verified: true          # 178 listings
+
+  - company: ServiceTitan
+    slug: servicetitan
+    kind: workday
+    tenant: servicetitan
+    wd: wd1
+    site: ServiceTitan
+    careers_url: https://www.servicetitan.com/careers
+    hq: Glendale, CA
+    priority: 2
+    verified: true          # 86 listings
+
+  - company: Rivian
+    slug: rivian
+    kind: custom
+    handler: rivian
+    careers_url: https://careers.rivian.com/
+    hq: Irvine, CA
+    priority: 3
+    verified: true          # 743 listings (capped at 150 per run)
+
+  - company: GoGuardian
+    slug: goguardian
+    kind: greenhouse
+    board: goguardian
+    hq: El Segundo, CA
+    priority: 3
+    verified: true          # 12 listings — now mostly US-remote
+
+  - company: Sidecar Health
+    slug: sidecar-health
+    kind: greenhouse
+    board: sidecarhealth
+    hq: El Segundo, CA
+    priority: 3
+    verified: true          # 12 listings — now all remote
+
+  - company: Boulevard
+    slug: boulevard
+    kind: greenhouse
+    board: boulevard
+    hq: Los Angeles, CA
+    priority: 3
+    verified: true          # 17 listings — now Remote-USA
+
+  - company: Tebra
+    slug: tebra
+    kind: greenhouse
+    board: tebra
+    hq: Newport Beach, CA
+    priority: 3
+    verified: true          # 24 listings — US-remote + Costa Rica
+
+  - company: Match Group
+    slug: match-group
+    kind: lever
+    board: matchgroup
+    hq: Los Angeles / Dallas
+    priority: 3
+    verified: true          # 74 listings — LA presence via Tinder/Hinge
+
+  # ==========================================================================
+  # AI labs & developer tools
+  # ==========================================================================
+
+  - company: Anthropic
+    slug: anthropic
+    kind: greenhouse
+    board: anthropic
+    priority: 1
+    verified: true          # 599 listings
+
+  - company: OpenAI
+    slug: openai
+    kind: ashby
+    board: openai
+    priority: 1
+    verified: true          # 788 listings
+
+  - company: Scale AI
+    slug: scale-ai
+    kind: greenhouse
+    board: scaleai
+    priority: 2
+    verified: true          # 217 listings
+
+  - company: Perplexity AI
+    slug: perplexity
+    kind: ashby
+    board: perplexity       # NOT 'perplexity-ai' — that 404s
+    priority: 2
+    verified: true          # 113 listings
+
+  - company: Sierra
+    slug: sierra
+    kind: ashby
+    board: sierra
+    priority: 2
+    verified: true          # 210 listings
+
+  - company: Cohere
+    slug: cohere
+    kind: ashby
+    board: cohere
+    priority: 3
+    verified: true          # 142 listings
+
+  - company: LangChain
+    slug: langchain
+    kind: ashby
+    board: langchain
+    priority: 3
+    verified: true          # 107 listings
+
+  - company: Replit
+    slug: replit
+    kind: ashby
+    board: replit
+    priority: 2
+    verified: true          # 78 listings
+
+  - company: Baseten
+    slug: baseten
+    kind: ashby
+    board: baseten
+    priority: 3
+    verified: true          # 87 listings
+
+  - company: Modal
+    slug: modal
+    kind: ashby
+    board: modal
+    priority: 3
+    verified: true          # 30 listings
+
+  - company: Vercel
+    slug: vercel
+    kind: greenhouse
+    board: vercel
+    priority: 2
+    verified: true          # 87 listings
+
+  - company: Notion
+    slug: notion
+    kind: ashby            # Ashby, not Greenhouse
+    board: notion
+    priority: 3
+    verified: true          # 131 listings
+
+  - company: Hugging Face
+    slug: hugging-face
+    kind: workable
+    board: huggingface
+    careers_url: https://apply.workable.com/huggingface/
+    priority: 2
+    verified: true          # 6 listings
+
+  - company: CoreWeave
+    slug: coreweave
+    kind: greenhouse
+    board: coreweave
+    priority: 3
+    verified: true          # 290 listings — CoreWeave acquired Weights & Biases,
+                            # so W&B roles are posted here. NJ/NY/Sunnyvale, not LA.
+
+  # ==========================================================================
+  # Remote-first aggregators
+  # ==========================================================================
+
+  - company: "(aggregator) We Work Remotely"
+    slug: wwr
+    kind: rss
+    url: https://weworkremotely.com/categories/remote-programming-jobs.rss
+    priority: 3
+    verified: true          # 25 items
+
+  - company: "(aggregator) Hacker News jobs"
+    slug: hnjobs
+    kind: rss
+    url: https://hnrss.org/jobs
+    priority: 3
+    verified: true          # 20 items — YC-adjacent startups
+
+  - company: "(aggregator) Python.org jobs"
+    slug: pythonorg
+    kind: rss
+    url: https://www.python.org/jobs/feed/rss/
+    priority: 3
+    verified: true          # 20 items
+
+  # ==========================================================================
+  # No public feed
+  # ==========================================================================
+
+  # Cloudflare returns 403 to any non-browser client, and no Greenhouse /
+  # Lever / Ashby / Workday token responded. Check by hand.
+  - company: Whatnot
+    slug: whatnot
+    kind: manual
+    careers_url: https://careers.whatnot.com/
+    hq: Marina del Rey, CA
+    priority: 2
+    enabled: false
+    verified: false
+
+  # Probed on 2026-09-09 and found to have left the LA market — kept here so
+  # they don't get re-added by mistake:
+  #   Bird              greenhouse/bird            now Canada-heavy
+  #   Dollar Shave Club greenhouse/dollarshaveclub now Durham, NC
+  #   Tala              lever/tala                 now Mexico / India / Philippines
+  #   OpenX             lever/openx                now Krakow / New York
+  #   Fandom            greenhouse/fandom          now Poland / US-remote
+
+  # ==========================================================================
+  # San Diego
+  # ==========================================================================
+
+  - company: Shield AI
+    slug: shield-ai
+    kind: lever
+    board: shieldai
+    hq: San Diego, CA
+    priority: 2
+    verified: true          # 477 listings, 40 San Diego
+    # Many roles here require a security clearance; the scorer rejects those.
+
+  - company: Tealium
+    slug: tealium
+    kind: workday
+    tenant: tealium
+    wd: wd1
+    site: Careers
+    careers_url: https://tealium.com/careers/
+    hq: San Diego, CA
+    priority: 2
+    verified: true          # 8 listings
+
+  - company: Kyriba
+    slug: kyriba
+    kind: workday
+    tenant: kyriba
+    wd: wd5
+    site: Kyriba-Careers
+    careers_url: https://www.kyriba.com/company/careers/
+    hq: San Diego, CA
+    priority: 2
+    verified: true          # 18 listings
+
+  - company: Mitek Systems
+    slug: mitek
+    kind: lever
+    board: miteksystems-2   # note the -2 suffix; plain 'mitek' 404s
+    hq: San Diego, CA
+    priority: 3
+    verified: true
+
+  - company: Illumina
+    slug: illumina
+    kind: workday
+    tenant: illumina
+    wd: wd1
+    site: illumina-careers
+    careers_url: https://www.illumina.com/company/careers.html
+    hq: San Diego, CA
+    priority: 3
+    verified: true          # 141 listings
+
+  - company: Petco
+    slug: petco
+    kind: workday
+    tenant: petco
+    wd: wd504
+    site: External
+    search: engineer        # ~2,000 reqs, mostly retail — narrow server-side
+    careers_url: https://careers.petco.com/
+    hq: San Diego, CA
+    priority: 3
+    verified: true
+
+  - company: GoFundMe
+    slug: gofundme
+    kind: greenhouse
+    board: gofundme
+    hq: San Diego / SF
+    priority: 3
+    verified: true          # 37 listings, 3 San Diego
+
+  - company: Airspace
+    slug: airspace
+    kind: greenhouse
+    board: airspace
+    hq: Carlsbad, CA
+    priority: 3
+    verified: true          # 17 listings, 2 Carlsbad
+
+  # ==========================================================================
+  # South-central PA / Baltimore  (around Example Town [postal code])
+  # ==========================================================================
+
+  - company: Johnson Controls
+    slug: johnson-controls
+    kind: workday
+    tenant: jci
+    wd: wd5
+    site: JCI
+    search: engineer        # ~2,600 reqs globally — narrow server-side
+    careers_url: https://www.johnsoncontrols.com/careers
+    hq: Cork / Example Town PA operations
+    priority: 3
+    verified: true
+    # Relevant here because of the Example Town, PA facility — and because fire alarm
+    # and building-safety systems are literally Max's Riverton background.
+
+  - company: T. Rowe Price
+    slug: t-rowe-price
+    kind: workday
+    tenant: troweprice
+    wd: wd5
+    site: TRowePrice
+    careers_url: https://www.troweprice.com/corporate/us/en/careers.html
+    hq: Baltimore, MD
+    priority: 3
+    verified: true          # 137 listings — Baltimore is ~1hr from Example Town
+
+  - company: Gopuff
+    slug: gopuff
+    kind: lever
+    board: gopuff
+    hq: Philadelphia, PA
+    priority: 4
+    verified: true          # 781 listings — Philly is NOT commutable from
+                            # Example Town (~2hr); kept for remote-eligible roles
+
+  - company: Duolingo
+    slug: duolingo
+    kind: greenhouse
+    board: duolingo
+    hq: Pittsburgh, PA
+    priority: 4
+    verified: true          # 80 listings — Pittsburgh is ~3.5hr from Example Town;
+                            # kept for remote-eligible roles only
+
+  # ---- Probed 2026-09-14, no public feed ----------------------------------
+  # San Diego: Qualcomm and Dexcom run Eightfold, whose API returns 403 to
+  # non-browser clients. Intuit, ServiceNow, Teradata, Seismic, Brain Corp,
+  # Classy and Measurabl are client-rendered with no detectable board.
+  # PA: Utz (Example Town), WellSpan (Example Town), Rite Aid, D&H, Dentsply Sirona and
+  # Harley-Davidson (Example Town) all had no reachable feed.
+  - company: Qualcomm
+    slug: qualcomm
+    kind: manual
+    careers_url: https://careers.qualcomm.com/careers
+    hq: San Diego, CA
+    priority: 2
+    enabled: false
+    verified: false
+
+  - company: Utz Brands
+    slug: utz
+    kind: manual
+    careers_url: https://www.utzsnacks.com/pages/careers
+    hq: Hanover, PA
+    priority: 3
+    enabled: false
+    verified: false
+
+  # ---- Added 2026-09-14, round 2 ------------------------------------------
+
+  - company: ClickUp
+    slug: clickup
+    kind: ashby
+    board: clickup
+    hq: San Diego, CA
+    priority: 2
+    verified: true          # 61 listings, 3 San Diego office
+
+  - company: Element Biosciences
+    slug: element-biosciences
+    kind: greenhouse
+    board: elementbiosciences
+    hq: San Diego, CA
+    priority: 2
+    verified: true          # 16 listings, 13 at San Diego HQ — highest
+                            # SD-density feed found
+
+  - company: Highmark Health
+    slug: highmark
+    kind: workday
+    tenant: highmarkhealth
+    wd: wd1
+    site: highmark
+    search: engineer        # ~1,900 reqs, mostly clinical — narrow server-side
+    careers_url: https://careers.highmarkhealth.org/
+    hq: Pittsburgh, PA (statewide + PA work-from-home)
+    priority: 3
+    verified: true
+
+  - company: Geisinger
+    slug: geisinger
+    kind: workday
+    tenant: geisinger
+    wd: wd5
+    site: GeisingerExternal
+    search: analyst         # ~1,400 reqs, overwhelmingly clinical
+    careers_url: https://jobs.geisinger.org/
+    hq: Danville, PA
+    priority: 4
+    verified: true          # ~1.5hr from Example Town; mostly healthcare roles
+
+  - company: Becton Dickinson
+    slug: becton-dickinson
+    kind: workday
+    tenant: bdx
+    wd: wd1
+    site: EXTERNAL_CAREER_SITE_USA
+    search: engineer
+    careers_url: https://jobs.bd.com/
+    hq: NJ, with PA/MD sites
+    priority: 4
+    verified: true          # 620 listings
+
+  # ---- Eightfold: blocked --------------------------------------------------
+  # Qualcomm and Dexcom (both major San Diego employers) run Eightfold. Its
+  # API returns 403 to every non-browser client — five URL shapes tried on
+  # 2026-09-14 with full browser headers, Referer and Origin. This is the
+  # largest remaining hole in San Diego coverage. Check these by hand.
+  - company: Dexcom
+    slug: dexcom
+    kind: manual
+    careers_url: https://careers.dexcom.com/
+    hq: San Diego, CA
+    priority: 3
+    enabled: false
+    verified: false
+
+  # Probed with no result on 2026-09-14 (two rounds, 45 regional employers):
+  #   PA/MD — WellSpan, Utz (Example Town), Dentsply Sirona, Harley-Davidson,
+  #   Rite Aid, D&H, Penn State Health, Weis, Johns Hopkins, Stanley B&D,
+  #   Example Town General, Capital BlueCross, Penn Medicine, Erie Insurance.
+  #   Hershey, McCormick, Under Armour, TE Connectivity and Armstrong run
+  #   SuccessFactors, which needs a per-company ID not exposed on the page.
+  #   SD — Intuit, ServiceNow, Teradata, Seismic, Brain Corp, Tealium(done),
+  #   Classy, Measurabl, Lytx, ResMed, Cubic, Trust & Will.

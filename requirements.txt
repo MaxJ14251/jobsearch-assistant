@@ -1,0 +1,20 @@
+# Core
+httpx>=0.27.0            # job board feeds AND the LLM client
+PyYAML>=6.0.2            # master_profile.yaml
+python-docx>=1.1.2       # tailored resume / cover letter .docx output
+feedparser>=6.0.11       # RSS aggregators
+
+# Review dashboard (step 5)
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+jinja2>=3.1.4
+python-multipart>=0.0.9   # HTML form posts (approve/reject)
+
+# LLM: NVIDIA NIM (https://integrate.api.nvidia.com/v1) speaks the OpenAI
+# chat-completions shape, so jsa/llm.py talks to it over plain httpx — no
+# provider SDK needed. Point JSA_LLM_BASE_URL elsewhere to switch providers.
+# Auth comes from the NVIDIA_API_KEY environment variable and is never stored
+# in this repo.
+#
+# sqlite3 is stdlib — no dependency needed.
+# playwright is deliberately NOT here; add it only if a target board has no feed.

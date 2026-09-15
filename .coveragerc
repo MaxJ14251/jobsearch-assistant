@@ -1,0 +1,16 @@
+[run]
+source = jsa
+omit =
+    */site-packages/*
+    tests/*
+    tools/*
+
+[report]
+# Reported as measured. Excluding hard-to-test network code would inflate the
+# number without making the project safer.
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
+    raise NotImplementedError
+show_missing = False
+skip_covered = False

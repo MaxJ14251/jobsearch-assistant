@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.git/
+.github/
+.env
+profile/master_profile.yaml
+*.db
+*.db-wal
+*.db-shm
+output/
+documents/
+*.log
+.claude/

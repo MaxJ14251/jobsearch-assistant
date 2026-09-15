@@ -1,0 +1,31 @@
+services:
+  jobsearch:
+    build: .
+    image: jobsearch:latest
+    environment:
+      # Read from your shell or a local .env; never baked into the image.
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      JSA_CONTACT_EMAIL: ${JSA_CONTACT_EMAIL:-}
+      JSA_DB: /data/jobsearch.db
+    volumes:
+      - ./data:/data                                   # the tracker persists here
+      - ./profile:/app/profile:ro                      # your filled-in profile
+      - ./config/companies.yaml:/app/config/companies.yaml:ro
+      - ./output:/app/output                           # generated documents
+    command: ["discover", "--min", "0.5"]
+
+  dashboard:
+    build: .
+    image: jobsearch:latest
+    environment:
+      JSA_DB: /data/jobsearch.db
+      # Required INSIDE the container for the port mapping below to work.
+      # Safety comes from the host binding on the next lines: the port is
+      # published to 127.0.0.1 only, so it is unreachable from the network.
+      JSA_ALLOW_PUBLIC_BIND: "1"
+    volumes:
+      - ./data:/data
+      - ./profile:/app/profile:ro
+    ports:
+      - "127.0.0.1:8765:8765"
+    command: ["serve", "--host", "0.0.0.0", "--port", "8765"]

@@ -1,0 +1,464 @@
+# EXAMPLE master profile. Copy to `master_profile.yaml` and replace with your
+# own history, then keep that file out of version control — it holds your name,
+# address, phone and email.
+#
+#     cp profile/master_profile.example.yaml profile/master_profile.yaml
+#
+# Master profile — the single source of truth for all resume/cover-letter tailoring.
+# Every bullet is atomic and reusable. The tailoring module selects bullets by
+# `tags` / `family` against a job description, it never invents new claims.
+#
+# RULE: nothing in this file may be fabricated. Fields marked TODO are unanswered
+# and must stay empty until the candidate fills them in. A tailoring run must fail loudly
+# rather than guess at a TODO.
+
+schema_version: 1
+last_updated: 2026-09-09
+source_document: your_resume.pdf
+
+identity:
+  full_name: Your Full Name
+  preferred_name: You
+  pronouns: null
+  location:
+    street: 123 Example St
+    city: Your City
+    state: CA
+    postal_code: "00000"
+    country: USA
+  email: you@example.com
+  phone: "+1 (555) 555-5555"
+
+links:
+  linkedin: https://linkedin.com/in/your-handle
+  github: https://github.com/your-handle
+  portfolio: null
+  website: null
+
+# ---------------------------------------------------------------------------
+# Search preferences — drives the job-discovery filters (build step 3).
+# These are NOT on the resume; they are unanswered until you set them.
+# ---------------------------------------------------------------------------
+job_search_preferences:
+  target_titles:
+    - "AI Engineer"
+    - "LLM Engineer"
+    - "Applied AI Engineer"
+    - "Prompt Engineer"
+    - "Forward Deployed Engineer"
+    - "Solutions Engineer"
+    - "Solutions Architect"
+    - "Technical Account Manager"
+    - "Sales Engineer"
+    - "Support Engineer"
+    - "Technical Support Engineer"
+    - "Implementation Specialist"
+    - "Implementation Engineer"
+    - "Onboarding Engineer"
+    - "Python Developer"
+    - "Software Engineer"
+    - "Automation Engineer"
+    - "Data Analyst"
+  # Second tier: roles that lean on the candidate's proven sales experience rather than
+  # the engineering pivot. In scope, but deliberately ranked below anything in
+  # target_titles — a tier-2 match is multiplied by fallback_weight, so an
+  # engineering role always outranks a sales role of equivalent quality.
+  fallback_titles:
+    - "Account Executive"
+    - "Enterprise Account Executive"
+    - "Mid-Market Account Executive"
+    - "Account Manager"
+    - "Customer Success Manager"
+    - "Business Development Representative"
+    - "Sales Development Representative"
+  fallback_weight: 0.7
+
+  seniority: ["intern", "entry", "junior", "associate", "mid"]
+  work_arrangement: ["remote", "hybrid", "onsite"]
+  locations:
+    - "Remote (US)"
+    # Los Angeles — current home base
+    - "Los Angeles, CA"
+    - "Example Town, CA"
+    - "Example Town, CA"
+    - "Example Town, CA"
+    - "Example Town, CA"
+    # San Diego
+    - "San Diego, CA"
+    - "Example Town, CA"
+    - "Example Town, CA"
+    - "Example Town, CA"
+    # South-central PA / Baltimore (Example Town [postal code] area)
+    - "Example Town, PA"
+    - "Example Town, PA"
+    - "Example Town, PA"
+    - "Example Town, PA"
+    - "Baltimore, MD"
+  compensation_floor_usd: null   # TODO
+  work_authorization: null       # TODO e.g. "US citizen — no sponsorship required"
+  needs_visa_sponsorship: null   # TODO true/false
+  willing_to_relocate: null      # TODO
+  # Years of experience you can credibly claim. A posting demanding materially
+  # more than this is rejected outright by the discovery filter.
+  max_years_experience: 3
+
+  # Named commute regions for `matches --near <name>`. Each is a list of
+  # substrings matched against a listing's location text. Define whatever
+  # makes sense for where you'd actually work.
+  regions:
+    la:
+      - "Los Angeles"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+    sd:
+      - "San Diego"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town, CA"
+      - "Example Town, CA"
+    # Around Example Town PA [postal code]. Baltimore is ~1 hour. Philadelphia (~2hr) and
+    # Pittsburgh (~3.5hr) are deliberately excluded as non-commutable.
+    pa:
+      - "Example Town, PA"
+      - "Example Town, PA"
+      - "Example Town"
+      - "Example Town, PA"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Example Town"
+      - "Baltimore"
+      - "Example Town"
+      - "Example Town, MD"
+      - "Example Town, MD"
+      - "Example Town"
+      - "Example Town"
+
+  exclude_keywords:              # hard filters applied during discovery
+    - "Senior"
+    - "Staff"
+    - "Principal"
+    - "Tech Lead"
+    - "Team Lead"
+    - "Engineering Manager"
+    - "Product Manager"
+    - "Program Manager"
+    - "10+ years"
+    - "8+ years"
+    - "PhD required"
+    - "Security clearance"
+    - "Clearance"          # SpaceX/Anduril post many; a clearance is a hard blocker
+    - "Top Secret"
+    - "Polygraph"
+
+# ---------------------------------------------------------------------------
+# Summary variants. The tailoring module picks the closest `family` match and
+# then lightly rewords it against the JD — it does not write one from scratch.
+# ---------------------------------------------------------------------------
+summaries:
+  - id: sum_general
+    family: general
+    text: >-
+      Emerging AI practitioner with hands-on experience building real automation
+      pipelines using Claude and Gemini, not just coursework. Comfortable across the
+      full development cycle: prompt engineering, multi-API orchestration, and
+      cloud-native integration. Brings an uncommon combination of technical AI skills
+      and real-world sales experience, with a proven ability to learn complex systems
+      quickly and apply them to practical problems.
+  - id: sum_ai_eng
+    family: ai_engineering
+    text: >-
+      Self-directed AI practitioner building production-shaped LLM pipelines in Python
+      with Claude and Gemini — prompt design, multi-API orchestration, and cloud-native
+      integration. Currently shipping two applied projects: an automated video
+      highlight pipeline and a real-time streaming game data analysis tool.
+  - id: sum_customer_facing
+    family: customer_facing_technical
+    text: >-
+      Technical practitioner with a sales background: three years selling and installing
+      fire alarm and security systems, now building LLM automation pipelines in Python
+      with Claude and Gemini. Combines hands-on system knowledge with the customer-facing
+      skills to explain it — a fit for solutions, forward-deployed, and technical
+      account roles.
+
+# ---------------------------------------------------------------------------
+# Work experience. `bullets` are the reusable units.
+#   strength: how load-bearing the bullet is (1 = always include, 3 = filler)
+#   tags:     matched against JD keywords by the tailoring module
+# ---------------------------------------------------------------------------
+experience:
+  - id: exp_riv_sales
+    company: Riverton
+    company_descriptor: Fire Alarm & Security Systems
+    title: Sales Representative
+    location: null              # TODO — needed for a complete resume header
+    start: 2022-02
+    end: 2023-11
+    current: false
+    family: sales
+    bullets:
+      - id: b_riv_promo
+        strength: 1
+        text: >-
+          Promoted from installer to sales based on technical expertise and
+          customer-facing performance.
+        tags: [promotion, growth, customer-facing, technical-credibility]
+      - id: b_riv_sell
+        strength: 1
+        text: >-
+          Sold fire alarm and security system solutions to residential and commercial
+          clients, leveraging firsthand installation knowledge to build credibility and
+          close deals.
+        tags: [sales, solution-selling, b2b, b2c, technical-sales, customer-facing]
+      - id: b_riv_cycle
+        strength: 2
+        text: >-
+          Managed the full sales cycle from prospecting and site assessment through
+          proposal, negotiation, and close.
+        tags: [sales-cycle, prospecting, negotiation, account-management, ownership]
+
+  - id: exp_riv_installer
+    company: Riverton
+    company_descriptor: Fire Alarm & Security Systems
+    title: Installer
+    location: null              # TODO
+    start: 2021-01
+    end: 2022-02
+    current: false
+    family: technical_field
+    bullets:
+      - id: b_inst_install
+        strength: 1
+        text: >-
+          Installed and commissioned fire alarm panels, smoke/heat detectors, and
+          security systems in residential and commercial settings.
+        tags: [systems, hardware, commissioning, troubleshooting, hands-on]
+      - id: b_inst_codes
+        strength: 2
+        text: >-
+          Ensured all installations met safety codes and client specifications,
+          developing deep technical product knowledge that supported a move into sales.
+        tags: [compliance, standards, quality, attention-to-detail, documentation]
+
+# ---------------------------------------------------------------------------
+# Applied projects — the strongest evidence for technical roles.
+# `status: in_development` must be shown honestly on every tailored resume.
+# ---------------------------------------------------------------------------
+projects:
+  - id: proj_video_pipeline
+    name: Automated Highlight & Social-Short Video Pipeline
+    status: in_development
+    repo: null                  # TODO — link the GitHub repo once public
+    demo: null                  # TODO
+    stack: [Python, Claude API, Gemini API, cloud-native]
+    family: ai_engineering
+    bullets:
+      - id: b_vid_design
+        strength: 1
+        text: >-
+          Designing and iterating on a cloud-native pipeline using Claude and Gemini
+          with Python to automatically identify highlight-worthy moments in raw video
+          footage.
+        tags: [python, llm, claude, gemini, pipeline, cloud-native, multimodal, video]
+      - id: b_vid_captions
+        strength: 1
+        text: >-
+          Architected closed-caption generation and segment-stitching logic to produce
+          short-form clips ready for social media publishing.
+        tags: [python, media-processing, automation, architecture, captions, ffmpeg-adjacent]
+      - id: b_vid_goal
+        strength: 2
+        text: >-
+          Goal: reduce a multi-hour manual editing workflow to a repeatable, automated
+          process, actively refining accuracy of AI-identified highlights.
+        tags: [automation, workflow, evaluation, accuracy, iteration]
+
+  - id: proj_game_data
+    name: Live Streaming Game Data Analysis Tool
+    status: in_development
+    repo: null                  # TODO
+    demo: null
+    stack: [Python, Claude API, Gemini API]
+    family: data_ml
+    bullets:
+      - id: b_game_build
+        strength: 1
+        text: >-
+          Building a Python-based application using Claude and Gemini to analyze
+          streaming game data and surface relevant insights in real time.
+        tags: [python, real-time, streaming, data-analysis, llm, claude, gemini]
+      - id: b_game_apis
+        strength: 1
+        text: >-
+          Integrating multiple AI APIs into a single cloud-native workflow; gaining
+          direct, practical experience in AI orchestration, prompt design, and
+          automation architecture.
+        tags: [api-integration, orchestration, prompt-engineering, cloud-native, architecture]
+
+  # Self-referential: this repo is a legitimate portfolio project. Bullets stay
+  # empty until it actually does the thing — do not claim it before it ships.
+  - id: proj_job_agent
+    name: Agentic Job Search Assistant
+    status: in_development
+    repo: null
+    demo: null
+    stack: [Python, SQLite, Claude API, FastAPI]
+    family: ai_engineering
+    bullets: []                 # TODO — write these from what actually gets built
+
+certifications:
+  - id: cert_umich_genai
+    name: Applied Generative AI Specialization
+    issuer: University of Michigan College of Engineering
+    issued: 2026
+    credential_url: null        # TODO — add the verification link
+    description: >-
+      Hands-on program covering large language model application design, prompt
+      engineering, and deployment of generative AI tools (Claude, Gemini) for
+      real-world automation tasks.
+  - id: cert_simplilearn_bundle
+    name: Simplilearn ME-AGS Course Certificates
+    issuer: Simplilearn
+    issued: 2026-06
+    credential_url: null        # TODO
+    components:
+      - name: AI Literacy
+        result: Project passed
+        date: 2026-03
+      - name: "Advanced Generative AI: Models and Architecture"
+        result: Test passed
+        date: 2026-06
+      - name: "Advanced Generative AI: Building LLM Applications"
+        result: Project passed
+        date: 2026-06
+      - name: "Advanced Generative AI: Agentic AI Frameworks With Model Context and Tooling Protocols"
+        result: Project passed
+        date: 2026-06
+      - name: "Advanced Generative AI: Image Generation"
+        result: Test passed
+        date: 2026-06
+      - name: Generative AI Governance
+        result: Test passed
+        date: 2026-06
+
+education:
+  - id: edu_example
+    institution: Your University
+    credential: BS Computer Science          # or e.g. "Coursework completed (degree not conferred)"
+    field: Computer Science
+    start: 2018
+    end: 2022
+    # State your credential exactly and honestly. If a degree was not
+    # conferred, say so — and still state the FIELD, which is what most
+    # "BS in X or equivalent experience" postings actually care about.
+
+skills:
+  ai_tools:
+    - Claude
+    - Gemini
+    - Prompt Engineering
+    - LLM Application Design
+    - Agentic Workflows
+  technical:
+    - Python
+    - Cloud-Native Application Development
+    - Automation Pipelines
+    - API Integration
+  applied_focus:
+    - Video/Media Automation
+    - Data Analysis
+    - Rapid Prototyping
+    - Self-Directed Learning
+  # TODO: these are conspicuously absent and most JDs will screen on them.
+  # Add only what you can defend in an interview.
+  unverified_candidates:
+    - Git / GitHub
+    - SQL
+    - REST APIs
+    - Docker
+    - AWS / GCP / Azure (which one?)
+    - FastAPI / Flask
+    - pandas
+
+# ---------------------------------------------------------------------------
+# ATS keyword bank. The tailoring module scores a JD against `have` and reports
+# `missing` so the candidate knows the real gap instead of keyword-stuffing.
+# ---------------------------------------------------------------------------
+ats_keywords:
+  have:
+    - Python
+    - Large Language Models
+    - LLM
+    - Generative AI
+    - Prompt Engineering
+    - Claude
+    - Gemini
+    - API Integration
+    - Automation
+    - Cloud-Native
+    - Agentic Workflows
+    - Model Context Protocol
+    - Data Analysis
+    - Rapid Prototyping
+    - Technical Sales
+    - Customer-Facing
+  # Never insert these into a resume unless the underlying skill becomes true.
+  aspirational_do_not_claim:
+    - Kubernetes
+    - Distributed Systems
+    - Production ML
+    - PyTorch
+    - TensorFlow
+    - Java
+    - C++
+    - React
+
+# ---------------------------------------------------------------------------
+# Honest positioning notes. Used by the tailoring and interview-prep modules;
+# never printed on a resume.
+# ---------------------------------------------------------------------------
+gaps_and_notes:
+  - id: gap_no_swe_employment
+    note: >-
+      No paid software engineering employment yet. Both technical projects are
+      self-directed and in development. Discovery should target entry/junior/
+      associate roles, apprenticeships, and AI-adjacent customer-facing roles
+      (solutions engineer, forward-deployed engineer, technical support engineer)
+      where the sales background is an asset rather than a detour.
+  - id: gap_employment_break
+    note: >-
+      Gap from November 2023 to present. Frame as a deliberate pivot into AI:
+      certifications completed 2026 plus two applied projects. Have a one-sentence
+      answer ready — the interview-prep module should drill this.
+  - id: gap_no_shipped_repo
+    note: >-
+      Nothing public on GitHub yet is the single biggest fixable weakness. One
+      finished, documented repo would outweigh another certificate.
+  - id: strength_sales
+    note: >-
+      Three years of real revenue-facing work is genuinely differentiating against
+      other career-changers. Lead with it for any role that touches a customer.

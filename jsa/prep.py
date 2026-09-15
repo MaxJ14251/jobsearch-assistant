@@ -1,0 +1,294 @@
+"""Interview preparation generated from a specific posting.
+
+Two questions arrive in nearly every screen for this candidate, and both are
+answerable well — but only if the answer is prepared rather than improvised:
+
+  * The employment gap since November 2023.
+  * The degree that was never conferred, against the 57% of matched postings
+    that state a degree requirement.
+
+The second is where a model will quietly do damage. Asked to write a confident
+answer, it reaches for fluent phrasing — "my degree in Computer Science",
+"after I graduated" — which is natural, persuasive and false. `DEGREE_DENY`
+below is checked against every generated answer, and `tests/test_prep.py`
+proves the check works.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import sqlite3
+from dataclasses import dataclass, field
+from typing import Any
+
+from . import db, llm
+from .tailor import collect_bullets, scrub_prompt, term_pattern
+
+# Phrasings that assert a conferred degree. Checked case-insensitively against
+# every generated answer. Fluent and false is the failure mode being caught.
+DEGREE_DENY = [
+    "my degree in",
+    "my degree from",
+    "graduated with",
+    "graduated from",
+    "i graduated",
+    "when i graduated",
+    "after graduating",
+    "i hold a degree",
+    "i have a degree",
+    "i earned a degree",
+    "earned my degree",
+    "i hold a bachelor",
+    "i have a bachelor",
+    "my bachelor's",
+    "my bachelors",
+    "completed my degree",
+    "finished my degree",
+    "received my degree",
+    "obtained my degree",
+    "bs in computer science",
+    "b.s. in computer science",
+    "phd",
+    "doctorate",
+    "my alma mater",
+]
+
+
+class DegreeClaimError(RuntimeError):
+    """Generated prep implied a credential that was never awarded."""
+
+
+@dataclass
+class Question:
+    question: str
+    why: str
+    answer_notes: str
+
+
+@dataclass
+class Prep:
+    application_id: int
+    round: str
+    questions: list[Question] = field(default_factory=list)
+    company_brief: str = ""
+    model: str = ""
+
+
+# A literal list cannot keep up with conjugation: "obtained my degree" was
+# listed, "obtaining my degree" was not, and the second sailed through. These
+# patterns cover the verb families instead of individual tenses.
+DEGREE_PATTERNS = [
+    # earn / obtain / receive / complete / finish / hold / have / get + a degree
+    re.compile(
+        r"\b(earn|obtain|receiv|complet|finish|hold|hav|get|got|attain)\w*\s+"
+        r"(my|a|an|the|his|her|their)\s+"
+        r"(degree|bachelor\w*|bs\b|b\.s\.|ba\b|masters?\b|phd|doctorate)",
+        re.I,
+    ),
+    # any form of "graduate" used of the speaker
+    re.compile(r"\b(i\s+)?graduat\w*\b", re.I),
+    # possessive degree claims
+    re.compile(r"\bmy\s+(degree|bachelor\w*|masters?|phd|doctorate|alma mater)\b", re.I),
+    # credentials never held at all
+    re.compile(r"\b(phd|ph\.d|doctorate)\b", re.I),
+    re.compile(r"\b(b\.?s\.?|bachelor'?s?)\s+in\s+computer\s+science\b", re.I),
+]
+
+
+# The honest framing necessarily mentions a degree — "I did NOT finish the
+# degree", "the degree was never conferred". A match preceded by a negation is
+# a denial, which is exactly what we want the text to say.
+_NEGATION = re.compile(
+    r"\b(not|never|n't|no|without|didn|couldn|haven|hasn|unfinished|"
+    r"incomplete|short of)\b[\s\w,'’]{0,40}$"
+)
+_NEGATION_WINDOW = 60
+
+
+def _is_negated(haystack: str, start: int) -> bool:
+    return bool(_NEGATION.search(haystack[max(0, start - _NEGATION_WINDOW):start]))
+
+
+def assert_no_degree_claim(text: str) -> str:
+    """Raise if the text ASSERTS a conferred degree.
+
+    Two refinements, both found by tests:
+
+    * A literal phrase list cannot keep up with tense — "obtained my degree"
+      was listed, "obtaining my degree" was not, and it passed. Hence the
+      verb-family patterns.
+    * Those patterns then flagged the honest answer, because "I did not finish
+      the degree" contains "finish the degree". A match preceded by a negation
+      is a denial, not a claim, so it is allowed through.
+    """
+    lowered = " ".join((text or "").lower().split())
+
+    for phrase in DEGREE_DENY:
+        index = lowered.find(phrase)
+        if index != -1 and not _is_negated(lowered, index):
+            raise DegreeClaimError(
+                f"generated prep contains {phrase!r}, which implies a degree "
+                "that was not conferred; the honest framing is coursework "
+                "completed in the field"
+            )
+
+    for pattern in DEGREE_PATTERNS:
+        for match in pattern.finditer(lowered):
+            if not _is_negated(lowered, match.start()):
+                raise DegreeClaimError(
+                    f"generated prep contains {match.group(0)!r}, which implies "
+                    "a degree that was not conferred; the honest framing is "
+                    "coursework completed in the field"
+                )
+    return text
+
+
+def degree_answer(profile: dict[str, Any]) -> str:
+    """The prepared answer, built from the profile rather than generated.
+
+    Deliberately not model-written: this is the highest-risk sentence in the
+    entire job search, and it should be identical every time it is delivered.
+    """
+    edu = (profile.get("education") or [{}])[0]
+    field_of_study = edu.get("field") or "my field"
+    institution = edu.get("institution") or "university"
+    start, end = edu.get("start"), edu.get("end")
+    years = f" from {start} to {end}" if start and end else ""
+    return (
+        f"I studied {field_of_study} at {institution}{years} and completed "
+        f"coursework there, though I did not finish the degree. Since then "
+        f"I've kept building in the field — the certifications in 2026 and the "
+        f"applied projects are where most of my current skill comes from. "
+        f"Where a posting asks for a degree or equivalent experience, the "
+        f"equivalent experience is what I'd point to."
+    )
+
+
+def gap_answer(profile: dict[str, Any]) -> str:
+    notes = {n["id"]: n["note"] for n in profile.get("gaps_and_notes") or []}
+    return (
+        "I left my last role in November 2023 and spent the time moving "
+        "deliberately into AI work rather than taking the next adjacent job. "
+        "That meant completing the certifications and, more importantly, "
+        "building real pipelines with the APIs rather than only studying them. "
+        + notes.get("gap_employment_break", "")[:0]
+    ).strip()
+
+
+def standard_drills(profile: dict[str, Any]) -> list[Question]:
+    """Always present, regardless of the posting."""
+    return [
+        Question(
+            question="Can you walk me through the gap since November 2023?",
+            why="Any reader of the resume will notice it; being unprepared "
+                "here reads as evasion rather than a deliberate pivot.",
+            answer_notes=gap_answer(profile),
+        ),
+        Question(
+            question="Tell me about your educational background.",
+            why="57% of matched postings state a degree requirement. This "
+                "answer must be identical every time and must never imply the "
+                "degree was conferred.",
+            answer_notes=degree_answer(profile),
+        ),
+    ]
+
+
+SYSTEM = (
+    "You write interview preparation. Every question must be grounded in the "
+    "job description you are given — quote or paraphrase the line that prompts "
+    "it. Answer notes may use ONLY the candidate facts supplied. Never invent "
+    "experience, credentials, metrics or employers. Output JSON only."
+)
+
+PROMPT = """Generate interview questions for this role.
+
+Return JSON: {{"questions": [{{"question": "...", "why": "the JD line that prompts this",
+"answer_notes": "what the candidate should draw on, from the facts below only"}}],
+"company_brief": "3 sentences on what this team appears to do, from the posting"}}
+
+Produce 5 questions for a {round} round.
+
+JOB TITLE: {title}
+COMPANY: {company}
+POSTING:
+{description}
+
+CANDIDATE FACTS — the only material available for answers:
+{bullets}
+
+The candidate completed coursework in {field} but the degree was NOT conferred.
+Never write that they hold, earned or graduated with a degree."""
+
+
+def generate(
+    con: sqlite3.Connection, application_id: int, *, round: str = "phone_screen",
+    profile: dict[str, Any] | None = None, models: list[str] | None = None,
+) -> Prep:
+    from .config import load_profile
+
+    profile = profile or load_profile()
+    row = con.execute(
+        """SELECT a.id AS app_id, j.title, j.description, j.degree_required,
+                  c.name AS company, c.research_notes
+             FROM applications a
+             JOIN jobs j ON j.id = a.job_id
+             JOIN companies c ON c.id = j.company_id
+            WHERE a.id = ?""",
+        (application_id,),
+    ).fetchone()
+    if row is None:
+        raise ValueError(f"no application with id {application_id}")
+
+    edu = (profile.get("education") or [{}])[0]
+    bullets = collect_bullets(profile).values()
+    prompt = PROMPT.format(
+        round=round.replace("_", " "),
+        title=row["title"], company=row["company"],
+        description=(row["description"] or "")[:4000],
+        bullets="\n".join(f"- {b.text}" for b in bullets),
+        field=edu.get("field") or "their field",
+    )
+    scrub_prompt(prompt, profile)
+
+    data, usage = llm.complete_json(
+        prompt, system=SYSTEM, models=models, max_tokens=1600,
+        temperature=0.3, thinking=False, attempts=2,
+    )
+
+    questions = list(standard_drills(profile))
+    for item in (data.get("questions") or []) if isinstance(data, dict) else []:
+        if not isinstance(item, dict):
+            continue
+        q = Question(
+            question=str(item.get("question") or "").strip(),
+            why=str(item.get("why") or "").strip(),
+            answer_notes=str(item.get("answer_notes") or "").strip(),
+        )
+        if q.question:
+            questions.append(q)
+
+    brief = str((data or {}).get("company_brief") or "") if isinstance(data, dict) else ""
+
+    # Every generated word is checked before it is stored.
+    for q in questions:
+        assert_no_degree_claim(q.answer_notes)
+        assert_no_degree_claim(q.question)
+    assert_no_degree_claim(brief)
+
+    prep = Prep(application_id=application_id, round=round,
+                questions=questions, company_brief=brief, model=usage.model)
+    save(con, prep)
+    return prep
+
+
+def save(con: sqlite3.Connection, prep: Prep) -> int:
+    """Insert a new row. Prior prep is never overwritten."""
+    cur = con.execute(
+        "INSERT INTO interview_prep (application_id, round, questions, "
+        "company_brief) VALUES (?,?,?,?)",
+        (prep.application_id, prep.round,
+         json.dumps([q.__dict__ for q in prep.questions]), prep.company_brief),
+    )
+    return int(cur.lastrowid)

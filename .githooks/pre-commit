@@ -1,0 +1,21 @@
+#!/bin/sh
+# Blocks a commit containing an API key or personal data.
+# Enable with:  git config core.hooksPath .githooks
+# Bypass only if certain:  git commit --no-verify
+
+# Prefer the project venv: a bare `python` may lack PyYAML, and the scanner
+# exits 2 rather than silently skipping the personal-data check.
+for candidate in .venv/Scripts/python.exe .venv/bin/python python3 python; do
+  if [ -x "$candidate" ] || command -v "$candidate" >/dev/null 2>&1; then
+    PY="$candidate"
+    break
+  fi
+done
+
+"$PY" tools/scan_secrets.py --staged
+status=$?
+if [ $status -ne 0 ]; then
+  echo ""
+  echo "Commit blocked (scanner exit $status). Nothing was committed."
+  exit 1
+fi

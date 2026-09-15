@@ -1,0 +1,244 @@
+"""SQLite access. Every module in the project goes through here."""
+
+from __future__ import annotations
+
+import json
+import sqlite3
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Iterable
+
+from .config import DB_PATH, SCHEMA_PATH
+
+
+def utcnow() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def connect(path: Path = DB_PATH) -> sqlite3.Connection:
+    con = sqlite3.connect(path)
+    con.row_factory = sqlite3.Row
+    con.execute("PRAGMA foreign_keys = ON")
+    return con
+
+
+def init_db(path: Path = DB_PATH, schema: Path = SCHEMA_PATH) -> Path:
+    """Create or upgrade the database. Safe to run repeatedly."""
+    con = connect(path)
+    try:
+        con.executescript(schema.read_text(encoding="utf-8"))
+        migrate(con, schema)
+        con.commit()
+    finally:
+        con.close()
+    return path
+
+
+def migrate(con: sqlite3.Connection, schema: Path = SCHEMA_PATH) -> list[str]:
+    """Add columns the schema declares but an existing database lacks.
+
+    `CREATE TABLE IF NOT EXISTS` silently does nothing when the table already
+    exists, so new columns never appear in a database created by an older
+    version — and the failure shows up much later as a confusing "no such
+    column". Views are dropped and recreated for the same reason: a view is
+    frozen against the columns that existed when it was defined.
+
+    Only additive changes. Anything destructive is deliberately out of scope.
+    """
+    import re
+
+    text = schema.read_text(encoding="utf-8")
+    applied: list[str] = []
+
+    for table_match in re.finditer(
+        r"CREATE TABLE IF NOT EXISTS\s+(\w+)\s*\((.*?)\n\);", text, re.S
+    ):
+        table, body = table_match.group(1), table_match.group(2)
+        existing = {
+            row["name"]
+            for row in con.execute(f"PRAGMA table_info({table})").fetchall()
+        }
+        if not existing:
+            continue  # table is brand new; the script already created it
+        for line in body.splitlines():
+            # Strip trailing comments BEFORE the comma, or the generated
+            # `ADD COLUMN x TEXT, -- note` is invalid SQL and fails silently.
+            line = line.split("--")[0].strip().rstrip(",").strip()
+            if not line or line.startswith((
+                "PRIMARY", "UNIQUE", "FOREIGN", "CHECK", "CONSTRAINT",
+            )):
+                continue
+            col = line.split()[0]
+            if not col.isidentifier() or col in existing:
+                continue
+            # SQLite can't ALTER-ADD a column with a non-constant default,
+            # so strip DEFAULT (...) expressions; rows get NULL instead.
+            decl = re.sub(r"DEFAULT\s*\([^)]*\)", "", line).strip()
+            try:
+                con.execute(f"ALTER TABLE {table} ADD COLUMN {decl}")
+                applied.append(f"{table}.{col}")
+            except sqlite3.OperationalError:
+                pass
+
+    applied += _rebuild_approvals_if_stale(con, text)
+
+    if applied:
+        for row in con.execute(
+            "SELECT name FROM sqlite_master WHERE type='view'"
+        ).fetchall():
+            con.execute(f"DROP VIEW IF EXISTS {row['name']}")
+        con.executescript(text)
+    return applied
+
+
+def _rebuild_approvals_if_stale(con: sqlite3.Connection, schema_sql: str) -> list[str]:
+    """Drop a table-level UNIQUE that ALTER TABLE cannot remove.
+
+    Early versions carried UNIQUE (subject_type, subject_id, requested_at) on
+    approvals. Because requested_at has only second resolution, re-queueing a
+    redraft within the same second failed — the exact reject-then-re-render
+    path. SQLite cannot drop a table constraint, so the table is rebuilt.
+    """
+    row = con.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='approvals'"
+    ).fetchone()
+    if not row or "requested_at)" not in (row["sql"] or "").replace(" ", ""):
+        return []
+
+    cols = [r["name"] for r in con.execute("PRAGMA table_info(approvals)")]
+    con.executescript(
+        "PRAGMA foreign_keys=OFF;"
+        "ALTER TABLE approvals RENAME TO approvals_old;"
+    )
+    import re as _re
+
+    match = _re.search(
+        r"CREATE TABLE IF NOT EXISTS\s+approvals\s*\(.*?\n\);", schema_sql, _re.S
+    )
+    if match:
+        con.executescript(match.group(0))
+        shared = ", ".join(
+            c for c in cols
+            if c in {r["name"] for r in con.execute("PRAGMA table_info(approvals)")}
+        )
+        con.execute(
+            f"INSERT INTO approvals ({shared}) SELECT {shared} FROM approvals_old"
+        )
+    con.executescript("DROP TABLE approvals_old; PRAGMA foreign_keys=ON;")
+    return ["approvals(rebuilt: dropped stale UNIQUE)"]
+
+
+# --- upserts ---------------------------------------------------------------
+
+
+def upsert_company(
+    con: sqlite3.Connection,
+    *,
+    name: str,
+    slug: str,
+    careers_url: str | None = None,
+    priority: int = 3,
+) -> int:
+    row = con.execute("SELECT id FROM companies WHERE slug = ?", (slug,)).fetchone()
+    if row:
+        con.execute(
+            "UPDATE companies SET name = ?, priority = ?, "
+            "careers_url = COALESCE(?, careers_url), updated_at = ? WHERE id = ?",
+            (name, priority, careers_url, utcnow(), row["id"]),
+        )
+        return int(row["id"])
+    cur = con.execute(
+        "INSERT INTO companies (name, slug, careers_url, priority) VALUES (?,?,?,?)",
+        (name, slug, careers_url, priority),
+    )
+    return int(cur.lastrowid)
+
+
+def upsert_source(
+    con: sqlite3.Connection,
+    *,
+    name: str,
+    kind: str,
+    url: str,
+    company_id: int | None,
+    enabled: bool = True,
+) -> int:
+    row = con.execute("SELECT id FROM sources WHERE name = ?", (name,)).fetchone()
+    if row:
+        con.execute(
+            "UPDATE sources SET kind = ?, url = ?, company_id = ?, enabled = ? WHERE id = ?",
+            (kind, url, company_id, int(enabled), row["id"]),
+        )
+        return int(row["id"])
+    cur = con.execute(
+        "INSERT INTO sources (name, kind, url, company_id, enabled) VALUES (?,?,?,?,?)",
+        (name, kind, url, company_id, int(enabled)),
+    )
+    return int(cur.lastrowid)
+
+
+def mark_source_polled(
+    con: sqlite3.Connection, source_id: int, status: str
+) -> None:
+    con.execute(
+        "UPDATE sources SET last_polled_at = ?, last_status = ? WHERE id = ?",
+        (utcnow(), status, source_id),
+    )
+
+
+def upsert_job(con: sqlite3.Connection, job: dict[str, Any]) -> tuple[int, bool]:
+    """Insert or update a listing. Returns (job_id, is_new)."""
+    existing = con.execute(
+        "SELECT id, description_hash FROM jobs WHERE source_id IS ? AND external_id IS ?",
+        (job.get("source_id"), job.get("external_id")),
+    ).fetchone()
+
+    payload = {
+        "company_id": job["company_id"],
+        "source_id": job.get("source_id"),
+        "external_id": job.get("external_id"),
+        "title": job["title"],
+        "department": job.get("department"),
+        "location": job.get("location"),
+        "remote": job.get("remote") or "unknown",
+        "employment_type": job.get("employment_type") or "unknown",
+        "seniority": job.get("seniority") or "unknown",
+        "salary_min": job.get("salary_min"),
+        "salary_max": job.get("salary_max"),
+        "url": job["url"],
+        "description": job.get("description"),
+        "description_hash": job.get("description_hash"),
+        "posted_at": job.get("posted_at"),
+        "match_score": job.get("match_score"),
+        "match_reasons": json.dumps(job.get("match_reasons") or []),
+        "dedup_key": job.get("dedup_key"),
+        "track": job.get("track") or "engineering",
+    }
+
+    if existing:
+        cols = ", ".join(f"{k} = :{k}" for k in payload)
+        con.execute(
+            f"UPDATE jobs SET {cols}, closed_at = NULL WHERE id = :id",
+            {**payload, "id": existing["id"]},
+        )
+        return int(existing["id"]), False
+
+    cols = ", ".join(payload)
+    binds = ", ".join(f":{k}" for k in payload)
+    cur = con.execute(f"INSERT INTO jobs ({cols}) VALUES ({binds})", payload)
+    return int(cur.lastrowid), True
+
+
+def close_missing_jobs(
+    con: sqlite3.Connection, source_id: int, seen_external_ids: Iterable[str]
+) -> int:
+    """Mark listings that vanished from a feed as closed."""
+    seen = list(seen_external_ids)
+    placeholders = ",".join("?" * len(seen)) or "NULL"
+    cur = con.execute(
+        f"UPDATE jobs SET closed_at = ? "
+        f"WHERE source_id = ? AND closed_at IS NULL "
+        f"AND external_id NOT IN ({placeholders})",
+        (utcnow(), source_id, *seen),
+    )
+    return cur.rowcount
