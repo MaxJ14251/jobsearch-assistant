@@ -16,7 +16,7 @@ from pathlib import Path
 
 import yaml
 
-from . import db, discover
+from . import approvals, db, discover
 from .config import COMPANIES_PATH, DB_PATH, ConfigError, Preferences, load_profile
 
 
@@ -269,6 +269,114 @@ def cmd_models(args: argparse.Namespace) -> int:
     return 0
 
 
+# --- application lifecycle and approval -------------------------------------
+# See docs/decisions/0003-application-lifecycle.md. These commands, and the web
+# routes that call the same approvals functions, are the only ways a decision
+# reaches decided_by='human'.
+
+
+def _job_line(con, job_id: int) -> str:
+    row = con.execute(
+        "SELECT j.title, c.name FROM jobs j "
+        "LEFT JOIN companies c ON c.id = j.company_id WHERE j.id = ?",
+        (int(job_id),),
+    ).fetchone()
+    if row is None:
+        return f"job {job_id}"
+    return f"{row['title']} at {row['name'] or 'unknown company'}"
+
+
+def cmd_save(args: argparse.Namespace) -> int:
+    con = db.connect()
+    try:
+        application_id, created = approvals.save_application(
+            con, args.job_id, note=args.note)
+        con.commit()
+        line = _job_line(con, args.job_id)
+    except approvals.ApprovalError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        con.close()
+    verb = "saved" if created else "already saved"
+    print(f"{verb}: application {application_id} -- {line}")
+    return 0
+
+
+def cmd_review(args: argparse.Namespace) -> int:
+    con = db.connect()
+    try:
+        items = approvals.pending(con)
+        if args.approval_id:
+            items = [i for i in items if i.approval_id == args.approval_id]
+            if not items:
+                print(f"no pending approval with id {args.approval_id}",
+                      file=sys.stderr)
+                return 1
+        if not items:
+            print("nothing awaiting approval")
+            return 0
+        for item in items:
+            print(f"[{item.approval_id}] {item.subject_type} {item.subject_id}"
+                  f"  requested {item.requested_at}")
+            print(f"     {item.summary}")
+            if args.approval_id:
+                print(f"     approve:  jsa approve {item.approval_id}")
+                print(f"     reject :  jsa reject {item.approval_id} "
+                      '--feedback "what to change"')
+    finally:
+        con.close()
+    return 0
+
+
+def cmd_approve(args: argparse.Namespace) -> int:
+    con = db.connect()
+    try:
+        approvals.approve(con, args.approval_id, args.note)
+        con.commit()
+    except approvals.ApprovalError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        con.close()
+    print(f"approved {args.approval_id}")
+    return 0
+
+
+def cmd_reject(args: argparse.Namespace) -> int:
+    con = db.connect()
+    try:
+        approvals.reject(con, args.approval_id, args.feedback)
+        con.commit()
+    except approvals.ApprovalError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        con.close()
+    print(f"rejected {args.approval_id}")
+    return 0
+
+
+def cmd_applied(args: argparse.Namespace) -> int:
+    con = db.connect()
+    try:
+        application_id, approved = approvals.mark_applied(
+            con, args.job_id, when=args.date)
+        con.commit()
+        line = _job_line(con, args.job_id)
+    except approvals.ApprovalError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        con.close()
+    print(f"marked applied: application {application_id} -- {line}")
+    if not approved:
+        # Not a refusal. The tracker records what happened; see ADR 0003 #4.
+        print("note: no approved document on file for this job.",
+              file=sys.stderr)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="jsa", description=__doc__)
     parser.add_argument(
@@ -335,6 +443,32 @@ def main(argv: list[str] | None = None) -> int:
     p_serve.add_argument("--host", default="127.0.0.1")
     p_serve.add_argument("--port", type=int, default=8765)
     p_serve.set_defaults(func=cmd_serve)
+
+    p_save = sub.add_parser("save", help="track a match as an application")
+    p_save.add_argument("job_id", type=int)
+    p_save.add_argument("--note")
+    p_save.set_defaults(func=cmd_save)
+
+    p_rev = sub.add_parser("review", help="list what is awaiting your decision")
+    p_rev.add_argument("approval_id", type=int, nargs="?")
+    p_rev.set_defaults(func=cmd_review)
+
+    p_app = sub.add_parser("approve", help="record YOUR approval")
+    p_app.add_argument("approval_id", type=int)
+    p_app.add_argument("--note")
+    p_app.set_defaults(func=cmd_approve)
+
+    p_rej = sub.add_parser("reject", help="record YOUR rejection, with feedback")
+    p_rej.add_argument("approval_id", type=int)
+    p_rej.add_argument(
+        "--feedback", required=True,
+        help="what to change; a redraft has nothing to work from without it")
+    p_rej.set_defaults(func=cmd_reject)
+
+    p_done = sub.add_parser("applied", help="record that YOU submitted it")
+    p_done.add_argument("job_id", type=int)
+    p_done.add_argument("--date", help="ISO timestamp; defaults to now")
+    p_done.set_defaults(func=cmd_applied)
 
     sub.add_parser(
         "env", help="show where config and the API key are coming from"
