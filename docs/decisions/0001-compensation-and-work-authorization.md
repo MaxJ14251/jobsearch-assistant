@@ -9,9 +9,14 @@ authorization real scoring inputs" goal.
 
 `job_search_preferences` carried four nulls since the profile was written:
 `compensation_floor_usd`, `work_authorization`, `needs_visa_sponsorship`,
-`willing_to_relocate`. Scoring ignored all four, and a guard in the tailoring
-path fails loudly when one is null — so nothing that generates documents could
-run.
+`willing_to_relocate`. Scoring ignored all four.
+
+The goal that opened this ADR stated that a guard in the tailoring path
+already failed loudly on these nulls. **That was not true.** Goal 01 specified
+such a guard and it was never built — `grep` for `work_authorization` in
+`jsa/tailor.py` returned nothing. Tailoring would have proceeded on a null
+`work_authorization` and let the model decide what to say about it. The guard
+was written as part of this ADR's work (see Consequences).
 
 The goal that opened this ADR assumed the fix was to fill the fields in and
 wire a compensation floor into ranking. Grounding the review in the actual
@@ -136,8 +141,12 @@ who has to make a decision.
 
 ## Consequences
 
-- Goal 01's fail-loudly-on-null guard stops tripping; document generation is
-  unblocked.
+- `UndecidedPreferenceError` was **added** in `jsa/tailor.py`, implementing the
+  guard Goal 01 specified but never built. It refuses to draft while
+  `work_authorization` is null or blank, naming the field. The compensation
+  floor is deliberately NOT on that required list: a floor governs which jobs
+  to pursue, not what a resume says, and blocking document generation over it
+  would fail for a reason unrelated to the document.
 - Ranking is unchanged by this ADR. Any future ranking change from
   compensation is a separate, reviewed decision.
 - Salary extraction is out of scope and non-trivial: multi-level ranges,
