@@ -78,6 +78,113 @@ class ConfigError(RuntimeError):
     """Raised when configuration is missing or contains an unresolved TODO."""
 
 
+NO_FLOOR = "no_floor"
+
+
+@dataclass(frozen=True)
+class CompFloor:
+    """A parsed compensation_floor_usd. See docs/decisions/0001-*.md.
+
+    Three states are deliberately distinguishable, because "I have not decided"
+    and "I have no floor" are different answers and conflating them is how the
+    field sat null for months while reading as no constraint:
+
+        None (not this class)  undecided  -- discovery proceeds, tailoring refuses
+        CompFloor(no_floor)    none wanted
+        CompFloor(default=..)  a floor, optionally per region
+
+    Nothing in scoring consumes this yet, by decision: every jobs.salary_min is
+    null because nothing extracts salary. A floor wired in today would be a
+    no-op that looked like a feature.
+    """
+
+    no_floor: bool = False
+    default: int | None = None
+    by_region: dict[str, int] = field(default_factory=dict)
+
+    def for_region(self, region: str | None = None) -> int | None:
+        """The floor that applies in `region`, or None when there is none."""
+        if self.no_floor:
+            return None
+        if region and region in self.by_region:
+            return self.by_region[region]
+        return self.default
+
+
+def parse_compensation_floor(value: Any, regions: dict[str, Any]) -> CompFloor | None:
+    """Validate the SHAPE of compensation_floor_usd. None means undecided.
+
+    Raises ConfigError on anything malformed rather than guessing, because a
+    floor that silently reads as zero is indistinguishable from no floor.
+    """
+    if value is None:
+        return None
+    # bool before int: isinstance(True, int) is True in Python, and `true` is
+    # not a compensation floor.
+    if isinstance(value, bool):
+        raise ConfigError(
+            "master_profile.yaml: compensation_floor_usd is true/false. Use "
+            f"{NO_FLOOR!r} if you have no floor, or a number."
+        )
+    if isinstance(value, str):
+        if value.strip() == NO_FLOOR:
+            return CompFloor(no_floor=True)
+        raise ConfigError(
+            f"master_profile.yaml: compensation_floor_usd is {value!r}. The only "
+            f"string accepted is {NO_FLOOR!r}; otherwise use a number or a map "
+            "keyed to job_search_preferences.regions."
+        )
+    if isinstance(value, int):
+        if value < 0:
+            raise ConfigError(
+                f"master_profile.yaml: compensation_floor_usd is {value}, which "
+                "is negative."
+            )
+        return CompFloor(default=value)
+    if isinstance(value, dict):
+        known = set(regions) | {"default"}
+        floors: dict[str, int] = {}
+        default: int | None = None
+        for key, amount in value.items():
+            if key not in known:
+                raise ConfigError(
+                    f"master_profile.yaml: compensation_floor_usd has key "
+                    f"{key!r}, which is not 'default' and not one of your "
+                    f"regions ({', '.join(sorted(regions)) or 'none defined'})."
+                )
+            if isinstance(amount, bool) or not isinstance(amount, int) or amount < 0:
+                raise ConfigError(
+                    f"master_profile.yaml: compensation_floor_usd[{key!r}] is "
+                    f"{amount!r}, which is not a non-negative number."
+                )
+            if key == "default":
+                default = amount
+            else:
+                floors[key] = amount
+        if default is None and not floors:
+            raise ConfigError(
+                "master_profile.yaml: compensation_floor_usd is an empty map. "
+                f"Give a 'default', a region, or use {NO_FLOOR!r}."
+            )
+        return CompFloor(default=default, by_region=floors)
+    raise ConfigError(
+        f"master_profile.yaml: compensation_floor_usd is a "
+        f"{type(value).__name__}, which is not a number, a map, or {NO_FLOOR!r}."
+    )
+
+
+def parse_tristate(value: Any, name: str) -> bool | None:
+    """A yes/no answer that may legitimately not have been given yet."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    raise ConfigError(
+        f"master_profile.yaml: job_search_preferences.{name} is {value!r}. "
+        "Use true, false, or leave it null until you have decided."
+    )
+
+
 @dataclass
 class Preferences:
     """The subset of the master profile that drives discovery."""
@@ -97,6 +204,12 @@ class Preferences:
     max_years_experience: int = 3
     # Named commute regions -> city substrings, for `matches --near <name>`.
     regions: dict[str, list[str]] = field(default_factory=dict)
+    # Compensation and authorization. Stored and validated; NOT used by scoring.
+    # docs/decisions/0001-compensation-and-work-authorization.md explains why.
+    compensation_floor: "CompFloor | None" = None
+    work_authorization: str | None = None
+    needs_visa_sponsorship: bool | None = None
+    willing_to_relocate: bool | None = None
 
     @classmethod
     def from_profile(cls, profile: dict[str, Any]) -> "Preferences":
@@ -121,6 +234,16 @@ class Preferences:
             fallback_weight=float(prefs.get("fallback_weight") or 0.7),
             max_years_experience=int(prefs.get("max_years_experience") or 3),
             regions={k: list(v) for k, v in (prefs.get("regions") or {}).items()},
+            compensation_floor=parse_compensation_floor(
+                prefs.get("compensation_floor_usd"), prefs.get("regions") or {}
+            ),
+            work_authorization=(prefs.get("work_authorization") or None),
+            needs_visa_sponsorship=parse_tristate(
+                prefs.get("needs_visa_sponsorship"), "needs_visa_sponsorship"
+            ),
+            willing_to_relocate=parse_tristate(
+                prefs.get("willing_to_relocate"), "willing_to_relocate"
+            ),
         )
 
 

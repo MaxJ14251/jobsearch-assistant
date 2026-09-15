@@ -46,6 +46,18 @@ class FabricationError(RuntimeError):
     """Generated text made a claim the profile does not support."""
 
 
+class UndecidedPreferenceError(RuntimeError):
+    """A preference the draft depends on has never been answered.
+
+    Goal 01 specified this guard and it was never built, so tailoring would
+    happily proceed on a null work_authorization and let the model decide what
+    to say about it. Null is not "no constraint" -- it is "nobody has said",
+    and a model asked to write around an unanswered question invents an answer.
+
+    See docs/decisions/0001-compensation-and-work-authorization.md.
+    """
+
+
 class IdentityLeakError(RuntimeError):
     """An outbound prompt contained personal identifying information."""
 
@@ -308,6 +320,32 @@ BULLETS (keep each id):
 {bullets}"""
 
 
+# Preferences a draft cannot honestly be written without. compensation floor
+# is NOT here: a floor is about which jobs to pursue, not about what a resume
+# says, and the operator may legitimately have none.
+REQUIRED_PREFERENCES = ("work_authorization",)
+
+
+def require_decided_preferences(profile: dict[str, Any]) -> None:
+    """Refuse to draft while a required preference is still null.
+
+    Fails loudly naming the field, rather than guessing a value.
+    """
+    prefs = profile.get("job_search_preferences") or {}
+    missing = [
+        name for name in REQUIRED_PREFERENCES
+        if prefs.get(name) is None
+        or (isinstance(prefs.get(name), str) and not prefs[name].strip())
+    ]
+    if missing:
+        raise UndecidedPreferenceError(
+            "master_profile.yaml: job_search_preferences."
+            + ", ".join(missing)
+            + " is still null. Fill it in -- this goes into generated documents "
+              "as a statement of fact, and nothing here will guess it for you."
+        )
+
+
 def tailor(
     job: dict[str, Any],
     profile: dict[str, Any],
@@ -315,6 +353,7 @@ def tailor(
     models: list[str] | None = None,
 ) -> TailoredDraft:
     """Produce a verified draft. Raises rather than returning unsafe output."""
+    require_decided_preferences(profile)   # before any work, before any network
     description = job.get("description") or ""
     track = job.get("track") or "engineering"
     summary = pick_summary(profile, track, description)

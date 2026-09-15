@@ -94,10 +94,29 @@ job_search_preferences:
     - "Example Town, PA"
     - "Example Town, PA"
     - "Baltimore, MD"
-  compensation_floor_usd: null   # TODO
-  work_authorization: null       # TODO e.g. "US citizen — no sponsorship required"
-  needs_visa_sponsorship: null   # TODO true/false
-  willing_to_relocate: null      # TODO
+  # --- compensation and authorization -------------------------------------
+  # See docs/decisions/0001-compensation-and-work-authorization.md
+  #
+  # compensation_floor_usd accepts three forms:
+  #     no_floor          you deliberately have none
+  #     95000             one figure
+  #     a map keyed to the `regions` block below, for when the answer is
+  #     genuinely two numbers (rent-free in one place, renting in another):
+  #         compensation_floor_usd:
+  #           default: 95000
+  #           pa: 85000
+  #           sd: 110000
+  #
+  # null means "not yet decided". Discovery tolerates it; document generation
+  # refuses to run on it. Undecided and "no constraint" are different things.
+  #
+  # Scoring does NOT currently use the floor: every jobs.salary_min in the
+  # tracker is null because nothing extracts salary yet. A floor wired in
+  # today would be a no-op that looked like a feature. See the ADR.
+  compensation_floor_usd: null   # no_floor | a number | a per-region map
+  work_authorization: null       # e.g. "US citizen - no sponsorship required"
+  needs_visa_sponsorship: null   # true/false
+  willing_to_relocate: null      # true/false
   # Years of experience you can credibly claim. A posting demanding materially
   # more than this is rejected outright by the discovery filter.
   max_years_experience: 3

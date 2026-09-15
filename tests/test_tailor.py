@@ -20,9 +20,11 @@ from jsa.tailor import (
     FabricationError,
     IdentityLeakError,
     TailoredDraft,
+    UndecidedPreferenceError,
     collect_bullets,
     keyword_gap,
     pick_summary,
+    require_decided_preferences,
     scrub_prompt,
     select_bullets,
     source_overlap,
@@ -289,6 +291,84 @@ class TestTermBoundaries(unittest.TestCase):
         with self.assertRaises(FabricationError) as ctx:
             verify_draft(draft, PROFILE)
         self.assertIn("C++", str(ctx.exception))
+
+
+class TestUndecidedPreferences(unittest.TestCase):
+    """Goal 01 specified this guard and it was never built.
+
+    Until now tailoring would proceed on a null work_authorization and let the
+    model decide what to say about it. Null is not "no constraint" — it is
+    "nobody has said" — and a model asked to write around an unanswered
+    question invents an answer.
+    """
+
+    def _profile(self, **prefs):
+        return {"job_search_preferences": prefs}
+
+    def test_null_work_authorization_refuses(self):
+        with self.assertRaises(UndecidedPreferenceError) as ctx:
+            require_decided_preferences(self._profile(work_authorization=None))
+        self.assertIn("work_authorization", str(ctx.exception),
+                      "the error must name the field")
+
+    def test_blank_string_also_refuses(self):
+        """An empty string is an unanswered question wearing a value."""
+        with self.assertRaises(UndecidedPreferenceError):
+            require_decided_preferences(self._profile(work_authorization="   "))
+
+    def test_missing_key_refuses(self):
+        with self.assertRaises(UndecidedPreferenceError):
+            require_decided_preferences(self._profile())
+
+    def test_stated_value_passes(self):
+        require_decided_preferences(
+            self._profile(work_authorization="US citizen"))
+
+    def test_compensation_floor_is_not_required_to_draft(self):
+        """A floor is about which jobs to pursue, not what a resume says.
+
+        The operator may legitimately have none, and refusing to draft over it
+        would block document generation for a reason that has nothing to do
+        with the document.
+        """
+        require_decided_preferences(
+            self._profile(work_authorization="US citizen",
+                          compensation_floor_usd=None))
+
+
+class TestPreferencesNeverReachThePrompt(unittest.TestCase):
+    """Compensation expectations are not identity, and were outside the
+    scrubber's scope — it strips the `identity` block, and these live under
+    `job_search_preferences`. NVIDIA's free tier logs prompts.
+    """
+
+    def test_prompt_template_has_no_preference_placeholder(self):
+        from jsa.tailor import PROMPT, SYSTEM
+        for needle in ("work_authorization", "compensation", "salary",
+                       "sponsorship", "relocate"):
+            with self.subTest(needle=needle):
+                self.assertNotIn(needle, PROMPT.lower())
+                self.assertNotIn(needle, SYSTEM.lower())
+
+    def test_built_prompt_omits_the_real_values(self):
+        """Build the prompt the way tailor() does and grep what would be sent."""
+        from jsa.tailor import PROMPT
+        path = ROOT / "profile" / "master_profile.yaml"
+        if not path.exists():
+            self.skipTest("no personal profile on this machine")
+        profile = yaml.safe_load(path.read_text(encoding="utf-8"))
+        prefs = profile.get("job_search_preferences") or {}
+        built = PROMPT.format(
+            title="Software Engineer",
+            description="We use Python and build internal tooling.",
+            summary="A summary drawn from the profile.",
+            bullets="- [exp_1] Did a thing.",
+        ).lower()
+        for name in ("work_authorization", "compensation_floor_usd"):
+            value = prefs.get(name)
+            if isinstance(value, str) and value.strip():
+                self.assertNotIn(value.lower(), built,
+                                 f"{name} reached the outbound prompt")
 
 
 if __name__ == "__main__":
