@@ -146,5 +146,94 @@ class TestProjectUrl(unittest.TestCase):
             "a bare profile URL must still be flagged outside authorship files")
 
 
+class TestHomePathScan(unittest.TestCase):
+    """A committed .coverage embedded the builder's home directory 34 times.
+
+    Every other NEVER-tier value is read from master_profile.yaml, and an OS
+    account name is not a field the profile has -- so the check could not see
+    it. This rule keys on the SHAPE of the path instead.
+
+    Note how the fixtures below are assembled from pieces: writing them out
+    literally would make this very file a violation, which is how the first
+    draft of this test failed.
+    """
+
+    SEP = chr(92)                            # a single backslash
+    WIN = "C:" + SEP + "Users" + SEP
+    NIX = "/" + "home" + "/"
+    MAC = "/" + "Users" + "/"
+
+    def test_it_flags_a_real_home_path(self):
+        from tools.scan_secrets import home_path_hits
+        for text in (self.WIN + "dana" + self.SEP + "Desktop" + self.SEP + "a.py",
+                     self.NIX + "dana/project/app.py",
+                     self.MAC + "dana/code/app.py"):
+            with self.subTest(text=text):
+                self.assertTrue(home_path_hits(text), f"missed: {text}")
+
+    def test_windows_backslashes_are_matched(self):
+        """Regression: the character class was once forward-slash only.
+
+        It compiled, ran, and reported clean on the exact Windows path it had
+        been written to catch.
+        """
+        from tools.scan_secrets import home_path_hits
+        self.assertTrue(home_path_hits(self.WIN + "dana" + self.SEP + "f.py"))
+
+    def test_it_ignores_placeholders_and_ci_paths(self):
+        from tools.scan_secrets import home_path_hits
+        for text in (self.WIN + "you" + self.SEP + "jobsearch",
+                     self.NIX + "runner/work/repo/repo",
+                     "/usr/local/bin/python",
+                     "see the Users table for home rows"):
+            with self.subTest(text=text):
+                self.assertFalse(home_path_hits(text), f"false alarm: {text}")
+
+    def test_coverage_artifacts_are_gitignored(self):
+        ignored = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+        self.assertIn(".coverage", [l.strip() for l in ignored])
+
+    def test_coverage_file_is_not_tracked(self):
+        tracked = subprocess.run(
+            ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True,
+        ).stdout.split()
+        self.assertNotIn(".coverage", tracked,
+                         ".coverage is tracked again -- it embeds absolute paths")
+
+    def test_gitignored_files_are_skipped_or_kept_safely(self):
+        """Both halves of drop_ignored's contract.
+
+        In a git work tree an ignored file is dropped -- blocking on a
+        regenerated .coverage would be a false alarm, and a check that cries
+        wolf is one people bypass with --no-verify.
+
+        A fresh clone (or an unpacked tarball) is NOT a git repo, so
+        check-ignore cannot answer. There the file must be KEPT: scanning too
+        much is the safe direction. The first version of this test asserted
+        only the first half and failed the moment it ran outside a repo.
+        """
+        from tools.scan_secrets import drop_ignored
+        in_repo = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=ROOT, capture_output=True, text=True,
+        ).stdout.strip() == "true"
+
+        probe = ROOT / ".coverage"
+        created = not probe.exists()
+        if created:
+            probe.write_bytes(b"x")
+        try:
+            result = drop_ignored([probe])
+        finally:
+            if created:
+                probe.unlink()
+
+        if in_repo:
+            self.assertEqual(result, [], "ignored file should be dropped")
+        else:
+            self.assertEqual(result, [probe],
+                             "without git, every file must still be scanned")
+
+
 if __name__ == "__main__":
     unittest.main()

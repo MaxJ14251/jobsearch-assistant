@@ -47,6 +47,42 @@ KEY_PATTERNS = [
     ("Generic bearer token", re.compile(r"Bearer\s+[A-Za-z0-9_\-\.]{30,}")),
 ]
 
+# Generic stand-ins that carry no identity. A README showing C:\Users\you\... or
+# a CI log under /home/runner/ is documentation, not a leak.
+PLACEHOLDER_USERS = {
+    "you", "your-name", "yourname", "user", "username", "me", "example",
+    "runner", "root", "appuser", "home", "someone", "alice", "bob",
+}
+
+# Absolute home directories. A published file must not carry the path layout of
+# the machine that built it: it leaks the OS account name, which on Windows is
+# usually a real first name.
+#
+# This rule is deliberately NOT driven by master_profile.yaml. Everything else
+# in the NEVER tier is a value read from the profile, and that is exactly why
+# a committed .coverage went unnoticed for two commits -- it embedded
+# C:\Users\<account>\... 34 times, and an OS account name is not a field the
+# profile has. A check that can only find what it was told to look for cannot
+# find this. The shape of the path is the signal.
+HOME_PATH_RE = re.compile(
+    r"(?:[A-Za-z]:[\\/]Users[\\/]|(?:^|[\s\"'=(\[])[\\/](?:home|Users)[\\/])"
+    r"([A-Za-z0-9_.\-]{2,})",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def home_path_hits(text: str) -> list[str]:
+    """Absolute home paths in `text`, minus generic placeholders."""
+    hits = []
+    for match in HOME_PATH_RE.finditer(text):
+        account = match.group(1)
+        if account.lower() in PLACEHOLDER_USERS:
+            continue
+        if account.startswith("<") or account.startswith("$"):
+            continue
+        hits.append(match.group(0).strip())
+    return hits
+
 
 class ScannerUnavailable(RuntimeError):
     """The scanner could not do its job. Never treated as 'clean'."""
@@ -131,7 +167,36 @@ def candidate_files(staged_only: bool) -> list[Path]:
         if any(part in SKIP_DIRS for part in path.relative_to(ROOT).parts):
             continue
         files.append(path)
-    return files
+    return drop_ignored(files)
+
+
+def drop_ignored(paths: list[Path]) -> list[Path]:
+    """Remove files git already ignores.
+
+    A .gitignore'd file cannot reach a commit, so blocking on one is a false
+    alarm -- and a check that cries wolf on a regenerated .coverage is a check
+    people start passing with --no-verify. If git cannot answer, every file is
+    kept: scanning too much is the safe direction.
+    """
+    if not paths:
+        return paths
+    try:
+        proc = subprocess.run(
+            ["git", "check-ignore", "-z", "--stdin"],
+            cwd=ROOT, capture_output=True, text=True,
+            # -z on BOTH sides. Without it git applies core.quotePath and
+            # returns "C:\\Users\\..." -- quoted, backslashes doubled -- so every
+            # membership test below silently missed and nothing was skipped.
+            input="\0".join(str(p) for p in paths),
+        )
+    except OSError:
+        return paths
+    if proc.returncode not in (0, 1):   # 0 = some ignored, 1 = none ignored
+        return paths
+    ignored = {part for part in proc.stdout.split("\0") if part}
+    if not ignored:
+        return paths
+    return [p for p in paths if str(p) not in ignored]
 
 
 def main(argv: list[str]) -> int:
@@ -157,6 +222,12 @@ def main(argv: list[str]) -> int:
         for label, pattern in KEY_PATTERNS:
             if pattern.search(text):
                 problems.append(f"{rel}: {label}")
+
+        for hit in home_path_hits(text)[:1]:
+            problems.append(
+                f"{rel}: absolute home path {hit[:40]!r} "
+                f"(leaks the OS account name of the machine that built it)"
+            )
 
         lowered = text.lower()
         for value in never:

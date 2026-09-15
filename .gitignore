@@ -6,6 +6,16 @@
 __pycache__/
 *.pyc
 
+# Coverage artifacts. .coverage is a binary SQLite file that embeds the
+# ABSOLUTE PATH of every measured source file -- on Windows that includes
+# C:\Users\<your-account>\... . It was committed once and went unnoticed,
+# because an OS account name is not a value the profile knows about.
+# .coveragerc is plain config and stays tracked.
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
 # --- personal data: never commit -------------------------------------------
 # Your filled-in profile holds your name, home address, phone and email.
 # Commit profile/master_profile.example.yaml instead.
