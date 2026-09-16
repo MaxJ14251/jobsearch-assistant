@@ -115,53 +115,72 @@ def render_resume(
         if src:
             by_parent.setdefault(f"{src.origin}::{src.parent}", []).append(b.text)
 
-    exp_written = False
-    for exp in profile.get("experience") or []:
-        texts = by_parent.get(
-            f"experience::{exp.get('id') or exp.get('company')}")
-        if not texts:
-            continue
-        if not exp_written:
-            _heading(doc, "Experience")
-            exp_written = True
-        line = doc.add_paragraph()
-        r = line.add_run(f"{exp.get('title')} — {exp.get('company')}")
-        r.bold = True
-        r.font.size = Pt(BODY_PT)
-        meta = doc.add_paragraph()
-        m = meta.add_run(
-            "  |  ".join(
-                p for p in (exp.get("location"),
-                            _dates(exp.get("start"), exp.get("end"),
-                                   exp.get("current", False))) if p
+    def write_experience() -> None:
+        written = False
+        for exp in profile.get("experience") or []:
+            texts = by_parent.get(
+                f"experience::{exp.get('id') or exp.get('company')}")
+            if not texts:
+                continue
+            if not written:
+                _heading(doc, "Experience")
+                written = True
+            line = doc.add_paragraph()
+            r = line.add_run(f"{exp.get('title')} — {exp.get('company')}")
+            r.bold = True
+            r.font.size = Pt(BODY_PT)
+            meta = doc.add_paragraph()
+            m = meta.add_run(
+                "  |  ".join(
+                    p for p in (exp.get("location"),
+                                _dates(exp.get("start"), exp.get("end"),
+                                       exp.get("current", False))) if p
+                )
             )
-        )
-        m.italic = True
-        m.font.size = Pt(9)
-        meta.paragraph_format.space_after = Pt(1)
-        for t in texts:
-            _body(doc, t, bullet=True)
+            m.italic = True
+            m.font.size = Pt(9)
+            meta.paragraph_format.space_after = Pt(1)
+            for t in texts:
+                _body(doc, t, bullet=True)
 
-    proj_written = False
-    for proj in profile.get("projects") or []:
-        texts = by_parent.get(
-            f"project::{proj.get('id') or proj.get('name')}")
-        if not texts:
-            continue
-        if not proj_written:
-            _heading(doc, "Projects")
-            proj_written = True
-        line = doc.add_paragraph()
-        label = proj.get("name", "")
-        # Status is shown, never quietly dropped to make a project look shipped.
-        if proj.get("status") == "in_development":
-            label += " (in development)"
-        r = line.add_run(label)
-        r.bold = True
-        r.font.size = Pt(BODY_PT)
-        line.paragraph_format.space_after = Pt(1)
-        for t in texts:
-            _body(doc, t, bullet=True)
+    def write_projects() -> None:
+        written = False
+        for proj in profile.get("projects") or []:
+            texts = by_parent.get(
+                f"project::{proj.get('id') or proj.get('name')}")
+            if not texts:
+                continue
+            if not written:
+                _heading(doc, "Projects")
+                written = True
+            line = doc.add_paragraph()
+            label = proj.get("name", "")
+            # Status is shown, never quietly dropped to make a project look shipped.
+            if proj.get("status") == "in_development":
+                label += " (in development)"
+            r = line.add_run(label)
+            r.bold = True
+            r.font.size = Pt(BODY_PT)
+            line.paragraph_format.space_after = Pt(1)
+            for t in texts:
+                _body(doc, t, bullet=True)
+
+    # Whichever section holds more of the selected bullets leads. Experience
+    # used to lead unconditionally, so a resume for a robotics role opened with
+    # fire-alarm installation while the relevant AI projects sat below it.
+    # Experience wins ties, because for most roles and most readers that is the
+    # conventional and expected order.
+    counts = {"experience": 0, "project": 0}
+    for key, texts in by_parent.items():
+        origin = key.split("::", 1)[0]
+        if origin in counts:
+            counts[origin] += len(texts)
+    if counts["project"] > counts["experience"]:
+        write_projects()
+        write_experience()
+    else:
+        write_experience()
+        write_projects()
 
     skills = profile.get("skills") or {}
     if skills:

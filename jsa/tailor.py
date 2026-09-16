@@ -34,6 +34,18 @@ from . import llm
 # Below it, the text has drifted far enough to be asserting something new.
 MIN_SOURCE_OVERLAP = 0.45
 
+# Below this, a bullet shares almost nothing with the source it cites. That is
+# not a rewrite that wandered -- it is a different claim wearing a real id, and
+# it raises rather than reverting.
+#
+# The boundary is measured, not guessed. Overlap against the cited source:
+#     0.00  "Operated multi-region Kubernetes clusters serving PyTorch models"
+#           against a video-pipeline bullet -- wholesale invention
+#     0.27  a real drifted rewrite observed in production
+#     0.73  a good rewrite observed in production
+# 0.20 sits in the gap between invention and imprecision.
+FABRICATION_FLOOR = 0.20
+
 # How much of a posting the model is shown. 88% of the tracker's descriptions
 # are longer than this (median 5,668 chars, longest 10,661), so for most jobs
 # the back half is invisible to tailoring -- requirements stated late in a
@@ -102,6 +114,9 @@ class TailoredDraft:
     # Hash of the exact prompt that produced this draft. Recorded so a document
     # can be traced back to its input without storing the input itself.
     prompt_hash: str = ""
+    # Bullet ids whose rewrite drifted too far and were reverted to the profile
+    # text verbatim. Surfaced by `jsa tailor`; never silent.
+    reverted: list[str] = field(default_factory=list)
 
 
 # --- profile access ---------------------------------------------------------
@@ -224,10 +239,29 @@ def source_overlap(reworded: str, source: str) -> float:
 
 
 def verify_draft(draft: TailoredDraft, profile: dict[str, Any]) -> TailoredDraft:
-    """Raise FabricationError unless every bullet is traceable and faithful."""
+    """Reject anything untraceable or unfaithful.
+
+    Three failure modes, and they are NOT the same thing:
+
+      unknown source id   fabrication. Raises.
+      banned term         fabrication. Raises.
+      drift below the
+      overlap threshold   the rewrite wandered into a claim the source does not
+                          support. A safe answer exists -- the source text,
+                          unchanged -- so the bullet REVERTS to it and the id is
+                          recorded on draft.reverted.
+
+    Reverting is not a weakened guard: the drifted sentence never reaches the
+    document either way. It changes the consequence from "the whole draft dies"
+    to "that one bullet is the original", which is the difference between a
+    resume with five tailored bullets and no resume at all. `jsa tailor` prints
+    what reverted, so the trade is visible rather than silent.
+    """
     sources = collect_bullets(profile)
     banned = [t for t in do_not_claim(profile) if t]
 
+    kept: list[DraftBullet] = []
+    reverted: list[str] = []
     for bullet in draft.bullets:
         source = sources.get(bullet.source_id)
         if source is None:
@@ -236,12 +270,19 @@ def verify_draft(draft: TailoredDraft, profile: dict[str, Any]) -> TailoredDraft
                 "generated text must map to a master_profile.yaml bullet"
             )
         overlap = source_overlap(bullet.text, source.text)
-        if overlap < MIN_SOURCE_OVERLAP:
+        if overlap < FABRICATION_FLOOR:
             raise FabricationError(
-                f"bullet {bullet.source_id!r} drifted from its source "
-                f"({overlap:.0%} word overlap, minimum {MIN_SOURCE_OVERLAP:.0%}): "
+                f"bullet {bullet.source_id!r} shares almost nothing with the "
+                f"source it cites ({overlap:.0%} word overlap): "
                 f"{bullet.text[:90]!r}"
             )
+        if overlap < MIN_SOURCE_OVERLAP:
+            kept.append(DraftBullet(source_id=bullet.source_id, text=source.text))
+            reverted.append(bullet.source_id)
+        else:
+            kept.append(bullet)
+    draft.bullets = kept
+    draft.reverted = reverted
 
     generated = " ".join([draft.summary] + [b.text for b in draft.bullets]).lower()
     for term in banned:
@@ -287,44 +328,147 @@ def pick_summary(profile: dict[str, Any], track: str, description: str) -> dict:
     return summaries.get("general") or next(iter(summaries.values()))
 
 
+# A tag's worth is how rare it is. Measured against the 514 postings in the
+# tracker: "systems" appears in 86.6% of them, "hardware" in 46.5% -- they say
+# almost nothing about whether a bullet fits. "claude" appears in 3.5%,
+# "commissioning" in 4.3%.
+#
+# This mattered concretely: a fire-alarm installation bullet tied for top score
+# on a Rocket Lab ROBOTICS posting, on hits for "systems" ("space systems at
+# Rocket Lab") and "hardware" ("build real hardware") -- both from the
+# company's own blurb rather than its requirements.
+#
+# A common tag still counts for something, hence the floor; it just cannot
+# outweigh a rare one.
+MIN_TAG_WEIGHT = 0.15
+
+
+def tag_weights(
+    con, tags: set[str] | None = None, corpus: list[str] | None = None
+) -> dict[str, float]:
+    """Rarity weight per tag, from the postings actually in the tracker.
+
+    Returns {} when there is no corpus to learn from -- a fresh clone has an
+    empty jobs table, and inventing weights from nothing would be worse than
+    weighting every tag equally.
+    """
+    if corpus is None:
+        if con is None:
+            return {}
+        try:
+            corpus = [
+                (row[0] or "").lower() for row in con.execute(
+                    "SELECT description FROM jobs WHERE description IS NOT NULL")
+            ]
+        except Exception:  # noqa: BLE001 -- a missing table is not fatal here
+            return {}
+    total = len(corpus)
+    if total < 20:                    # too little to distinguish rare from common
+        return {}
+    weights = {}
+    for tag in sorted(tags or ()):
+        pattern = re.compile(rf"\b{re.escape(tag.replace('-', ' ').lower())}")
+        seen = sum(1 for text in corpus if pattern.search(text))
+        weights[tag] = max(MIN_TAG_WEIGHT, 1.0 - (seen / total))
+    return weights
+
+
+# A bullet scoring far below the best one is padding, not evidence. Six of ten
+# bullets were previously chosen every time regardless of fit, which is not
+# selection.
+RELEVANCE_FLOOR = 0.75
+
+# A ratio alone is brittle: on the Replit posting the top bullet scored 7.85
+# and the next 5.87, so a 0.75 floor landed at 5.89 and cut the second-best
+# bullet by 0.02, leaving a one-bullet resume. A floor decides what is padding;
+# it must not decide that a resume has nothing to say.
+MIN_BULLETS = 4
+
+# Whether a bullet comes from the right kind of work outweighs any single
+# shared word. A fire-alarm bullet genuinely shares "troubleshooting" with a
+# robotics posting; it is still not software engineering evidence.
+FAMILY_BONUS = 3.0
+
+
 def select_bullets(
-    profile: dict[str, Any], description: str, track: str, limit: int = 6
+    profile: dict[str, Any], description: str, track: str, limit: int = 6,
+    weights: dict[str, float] | None = None,
 ) -> list[SourceBullet]:
-    """Rank profile bullets against the posting. Deterministic, no model call."""
+    """Rank profile bullets against the posting. Deterministic, no model call.
+
+    `weights` come from tag_weights() and discount tags that appear in almost
+    every posting. Without them every tag counts equally, which is how a
+    fire-alarm bullet tied for top score on a robotics role.
+    """
     blob = (description or "").lower()
     preferred = (
         {"sales", "technical_field"} if track == "sales"
         else {"ai_engineering", "data_ml"}
     )
-    scored: list[tuple[float, SourceBullet]] = []
+    weights = weights or {}
+    scored: list[tuple[float, int, int, str, SourceBullet]] = []
     for bullet in collect_bullets(profile).values():
-        hits = sum(
-            1 for tag in bullet.tags
+        hit_value = sum(
+            weights.get(tag, 1.0)
+            for tag in bullet.tags
             if re.search(rf"\b{re.escape(tag.replace('-', ' ').lower())}", blob)
         )
-        score = hits * 2.0
-        score += (4 - bullet.strength)              # strength 1 outranks 3
-        score += 2.0 if bullet.family in preferred else 0.0
-        scored.append((score, bullet))
-    scored.sort(key=lambda pair: (-pair[0], pair[1].id))
-    return [b for _, b in scored[:limit]]
+        # Strength is deliberately NOT in the score. As (4 - strength) it added
+        # +3 to almost every bullet, compressing a 7.09-to-4.96 range in which
+        # no relevance floor could separate anything -- the constant swamped
+        # the signal. It is a tiebreaker, and it is used as one below.
+        score = hit_value * 2.0
+        relevant = bullet.family in preferred
+        score += FAMILY_BONUS if relevant else 0.0
+        # Ties used to break on id, so "b_inst_codes" beat "b_vid_goal" purely
+        # on the alphabet. Break on what the tie is actually about: whether the
+        # bullet is from a relevant family, then how strong it is. The id
+        # remains last, only so the order is deterministic.
+        scored.append((score, 0 if relevant else 1, bullet.strength,
+                       bullet.id, bullet))
+    scored.sort(key=lambda row: (-row[0], row[1], row[2], row[3]))
+
+    if not scored:
+        return []
+    best = scored[0][0]
+    keep = [row for row in scored[:limit] if row[0] >= best * RELEVANCE_FLOOR]
+    if len(keep) < MIN_BULLETS:
+        keep = scored[:min(MIN_BULLETS, limit, len(scored))]
+    return [row[4] for row in keep]
 
 
 # --- generation -------------------------------------------------------------
 
+# The balance here is deliberate and was measured. An earlier version carried
+# one instruction to rewrite and three prohibitions; the model read it, decided
+# the safest move was to change nothing, and returned bullets verbatim -- 3 of 6
+# byte-identical, median source overlap 1.00 across 18 bullets. The guards were
+# never the problem. verify_draft already rejects invention at the door, so the
+# prompt does not need to say it three times, and saying it three times is what
+# suppressed the rewriting.
 SYSTEM = (
-    "You rewrite resume bullets. You may rephrase for emphasis and fit, but you "
-    "may NEVER introduce a skill, technology, employer, metric or achievement "
-    "that is not already present in the bullet you were given. If the job asks "
-    "for something the bullets do not contain, leave it out entirely."
+    "You rewrite resume bullets so they speak directly to one specific job. "
+    "Change emphasis, ordering and language. Every fact you write must already "
+    "be present in the bullet you were given -- you are re-presenting evidence, "
+    "never adding it. An automated verifier rejects any bullet that introduces "
+    "something new, so invention costs you the whole draft and gains nothing."
 )
 
-PROMPT = """Rewrite each bullet below so it reads naturally for this role.
+PROMPT = """Rewrite each bullet so a hiring manager for THIS role sees the
+connection immediately. Do not return a bullet unchanged.
 
-RULES
-- Keep every factual claim identical. Rephrasing only.
-- Do NOT add technologies, tools, metrics or responsibilities that are absent
-  from the original bullet, even if the job asks for them.
+HOW TO REWRITE
+- Lead with whatever part of the bullet this role cares about most.
+- Borrow the posting's own vocabulary where it genuinely describes the same
+  work you were given. Where it does not, keep your own words.
+- Completed work reads in the past tense. Ongoing work reads in the present.
+- One sentence each. Tighten rather than pad.
+
+THE CONSTRAINT
+Every fact must already exist in the source bullet. If this role wants
+something the bullet does not contain, leave it out -- the gap is reported
+separately and honestly, and is not your problem to solve.
+
 - Return JSON: {{"summary": "...", "bullets": [{{"id": "<same id>", "text": "..."}}]}}
 
 ROLE: {title}
@@ -369,13 +513,14 @@ def tailor(
     profile: dict[str, Any],
     *,
     models: list[str] | None = None,
+    weights: dict[str, float] | None = None,
 ) -> TailoredDraft:
     """Produce a verified draft. Raises rather than returning unsafe output."""
     require_decided_preferences(profile)   # before any work, before any network
     description = job.get("description") or ""
     track = job.get("track") or "engineering"
     summary = pick_summary(profile, track, description)
-    chosen = select_bullets(profile, description, track)
+    chosen = select_bullets(profile, description, track, weights=weights)
     matched, missing = keyword_gap(description, profile)
 
     listing = "\n".join(f'- [{b.id}] {b.text}' for b in chosen)

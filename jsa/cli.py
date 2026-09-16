@@ -318,7 +318,12 @@ def cmd_tailor(args: argparse.Namespace) -> int:
 
         profile = load_profile()
         full = len(job.get("description") or "")
-        draft = build_draft(job, profile)
+        # Tag rarity is learned from the postings already in the tracker, so a
+        # word appearing in 87% of them cannot outweigh one appearing in 3%.
+        from .tailor import collect_bullets, tag_weights
+        weights = tag_weights(
+            con, {t for b in collect_bullets(profile).values() for t in b.tags})
+        draft = build_draft(job, profile, weights=weights)
 
         version = render.next_version(con, args.job_id, kind)
         out = render.output_path(job.get("company") or "unknown",
@@ -362,6 +367,11 @@ def cmd_tailor(args: argparse.Namespace) -> int:
     print(f"  bullets  {', '.join(b.source_id for b in draft.bullets)}")
     if draft.keywords_missing:
         print(f"  gaps     {', '.join(draft.keywords_missing)}")
+    if draft.reverted:
+        # The rewrite drifted far enough to be making a different claim, so the
+        # profile text was used instead. Said out loud, never silently.
+        print(f"  reverted {', '.join(draft.reverted)} "
+              f"(rewrite drifted; profile text used)")
     print(f"  approve  jsa approve {approval_id}")
     return 0
 
