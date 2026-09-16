@@ -27,6 +27,13 @@ from .tailor import collect_bullets, scrub_prompt, term_pattern
 
 # Phrasings that assert a conferred degree. Checked case-insensitively against
 # every generated answer. Fluent and false is the failure mode being caught.
+# How much of a posting the model is shown, matching jsa/tailor.py. 88% of the
+# tracker's descriptions are longer than this, so for most jobs the back half
+# cannot influence the questions. jsa/enrich.py independently uses 6000 for the
+# same job; the three have never been reconciled, and that is worth doing once
+# somebody measures the token budget rather than guessing at it.
+MAX_DESCRIPTION_CHARS = 4000
+
 DEGREE_DENY = [
     "my degree in",
     "my degree from",
@@ -205,10 +212,17 @@ SYSTEM = (
 PROMPT = """Generate interview questions for this role.
 
 Return JSON: {{"questions": [{{"question": "...", "why": "the JD line that prompts this",
-"answer_notes": "what the candidate should draw on, from the facts below only"}}],
+"answer_notes": "first person, what I should SAY, from the facts below only"}}],
 "company_brief": "3 sentences on what this team appears to do, from the posting"}}
 
 Produce 5 questions for a {round} round.
+
+Write answer_notes in the FIRST PERSON, as words I could say out loud -- "I
+built...", "I have not worked with X, but...". The two standard drills in this
+document are already written that way and a reader switching between "I built"
+and "the candidate built" halfway down has to translate under pressure. Where
+I lack something the role wants, say so plainly in the first person and name
+what I would draw on instead. Do not invent the experience.
 
 JOB TITLE: {title}
 COMPANY: {company}
@@ -246,7 +260,7 @@ def generate(
     prompt = PROMPT.format(
         round=round.replace("_", " "),
         title=row["title"], company=row["company"],
-        description=(row["description"] or "")[:4000],
+        description=(row["description"] or "")[:MAX_DESCRIPTION_CHARS],
         bullets="\n".join(f"- {b.text}" for b in bullets),
         field=edu.get("field") or "their field",
     )

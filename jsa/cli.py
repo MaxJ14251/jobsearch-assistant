@@ -376,6 +376,91 @@ def cmd_tailor(args: argparse.Namespace) -> int:
     return 0
 
 
+# --- interview prep ----------------------------------------------------------
+
+
+def cmd_prep(args: argparse.Namespace) -> int:
+    from . import prep as prep_mod
+    from .tailor import UndecidedPreferenceError, require_decided_preferences
+
+    con = db.connect()
+    try:
+        row = con.execute(
+            "SELECT a.id, j.title, j.description, c.name AS company "
+            "FROM applications a JOIN jobs j ON j.id = a.job_id "
+            "JOIN companies c ON c.id = j.company_id WHERE a.id = ?",
+            (args.application_id,),
+        ).fetchone()
+        if row is None:
+            print(f"error: no application with id {args.application_id}. "
+                  "Run `jsa review` or `jsa save <job_id>` first.", file=sys.stderr)
+            return 1
+
+        profile = load_profile()
+        require_decided_preferences(profile)
+        full = len(row["description"] or "")
+        result = prep_mod.generate(
+            con, args.application_id, round=args.round, profile=profile)
+        prep_id = con.execute(
+            "SELECT MAX(id) FROM interview_prep WHERE application_id = ?",
+            (args.application_id,),
+        ).fetchone()[0]
+        con.commit()
+    except prep_mod.DegreeClaimError as exc:
+        # The guard fired. That is the system working, not a crash.
+        print(f"refused: {exc}", file=sys.stderr)
+        return 1
+    except UndecidedPreferenceError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        con.close()
+
+    from .prep import MAX_DESCRIPTION_CHARS
+    if full > MAX_DESCRIPTION_CHARS:
+        print(f"note: posting is {full:,} chars; the model saw the first "
+              f"{MAX_DESCRIPTION_CHARS:,}", file=sys.stderr)
+    print(f"prep {prep_id} for application {args.application_id} "
+          f"({row['title']} at {row['company']}, {args.round})")
+    print(f"  {len(result.questions)} question(s)  model {result.model}")
+    for question in result.questions[:2]:
+        # The two standard drills lead the list; they are the ones that come up
+        # in every screen, so they are the ones worth seeing without opening
+        # anything.
+        print(f"  - {question.question}")
+    print(f"  read it:  jsa prep-show {prep_id}")
+    return 0
+
+
+def cmd_prep_show(args: argparse.Namespace) -> int:
+    import json as _json
+    con = db.connect()
+    try:
+        row = con.execute(
+            "SELECT * FROM interview_prep WHERE id = ?", (args.prep_id,)
+        ).fetchone()
+    finally:
+        con.close()
+    if row is None:
+        print(f"error: no prep with id {args.prep_id}", file=sys.stderr)
+        return 1
+    if row["company_brief"]:
+        print("COMPANY BRIEF")
+        print(f"  {row['company_brief']}")
+        print()
+    for i, q in enumerate(_json.loads(row["questions"] or "[]"), 1):
+        print(f"{i}. {q.get('question', '')}")
+        if q.get("why"):
+            print(f"   why: {q['why']}")
+        if q.get("answer_notes"):
+            print(f"   say: {q['answer_notes']}")
+        print()
+    return 0
+
+
 # --- application lifecycle and approval -------------------------------------
 # See docs/decisions/0003-application-lifecycle.md. These commands, and the web
 # routes that call the same approvals functions, are the only ways a decision
@@ -550,6 +635,18 @@ def main(argv: list[str] | None = None) -> int:
     p_serve.add_argument("--host", default="127.0.0.1")
     p_serve.add_argument("--port", type=int, default=8765)
     p_serve.set_defaults(func=cmd_serve)
+
+    p_prep = sub.add_parser("prep", help="generate interview prep for an application")
+    p_prep.add_argument("application_id", type=int)
+    p_prep.add_argument(
+        "--round", default="phone_screen",
+        choices=["phone_screen", "technical", "system_design", "behavioral",
+                 "onsite", "final"])
+    p_prep.set_defaults(func=cmd_prep)
+
+    p_pshow = sub.add_parser("prep-show", help="print a generated prep in full")
+    p_pshow.add_argument("prep_id", type=int)
+    p_pshow.set_defaults(func=cmd_prep_show)
 
     p_tail = sub.add_parser("tailor", help="draft a resume or cover letter")
     p_tail.add_argument("job_id", type=int)

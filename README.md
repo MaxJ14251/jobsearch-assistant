@@ -114,6 +114,19 @@ and a new pending approval; the old one is never overwritten, because approval
 is per version.
 
 ```bash
+.venv/Scripts/python -m jsa prep 3 [--round technical]
+.venv/Scripts/python -m jsa prep-show 5
+```
+Interview questions drawn from that specific posting, each citing the line that
+prompts it, plus two drills that lead every set: the employment gap, and the
+degree. **57% of matched postings state a degree requirement and the degree was
+not conferred**, so that answer is generated from the profile's exact wording
+and checked against a deny-list, verb-family patterns, and a negation window —
+"I did not finish the degree" passes; "after I graduated" does not. Answer notes
+are first person, so they read as words you can say rather than a briefing about
+you. Running again appends; prior prep is never overwritten.
+
+```bash
 .venv/Scripts/python -m jsa save 421
 ```
 Tracks a match as an application. This is deliberately explicit: a job you never
