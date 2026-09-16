@@ -101,9 +101,25 @@ appear in `matches` so the human decides.
 .venv/Scripts/python -m jsa tailor 421 [--kind cover-letter] [--force]
 ```
 Drafts an ATS-safe .docx from your profile bullets, records full provenance, and
-queues it for your approval. The job must be saved first. Every sentence traces
-to a bullet id or the draft is refused — a posting demanding Kubernetes gets a
-gap report, not a Kubernetes bullet.
+queues it for your approval. The job must be saved first.
+
+**Tailoring is mostly selection.** The tool picks which of your bullets fit this
+role and which section leads, based on what the role *is*: the title decides
+whether it is an engineering, support or sales role, and the command prints
+which one it chose so you can dispute it. The bullet text itself changes very
+little, and that is deliberate.
+
+Every rewrite is checked in both directions. It must keep enough of your
+original, and it must not **add** anything your profile does not say — an
+outcome, a skill, a scenario, a quality. A bullet that adds one reverts to your
+own words, and the command prints why. Work you describe as ongoing
+("Building…", "Goal: reduce…") may not be rewritten as finished. A posting
+demanding Kubernetes gets a gap report, not a Kubernetes bullet.
+
+The second check exists because the first one was not enough. It measured only
+what survived, so a rewrite that kept your whole bullet and appended "during
+high-priority support scenarios" scored *higher*. Replayed over every document
+written before the fix, it reverted 13 of 19 rewrites.
 
 Two limits worth knowing. The model sees the first 4,000 characters of a
 posting, and **88% of postings in this tracker are longer than that** — so
@@ -149,6 +165,15 @@ and checked against a deny-list, verb-family patterns, and a negation window —
 "I did not finish the degree" passes; "after I graduated" does not. Answer notes
 are first person, so they read as words you can say rather than a briefing about
 you. Running again appends; prior prep is never overwritten.
+
+```bash
+.venv/Scripts/python -m jsa tags
+```
+Shows which of your profile's bullet tags actually appear in the postings you
+have collected. A tag that matches nothing is dead weight: selection can never
+use it. Hyphenated dead tags fall back to their meaningful words
+(`customer-facing` matches "customer"); the rest are listed for you to reword
+in your own profile. The command never edits the profile.
 
 ```bash
 .venv/Scripts/python -m jsa save 421

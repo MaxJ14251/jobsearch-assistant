@@ -125,12 +125,24 @@ class TestSelection(unittest.TestCase):
                          "fire-alarm work was selected for a software role")
 
     def test_ties_do_not_break_on_the_alphabet(self):
-        """b_inst_codes once beat b_vid_goal purely because 'b_i' < 'b_v'."""
-        import inspect
-        source = inspect.getsource(select_bullets)
-        self.assertIn("relevant", source)
-        self.assertIn("bullet.strength", source,
-                      "strength should break ties now that it is out of the score")
+        """b_inst_codes once beat b_vid_goal purely because 'b_i' < 'b_v'.
+
+        Tested by behaviour. An earlier version grepped the source for a
+        variable name and broke on a rename while the ordering stayed correct.
+        """
+        profile = {"experience": [], "projects": [
+            {"id": "p", "name": "P", "family": "ai_engineering", "bullets": [
+                {"id": "z_relevant", "text": "Built a thing.", "tags": [], "strength": 2}]},
+        ]}
+        profile["experience"] = [
+            {"id": "e", "company": "C", "family": "sales", "bullets": [
+                {"id": "a_irrelevant", "text": "Sold a thing.", "tags": [], "strength": 2}]},
+        ]
+        # No tag hits at all: only the family preference separates them.
+        # Alphabetically a_irrelevant comes first; the relevant one must still win.
+        chosen = select_bullets(profile, "nothing matches here", "engineering",
+                                limit=2, title="Software Engineer")
+        self.assertEqual(chosen[0].id, "z_relevant")
 
     def test_never_returns_fewer_than_the_minimum(self):
         """A ratio floor once cut the second-best bullet by 0.02.

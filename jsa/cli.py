@@ -269,6 +269,47 @@ def cmd_models(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_tags(args: argparse.Namespace) -> int:
+    """Report which of your tags match real postings. Never edits the profile."""
+    from .tailor import tag_report, tag_weights, vocabulary
+
+    profile = load_profile()
+    con = db.connect()
+    try:
+        corpus_size = con.execute(
+            "SELECT COUNT(*) FROM jobs WHERE description IS NOT NULL"
+        ).fetchone()[0]
+        weights = tag_weights(con, vocabulary(profile))
+    finally:
+        con.close()
+    if not weights:
+        print("not enough postings to measure tags yet -- run `jsa discover` first")
+        return 0
+
+    rows = tag_report(profile, weights, corpus_size)
+    dead = [r for r in rows if r["dead"]]
+    print(f"{len(rows)} tags measured against {corpus_size} postings\n")
+    for row in rows:
+        reach = row["postings"]
+        shown = f"{reach:>4}" if reach >= 0 else "85%+"
+        mark = "DEAD" if row["dead"] else "    "
+        line = f"  {mark} {shown}  {row['tag']:<22} {', '.join(row['bullets'])}"
+        if row["revived_by"]:
+            parts = ", ".join(f"{w} ({n})" for w, n in row["revived_by"])
+            line += f"\n                 matched instead through: {parts}"
+        print(line)
+
+    still_dead = [r["tag"] for r in dead if not r["revived_by"]]
+    print(f"\n{len(dead)} dead as written; {len(still_dead)} still unmatched "
+          "after component fallback.")
+    if still_dead:
+        print("No posting uses these words. Consider rewording them in "
+              "profile/master_profile.yaml in the language postings use:")
+        for tag in still_dead:
+            print(f"  - {tag}")
+    return 0
+
+
 # --- tailoring ---------------------------------------------------------------
 # See docs/decisions/0003-application-lifecycle.md. The document is the unit
 # that gets approved, per version, so every redraft is a new row, a new file
@@ -320,9 +361,11 @@ def cmd_tailor(args: argparse.Namespace) -> int:
         full = len(job.get("description") or "")
         # Tag rarity is learned from the postings already in the tracker, so a
         # word appearing in 87% of them cannot outweigh one appearing in 3%.
-        from .tailor import collect_bullets, tag_weights
-        weights = tag_weights(
-            con, {t for b in collect_bullets(profile).values() for t in b.tags})
+        from .tailor import role_kind, tag_weights, vocabulary
+        weights = tag_weights(con, vocabulary(profile))
+        # Not "kind": that name already holds the document kind, and reusing it
+        # sent "support" into documents.kind and tripped the CHECK constraint.
+        role = role_kind(job.get("title"), job.get("track"))
         draft = build_draft(job, profile, weights=weights)
 
         version = render.next_version(con, args.job_id, kind)
@@ -364,14 +407,15 @@ def cmd_tailor(args: argparse.Namespace) -> int:
               f"{MAX_DESCRIPTION_CHARS:,}", file=sys.stderr)
     print(f"wrote {out}")
     print(f"  document {document_id} v{version}  model {draft.model}")
+    # Printed so a misclassified title is visible on every run. ADR 0005.
+    print(f"  role     {role}")
     print(f"  bullets  {', '.join(b.source_id for b in draft.bullets)}")
     if draft.keywords_missing:
         print(f"  gaps     {', '.join(draft.keywords_missing)}")
-    if draft.reverted:
-        # The rewrite drifted far enough to be making a different claim, so the
-        # profile text was used instead. Said out loud, never silently.
-        print(f"  reverted {', '.join(draft.reverted)} "
-              f"(rewrite drifted; profile text used)")
+    for bullet_id, why in draft.revert_reasons.items():
+        # The rewrite said something the profile does not, so the profile's own
+        # words were used instead. Said out loud, never silently.
+        print(f"  reverted {bullet_id}: {why}")
     print(f"  approve  jsa approve {approval_id}")
     return 0
 
@@ -811,6 +855,10 @@ def main(argv: list[str] | None = None) -> int:
     p_pshow = sub.add_parser("prep-show", help="print a generated prep in full")
     p_pshow.add_argument("prep_id", type=int)
     p_pshow.set_defaults(func=cmd_prep_show)
+
+    sub.add_parser(
+        "tags", help="which of your profile tags match real postings"
+    ).set_defaults(func=cmd_tags)
 
     p_tail = sub.add_parser("tailor", help="draft a resume or cover letter")
     p_tail.add_argument("job_id", type=int)

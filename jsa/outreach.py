@@ -184,7 +184,8 @@ def draft(
             role += f" The posting centres on {', '.join(stack[:4])}."
 
     description = job["description"] if job else ""
-    bullets = select_bullets(profile, description, "engineering", limit=3)
+    bullets = select_bullets(profile, description, "engineering", limit=3,
+                             title=job["title"] if job else "")
     limit = CHANNEL_LIMITS.get(channel, 2000)
 
     prompt = PROMPT.format(
