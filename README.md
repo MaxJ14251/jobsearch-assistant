@@ -50,8 +50,7 @@ everything downstream reads from it. On macOS and Linux use `.venv/bin/python`.
 
 ## Setup
 
-Python 3.12 is installed at `%LOCALAPPDATA%\Programs\Python\Python312`. From this
-directory:
+Needs Python 3.11, 3.12 or 3.13. From this directory:
 
 ```bash
 python -m venv .venv && .venv/Scripts/python -m pip install -r requirements.txt
@@ -402,8 +401,16 @@ Worth knowing before you rely on this.
   database is SQLite on local disk.
 - **Free API tiers log prompts.** Identity never reaches the model, but job
   descriptions and your experience bullets do. Read your provider's terms.
-- **Tested on Windows with Python 3.12.** CI covers 3.11–3.13 on Linux. macOS is
-  unverified.
+- **Verified on Windows against Python 3.11.9, 3.12.10 and 3.13.15** — the full
+  suite and the fresh-clone check pass on all three. Linux and macOS are
+  unverified locally; the CI workflow runs the same commands on ubuntu-latest,
+  and the badge above shows whether that is currently passing.
+- **The Docker image has never been built.** The Dockerfile and compose file are
+  written and statically consistent with the code — `USER jsa` (uid 1000) is
+  non-root, and compose's `JSA_ALLOW_PUBLIC_BIND: "1"` matches the opt-in
+  `jsa serve` requires before binding off-loopback. But nothing has run them:
+  Docker Desktop needs a WSL2 or Hyper-V backend, and WSL on the development
+  machine returns `REGDB_E_CLASSNOTREG`. Treat the container as untested.
 
 ## Layout
 
