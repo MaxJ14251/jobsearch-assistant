@@ -114,6 +114,31 @@ and a new pending approval; the old one is never overwritten, because approval
 is per version.
 
 ```bash
+.venv/Scripts/python -m jsa contact-add --name "..." --company Replit --title "..."
+.venv/Scripts/python -m jsa outreach-draft --contact 1 --job 421 --channel linkedin_connect
+.venv/Scripts/python -m jsa outreach-show 1
+.venv/Scripts/python -m jsa outreach-mark-sent 1
+```
+Drafts networking messages. **Nothing here can send.** That is proven, not
+promised: a test walks the whole transitive import graph of `jsa.outreach` and
+asserts no sending library appears anywhere in it. The only network-capable
+module in that graph is the LLM client, and every POST it makes goes to the
+configured chat endpoint.
+
+The last command is called `mark-sent`, not `sent`, because it records
+something **you** did elsewhere and the shorter name reads like an instruction
+to send. It refuses unless a human approved the message first.
+
+A contact's name and title reach the model — a referral ask that cannot name
+its recipient is not outreach. Their email and LinkedIn URL never do.
+
+LinkedIn caps connection notes at 300 characters. Models cannot count
+characters: measured over ten real drafts with the limit stated plainly in the
+prompt, all ten came back 432–556. Handing the measured length back and asking
+for a cut fixed it — 8 of 10 then landed inside the limit, none over. The
+other 2 fail honestly and tell you to run it again.
+
+```bash
 .venv/Scripts/python -m jsa prep 3 [--round technical]
 .venv/Scripts/python -m jsa prep-show 5
 ```

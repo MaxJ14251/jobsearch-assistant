@@ -97,8 +97,68 @@ def home_path_hits(text: str) -> list[str]:
     return hits
 
 
+# Third-party contact data. Every other rule in this file protects the operator;
+# this one protects someone else, and the asymmetry is the point -- the operator
+# chose to run this tool, the contact in their `contacts` table did not.
+#
+# The database is gitignored, so the real risk is a test fixture or an example
+# containing a real person. Measured before adding this: the only addresses in
+# 57 tracked files are someone@example.org and you@example.com, both on domains
+# RFC 2606 reserves for exactly this purpose. So the rule lands with zero false
+# positives today.
+EMAIL_RE = re.compile(
+    r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9.-]+\.[A-Za-z]{2,})\b")
+
+RESERVED_EMAIL_DOMAINS = (
+    "example.com", "example.org", "example.net",
+    ".test", ".invalid", ".localhost", ".example",
+)
+
+
+def real_email_addresses(text: str) -> list[str]:
+    """Addresses that are not obviously placeholders."""
+    found = []
+    for match in EMAIL_RE.finditer(text):
+        domain = match.group(1).lower()
+        if any(domain == d or domain.endswith(d) for d in RESERVED_EMAIL_DOMAINS):
+            continue
+        found.append(match.group(0))
+    return found
+
+
 class ScannerUnavailable(RuntimeError):
     """The scanner could not do its job. Never treated as 'clean'."""
+
+
+def looks_like_a_placeholder(value: str) -> bool:
+    """True for the example profile's stand-ins, which are not secrets.
+
+    On a fresh clone `master_profile.yaml` IS the example -- fresh_clone_check
+    copies it verbatim, as the README instructs -- so identity.email reads
+    `you@example.com`. Without this, that placeholder became a blocked term and
+    the scanner failed on any file that mentioned it, including its own comment
+    explaining why example.com addresses are safe.
+
+    The check is about the shape of the value, not a list of known examples,
+    so it works for whatever placeholders a future template uses.
+    """
+    text = value.strip().lower()
+    if not text:
+        return True
+    if "<" in text or ">" in text:              # <your street>
+        return True
+    if text.startswith(("your ", "your-", "you@", "example")):
+        return True
+    if "@" in text:
+        domain = text.rsplit("@", 1)[-1]
+        if any(domain == d or domain.endswith(d)
+               for d in RESERVED_EMAIL_DOMAINS):
+            return True
+    # 555 numbers are reserved for fiction for exactly this reason.
+    digits = re.sub(r"\D", "", text)
+    if len(digits) >= 10 and digits[-7:].startswith("555"):
+        return True
+    return False
 
 
 def personal_values() -> tuple[list[str], list[str]]:
@@ -138,7 +198,8 @@ def personal_values() -> tuple[list[str], list[str]]:
 
     for value in (loc.get("street"), loc.get("postal_code"),
                   ident.get("phone"), ident.get("email")):
-        if isinstance(value, str) and len(value.strip()) >= 5:
+        if (isinstance(value, str) and len(value.strip()) >= 5
+                and not looks_like_a_placeholder(value)):
             never.append(value.strip())
     digits = re.sub(r"\D", "", ident.get("phone") or "")
     if len(digits) >= 10:
@@ -146,7 +207,8 @@ def personal_values() -> tuple[list[str], list[str]]:
 
     for value in (ident.get("full_name"), links.get("linkedin"),
                   links.get("github")):
-        if isinstance(value, str) and len(value.strip()) >= 5:
+        if (isinstance(value, str) and len(value.strip()) >= 5
+                and not looks_like_a_placeholder(value)):
             authorship.append(value.strip())
     return never, authorship
 
@@ -227,6 +289,12 @@ def scan_text(name: str, rel: str, text: str,
     for label, pattern in KEY_PATTERNS:
         if pattern.search(text):
             found.append(f"{rel}: {label}")
+
+    for hit in real_email_addresses(text)[:1]:
+        found.append(
+            f"{rel}: email address {hit[:28]!r} "
+            f"(use an example.com address in committed files)"
+        )
 
     for hit in home_path_hits(text)[:1]:
         found.append(

@@ -66,6 +66,28 @@ career. No claims beyond the facts above. Sign off without a name — the sender
 name is added afterwards."""
 
 
+# Telling a model to count characters does not work. Measured on ten real
+# linkedin_connect drafts against the 300-character limit, with "HARD LIMIT:
+# 300 characters. Count them." already prominent in the prompt: min 432,
+# median 473, max 556, and 10 of 10 over. That is not drift -- the model
+# cannot count, so it guesses, and it guesses long.
+#
+# What works is measuring for it. This is the correction a person would make:
+# "that is 473 characters, cut it to under 300."
+SHORTEN_ATTEMPTS = 3
+
+SHORTEN = """Your draft is {actual} characters. The limit is {limit}.
+
+Cut it to under {limit} characters. Remove whole sentences rather than trimming
+words -- a message that ends mid-thought is worse than a shorter one. Keep the
+specific reason for reaching out; drop the context around it.
+
+Output the shortened message body only.
+
+DRAFT TO SHORTEN:
+{body}"""
+
+
 class OutreachError(RuntimeError):
     """A draft could not be produced safely."""
 
@@ -120,8 +142,11 @@ def enforce_limit(body: str, channel: str) -> str:
     limit = CHANNEL_LIMITS.get(channel, 2000)
     if len(body) > limit:
         raise OutreachError(
-            f"{channel} messages are limited to {limit} characters; "
-            f"draft is {len(body)}"
+            f"{channel} messages are limited to {limit} characters "
+            f"(the platform's limit, not this tool's); the draft is "
+            f"{len(body)} after {SHORTEN_ATTEMPTS} attempts to shorten it. "
+            "Run the command again -- measured across ten real drafts, "
+            "8 of 10 land under the limit."
         )
     return body
 
@@ -177,6 +202,23 @@ def draft(
         max_tokens=600, temperature=0.4, thinking=False,
     )
     body = re.sub(r"\n{3,}", "\n\n", result.text.strip())
+
+    # The model cannot count characters, so measure and hand the number back.
+    # Bounded: if it still cannot get under the limit, that is an honest
+    # failure. Truncating mid-sentence would produce a message worse than none.
+    for _ in range(SHORTEN_ATTEMPTS):
+        if len(body) <= limit:
+            break
+        retry = llm.complete(
+            SHORTEN.format(actual=len(body), limit=limit, body=body),
+            system=SYSTEM, models=models, max_tokens=600,
+            temperature=0.3, thinking=False,
+        )
+        shorter = re.sub(r"\n{3,}", "\n\n", retry.text.strip())
+        if not shorter:
+            break
+        body = shorter
+
     verify_message(body, profile)
     enforce_limit(body, channel)
 

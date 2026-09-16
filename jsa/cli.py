@@ -376,6 +376,134 @@ def cmd_tailor(args: argparse.Namespace) -> int:
     return 0
 
 
+# --- contacts and outreach ---------------------------------------------------
+# See docs/decisions/0004-outreach.md. Nothing here transmits anything. The
+# command that records a send is called mark-sent precisely so no reader can
+# mistake it for one that sends.
+
+
+def cmd_contact_add(args: argparse.Namespace) -> int:
+    from . import outreach as out
+    con = db.connect()
+    try:
+        company_id = None
+        if args.company:
+            row = con.execute(
+                "SELECT id FROM companies WHERE name = ? COLLATE NOCASE "
+                "OR slug = ? COLLATE NOCASE", (args.company, args.company),
+            ).fetchone()
+            if row is None:
+                print(f"error: no company matching {args.company!r}. "
+                      "Use a name or slug already in the tracker.",
+                      file=sys.stderr)
+                return 1
+            company_id = int(row["id"])
+        contact_id = out.add_contact(
+            con, name=args.name, company_id=company_id, title=args.title,
+            linkedin_url=args.linkedin, email=args.email,
+            relationship=args.relationship, notes=args.notes,
+        )
+        con.commit()
+    except Exception as exc:  # noqa: BLE001 - surfaced, not swallowed
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        con.close()
+    print(f"contact {contact_id}: {args.name}")
+    return 0
+
+
+def cmd_contacts(args: argparse.Namespace) -> int:
+    con = db.connect()
+    try:
+        rows = con.execute(
+            "SELECT c.*, co.name AS company FROM contacts c "
+            "LEFT JOIN companies co ON co.id = c.company_id "
+            "WHERE c.archived_at IS NULL ORDER BY c.id"
+        ).fetchall()
+    finally:
+        con.close()
+    if not rows:
+        print("no contacts yet")
+        return 0
+    for row in rows:
+        print(f"[{row['id']}] {row['name']}  {row['title'] or '-'}  "
+              f"@ {row['company'] or '-'}  ({row['relationship'] or 'cold'})")
+    return 0
+
+
+def cmd_outreach_draft(args: argparse.Namespace) -> int:
+    from . import outreach as out
+    from .tailor import FabricationError
+    con = db.connect()
+    try:
+        profile = load_profile()
+        result = out.draft(
+            con, profile, contact_id=args.contact, channel=args.channel,
+            purpose=args.purpose, job_id=args.job,
+        )
+        outreach_id = con.execute(
+            "SELECT MAX(id) FROM outreach WHERE contact_id = ?", (args.contact,)
+        ).fetchone()[0]
+        con.commit()
+    except FabricationError as exc:
+        print(f"refused: {exc}", file=sys.stderr)
+        return 1
+    except out.OutreachError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        con.close()
+    print(f"outreach {outreach_id} drafted ({args.channel}, {args.purpose}, "
+          f"{len(result.body)} chars)")
+    print("  NOT SENT. This tool never transmits. Read it, approve it, then")
+    print("  send it yourself and record that with mark-sent.")
+    print(f"  read:     jsa outreach show {outreach_id}")
+    return 0
+
+
+def cmd_outreach_show(args: argparse.Namespace) -> int:
+    con = db.connect()
+    try:
+        row = con.execute(
+            "SELECT o.*, c.name AS contact FROM outreach o "
+            "JOIN contacts c ON c.id = o.contact_id WHERE o.id = ?",
+            (args.outreach_id,),
+        ).fetchone()
+        approval = con.execute(
+            "SELECT id, decision FROM approvals WHERE subject_type = 'outreach' "
+            "AND subject_id = ? ORDER BY id DESC LIMIT 1", (args.outreach_id,),
+        ).fetchone()
+    finally:
+        con.close()
+    if row is None:
+        print(f"error: no outreach with id {args.outreach_id}", file=sys.stderr)
+        return 1
+    print(f"to {row['contact']} via {row['channel']} "
+          f"({row['purpose']}, {row['status']}, {len(row['draft_body'])} chars)")
+    print()
+    print(row["draft_body"])
+    print()
+    if approval and approval["decision"] == "pending":
+        print(f"approve:  jsa approve {approval['id']}")
+    return 0
+
+
+def cmd_outreach_mark_sent(args: argparse.Namespace) -> int:
+    from . import outreach as out
+    con = db.connect()
+    try:
+        out.mark_sent(con, args.outreach_id)
+        con.commit()
+    except out.OutreachError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        con.close()
+    print(f"recorded: you sent outreach {args.outreach_id}")
+    return 0
+
+
 # --- interview prep ----------------------------------------------------------
 
 
@@ -635,6 +763,42 @@ def main(argv: list[str] | None = None) -> int:
     p_serve.add_argument("--host", default="127.0.0.1")
     p_serve.add_argument("--port", type=int, default=8765)
     p_serve.set_defaults(func=cmd_serve)
+
+    p_cadd = sub.add_parser("contact-add", help="record a person to reach out to")
+    p_cadd.add_argument("--name", required=True)
+    p_cadd.add_argument("--company", help="company name or slug already in the tracker")
+    p_cadd.add_argument("--title")
+    p_cadd.add_argument("--linkedin")
+    p_cadd.add_argument("--email")
+    p_cadd.add_argument(
+        "--relationship", default="cold",
+        choices=["cold", "warm", "alum", "referral", "recruiter", "friend"])
+    p_cadd.add_argument("--notes")
+    p_cadd.set_defaults(func=cmd_contact_add)
+
+    sub.add_parser("contacts", help="list your contacts").set_defaults(
+        func=cmd_contacts)
+
+    p_odraft = sub.add_parser("outreach-draft", help="draft a message (never sends)")
+    p_odraft.add_argument("--contact", type=int, required=True)
+    p_odraft.add_argument("--job", type=int)
+    p_odraft.add_argument(
+        "--channel", default="linkedin_connect",
+        choices=["linkedin_connect", "linkedin_dm", "email", "other"])
+    p_odraft.add_argument(
+        "--purpose", default="referral_ask",
+        choices=["referral_ask", "informational", "follow_up", "thank_you"])
+    p_odraft.set_defaults(func=cmd_outreach_draft)
+
+    p_oshow = sub.add_parser("outreach-show", help="read a drafted message")
+    p_oshow.add_argument("outreach_id", type=int)
+    p_oshow.set_defaults(func=cmd_outreach_show)
+
+    p_osent = sub.add_parser(
+        "outreach-mark-sent",
+        help="record that YOU sent it; this tool never transmits")
+    p_osent.add_argument("outreach_id", type=int)
+    p_osent.set_defaults(func=cmd_outreach_mark_sent)
 
     p_prep = sub.add_parser("prep", help="generate interview prep for an application")
     p_prep.add_argument("application_id", type=int)
