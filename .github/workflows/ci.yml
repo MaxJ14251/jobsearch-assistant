@@ -2,7 +2,8 @@ name: tests
 
 on:
   push:
-    branches: [main, master]
+    # ci/** so a branch can be proven before anything is merged.
+    branches: [main, master, "ci/**"]
   pull_request:
 
 jobs:
@@ -54,3 +55,14 @@ jobs:
       # Fails the build if an API key or personal data reached a tracked file.
       - name: Scan for secrets and personal data
         run: python tools/scan_secrets.py
+
+  # The development machine cannot run Docker, so the container's claims are
+  # proven here: no personal files in any layer, not root, init and matches
+  # with no API key, the public-bind guard both ways, and a tracker that
+  # survives a restart. Builds only; nothing is pushed to a registry.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image and prove what the README says about it
+        run: bash tools/docker_check.sh

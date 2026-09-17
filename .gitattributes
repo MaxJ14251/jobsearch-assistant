@@ -1,0 +1,2 @@
+# Shell scripts run on Linux runners and in containers.
+*.sh text eol=lf
