@@ -87,7 +87,10 @@ while IFS= read -r -d '' blob; do
   fi
 done < <(find "$WORK/image" -type f -print0)
 [ -s "$WORK/files.txt" ] || fail "no layer could be listed; the check would pass vacuously"
-leaked="$(grep -E '(^|/)(\.env|master_profile\.yaml|[^/]*\.db(-wal|-shm)?|[^/]*\.docx|decoy[^/]*)$' "$WORK/files.txt" || true)"
+# By name, only where this project's files land. Libraries ship their own
+# .docx and .db files: python-docx's default.docx template is not a resume.
+# The marker scan above covers every path regardless.
+leaked="$(grep -E '^/?(app|data|home)/(.*/)?(\.env|master_profile\.yaml|[^/]*\.db(-wal|-shm)?|[^/]*\.docx|decoy[^/]*)$' "$WORK/files.txt" || true)"
 [ -z "$leaked" ] || fail "personal-looking files in the image layers:
 $leaked"
 ok "no decoy in $(wc -l < "$WORK/files.txt") layer entries"
