@@ -22,7 +22,8 @@ from jsa.config import DB_PATH
 def client():
     from fastapi.testclient import TestClient
     from jsa import web
-    return TestClient(web.create_app())
+    # The dashboard refuses any Host but a loopback name (DNS rebinding).
+    return TestClient(web.create_app(), base_url="http://127.0.0.1:8765")
 
 
 def has_tracker_data() -> bool:

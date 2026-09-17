@@ -192,8 +192,9 @@ database, so running it twice is safe.
 The approval gate. **These commands, and the matching web routes, are the only
 ways a decision reaches `decided_by='human'`** — and the database refuses any
 other write, so it is a constraint rather than a convention. Feedback on a
-rejection is required: a redraft has nothing to work from without it. A decision
-is per document version and is never inherited by a redraft.
+rejection is required and kept as the record of why. It is not yet fed back
+into the next draft; to change what future drafts say, edit your profile. A
+decision is per document version and is never inherited by a redraft.
 
 ```bash
 .venv/Scripts/python -m jsa applied 421
@@ -206,9 +207,26 @@ hand; it notes the absence rather than blocking you.
 ```bash
 .venv/Scripts/python -m jsa serve
 ```
-Local review dashboard on 127.0.0.1 — matches with their flags, the pipeline, and
-the approval queue. Approve/Reject go through the same code path as the CLI, so the
-human-approval guarantee is identical.
+Local review dashboard on http://127.0.0.1:8765. It covers the whole path from a
+match to a resume you can upload yourself:
+
+- **Matches** and **Pipeline**, each linking to a job page.
+- **Job page**: every drafted document, newest version first, with its status
+  (pending, approved, rejected and your note), model, the profile bullets it
+  used, the keyword gaps it could not honestly fill, and a **Download .docx**
+  link. Its interview preps are listed below. A **Save** button starts an
+  application; a **Tailor** button runs exactly what `jsa tailor --force`
+  runs and queues the draft for review.
+- **Interview prep** page: each question, why it is asked, and your
+  first-person answer notes.
+- **Review queue**: each draft line beside the profile bullet it came from,
+  with any word your profile does not support highlighted, plus the whole
+  draft. Approve/Reject call the same functions as the CLI.
+
+Downloads are served only from `output/`, after resolving the path, and only
+`.docx` files. The dashboard answers only requests addressed to a loopback
+name, and every form carries a per-process token, so another site open in
+the same browser can neither read your documents nor approve anything.
 
 ```bash
 .venv/Scripts/python tools/fresh_clone_check.py

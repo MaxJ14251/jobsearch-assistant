@@ -85,11 +85,15 @@ def approve(con: sqlite3.Connection, approval_id: int, note: str | None = None) 
 
 
 def reject(con: sqlite3.Connection, approval_id: int, feedback: str) -> None:
-    """Record a human rejection. Feedback is required — it drives the redraft."""
+    """Record a human rejection. Feedback is required.
+
+    It is kept with the decision as the record of why. Nothing reads it back
+    into a redraft yet; an earlier message here claimed otherwise.
+    """
     if not (feedback or "").strip():
         raise ApprovalError(
             "rejection requires feedback saying what to change; "
-            "without it a regeneration has nothing to work from"
+            "write a short note, then reject again"
         )
     _decide(con, approval_id, "rejected", feedback.strip())
 

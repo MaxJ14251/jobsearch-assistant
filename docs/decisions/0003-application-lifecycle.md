@@ -121,6 +121,40 @@ Already true; now guarded. A test asserts that `approvals.py` is the only
 module in `jsa/` containing the string `decided_by`, so a future contributor
 adding a convenient shortcut breaks the build rather than the guarantee.
 
+### 6. The dashboard shows documents; it does not add a second path to anything
+
+Added when the dashboard learned to show documents (2026-09-17). It follows
+decisions 1-5 rather than adding new ones:
+
+- **Tailor** runs `jsa.drafting.draft_document`, the function `jsa tailor`
+  now calls. Pressing the button is the explicit request for a new version, so
+  it passes `force=True`. It queues an approval and decides nothing.
+- **Save** calls `approvals.save_application`, as `jsa save` does.
+- **Approve/Reject** call `approvals.approve` / `approvals.reject`, as before.
+  A test puts two identical trackers through `jsa approve` and the dashboard
+  and requires the resulting rows to match.
+- **Downloads** serve a path from `documents` only after resolving it and
+  confirming it is a `.docx` inside `output/` (`jsa.review.safe_document_path`).
+  A row pointing at `.env` or the profile gets the same 404 as a missing row.
+  The traversal tests were run against an unguarded route first: 7 of 8 failed.
+
+Loopback binding is not enough on its own, because the browser that holds the
+dashboard also visits other sites:
+
+- Requests must name a loopback host. This stops DNS rebinding, where a hostile
+  domain resolves to 127.0.0.1 and reads responses as same-origin.
+- Every form carries a per-process token. Any page can make the browser POST
+  to 127.0.0.1; it cannot read the token, so it cannot forge an approval.
+- Templates autoescape unconditionally. `select_autoescape(["html"])` keys on
+  the template name, and these are named `base`, `job`... so escaping had been
+  off since the dashboard was written, and a job description from a
+  third-party board rendered as live HTML. On a page that holds the form token
+  that would have been an approval forgery, so it is fixed and tested here.
+
+The review queue re-runs the ADR 0005 added-words check on what the document
+actually says and shows each line beside its profile source. Documents drafted
+before that check existed are where it matters.
+
 ## Consequences
 
 - The tracker holds real applications for the first time.

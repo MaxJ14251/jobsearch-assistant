@@ -319,104 +319,43 @@ KIND_ARG = {"resume": "resume", "cover-letter": "cover_letter"}
 
 
 def _cover_body(draft) -> str:
-    """Compose the letter from the ALREADY-VERIFIED draft.
-
-    Deliberately no second model call. Every sentence below has passed
-    verify_draft; asking a model for fresh prose here would open a fabrication
-    surface that nothing downstream checks.
-    """
-    parts = [draft.summary] + [b.text for b in draft.bullets[:3]]
-    return "\n\n".join(part for part in parts if part and part.strip())
+    from .drafting import cover_body
+    return cover_body(draft)
 
 
 def cmd_tailor(args: argparse.Namespace) -> int:
-    from . import render
-    from .tailor import FabricationError, IdentityLeakError, UndecidedPreferenceError
-    from .tailor import tailor as build_draft
+    from .drafting import DraftError, draft_document
+    from .tailor import MAX_DESCRIPTION_CHARS
 
     kind = KIND_ARG[args.kind]
     con = db.connect()
     try:
-        job = con.execute(
-            "SELECT j.*, c.name AS company FROM jobs j "
-            "LEFT JOIN companies c ON c.id = j.company_id WHERE j.id = ?",
-            (args.job_id,),
-        ).fetchone()
-        if job is None:
-            print(f"error: no job with id {args.job_id}", file=sys.stderr)
-            return 1
-        job = dict(job)
-
-        # ADR 0003 decision 1: an application is created explicitly.
-        application_id = approvals.require_application(con, args.job_id)
-
-        existing = render.next_version(con, args.job_id, kind) - 1
-        if existing and not args.force:
-            print(f"error: {kind} v{existing} already exists for job "
-                  f"{args.job_id}. Re-run with --force to draft v{existing + 1}.",
-                  file=sys.stderr)
-            return 1
-
-        profile = load_profile()
-        full = len(job.get("description") or "")
-        # Tag rarity is learned from the postings already in the tracker, so a
-        # word appearing in 87% of them cannot outweigh one appearing in 3%.
-        from .tailor import role_kind, tag_weights, vocabulary
-        weights = tag_weights(con, vocabulary(profile))
-        # Not "kind": that name already holds the document kind, and reusing it
-        # sent "support" into documents.kind and tripped the CHECK constraint.
-        role = role_kind(job.get("title"), job.get("track"))
-        draft = build_draft(job, profile, weights=weights)
-
-        version = render.next_version(con, args.job_id, kind)
-        out = render.output_path(job.get("company") or "unknown",
-                                 job.get("title") or "role", kind, version)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        if kind == "resume":
-            render.render_resume(draft, profile, job, out)
-        else:
-            render.render_cover_letter(draft, profile, job, _cover_body(draft), out)
-
-        document_id = render.record(
-            con, job_id=args.job_id, kind=kind, path=out, draft=draft,
-            prompt_hash=draft.prompt_hash,
-        )
-        approvals.set_document_pointer(con, application_id, kind, document_id)
-        approvals.record_event(
-            con, application_id, "ready", actor="agent",
-            note=f"{kind} v{version} drafted, awaiting approval")
-        approval_id = approvals.queue(
-            con, "document", document_id,
-            f"{kind} v{version} for {job.get('title')} at {job.get('company')}")
-        con.commit()
-    except (approvals.ApprovalError, UndecidedPreferenceError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
-    except (FabricationError, IdentityLeakError) as exc:
-        # The guard fired. That is the system working, not a crash.
-        print(f"refused: {exc}", file=sys.stderr)
+        result = draft_document(con, args.job_id, kind, force=args.force,
+                                profile=load_profile())
+    except DraftError as exc:
+        # A refusal is a guard firing. That is the system working, not a crash.
+        print(f"{'refused' if exc.refused else 'error'}: {exc}", file=sys.stderr)
         return 1
     finally:
         con.close()
 
-    from .tailor import MAX_DESCRIPTION_CHARS
-    if full > MAX_DESCRIPTION_CHARS:
+    if result.description_chars > MAX_DESCRIPTION_CHARS:
         # Silent truncation is how a draft ends up ignoring a requirement that
         # was stated in the part the model never saw.
-        print(f"note: posting is {full:,} chars; the model saw the first "
-              f"{MAX_DESCRIPTION_CHARS:,}", file=sys.stderr)
-    print(f"wrote {out}")
-    print(f"  document {document_id} v{version}  model {draft.model}")
+        print(f"note: posting is {result.description_chars:,} chars; the model "
+              f"saw the first {MAX_DESCRIPTION_CHARS:,}", file=sys.stderr)
+    print(f"wrote {result.path}")
+    print(f"  document {result.document_id} v{result.version}  model {result.model}")
     # Printed so a misclassified title is visible on every run. ADR 0005.
-    print(f"  role     {role}")
-    print(f"  bullets  {', '.join(b.source_id for b in draft.bullets)}")
-    if draft.keywords_missing:
-        print(f"  gaps     {', '.join(draft.keywords_missing)}")
-    for bullet_id, why in draft.revert_reasons.items():
+    print(f"  role     {result.role}")
+    print(f"  bullets  {', '.join(result.bullet_ids)}")
+    if result.gaps:
+        print(f"  gaps     {', '.join(result.gaps)}")
+    for bullet_id, why in result.revert_reasons.items():
         # The rewrite said something the profile does not, so the profile's own
         # words were used instead. Said out loud, never silently.
         print(f"  reverted {bullet_id}: {why}")
-    print(f"  approve  jsa approve {approval_id}")
+    print(f"  approve  jsa approve {result.approval_id}")
     return 0
 
 
@@ -886,7 +825,7 @@ def main(argv: list[str] | None = None) -> int:
     p_rej.add_argument("approval_id", type=int)
     p_rej.add_argument(
         "--feedback", required=True,
-        help="what to change; a redraft has nothing to work from without it")
+        help="what to change; kept as the record of why")
     p_rej.set_defaults(func=cmd_reject)
 
     p_done = sub.add_parser("applied", help="record that YOU submitted it")
