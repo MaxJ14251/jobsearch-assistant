@@ -185,7 +185,9 @@ def draft(
 
     description = job["description"] if job else ""
     bullets = select_bullets(profile, description, "engineering", limit=3,
-                             title=job["title"] if job else "")
+                             title=job["title"] if job else "",
+                             # A three-line note is not a resume.
+                             keep_work_history=False)
     limit = CHANNEL_LIMITS.get(channel, 2000)
 
     prompt = PROMPT.format(

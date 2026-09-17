@@ -676,6 +676,7 @@ def tag_report(profile: dict[str, Any], weights: dict[str, float],
 def select_bullets(
     profile: dict[str, Any], description: str, track: str, limit: int = 6,
     weights: dict[str, float] | None = None, title: str = "",
+    keep_work_history: bool = True,
 ) -> list[SourceBullet]:
     """Rank profile bullets against the posting. Deterministic, no model call.
 
@@ -711,7 +712,32 @@ def select_bullets(
     keep = [row for row in scored[:limit] if row[0] >= best * RELEVANCE_FLOOR]
     if len(keep) < MIN_BULLETS:
         keep = scored[:min(MIN_BULLETS, limit, len(scored))]
+
+    # A resume must never read as if its owner has never been employed. When
+    # projects outscore every job -- a career changer applying to engineering
+    # -- keep the best bullet of the most recent job, displacing the weakest
+    # pick if the resume is full. It is still one of the operator's own
+    # bullets, so this adds no claim.
+    recent = most_recent_job(profile)
+    if (keep_work_history and recent
+            and not any(row[4].origin == "experience" for row in keep)):
+        best_work = next((row for row in scored
+                          if row[4].origin == "experience"
+                          and row[4].parent == recent), None)
+        if best_work is not None:
+            keep = keep[:limit - 1] + [best_work]
     return [row[4] for row in keep]
+
+
+def most_recent_job(profile: dict[str, Any]) -> str:
+    """Id of the current job, else the one that ended last. "" if none."""
+    jobs = [e for e in profile.get("experience") or [] if e.get("bullets")]
+    if not jobs:
+        return ""
+    latest = max(jobs, key=lambda e: (bool(e.get("current")),
+                                      str(e.get("end") or ""),
+                                      str(e.get("start") or "")))
+    return latest.get("id") or latest.get("company", "")
 
 
 # --- generation -------------------------------------------------------------

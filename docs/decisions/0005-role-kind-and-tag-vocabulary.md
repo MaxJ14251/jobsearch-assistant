@@ -191,6 +191,20 @@ near-zero overlap), then banned terms against the text **as generated**, then
 per-bullet reverts. Checking banned terms after reverting would let an attempt
 to claim a forbidden term pass quietly.
 
+### 9. Every resume keeps the most recent job
+
+Added after review. The Rocket Lab and Scale AI drafts had no EXPERIENCE
+section: the projects outscored both jobs, so the resume read as if its owner
+had never been employed. The operator rejected both with "no work history;
+keep the most recent job".
+
+`select_bullets` now keeps the best-scoring bullet of the current job, or the
+one that ended last, when nothing else from EXPERIENCE was chosen. It displaces
+the weakest pick if the resume is full and is placed last, so it never
+outranks relevant work. It is one of the operator's own bullets, so it adds no
+claim. Outreach opts out (`keep_work_history=False`): a three-line note is not
+a resume.
+
 ## Consequences
 
 - Support roles now select customer-facing and field experience.

@@ -119,10 +119,16 @@ class TestSelection(unittest.TestCase):
                               {t for b in collect_bullets(PROFILE).values()
                                for t in b.tags},
                               corpus=corpus())
-        chosen = select_bullets(PROFILE, ROBOTICS_JD, "engineering",
-                                weights=weights)
-        self.assertNotIn("b_field", [b.id for b in chosen],
-                         "fire-alarm work was selected for a software role")
+        ranked = select_bullets(PROFILE, ROBOTICS_JD, "engineering",
+                                weights=weights, keep_work_history=False)
+        self.assertNotIn("b_field", [b.id for b in ranked],
+                         "fire-alarm work was selected on relevance for a software role")
+        # With the work-history rule it returns only as the one job bullet,
+        # last -- present so the resume shows employment, never outranking.
+        chosen = [b.id for b in select_bullets(PROFILE, ROBOTICS_JD, "engineering",
+                                               weights=weights)]
+        self.assertEqual(chosen[-1], "b_field")
+        self.assertEqual(chosen.count("b_field"), 1)
 
     def test_ties_do_not_break_on_the_alphabet(self):
         """b_inst_codes once beat b_vid_goal purely because 'b_i' < 'b_v'.
@@ -157,6 +163,65 @@ class TestSelection(unittest.TestCase):
         """Six of ten were previously chosen every time, regardless of fit."""
         chosen = select_bullets(PROFILE, ROBOTICS_JD, "engineering", limit=6)
         self.assertLessEqual(len(chosen), 5, "returned everything available")
+
+
+class TestWorkHistoryIsNeverEmpty(unittest.TestCase):
+    """Rocket Lab and Scale AI drafts once had no EXPERIENCE section at all.
+
+    The projects outscored every job, so the resume read as if the candidate
+    had never been employed. A recruiter checks work history first; for anyone
+    changing fields that omission costs more than one off-field bullet does.
+    """
+
+    PROFILE = {
+        "experience": [
+            {"id": "exp_old", "company": "Acme", "family": "technical_field",
+             "start": "2019-01", "end": "2021-01", "bullets": [
+                 {"id": "b_old", "text": "Repaired pumps.", "tags": [], "strength": 1}]},
+            {"id": "exp_recent", "company": "Acme", "family": "sales",
+             "start": "2021-02", "end": "2023-11", "bullets": [
+                 {"id": "b_recent_weak", "text": "Filed reports.", "tags": [], "strength": 3},
+                 {"id": "b_recent", "text": "Sold pumps.", "tags": ["python"], "strength": 1}]},
+        ],
+        "projects": [
+            {"id": "p", "name": "P", "family": "ai_engineering", "bullets": [
+                {"id": f"b_p{i}", "text": f"Built python thing {i}.",
+                 "tags": ["python"], "strength": 1} for i in range(6)]},
+        ],
+    }
+
+    def ids(self, **kw):
+        return [b.id for b in select_bullets(self.PROFILE, "python", "engineering",
+                                             title="Software Engineer", **kw)]
+
+    def test_the_most_recent_job_is_kept_on_an_engineering_resume(self):
+        chosen = self.ids()
+        self.assertIn("b_recent", chosen, "resume had no work history")
+        self.assertNotIn("b_old", chosen)
+
+    def test_its_best_bullet_is_the_one_kept(self):
+        self.assertNotIn("b_recent_weak", self.ids())
+
+    def test_the_limit_still_holds(self):
+        self.assertEqual(len(self.ids(limit=6)), 6)
+        self.assertEqual(self.ids(limit=6)[-1], "b_recent")
+
+    def test_a_current_job_counts_as_most_recent(self):
+        import copy
+        profile = copy.deepcopy(self.PROFILE)
+        profile["experience"][0].update(end=None, current=True)
+        chosen = [b.id for b in select_bullets(profile, "python", "engineering",
+                                               title="Software Engineer")]
+        self.assertIn("b_old", chosen)
+
+    def test_callers_may_opt_out(self):
+        """A three-bullet outreach note is not a resume."""
+        self.assertNotIn("b_recent", self.ids(keep_work_history=False))
+
+    def test_a_profile_without_jobs_is_unaffected(self):
+        profile = {"experience": [], "projects": self.PROFILE["projects"]}
+        chosen = select_bullets(profile, "python", "engineering")
+        self.assertTrue(all(b.origin == "project" for b in chosen))
 
 
 class TestSectionOrder(unittest.TestCase):
