@@ -466,12 +466,29 @@ Worth knowing before you rely on this.
   suite and the fresh-clone check pass on all three. Linux and macOS are
   unverified locally; the CI workflow runs the same commands on ubuntu-latest,
   and the badge above shows whether that is currently passing.
-- **The Docker image has never been built.** The Dockerfile and compose file are
-  written and statically consistent with the code — `USER jsa` (uid 1000) is
-  non-root, and compose's `JSA_ALLOW_PUBLIC_BIND: "1"` matches the opt-in
-  `jsa serve` requires before binding off-loopback. But nothing has run them:
-  Docker Desktop needs a WSL2 or Hyper-V backend, and WSL on the development
-  machine returns `REGDB_E_CLASSNOTREG`. Treat the container as untested.
+- **The Docker image is built and checked in CI, not on the development
+  machine** (Docker Desktop cannot run there: WSL returns
+  `REGDB_E_CLASSNOTREG`). The `docker` job runs `tools/docker_check.sh` on
+  GitHub's ubuntu-latest runner on every push to `main` and `ci/**`, and
+  verifies:
+  - no personal file reaches any image layer (decoy `.env`, profile, `*.db`,
+    documents and logs are planted before the build and searched for);
+  - the process runs as uid 1000, not root;
+  - `jsa init` and `jsa matches` exit 0 with the example profile and no key;
+  - `jsa serve --host 0.0.0.0` refuses without `JSA_ALLOW_PUBLIC_BIND=1`,
+    and with it answers on a port published to 127.0.0.1 only, refusing
+    foreign `Host` headers;
+  - the tracker on the `/data` volume survives a restart and a new container.
+
+  The layer, non-root and bind-guard checks were each run once against a
+  deliberately broken branch and failed at the expected line
+  (`ci/docker-fail-ignore`, `-fail-root`, `-fail-bind`). The first real run
+  found a leak: `.dockerignore` patterns match from the build root, so `*.db`
+  did not exclude a database under `config/`. Fixed with `**/` patterns.
+
+  **Still untested:** `docker compose` itself (the checks use `docker run`
+  with the same settings), `discover` and `enrich` inside the container
+  (they need the network and an API key), and any host other than Linux.
 
 ## Layout
 
