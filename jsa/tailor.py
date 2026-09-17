@@ -718,26 +718,37 @@ def select_bullets(
     # -- keep the best bullet of the most recent job, displacing the weakest
     # pick if the resume is full. It is still one of the operator's own
     # bullets, so this adds no claim.
+    #
+    # Which bullet: the entry's `work_history_bullet` if the operator named
+    # one, else the best-scoring. On an off-field job the score is noise -- a
+    # single incidental tag like "ownership" once chose a sales-cycle bullet
+    # for an AI role over the promotion bullet that reads well anywhere.
     recent = most_recent_job(profile)
-    if (keep_work_history and recent
+    if (keep_work_history and recent is not None
             and not any(row[4].origin == "experience" for row in keep)):
-        best_work = next((row for row in scored
-                          if row[4].origin == "experience"
-                          and row[4].parent == recent), None)
-        if best_work is not None:
-            keep = keep[:limit - 1] + [best_work]
+        parent = recent.get("id") or recent.get("company", "")
+        own = [row for row in scored
+               if row[4].origin == "experience" and row[4].parent == parent]
+        named = recent.get("work_history_bullet")
+        if named:
+            own = [row for row in own if row[4].id == named]
+            if not own:
+                raise ValueError(
+                    f"work_history_bullet {named!r} on experience {parent!r} "
+                    "is not one of that entry's bullets")
+        if own:
+            keep = keep[:limit - 1] + [own[0]]
     return [row[4] for row in keep]
 
 
-def most_recent_job(profile: dict[str, Any]) -> str:
-    """Id of the current job, else the one that ended last. "" if none."""
+def most_recent_job(profile: dict[str, Any]) -> dict[str, Any] | None:
+    """The current job, else the one that ended last. None if there are none."""
     jobs = [e for e in profile.get("experience") or [] if e.get("bullets")]
     if not jobs:
-        return ""
-    latest = max(jobs, key=lambda e: (bool(e.get("current")),
-                                      str(e.get("end") or ""),
-                                      str(e.get("start") or "")))
-    return latest.get("id") or latest.get("company", "")
+        return None
+    return max(jobs, key=lambda e: (bool(e.get("current")),
+                                    str(e.get("end") or ""),
+                                    str(e.get("start") or "")))
 
 
 # --- generation -------------------------------------------------------------

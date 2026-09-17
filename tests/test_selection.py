@@ -214,6 +214,25 @@ class TestWorkHistoryIsNeverEmpty(unittest.TestCase):
                                                title="Software Engineer")]
         self.assertIn("b_old", chosen)
 
+    def test_the_operator_can_name_the_bullet(self):
+        """Tag hits on an off-field job are noise -- one incidental word decided
+        it. The operator knows which bullet reads well on any resume."""
+        import copy
+        profile = copy.deepcopy(self.PROFILE)
+        profile["experience"][1]["work_history_bullet"] = "b_recent_weak"
+        chosen = [b.id for b in select_bullets(profile, "python", "engineering",
+                                               title="Software Engineer")]
+        self.assertEqual(chosen[-1], "b_recent_weak")
+        self.assertNotIn("b_recent", chosen)
+
+    def test_a_named_bullet_from_another_job_is_refused(self):
+        import copy
+        profile = copy.deepcopy(self.PROFILE)
+        profile["experience"][1]["work_history_bullet"] = "b_old"
+        with self.assertRaises(ValueError) as ctx:
+            select_bullets(profile, "python", "engineering")
+        self.assertIn("work_history_bullet", str(ctx.exception))
+
     def test_callers_may_opt_out(self):
         """A three-bullet outreach note is not a resume."""
         self.assertNotIn("b_recent", self.ids(keep_work_history=False))

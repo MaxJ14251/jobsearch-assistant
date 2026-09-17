@@ -245,6 +245,10 @@ experience:
     end: 2023-11
     current: false
     family: sales
+    # Optional. The bullet to show when this job appears only so the resume
+    # has work history (e.g. a sales job on an engineering resume). Without it
+    # the best keyword match is used. Must be one of this entry's bullets.
+    work_history_bullet: b_riv_promo
     bullets:
       - id: b_riv_promo
         strength: 1

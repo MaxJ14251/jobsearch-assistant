@@ -205,6 +205,12 @@ outranks relevant work. It is one of the operator's own bullets, so it adds no
 claim. Outreach opts out (`keep_work_history=False`): a three-line note is not
 a resume.
 
+Which bullet: the entry's optional `work_history_bullet`, else the best
+keyword match. The match proved to be noise here -- on the Scale AI role a
+single incidental tag ("ownership") chose the sales-cycle bullet over the
+promotion bullet, which reads well on any resume. The operator knows which
+bullet travels; a named id that is not one of the entry's bullets is refused.
+
 ## Consequences
 
 - Support roles now select customer-facing and field experience.
