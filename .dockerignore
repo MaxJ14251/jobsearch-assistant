@@ -1,14 +1,20 @@
-.venv/
-__pycache__/
-*.pyc
+# Unlike .gitignore, a pattern here matches from the build-context root only:
+# "*.db" excludes ./jobsearch.db but NOT config/decoy.db. The first CI run of
+# tools/docker_check.sh found exactly that -- a planted database in config/
+# reached the image. Anything that must never be copied at any depth uses **/.
 .git/
 .github/
-.env
-profile/master_profile.yaml
-*.db
-*.db-wal
-*.db-shm
-output/
-documents/
-*.log
 .claude/
+.venv/
+**/__pycache__/
+**/*.pyc
+
+# --- personal data: never in an image -------------------------------------
+**/.env
+**/master_profile.yaml
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/*.log
+**/output/
+**/documents/

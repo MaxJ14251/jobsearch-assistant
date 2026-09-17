@@ -57,6 +57,18 @@ class TestContainerCheck(unittest.TestCase):
         # Cleanup deletes only files carrying this run's marker.
         self.assertRegex(script, r'grep -q "\$MARK" "\$f"')
 
+    def test_personal_patterns_apply_at_every_depth(self):
+        """.dockerignore matches from the context root: "*.db" missed
+        config/decoy.db, and the first CI run caught it in an image layer."""
+        lines = [line.strip() for line in
+                 (ROOT / ".dockerignore").read_text(encoding="utf-8").splitlines()
+                 if line.strip() and not line.startswith("#")]
+        for name in (".env", "master_profile.yaml", "*.db", "*.db-wal",
+                     "*.db-shm", "*.log", "output/", "documents/"):
+            with self.subTest(pattern=name):
+                self.assertIn(f"**/{name}", lines)
+                self.assertNotIn(name, lines, "a root-only copy invites confusion")
+
     def test_the_script_is_stored_with_unix_line_endings(self):
         self.assertIn("*.sh text eol=lf",
                       (ROOT / ".gitattributes").read_text(encoding="utf-8"))
