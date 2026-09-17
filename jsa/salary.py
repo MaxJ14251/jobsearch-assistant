@@ -1,0 +1,252 @@
+"""Pay ranges, read out of posting text. See docs/decisions/0006-*.
+
+Deterministic on purpose. The enrichment model reads the first 6,000
+characters of a posting and runs after scoring; pay ranges sit near the END
+(Rocket Lab's is past character 9,000) and must be known AT scoring. A model
+also costs a call per posting. So: a pattern, gated by context.
+
+Measured on the 514-posting tracker (2026-09-17): 286 mention a dollar
+figure, 234 of them a "$X - $Y" range. The rest are a mix of funding rounds
+("raised our $1.5B Series F"), benefits and stipends -- and, read in full, 13
+single stated wages ("$30.00/hour", "Zone 1: $98,700 USD"). So:
+
+- A range counts with pay wording within 250 characters before it ("Pay
+  Range", "salary", "base", "OTE", "USD"...) and no funding or perk wording
+  right next to it.
+- A single figure needs stronger evidence -- the wording immediately before
+  it, or a unit like "/hour" right after -- and is read only when a posting
+  has no usable range.
+- The size of the figure decides the period, and must be plausible for it.
+  An hourly-sized figure must also say "hour" nearby.
+- Several ranges -- SpaceX posts "Level I" and "Level II", others post one per
+  city -- combine to the lowest minimum and the highest maximum. Scoring ranks
+  on the minimum, so a senior level cannot inflate an entry-level match.
+- Annual ranges win over hourly ones when a posting gives both (one does:
+  "$33.65 - $38.70 per hour ... annualized to $100,000 - $115,000 per year").
+
+Equity, bonus and "competitive" are not pay and are not stored. A NULL
+salary_min with a NULL salary_text means no pay figure was found. Amounts are
+whole dollars in the posting's own period; salary_text keeps the exact words.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+
+HOURS_PER_YEAR = 2080
+
+_NUMBER = r"(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)"
+_RANGE = re.compile(
+    r"\$\s?" + _NUMBER + r"\s?([kK])?"
+    + r"(?:\s?(?:USD|usd))?\s*(?:-|–|—|to)\s*(?:USD\s*)?\$?\s?"
+    + _NUMBER + r"\s?([kK])?"
+)
+
+# Wording that says the number is pay. Checked in the text just before the
+# range, which is where "Pay Range:" sits even when a level name intervenes.
+_CUE = re.compile(
+    r"\b(pay|salary|salaries|compensation|base|wage|wages|ote|on-target|"
+    r"earnings|hourly|annual|annually|annualized|per year|usd)\b",
+    re.I,
+)
+CUE_WINDOW = 250
+LIST_GAP = 120
+
+# Wording that says it is not. Checked close to the range only.
+_VETO = re.compile(
+    r"\b(raised|raise|series|funding|valuation|revenue|arr|stipend|stipends|"
+    r"reimburse\w*|allowance|fertility|401|match|donat\w*|budget)\b",
+    re.I,
+)
+VETO_WINDOW = 45
+
+HOURLY_WINDOW = 90
+_HOURLY = re.compile(r"(per\s+hour|/\s?h(?:ou)?r\b|an\s+hour|hourly)", re.I)
+
+ANNUAL_BOUNDS = (20_000, 1_000_000)
+HOURLY_BOUNDS = (10, 500)
+
+
+@dataclass(frozen=True)
+class Salary:
+    minimum: int
+    maximum: int
+    period: str            # "year" or "hour"
+    text: str              # the words it was read from, for a human to check
+
+    def annual_minimum(self) -> int:
+        return self.minimum * HOURS_PER_YEAR if self.period == "hour" else self.minimum
+
+    def annual_maximum(self) -> int:
+        return self.maximum * HOURS_PER_YEAR if self.period == "hour" else self.maximum
+
+    def label(self) -> str:
+        unit = "/hr" if self.period == "hour" else "/yr"
+        if self.minimum == self.maximum:
+            return f"${self.minimum:,}{unit}"
+        return f"${self.minimum:,}–${self.maximum:,}{unit}"
+
+
+def _amount(digits: str, k: str | None) -> int:
+    # Whole dollars. Hourly cents are rounded; salary_text keeps the exact
+    # figures for anyone who needs them.
+    value = float(digits.replace(",", ""))
+    return round(value * 1000 if k else value)
+
+
+def _candidates(text: str):
+    last_accepted_end = -10**9
+    for m in _RANGE.finditer(text):
+        # A list of ranges ("... for Maryland $84,500 - $144,000 for D.C.
+        # $96,500 - $164,000 ...") carries its pay wording only at the top. A
+        # range that follows an accepted one closely belongs to the same list.
+        # Found in the hand-check: job 507's third city was dropped.
+        continued = m.start() - last_accepted_end <= LIST_GAP
+        low = _amount(m.group(1), m.group(2))
+        high = _amount(m.group(3), m.group(4) or m.group(2))
+        # "$150-$195k": the k written once applies to both ends.
+        if m.group(4) and not m.group(2) and low < 1000:
+            low *= 1000
+        before = text[max(0, m.start() - CUE_WINDOW):m.start()]
+        near = text[max(0, m.start() - VETO_WINDOW):min(len(text), m.end() + VETO_WINDOW)]
+        after = text[m.end():m.end() + 40]
+        if not (continued or _CUE.search(before) or _CUE.search(after)):
+            continue
+        if _VETO.search(near):
+            continue
+        if high < low:
+            continue
+        # The size of the figures decides the period. An hourly-sized range
+        # must also say "hour" nearby: "$30 - $40" alone could be anything.
+        # The look-back is wide because "the good faith hourly rate estimate
+        # for this role is Zone 1: $21.01" puts the word 70 characters away.
+        if ANNUAL_BOUNDS[0] <= low and high <= ANNUAL_BOUNDS[1]:
+            period = "year"
+        elif HOURLY_BOUNDS[0] <= low and high <= HOURLY_BOUNDS[1]:
+            if not (_HOURLY.search(after) or _HOURLY.search(
+                    text[max(0, m.start() - HOURLY_WINDOW):m.start()])):
+                continue
+            period = "hour"
+        else:
+            continue
+        # A "range" spanning more than 4x is a parse of two unrelated figures.
+        if high > low * 4:
+            continue
+        last_accepted_end = m.end()
+        yield low, high, period, _snippet(text, m.start(), m.end())
+
+
+# A single figure is pay only with stronger evidence than a range needs: the
+# wording must sit right before it, or a pay unit right after it. The first
+# design ignored single figures entirely, on a sample of eight that happened to
+# be funding rounds. The full list had 13 postings stating pay that way:
+# "$30.00/hour", "Zone 1: $98,700 USD", "On Target Earnings: $125,000".
+_SINGLE = re.compile(r"\$\s?" + _NUMBER + r"\s?([kKmMbB])?(?![\d,])")
+_SINGLE_CUE = re.compile(
+    r"\b(pay|salary|compensation|wage|rate|earnings|ote|starting at|zone \d)\b"
+    r"[^$.]{0,40}$",
+    re.I,
+)
+_UNIT_AFTER = re.compile(
+    r"^\s?(?:usd)?\s?(?:/\s?h(?:ou)?r\b|per\s+hour|an\s+hour|/\s?year|"
+    r"per\s+year|annually|a\s+year)",
+    re.I,
+)
+_SINGLE_VETO = re.compile(
+    _VETO.pattern[:-3] + r"|bonus|commission|variable|sign|signing|quota|"
+    r"equity|incentive|relocation|home office)\b",
+    re.I,
+)
+SINGLE_CUE_WINDOW = 70
+SINGLE_VETO_AFTER = 12
+
+
+def _singles(text: str, taken: list[tuple[int, int]]):
+    last_end, last_period = -10**9, None
+    for m in _SINGLE.finditer(text):
+        if any(a <= m.start() < b for a, b in taken):
+            continue
+        if m.group(2) and m.group(2).lower() in "mb":
+            continue                      # "$125M raised", "$1.5B Series F"
+        value = _amount(m.group(1), m.group(2))
+        before = text[max(0, m.start() - SINGLE_CUE_WINDOW):m.start()]
+        after = text[m.end():m.end() + 25]
+        # Short after-window: "$52,500 per year), plus variable compensation"
+        # must not veto the base figure before it.
+        near = text[max(0, m.start() - VETO_WINDOW):m.end() + SINGLE_VETO_AFTER]
+        # "Zone 1: $28.85 USD Applicable for: CA, CO, ... Zone 2: $26.93 USD"
+        # is one list; the second figure is as far from "hourly" as the list
+        # is long. Found in the full audit: four postings lost their Zone 2.
+        continued = m.start() - last_end <= LIST_GAP
+        if not (continued or _SINGLE_CUE.search(before) or _UNIT_AFTER.search(after)):
+            continue
+        if _SINGLE_VETO.search(near):
+            continue
+        if ANNUAL_BOUNDS[0] <= value <= ANNUAL_BOUNDS[1]:
+            period = "year"
+        elif HOURLY_BOUNDS[0] <= value <= HOURLY_BOUNDS[1]:
+            hourly_nearby = (_HOURLY.search(after) or _HOURLY.search(
+                text[max(0, m.start() - HOURLY_WINDOW):m.start()]))
+            if not (hourly_nearby or (continued and last_period == "hour")):
+                continue
+            period = "hour"
+        else:
+            continue
+        last_end, last_period = m.end(), period
+        yield value, value, period, _snippet(text, m.start(), m.end())
+
+
+def _snippet(text: str, start: int, end: int) -> str:
+    begin = max(0, start - 60)
+    head = text[begin:start]
+    if begin and " " in head:
+        head = head.split(" ", 1)[1]      # begin on a whole word
+    return " ".join((head + text[start:end + 20]).split())
+
+
+def extract(text: str | None) -> Salary | None:
+    """The posting's pay, or None when it states none we can trust.
+
+    Ranges are preferred. Single figures are read only when no range is.
+    """
+    text = text or ""
+    found = list(_candidates(text))
+    if not found:
+        taken = [(m.start(), m.end()) for m in _RANGE.finditer(text)]
+        found = list(_singles(text, taken))
+    if not found:
+        return None
+    annual = [c for c in found if c[1] and c[2] == "year"]
+    chosen = annual or found
+    period = chosen[0][2]
+    chosen = [c for c in chosen if c[2] == period]
+    text_out = chosen[0][3]
+    distinct = {(c[0], c[1]) for c in chosen}
+    if len(distinct) > 1:
+        text_out += f" (+{len(distinct) - 1} more range(s) combined)"
+    return Salary(
+        minimum=min(c[0] for c in chosen),
+        maximum=max(c[1] for c in chosen),
+        period=period,
+        text=text_out[:300],
+    )
+
+
+def columns(salary: Salary | None) -> dict[str, object]:
+    """The jobs-table columns for a result. None clears them all."""
+    if salary is None:
+        return {"salary_min": None, "salary_max": None,
+                "salary_period": None, "salary_text": None}
+    return {"salary_min": salary.minimum, "salary_max": salary.maximum,
+            "salary_period": salary.period, "salary_text": salary.text}
+
+
+def from_row(row) -> Salary | None:
+    """Rebuild from stored columns (a dict or sqlite3.Row)."""
+    get = row.get if hasattr(row, "get") else (lambda k: row[k] if k in row.keys() else None)
+    low, high = get("salary_min"), get("salary_max")
+    if low is None or high is None:
+        return None
+    return Salary(int(low), int(high), get("salary_period") or "year",
+                  get("salary_text") or "")

@@ -68,9 +68,13 @@ CREATE TABLE IF NOT EXISTS jobs (
     remote            TEXT CHECK (remote IN ('remote','hybrid','onsite','unknown')),
     employment_type   TEXT CHECK (employment_type IN ('full-time','part-time','contract','internship','unknown')),
     seniority         TEXT CHECK (seniority IN ('intern','entry','junior','mid','senior','staff','principal','unknown')),
+    -- Pay as the posting states it (jsa/salary.py, ADR 0006). Whole dollars in
+    -- salary_period units. NULL min with NULL text = no pay figure found.
     salary_min        INTEGER,
     salary_max        INTEGER,
     salary_currency   TEXT DEFAULT 'USD',
+    salary_period     TEXT CHECK (salary_period IN ('year','hour')),
+    salary_text       TEXT,                        -- the words it was read from
     url               TEXT NOT NULL,
     description       TEXT,                        -- full JD text, used by tailoring + prep
     description_hash  TEXT,                        -- detect edits to a reposted JD

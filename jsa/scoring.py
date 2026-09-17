@@ -15,12 +15,33 @@ import re
 from typing import Any
 
 from .config import Preferences
+from .salary import Salary, from_row
 
-# Weights sum to 1.0.
+# Fit: how well the role matches. These four sum to 1.0.
 W_TITLE = 0.45
 W_LOCATION = 0.25
 W_KEYWORDS = 0.20
 W_SENIORITY = 0.10
+
+# The final score is W_FIT * fit + W_COMPENSATION * pay. See ADR 0006.
+#
+# Fit is scaled, not re-weighted, so every job whose pay is unknown keeps its
+# exact order relative to every other: any movement in the ranking is caused
+# by pay and nothing else, which is what makes a before/after diff explainable.
+# Pay can move a score by at most +/-0.05 around an unknown job's -- less than
+# one weak-versus-strong title match -- so a well-paid role you cannot credibly
+# do does not outrank a good fit. Hard rejects run before any of this.
+W_FIT = 0.90
+W_COMPENSATION = 0.10
+
+# The pay component rises linearly across this band of ANNUAL pay, on the
+# posting's minimum (the likeliest entry-level offer, and immune to a senior
+# level inflating the range). US figures, consistent with ADR 0002.
+PAY_LOW = 50_000
+PAY_HIGH = 200_000
+# ADR 0001 decision 4: unknown pay is neutral, which means the MIDPOINT of the
+# pay component. Zero would sink the ~half of postings that state no pay.
+PAY_UNKNOWN = 0.5
 
 _YEARS_RE = re.compile(r"(\d+)\+?\s*(?:-\s*\d+\s*)?years?\b", re.I)
 
@@ -205,8 +226,36 @@ def required_years(description: str) -> int | None:
     return max(values) if values else None
 
 
+def pay_score(pay: Salary | None) -> tuple[float, str]:
+    """The pay component in 0..1, and why."""
+    if pay is None:
+        return PAY_UNKNOWN, "pay not stated (scored neutral)"
+    annual = pay.annual_minimum()
+    value = (annual - PAY_LOW) / (PAY_HIGH - PAY_LOW)
+    value = min(max(value, 0.0), 1.0)
+    note = f"pays {pay.label()}"
+    if pay.period == "hour":
+        note += f" (about ${annual:,}/yr)"
+    elif pay.minimum != pay.maximum:
+        note += " (ranked on the low end)"
+    return value, note
+
+
+def job_region(location: str, regions: dict[str, list[str]]) -> str | None:
+    """The first of the profile's regions whose places appear in `location`."""
+    loc = (location or "").lower()
+    for name, places in (regions or {}).items():
+        if any(str(p).lower() in loc for p in places or []):
+            return name
+    return None
+
+
 def score_job(job: dict[str, Any], prefs: Preferences) -> tuple[float, list[str]]:
-    """Return (score in 0..1, reasons). Score 0 means rejected."""
+    """Return (score in 0..1, reasons). Score 0 means rejected.
+
+    Reads pay from job["salary_min"/"salary_max"/"salary_period"], which the
+    caller fills from jsa.salary.extract. Absent means unknown, never zero.
+    """
     title = job.get("title") or ""
     description = job.get("description") or ""
     reasons: list[str] = []
@@ -229,6 +278,19 @@ def score_job(job: dict[str, Any], prefs: Preferences) -> tuple[float, list[str]
 
     if is_non_us(job.get("location") or ""):
         return 0.0, [f"rejected: {job.get('location')!r} is outside the US"]
+
+    # The floor is a threshold the operator opted into (ADR 0001 decision 7).
+    # A job is rejected only when even its TOP figure is below it; unknown pay
+    # is never rejected (decision 4).
+    pay = from_row(job)
+    floor_setting = prefs.compensation_floor
+    if pay is not None and floor_setting is not None:
+        region = job_region(job.get("location") or "", prefs.regions)
+        floor = floor_setting.for_region(region)
+        if floor is not None and pay.annual_maximum() < floor:
+            where = f" for {region}" if region else ""
+            return 0.0, [f"rejected: pays at most ${pay.annual_maximum():,}/yr, "
+                         f"below your floor of ${floor:,}{where}"]
 
     # --- weighted signals ----------------------------------------------
     # Engineering titles are tier 1. Only if none match do we consider the
@@ -272,14 +334,22 @@ def score_job(job: dict[str, Any], prefs: Preferences) -> tuple[float, list[str]
         s_score = 0.5
         reasons.append("seniority unstated")
 
-    score = (
+    p_score, p_reason = pay_score(pay)
+    reasons.append(p_reason)
+
+    fit = (
         W_TITLE * t_score
         + W_LOCATION * l_score
         + W_KEYWORDS * k_score
         + W_SENIORITY * s_score
     )
     if track == "sales":
-        score *= prefs.fallback_weight
+        fit *= prefs.fallback_weight
+    # The sales discount applies to fit only. Applied to the whole score it
+    # also scaled the neutral pay term, and a sales job and an engineering job
+    # that both state no pay could swap places -- a reordering caused by
+    # nothing. Found by test_unknown_pay_keeps_the_old_order.
+    score = W_FIT * fit + W_COMPENSATION * p_score
     return round(score, 3), reasons
 
 

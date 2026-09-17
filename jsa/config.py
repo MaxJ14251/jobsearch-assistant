@@ -100,9 +100,8 @@ class CompFloor:
         CompFloor(no_floor)    none wanted
         CompFloor(default=..)  a floor, optionally per region
 
-    Nothing in scoring consumes this yet, by decision: every jobs.salary_min is
-    null because nothing extracts salary. A floor wired in today would be a
-    no-op that looked like a feature.
+    Scoring applies it as a hard reject on a posting's TOP figure, and never
+    to a posting whose pay is unknown. See ADR 0006 decision 5.
     """
 
     no_floor: bool = False

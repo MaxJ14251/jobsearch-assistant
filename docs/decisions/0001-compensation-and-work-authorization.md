@@ -1,6 +1,7 @@
 # ADR 0001 — Compensation floor and work authorization
 
-Status: accepted, amended 2026-09-15
+Status: accepted, amended 2026-09-15; decisions 1 and 7 and the Tripwire
+superseded 2026-09-17 by ADR 0006 (salary extraction and pay ranking)
 Date: 2026-09-15
 Amendment: decision 7 added. The original draft modelled compensation only as
 a threshold, which silently meant "no floor" read as "pay plays no part in
@@ -44,6 +45,10 @@ database changed that.
 ## Decisions
 
 ### 1. Scoring gets no salary term at all (not even an inert one)
+
+> **Superseded by ADR 0006.** Salary extraction landed, and pay was wired in
+> deliberately, against real data, with the ranking diff explained -- the
+> review this decision required.
 
 The goal offered two paths: land the floor active, or land it "provably
 inert". Both were rejected.
@@ -144,6 +149,10 @@ NVIDIA's free tier logs prompts.
 
 ### 7. A floor is a threshold. Pay ranking is a gradient. They are separate.
 
+> **Implemented by ADR 0006, with one change:** instead of rebalancing the
+> four fit weights, fit is scaled by 0.90 and pay takes 0.10, so jobs with
+> unknown pay keep their exact order. The separation below stands.
+
 The original draft of this ADR modelled compensation only as a floor, so
 `no_floor` meant "compensation plays no part in ranking at all". Almost nobody
 wants that. The operator's own words: *open to any offer between 70k and 160k,
@@ -172,6 +181,9 @@ midpoint (decision 4), and apply the floor, if one is set, as a hard reject
 separate from the gradient.
 
 ## Tripwire
+
+> **Fired 2026-09-17, as designed, and replaced** by
+> `tests/test_salary.py::TestSalaryStaysExtracted`. See ADR 0006.
 
 A test asserts `jobs.salary_min` is 100% null while the tracker holds rows.
 **When that test fails, salary extraction has landed** and this ADR should be

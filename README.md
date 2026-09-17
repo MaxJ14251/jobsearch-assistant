@@ -79,15 +79,32 @@ else's board.
 ```bash
 .venv/Scripts/python -m jsa discover --min 0.5
 ```
-Polls verified feeds, scores every listing, writes keepers to the tracker. Listings
-that vanish from a feed are marked closed rather than deleted.
+Polls verified feeds, reads each posting's pay, scores every listing, and writes
+keepers to the tracker. Listings that vanish from a feed are marked closed rather
+than deleted.
 
 ```bash
-.venv/Scripts/python -m jsa matches --local --limit 20
+.venv/Scripts/python -m jsa matches --limit 20
 ```
-Shows unreviewed matches, best first, each with the reasons behind its score.
-`--local` restricts to commuting range of Example Town; `--per-company` (default 3)
+Shows unreviewed matches, best first, each with the reasons behind its score,
+including what it pays. `--near <region>` restricts to commuting range of a region
+you define under `job_search_preferences.regions`; `--per-company` (default 3)
 stops one large board from filling the page — SpaceX alone posts 2,373 reqs.
+
+**How pay counts.** About half of postings state pay; `jsa/salary.py` reads it
+from the text (ADR 0006). Higher pay ranks higher for everyone, on the *bottom*
+of the stated range, and moves a score by at most ±0.05 — enough to order
+similar roles, never enough to lift a poor fit over a good one. A posting that
+states no pay scores exactly as if it paid the middle of the band, so saying
+nothing is not a penalty. If you set `compensation_floor_usd`, a job whose
+*top* figure is below it is rejected, with the reason shown; unknown pay is
+never rejected.
+
+```bash
+.venv/Scripts/python -m jsa rescore
+```
+Re-reads pay and re-scores every stored listing without polling any feed. Run it
+after changing your profile's preferences.
 
 ```bash
 .venv/Scripts/python -m jsa enrich --min 0.5 --limit 600
@@ -436,10 +453,11 @@ Worth knowing before you rely on this.
   not "low". Internationalising is not a translation job: salary currency, what
   "work authorization" means outside one country, and US-shaped city/state matching
   all have to change together.
-- **Compensation does not affect ranking yet.** Nothing extracts salary from a
-  posting, so every `salary_min` is null. A pay floor you set is stored and
-  validated but not yet applied — deliberately, rather than shipping a filter that
-  silently does nothing.
+- **Pay is read with patterns, not understood.** Measured on 514 postings: 1 of
+  253 postings that state pay was missed (a typo in the posting), and a random
+  hand-check found no wrong figure after two list-handling fixes. Equity, bonus
+  and "competitive" are ignored. A posting with several levels or cities is
+  stored as one combined range; its text is kept so you can check it.
 - **One user per checkout.** The profile and tracker are single-tenant, and the
   database is SQLite on local disk.
 - **Free API tiers log prompts.** Identity never reaches the model, but job

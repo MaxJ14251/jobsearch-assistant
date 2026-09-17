@@ -128,50 +128,35 @@ class TestProfileDrift(unittest.TestCase):
         )
 
 
-class TestNotWiredIntoScoring(unittest.TestCase):
-    """The ADR's central decision, asserted rather than assumed.
+class TestPayIsWiredDeliberately(unittest.TestCase):
+    """Replaces two tests from ADR 0001, both retired by ADR 0006.
 
-    Not a disabled term, not a flag: absent. A dormant path is one that
-    silently activates the day salary extraction lands, shifting the ranking
-    with nobody watching.
+    TestNotWiredIntoScoring asserted scoring.py never mentioned salary.
+    TestSalaryTripwire asserted jobs.salary_min was entirely NULL, and was
+    written to fail exactly once, in front of someone who had to decide what
+    pay should do. It failed on 2026-09-17 when extraction landed; that
+    decision is ADR 0006.
+
+    What must now stay true is what the ADR decided, asserted here and in
+    tests/test_salary.py -- including TestSalaryStaysExtracted, which fails if
+    salary silently STOPS being extracted.
     """
 
-    def test_scoring_has_no_salary_term(self):
-        source = (ROOT / "jsa" / "scoring.py").read_text(encoding="utf-8")
-        for needle in ("salary", "compensation_floor", "comp_floor"):
-            self.assertNotIn(
-                needle, source,
-                f"scoring.py references {needle!r}. If salary extraction has "
-                "landed, revisit docs/decisions/0001-* before wiring it in.",
-            )
+    def test_the_decision_is_recorded(self):
+        adr = list((ROOT / "docs" / "decisions").glob("0006-*.md"))
+        self.assertEqual(len(adr), 1, "ADR 0006 is missing")
+        text = adr[0].read_text(encoding="utf-8")
+        self.assertIn("MIDPOINT", text.upper())
 
-
-class TestSalaryTripwire(unittest.TestCase):
-    """MEANT TO FAIL ONE DAY. That is the point.
-
-    When it does, salary extraction has landed and the compensation floor can
-    finally be wired into scoring against real data — a decision that needs a
-    human, not a silent activation.
-    """
-
-    @unittest.skipUnless(_has_rows(), "no job data on this machine")
-    def test_salary_is_still_entirely_unextracted(self):
-        con = sqlite3.connect(DB_PATH)
-        try:
-            total = con.execute("select count(*) from jobs").fetchone()[0]
-            with_salary = con.execute(
-                "select count(*) from jobs "
-                "where salary_min is not null or salary_max is not null"
-            ).fetchone()[0]
-        finally:
-            con.close()
-        self.assertEqual(
-            with_salary, 0,
-            f"{with_salary} of {total} jobs now carry salary data. Salary "
-            "extraction has landed. Revisit "
-            "docs/decisions/0001-compensation-and-work-authorization.md and "
-            "decide deliberately whether to wire the floor into scoring.",
-        )
+    def test_the_floor_never_reaches_a_prompt(self):
+        """ADR 0001 decision 6 still holds now that scoring reads the floor:
+        scoring makes no model call, and nothing that builds a prompt reads
+        the floor."""
+        for module in ("tailor.py", "prep.py", "outreach.py", "enrich.py", "salary.py"):
+            source = (ROOT / "jsa" / module).read_text(encoding="utf-8")
+            self.assertNotIn("compensation_floor", source, module)
+        scoring_src = (ROOT / "jsa" / "scoring.py").read_text(encoding="utf-8")
+        self.assertNotIn("llm", scoring_src)
 
 
 if __name__ == "__main__":

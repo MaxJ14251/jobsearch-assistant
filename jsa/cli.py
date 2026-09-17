@@ -107,6 +107,25 @@ def cmd_discover(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_rescore(args: argparse.Namespace) -> int:
+    """Re-read pay and re-score stored listings, without polling any feed."""
+    if not DB_PATH.exists():
+        print(f"no tracker at {DB_PATH} - run `python -m jsa init` first", file=sys.stderr)
+        return 1
+    prefs = Preferences.from_profile(load_profile())
+    con = db.connect()
+    try:
+        report = discover.rescore(con, prefs)
+        con.commit()
+    finally:
+        con.close()
+    print(f"rescored {report.jobs} listing(s): pay found in {report.with_pay}, "
+          f"score changed for {report.changed}")
+    if report.rejected_by_floor:
+        print(f"  {report.rejected_by_floor} now score 0: pay below your floor")
+    return 0
+
+
 def cmd_matches(args: argparse.Namespace) -> int:
     # One large board (SpaceX posts 2,300 reqs) otherwise fills the whole page
     # and buries every other company. Cap per company, then take the top N.
@@ -702,6 +721,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_disc.set_defaults(func=cmd_discover)
 
+    p_resc = sub.add_parser(
+        "rescore", help="re-read pay and re-score stored listings (no network)")
+    p_resc.set_defaults(func=cmd_rescore)
+
     p_match = sub.add_parser("matches", help="show unreviewed matches")
     p_match.add_argument("--limit", type=int, default=20)
     p_match.add_argument(
@@ -842,6 +865,12 @@ def main(argv: list[str] | None = None) -> int:
     ).set_defaults(func=cmd_models)
 
     args = parser.parse_args(argv)
+    # Windows pipes and redirects default to cp1252, which cannot encode "⚑" or
+    # the en dash in a pay range: `jsa matches > file.txt` crashed mid-list.
+    # Degrade the character, never the command.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
     from .log import configure
     configure(getattr(args, "verbose", False))
     try:

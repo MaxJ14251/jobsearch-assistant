@@ -116,9 +116,9 @@ job_search_preferences:
   # null means "not yet decided". Discovery tolerates it; document generation
   # refuses to run on it. Undecided and "no threshold" are different answers.
   #
-  # Neither the threshold nor pay-ranking is implemented yet: every
-  # jobs.salary_min in the tracker is null because nothing extracts salary.
-  # Wiring either in today would be a no-op that looked like a feature.
+  # A job whose TOP stated pay is below the floor scores 0, with the reason
+  # shown. A job that states no pay is never rejected. Run `jsa rescore` after
+  # changing this. See docs/decisions/0006-salary-extraction-and-pay-ranking.md.
   compensation_floor_usd: null   # no_floor | a number | a per-region map
   work_authorization: null       # e.g. "US citizen - no sponsorship required"
   needs_visa_sponsorship: null   # true/false

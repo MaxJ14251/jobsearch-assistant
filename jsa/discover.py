@@ -5,7 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from . import db, sources
+import json
+
+from . import db, salary, sources
 from .config import Preferences, load_profile, load_sources
 from .scoring import dedup_key, job_track
 
@@ -98,6 +100,8 @@ def discover(
             seen: list[str] = []
             for job in result.jobs:
                 seen.append(job["external_id"])
+                # Pay is read before scoring, because scoring ranks on it.
+                job.update(salary.columns(salary.extract(job.get("description"))))
                 score, reasons = _score(job, prefs)
                 if score < min_score:
                     report.rejected += 1
@@ -124,6 +128,44 @@ def discover(
     finally:
         con.close()
     return reports
+
+
+@dataclass
+class RescoreReport:
+    jobs: int = 0
+    with_pay: int = 0
+    rejected_by_floor: int = 0
+    changed: int = 0
+
+
+def rescore(con, prefs: Preferences) -> RescoreReport:
+    """Re-read pay and re-score every stored listing. No network.
+
+    Discovery scores listings as it fetches them; a scoring change would
+    otherwise wait for the next poll, and the before/after could not be
+    compared on the same postings. Nothing is deleted: a job that now scores
+    below the discovery minimum stays, with its new score and reasons.
+    """
+    report = RescoreReport()
+    rows = con.execute(
+        "SELECT id, title, description, location, remote, match_score "
+        "FROM jobs WHERE archived_at IS NULL").fetchall()
+    for row in rows:
+        job = dict(row)
+        job.update(salary.columns(salary.extract(job.get("description"))))
+        score, reasons = _score(job, prefs)
+        report.jobs += 1
+        report.with_pay += int(job["salary_min"] is not None)
+        report.rejected_by_floor += int(score == 0 and "floor" in reasons[0])
+        report.changed += int(score != row["match_score"])
+        con.execute(
+            "UPDATE jobs SET salary_min = :salary_min, salary_max = :salary_max, "
+            "salary_period = :salary_period, salary_text = :salary_text, "
+            "match_score = :score, match_reasons = :reasons WHERE id = :id",
+            {**{k: job[k] for k in ("salary_min", "salary_max",
+                                    "salary_period", "salary_text")},
+             "score": score, "reasons": json.dumps(reasons), "id": row["id"]})
+    return report
 
 
 def _score(job: dict[str, Any], prefs: Preferences) -> tuple[float, list[str]]:
