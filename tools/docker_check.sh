@@ -15,8 +15,8 @@
 #   6. the tracker on the /data volume survives a container restart
 #
 # The layer, non-root and bind-guard assertions were each pushed once against
-# deliberately broken input, and failed, before this was trusted. The README's
-# "Known limitations" section records the runs.
+# deliberately broken input, and failed, before this was trusted. The README
+# links the three runs.
 
 set -euo pipefail
 

@@ -481,8 +481,10 @@ Worth knowing before you rely on this.
   - the tracker on the `/data` volume survives a restart and a new container.
 
   The layer, non-root and bind-guard checks were each run once against a
-  deliberately broken branch and failed at the expected line
-  (`ci/docker-fail-ignore`, `-fail-root`, `-fail-bind`). The first real run
+  deliberately broken build and failed at the expected line:
+  [layers](https://github.com/MaxJ14251/jobsearch-assistant/actions/runs/35196244847),
+  [non-root](https://github.com/MaxJ14251/jobsearch-assistant/actions/runs/35196236847),
+  [bind guard](https://github.com/MaxJ14251/jobsearch-assistant/actions/runs/35196240854). The first real run
   found a leak: `.dockerignore` patterns match from the build root, so `*.db`
   did not exclude a database under `config/`. Fixed with `**/` patterns.
 
