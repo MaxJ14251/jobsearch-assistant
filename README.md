@@ -56,17 +56,107 @@ Needs Python 3.11, 3.12 or 3.13. From this directory:
 python -m venv .venv && .venv/Scripts/python -m pip install -r requirements.txt
 ```
 
+## Your first hour
+
+Eight steps, in order. Only the last three cost API calls; everything before
+them runs on your machine for free.
+
+**1. Make the tracker** (a SQLite file in this directory):
+
 ```bash
 .venv/Scripts/python -m jsa init
 ```
 
-Set your API key (needed from step 4 onward, not for discovery):
+**2. Copy the example profile and fill it in.** This file is the whole point:
+every sentence in every document comes out of it, and the tool will not write a
+claim that is not in it.
 
 ```bash
-setx ANTHROPIC_API_KEY "sk-ant-..."
+cp profile/master_profile.example.yaml profile/master_profile.yaml
 ```
 
+Your name and contact details, what you have actually done as short bullets,
+the titles and places you want. It is gitignored, so it stays on your machine.
+Budget most of the hour here; everything downstream is only as good as this.
+
+**3. Ask what is still missing:**
+
+```bash
+.venv/Scripts/python -m jsa doctor
+```
+
+It names every field that will stop the tool working, says what to write
+instead, and changes nothing. Exits 0 when you are ready. Run it again after
+edits.
+
+**4. Find jobs** (no API key needed; takes a few minutes):
+
+```bash
+.venv/Scripts/python -m jsa discover
+```
+
+**5. Read what it found:**
+
+```bash
+.venv/Scripts/python -m jsa matches --limit 20
+```
+
+Each match shows its score with the reasons behind it — title, location,
+keywords, seniority, pay — so you can see when the tool is wrong.
+
+**6. Add your API key.** Steps 7 and 8 call a language model; the rest never
+does. Copy the example and put your key in it:
+
+```bash
+cp .env.example .env
+```
+
+`.env` holds `NVIDIA_API_KEY=...`. Get one free at build.nvidia.com. The key
+never leaves that file, and your name, address, phone and email are never sent
+to the model — a check refuses the request if they appear in a prompt.
+
+**7. Save a job and draft for it** (one model call each):
+
+```bash
+.venv/Scripts/python -m jsa save 421
+.venv/Scripts/python -m jsa tailor 421
+.venv/Scripts/python -m jsa tailor 421 --kind cover-letter
+```
+
+**8. Read the draft, decide, and apply yourself:**
+
+```bash
+.venv/Scripts/python -m jsa review          # what is waiting on you
+.venv/Scripts/python -m jsa review 1        # read one in full
+.venv/Scripts/python -m jsa approve 1
+.venv/Scripts/python -m jsa applied 421     # after YOU submit it
+```
+
+Or do the same in a browser with `jsa serve`.
+
+**What it will not do.** It does not submit applications, send email, or
+message anyone — there is no code path that transmits. It will not write a
+claim your profile does not make. It does not search every employer: it polls
+the boards listed in `config/companies.yaml`, and you add your own.
+
+**Where the shipped feeds point.** `config/companies.yaml` starts with 45 tech
+employers, most of them hiring in the Bay Area, New York and Seattle. Measured
+from a profile based in Columbus, Ohio: the matches that came back were almost
+entirely remote roles, because those companies post few jobs in Ohio. If you
+are not in a coastal tech hub, add local employers' boards to that file —
+`jsa verify` tells you which tokens actually work — or lean on remote.
+
 ## Usage
+
+```bash
+.venv/Scripts/python -m jsa doctor
+```
+Reads your profile and tracker and reports what will not work yet, in plain
+language: unanswered fields that make drafting refuse, placeholder text left
+from the example, bullets with no tags, education entries with no credential
+line, tags that match none of the postings you have collected, and whether an
+API key is configured (never what it is). It changes nothing, and exits 1 while
+something still blocks you — so it also works as a setup check in a script.
 
 ```bash
 .venv/Scripts/python -m jsa verify

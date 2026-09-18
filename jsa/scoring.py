@@ -157,13 +157,56 @@ def is_non_us(location: str) -> bool:
     return bool(_NON_US_RE.search(loc))
 
 
+# All fifty states and DC. The first version held nineteen, because those were
+# the states the author's own search touched -- which is exactly the kind of
+# thing that makes a tool work for one person and quietly misrank for everyone
+# else.
 _STATE_NAMES = {
-    "ca": "california", "pa": "pennsylvania", "md": "maryland",
-    "ny": "new york", "tx": "texas", "wa": "washington", "co": "colorado",
-    "ma": "massachusetts", "il": "illinois", "ga": "georgia", "nj": "new jersey",
-    "va": "virginia", "nc": "north carolina", "fl": "florida", "az": "arizona",
-    "or": "oregon", "ut": "utah", "mn": "minnesota", "oh": "ohio",
+    "al": "alabama", "ak": "alaska", "az": "arizona", "ar": "arkansas",
+    "ca": "california", "co": "colorado", "ct": "connecticut", "de": "delaware",
+    "dc": "district of columbia", "fl": "florida", "ga": "georgia",
+    "hi": "hawaii", "id": "idaho", "il": "illinois", "in": "indiana",
+    "ia": "iowa", "ks": "kansas", "ky": "kentucky", "la": "louisiana",
+    "me": "maine", "md": "maryland", "ma": "massachusetts", "mi": "michigan",
+    "mn": "minnesota", "ms": "mississippi", "mo": "missouri", "mt": "montana",
+    "ne": "nebraska", "nv": "nevada", "nh": "new hampshire", "nj": "new jersey",
+    "nm": "new mexico", "ny": "new york", "nc": "north carolina",
+    "nd": "north dakota", "oh": "ohio", "ok": "oklahoma", "or": "oregon",
+    "pa": "pennsylvania", "ri": "rhode island", "sc": "south carolina",
+    "sd": "south dakota", "tn": "tennessee", "tx": "texas", "ut": "utah",
+    "vt": "vermont", "va": "virginia", "wa": "washington",
+    "wv": "west virginia", "wi": "wisconsin", "wy": "wyoming",
 }
+
+
+def preferred_states(locations: list[str]) -> set[str]:
+    """The states the reader's own location list names.
+
+    "Austin, TX" gives {"tx"}; "Columbus, Ohio" gives {"oh"}. Used for the
+    consolation prize below: your state, but not your city.
+    """
+    by_name = {name: abbr for abbr, name in _STATE_NAMES.items()}
+    found: set[str] = set()
+    for entry in locations or []:
+        parts = [p.strip().lower() for p in str(entry).split(",")]
+        for part in parts[1:] or parts:
+            if part in _STATE_NAMES:
+                found.add(part)
+            elif part in by_name:
+                found.add(by_name[part])
+    return found
+
+
+def in_state(location: str, state: str) -> bool:
+    """Is this location in `state`? Matched on ", XX" or the full state name.
+
+    A bare two-letter test would read "Berlin, DE" as Delaware. is_non_us()
+    catches that first, and requiring the comma keeps the rest honest.
+    """
+    loc = (location or "").lower()
+    full = _STATE_NAMES.get(state, state)
+    return bool(re.search(r",\s*" + re.escape(state) + r"\b", loc)
+                or re.search(r"\b" + re.escape(full) + r"\b", loc))
 
 
 def _matches_city(location: str, pref: str) -> bool:
@@ -203,8 +246,12 @@ def location_score(
     for pref in prefs.locations:
         if _matches_city(loc, pref):
             return 1.0, f"located in {pref}"
-    if "los angeles" in loc or ", ca" in loc or "california" in loc:
-        return 0.8, "in the LA / California area"
+    # Your state, but not your city: worth something, not everything. This
+    # used to be a hardcoded California bonus, which ranked the author's home
+    # state above a reader's own city.
+    for state in sorted(preferred_states(prefs.locations)):
+        if in_state(location, state):
+            return 0.6, f"in {_STATE_NAMES[state].title()}, a state you listed"
     if not loc:
         return 0.4, "location not stated"
     return 0.0, f"location {location!r} is outside your list"

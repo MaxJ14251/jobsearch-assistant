@@ -49,6 +49,45 @@ def cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """Report what will not work yet. Reads only; changes nothing."""
+    from . import doctor
+
+    try:
+        profile = load_profile()
+    except ConfigError:
+        profile = None
+
+    con = db.connect() if DB_PATH.exists() else None
+    try:
+        report = doctor.run(profile, con)
+    finally:
+        if con is not None:
+            con.close()
+
+    if report.blocking:
+        print(f"{len(report.blocking)} thing(s) to fix before this works:\n")
+        for finding in report.blocking:
+            print(f"  x {finding.what}")
+            print(f"      {finding.fix}")
+            if finding.where:
+                print(f"      in {finding.where}")
+            print()
+    if report.advisory:
+        print(f"{len(report.advisory)} thing(s) worth knowing:\n")
+        for finding in report.advisory:
+            print(f"  - {finding.what}")
+            print(f"      {finding.fix}")
+            print()
+    print("checked: " + ", ".join(report.checked))
+    if report.ok:
+        print("\nNothing is stopping you. Next: jsa discover, then jsa matches.")
+    else:
+        print("\nFix the items marked x, then run this again. "
+              "This command changed nothing.")
+    return 0 if report.ok else 1
+
+
 def cmd_verify(args: argparse.Namespace) -> int:
     reports = discover.verify_sources()
     width = max(len(r.company) for r in reports)
@@ -801,6 +840,10 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("init", help="create the tracker database").set_defaults(func=cmd_init)
 
+    sub.add_parser(
+        "doctor", help="what will not work yet in your profile and tracker"
+    ).set_defaults(func=cmd_doctor)
+
     p_verify = sub.add_parser("verify", help="probe every feed in companies.yaml")
     p_verify.add_argument(
         "--write", action="store_true", help="record results back into companies.yaml"
@@ -985,10 +1028,18 @@ def main(argv: list[str] | None = None) -> int:
             stream.reconfigure(errors="replace")
     from .log import configure
     configure(getattr(args, "verbose", False))
+    from .llm import LLMError
+
     try:
         return args.func(args)
     except ConfigError as exc:
         print(f"config error: {exc}", file=sys.stderr)
+        return 2
+    except LLMError as exc:
+        # A missing key is a setup step, not a crash. Walking the README with
+        # no key printed a twenty-line traceback with the useful sentence at
+        # the bottom, which reads as a broken tool.
+        print(f"error: {exc}", file=sys.stderr)
         return 2
 
 

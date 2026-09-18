@@ -76,24 +76,14 @@ job_search_preferences:
   seniority: ["intern", "entry", "junior", "associate", "mid"]
   work_arrangement: ["remote", "hybrid", "onsite"]
   locations:
+    # Where you would actually work. "Remote (US)" keeps remote roles; the
+    # rest are cities, written "City, ST". A job in a state you name here but
+    # not in a city you name scores lower than one in your own city, and
+    # higher than one somewhere you never listed.
     - "Remote (US)"
-    # Los Angeles — current home base
-    - "Los Angeles, CA"
-    - "Example Town, CA"
-    - "Example Town, CA"
-    - "Example Town, CA"
-    - "Example Town, CA"
-    # San Diego
-    - "San Diego, CA"
-    - "Example Town, CA"
-    - "Example Town, CA"
-    - "Example Town, CA"
-    # South-central PA / Baltimore (Example Town [postal code] area)
-    - "Example Town, PA"
-    - "Example Town, PA"
-    - "Example Town, PA"
-    - "Example Town, PA"
-    - "Baltimore, MD"
+    - "Your City, ST"
+    - "A Nearby City, ST"
+    - "A City You Would Relocate To, ST"
   # --- compensation and authorization -------------------------------------
   # See docs/decisions/0001-compensation-and-work-authorization.md
   #
@@ -131,57 +121,17 @@ job_search_preferences:
   # substrings matched against a listing's location text. Define whatever
   # makes sense for where you'd actually work.
   regions:
-    la:
-      - "Los Angeles"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-    sd:
-      - "San Diego"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town, CA"
-      - "Example Town, CA"
-    # Around Example Town PA [postal code]. Baltimore is ~1 hour. Philadelphia (~2hr) and
-    # Pittsburgh (~3.5hr) are deliberately excluded as non-commutable.
-    pa:
-      - "Example Town, PA"
-      - "Example Town, PA"
-      - "Example Town"
-      - "Example Town, PA"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Example Town"
-      - "Baltimore"
-      - "Example Town"
-      - "Example Town, MD"
-      - "Example Town, MD"
-      - "Example Town"
-      - "Example Town"
+    # Named groups of places, for `matches --near <name>`. Name them whatever
+    # makes sense to you -- "home", "second", "anywhere_i_would_move" -- and
+    # list the towns each one covers. A compensation floor can be set per
+    # region using these same names.
+    home:
+      - "Your City"
+      - "A Nearby City"
+      - "A Suburb You Would Commute To"
+    second:
+      - "A City You Would Relocate To"
+      - "A Town Near It"
 
   exclude_keywords:              # hard filters applied during discovery
     - "Senior"
