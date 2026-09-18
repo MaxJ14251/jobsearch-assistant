@@ -235,12 +235,31 @@ the agent acting on its own, not to stop you applying with a resume you wrote by
 hand; it notes the absence rather than blocking you.
 
 ```bash
+.venv/Scripts/python -m jsa status 421 phone_screen --note "30 min with the hiring manager"
+.venv/Scripts/python -m jsa next 421 "send the follow-up" --due 2026-10-01
+.venv/Scripts/python -m jsa due --days 7
+```
+The rest of the journey. `status` moves an application to any stage the schema
+knows — saved, drafting, ready, applied, phone_screen, technical, onsite, offer,
+rejected, withdrawn, ghosted — and refuses anything else, listing the real ones.
+Every move is recorded as **yours**: the tool cannot observe a phone screen and
+never claims one happened. `next` records what you intend to do and when, which
+is an intention rather than an event, so it does not change the status. `due`
+reports what is overdue, due soon, or has had no activity for three weeks. It
+changes nothing, and it never decides you were ghosted — that stays a stage you
+set yourself.
+
+Closing an application (rejected, withdrawn, ghosted) takes it out of the live
+pipeline and keeps its whole history.
+
+```bash
 .venv/Scripts/python -m jsa serve
 ```
 Local review dashboard on http://127.0.0.1:8765. It covers the whole path from a
 match to a resume you can upload yourself:
 
-- **Matches** and **Pipeline**, each linking to a job page.
+- **Matches**, and a **Pipeline** grouped by stage, with each application's
+  next action, overdue flags, and the same stage moves as the CLI.
 - **Job page**: every drafted document, newest version first, with its status
   (pending, approved, rejected and your note), model, the profile bullets it
   used, the keyword gaps it could not honestly fill, and a **Download .docx**

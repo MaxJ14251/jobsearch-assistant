@@ -12,8 +12,10 @@ database-level block directly, the way a buggy agent would trip it.
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from dataclasses import dataclass
+from datetime import date
 from typing import Any, Literal
 
 from . import db
@@ -248,3 +250,155 @@ def record_event(
         "UPDATE applications SET status = ? WHERE id = ?",
         (to_status, application_id),
     )
+
+
+# --- stages after "ready" ----------------------------------------------------
+# ADR 0003 modelled the whole journey and only two stages were reachable, so
+# every application in the tracker sat at 'ready' forever. These move an
+# application the rest of the way. Every one of them is a HUMAN action: the
+# tool cannot observe a phone screen, and it may never decide one happened.
+
+# MUST stay a subset of the CHECK constraint on applications.status in
+# db/schema.sql. The seniority vocabulary drifted from its CHECK once and
+# killed an enrichment run mid-pass; a test parses the schema and asserts
+# these agree.
+STAGES = (
+    "saved", "drafting", "ready", "applied",
+    "phone_screen", "technical", "onsite", "offer",
+    "rejected", "withdrawn", "ghosted",
+)
+
+# Stages that are over. A closed application keeps its history and leaves the
+# live pipeline.
+CLOSED = frozenset({"rejected", "withdrawn", "ghosted"})
+
+# After this long with no event, an application is worth a look. It is a
+# REPORT, never a status change: the tool does not decide you were ghosted.
+QUIET_DAYS = 21
+
+
+def set_stage(
+    con: sqlite3.Connection, job_id: int, stage: str, *, note: str | None = None,
+) -> tuple[int, str]:
+    """Move an application to `stage`. Returns (application_id, previous).
+
+    'applied' routes through mark_applied so ADR 0003 decision 4 still holds:
+    it records the submission, warns when no approved document exists, and
+    refuses nothing.
+    """
+    if stage not in STAGES:
+        raise ApprovalError(
+            f"{stage!r} is not a stage. Use one of: {', '.join(STAGES)}"
+        )
+    application_id = require_application(con, job_id)
+    previous = con.execute(
+        "SELECT status FROM applications WHERE id = ?", (application_id,)
+    ).fetchone()["status"]
+    if stage == "applied":
+        mark_applied(con, job_id)
+        if note:
+            con.execute(
+                "UPDATE application_events SET note = note || ' — ' || ? "
+                "WHERE id = (SELECT MAX(id) FROM application_events "
+                "WHERE application_id = ?)", (note, application_id))
+        return application_id, previous
+    record_event(con, application_id, stage, actor="human", note=note)
+    return application_id, previous
+
+
+def set_next_action(
+    con: sqlite3.Connection, job_id: int, action: str, *, due: str | None = None,
+) -> int:
+    """Record what you intend to do next, and when it is due.
+
+    Not an event: an intention is not something that happened, and writing one
+    would move the application's status. `due` is a plain date (YYYY-MM-DD)
+    because that is what a follow-up is measured in.
+    """
+    if not (action or "").strip():
+        raise ApprovalError("a next action needs text saying what to do")
+    if due is not None:
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", due.strip()):
+            raise ApprovalError(f"due date {due!r} is not YYYY-MM-DD")
+        try:
+            date.fromisoformat(due.strip())
+        except ValueError as exc:
+            raise ApprovalError(f"due date {due!r} is not a real date") from exc
+    application_id = require_application(con, job_id)
+    con.execute(
+        "UPDATE applications SET next_action = ?, next_action_due = ? "
+        "WHERE id = ?",
+        (action.strip(), (due or "").strip() or None, application_id),
+    )
+    return application_id
+
+
+@dataclass
+class DueItem:
+    job_id: int
+    application_id: int
+    title: str
+    company: str
+    status: str
+    next_action: str | None
+    due: str | None
+    days_out: int | None          # negative when overdue, None when no date
+    last_activity_at: str | None
+    quiet_days: int | None
+
+    @property
+    def overdue(self) -> bool:
+        return self.days_out is not None and self.days_out < 0
+
+
+def due_items(con: sqlite3.Connection, *, days: int = 7,
+              today: date | None = None) -> list[DueItem]:
+    """What needs attention: due or overdue actions first, then gone quiet.
+
+    An application with no next action and no event for QUIET_DAYS is listed
+    last, as a question rather than a verdict.
+    """
+    today = today or date.today()
+    rows = con.execute(
+        "SELECT a.id AS application_id, a.job_id, a.status, a.next_action, "
+        "       a.next_action_due, a.last_activity_at, j.title, c.name AS company "
+        "  FROM applications a "
+        "  JOIN jobs j ON j.id = a.job_id "
+        "  LEFT JOIN companies c ON c.id = j.company_id "
+        " WHERE a.archived_at IS NULL AND a.status NOT IN "
+        f"       ({', '.join('?' * len(CLOSED))})",
+        tuple(sorted(CLOSED)),
+    ).fetchall()
+
+    items: list[DueItem] = []
+    for row in rows:
+        days_out = None
+        if row["next_action_due"]:
+            try:
+                days_out = (date.fromisoformat(row["next_action_due"]) - today).days
+            except ValueError:
+                days_out = None
+        quiet = None
+        if row["last_activity_at"]:
+            try:
+                seen = date.fromisoformat(row["last_activity_at"][:10])
+                quiet = (today - seen).days
+            except ValueError:
+                quiet = None
+        item = DueItem(
+            job_id=row["job_id"], application_id=row["application_id"],
+            title=row["title"], company=row["company"] or "unknown",
+            status=row["status"], next_action=row["next_action"],
+            due=row["next_action_due"], days_out=days_out,
+            last_activity_at=row["last_activity_at"], quiet_days=quiet,
+        )
+        if days_out is not None and days_out <= days:
+            items.append(item)
+        elif days_out is None and (quiet or 0) >= QUIET_DAYS:
+            items.append(item)
+    # Overdue first, then soonest; anything without a date goes last, quietest
+    # first.
+    items.sort(key=lambda i: (i.days_out is None,
+                              i.days_out if i.days_out is not None else 0,
+                              -(i.quiet_days or 0)))
+    return items

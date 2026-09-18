@@ -279,15 +279,43 @@ PREP = """{% extends "base" %}{% block body %}
 
 PIPELINE = """{% extends "base" %}{% block body %}
 <h1>Pipeline</h1>
-<p class="sub">{{ rows|length }} live application(s)</p>
-{% for r in rows %}
+<p class="sub">{{ total }} live application(s){% if overdue %} · <strong>{{ overdue }} overdue</strong>{% endif %} · moving a stage records that YOU said so</p>
+{% if msg %}<p class="note {{ 'bad' if bad else 'good' }}" role="status">{{ msg }}</p>{% endif %}
+{% for stage, items in groups %}
+<h2>{{ stage|replace('_',' ') }} · {{ items|length }}</h2>
+{% for r in items %}
 <div class="card">
-  <div class="row1"><span class="flag">{{ r.status }}</span>
-    <span class="title"><a class="plain" href="/job/{{ r.job_id }}">{{ r.title }}</a></span><span class="co">{{ r.company }}</span></div>
+  <div class="row1">
+    <span class="title"><a class="plain" href="/job/{{ r.job_id }}">{{ r.title }}</a></span>
+    <span class="co">{{ r.company }}</span>
+    {% if r.days_out is not none and r.days_out < 0 %}<span class="flag warn">overdue {{ -r.days_out }}d</span>
+    {% elif r.days_out == 0 %}<span class="flag warn">due today</span>
+    {% elif r.days_out is not none %}<span class="flag">due in {{ r.days_out }}d</span>{% endif %}
+    {% if r.quiet %}<span class="flag warn">quiet {{ r.quiet }}d</span>{% endif %}
+  </div>
   <div class="meta">{{ r.next_action or 'no next action set' }}
+    {%- if r.next_action_due %} · due {{ r.next_action_due }}{% endif %}
     {%- if r.last_activity_at %} · last activity {{ r.last_activity_at[:10] }}{% endif %}</div>
+  <form method="post" action="/job/{{ r.job_id }}/stage" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <select name="stage" aria-label="Stage for {{ r.title }}">
+      {% for s in stages %}<option value="{{ s }}" {{ 'selected' if s == r.status }}>{{ s|replace('_',' ') }}</option>{% endfor %}
+    </select>
+    <button class="ghost" type="submit">Move</button>
+  </form>
 </div>
-{% else %}<p class="empty">Nothing in the pipeline yet.</p>{% endfor %}
+{% endfor %}
+{% else %}<p class="empty">Nothing in the pipeline yet. Save a match to start one.</p>{% endfor %}
+{% if closed %}
+<h2>closed · {{ closed|length }}</h2>
+{% for r in closed %}
+<div class="card"><div class="row1"><span class="flag">{{ r.status }}</span>
+  <span class="title"><a class="plain" href="/job/{{ r.job_id }}">{{ r.title }}</a></span>
+  <span class="co">{{ r.company }}</span></div>
+  <div class="meta">history kept{% if r.last_activity_at %} · last activity {{ r.last_activity_at[:10] }}{% endif %}</div>
+</div>
+{% endfor %}
+{% endif %}
 {% endblock %}"""
 
 REVIEW = """{% extends "base" %}{% block body %}
@@ -594,6 +622,11 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                       application=dict(application) if application else None,
                       documents=documents, preps=preps, msg=msg, bad=bad)
 
+    def back_to_pipeline(msg: str, bad: bool) -> RedirectResponse:
+        return RedirectResponse(
+            "/pipeline?" + urlencode({"msg": msg, "bad": int(bad)}),
+            status_code=303)
+
     def back_to_job(job_id: int, msg: str, bad: bool) -> RedirectResponse:
         query = urlencode({"msg": msg, "bad": int(bad)})
         return RedirectResponse(f"/job/{job_id}?{query}", status_code=303)
@@ -672,17 +705,63 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                       prep=dict(row), questions=questions)
 
     @app.get("/pipeline", response_class=HTMLResponse)
-    def pipeline():
+    def pipeline(msg: str = "", bad: int = 0):
+        from datetime import date
+
         con = connect()
         try:
-            # v_pipeline has no job_id, and the job page is where documents
-            # live. Joined here so existing trackers need no migration.
             rows = [dict(r) for r in con.execute(
-                "SELECT p.*, a.job_id AS job_id FROM v_pipeline p "
-                "JOIN applications a ON a.id = p.application_id").fetchall()]
+                "SELECT a.id AS application_id, a.job_id, a.status, a.next_action, "
+                "       a.next_action_due, a.last_activity_at, j.title, "
+                "       c.name AS company "
+                "  FROM applications a JOIN jobs j ON j.id = a.job_id "
+                "  LEFT JOIN companies c ON c.id = j.company_id "
+                " WHERE a.archived_at IS NULL").fetchall()]
         finally:
             con.close()
-        return render("pipeline", "pipeline", rows=rows)
+
+        today = date.today()
+        for row in rows:
+            row["days_out"] = None
+            row["quiet"] = None
+            if row["next_action_due"]:
+                try:
+                    row["days_out"] = (
+                        date.fromisoformat(row["next_action_due"]) - today).days
+                except ValueError:
+                    pass
+            if row["last_activity_at"] and not row["next_action_due"]:
+                try:
+                    quiet = (today - date.fromisoformat(
+                        row["last_activity_at"][:10])).days
+                    row["quiet"] = quiet if quiet >= approvals.QUIET_DAYS else None
+                except ValueError:
+                    pass
+        live = [r for r in rows if r["status"] not in approvals.CLOSED]
+        closed = [r for r in rows if r["status"] in approvals.CLOSED]
+        groups = [(stage, [r for r in live if r["status"] == stage])
+                  for stage in approvals.STAGES if stage not in approvals.CLOSED]
+        groups = [(stage, items) for stage, items in groups if items]
+        return render("pipeline", "pipeline", groups=groups, closed=closed,
+                      total=len(live), stages=list(approvals.STAGES),
+                      overdue=sum(1 for r in live
+                                  if r["days_out"] is not None and r["days_out"] < 0),
+                      msg=msg, bad=bad)
+
+    @app.post("/job/{job_id}/stage")
+    def do_stage(job_id: int, stage: str = Form(...)):
+        """The same approvals call `jsa status` makes. ADR 0003 decision 5."""
+        con = connect()
+        try:
+            _, previous = approvals.set_stage(con, job_id, stage)
+            con.commit()
+        except approvals.ApprovalError as exc:
+            return back_to_pipeline(str(exc), True)
+        finally:
+            con.close()
+        return back_to_pipeline(
+            f"Moved from {previous.replace('_', ' ')} to "
+            f"{stage.replace('_', ' ')}.", False)
 
     @app.get("/review", response_class=HTMLResponse)
     def review_queue(error: str = "", error_id: int = 0):

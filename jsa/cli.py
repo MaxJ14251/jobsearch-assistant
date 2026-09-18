@@ -708,6 +708,70 @@ def cmd_reject(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_status(args: argparse.Namespace) -> int:
+    """Move an application to a later stage. Always a human saying so."""
+    con = db.connect()
+    try:
+        application_id, previous = approvals.set_stage(
+            con, args.job_id, args.stage, note=args.note)
+        con.commit()
+        line = _job_line(con, args.job_id)
+    except approvals.ApprovalError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        con.close()
+    print(f"{previous} -> {args.stage}: application {application_id} -- {line}")
+    if args.stage in approvals.CLOSED:
+        print("  it leaves the live pipeline; its history stays.")
+    return 0
+
+
+def cmd_next(args: argparse.Namespace) -> int:
+    """Record what you intend to do next for a job, and when."""
+    con = db.connect()
+    try:
+        application_id = approvals.set_next_action(
+            con, args.job_id, args.action, due=args.due)
+        con.commit()
+        line = _job_line(con, args.job_id)
+    except approvals.ApprovalError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        con.close()
+    when = f" by {args.due}" if args.due else ""
+    print(f"next for application {application_id}{when}: {args.action}")
+    print(f"  {line}")
+    return 0
+
+
+def cmd_due(args: argparse.Namespace) -> int:
+    """What needs attention. A report; it changes nothing."""
+    con = db.connect()
+    try:
+        items = approvals.due_items(con, days=args.days)
+    finally:
+        con.close()
+    if not items:
+        print(f"nothing due in the next {args.days} day(s)")
+        return 0
+    for item in items:
+        if item.days_out is None:
+            when = f"no date, quiet {item.quiet_days} days"
+        elif item.days_out < 0:
+            when = f"OVERDUE by {-item.days_out} day(s)"
+        elif item.days_out == 0:
+            when = "due today"
+        else:
+            when = f"due in {item.days_out} day(s)"
+        print(f"[{item.job_id}] {when}  ({item.status})")
+        print(f"     {item.title} at {item.company}")
+        print(f"     {item.next_action or 'no next action set — decide one, or let it go'}")
+    print(f"\n{len(items)} item(s). Nothing here changed anything.")
+    return 0
+
+
 def cmd_applied(args: argparse.Namespace) -> int:
     con = db.connect()
     try:
@@ -879,6 +943,25 @@ def main(argv: list[str] | None = None) -> int:
         "--feedback", required=True,
         help="what to change; kept as the record of why")
     p_rej.set_defaults(func=cmd_reject)
+
+    p_stage = sub.add_parser(
+        "status", help="move an application to a later stage (you, not the tool)")
+    p_stage.add_argument("job_id", type=int)
+    p_stage.add_argument("stage", choices=list(approvals.STAGES), metavar="STAGE",
+                         help="one of: " + ", ".join(approvals.STAGES))
+    p_stage.add_argument("--note", help="what happened, kept in the trail")
+    p_stage.set_defaults(func=cmd_status)
+
+    p_next = sub.add_parser("next", help="set the next action for a job")
+    p_next.add_argument("job_id", type=int)
+    p_next.add_argument("action", help='e.g. "follow up with the recruiter"')
+    p_next.add_argument("--due", help="YYYY-MM-DD")
+    p_next.set_defaults(func=cmd_next)
+
+    p_due = sub.add_parser("due", help="what is due, overdue, or gone quiet")
+    p_due.add_argument("--days", type=int, default=7,
+                       help="how far ahead to look (default 7)")
+    p_due.set_defaults(func=cmd_due)
 
     p_done = sub.add_parser("applied", help="record that YOU submitted it")
     p_done.add_argument("job_id", type=int)
