@@ -488,6 +488,62 @@ class TestThirdPartyTextIsEscaped(SandboxCase):
         self.assertEqual(env.from_string("{{ x }}").render(x="<i>"), "&lt;i&gt;")
 
 
+LETTER = "Dear Hiring Manager,\n\n{body}\n\nSincerely,"
+
+
+class TestCoverLettersOnTheReviewPage(SandboxCase):
+    """A letter has no bullets to sit beside; it has prose and a verdict."""
+
+    def render_letter(self, body, note=None):
+        import json
+        from jsa import approvals, render
+        from jsa.tailor import DraftBullet, TailoredDraft
+        profile = tailor_profile()
+        bid, text = self.some_bullet()
+        draft = TailoredDraft(job_id=1, summary_id="s",
+                              summary=" ".join(profile["summaries"][0]["text"].split()),
+                              bullets=[DraftBullet(source_id=bid, text=text)],
+                              model="test/model")
+        out = self.box.out / "acme" / "letter.docx"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        render.render_cover_letter(draft, profile,
+                                   {"title": "Support Engineer", "company": "Acme"},
+                                   body, out)
+        con = self.box.connect()
+        cur = con.execute(
+            "INSERT INTO documents (job_id,kind,path,version,bullet_ids,model,note) "
+            "VALUES (1,'cover_letter',?,1,?,'test/model',?)",
+            (str(out), json.dumps([bid]), note))
+        doc_id = cur.lastrowid
+        approvals.queue(con, "document", doc_id, "cover_letter v1")
+        con.commit()
+        con.close()
+        return doc_id
+
+    def test_the_letter_is_shown_and_declared_clean(self):
+        self.render_letter(LETTER.format(
+            body="I am applying for the Support Engineer role at Acme."))
+        page = self.client.get("/review").text
+        self.assertIn("I am applying for the Support Engineer role at Acme.", page)
+        self.assertIn("Every word of this letter traces to your profile", page)
+
+    def test_a_composed_letter_says_so(self):
+        """A template must never read as drafted prose."""
+        self.render_letter(LETTER.format(body="Your own sentences, verbatim."),
+                           note="written from your own sentences; the drafted "
+                                "prose was refused: says words your profile does not: sla")
+        page = self.client.get("/review").text
+        self.assertIn("written from your own sentences", page)
+        self.assertNotIn("Every word of this letter traces", page)
+
+    def test_a_letter_that_still_fails_a_check_is_flagged(self):
+        self.render_letter(LETTER.format(
+            body="I ran Kubernetes in production for a decade."))
+        page = self.client.get("/review").text
+        self.assertIn("Still flagged:", page)
+        self.assertIn("Kubernetes", page)
+
+
 # --- scenarios against the real tracker, read-only -----------------------------
 
 def real_document(job_id):
@@ -498,8 +554,11 @@ def real_document(job_id):
         return None
     con = db.connect()
     try:
-        rows = con.execute("SELECT * FROM documents WHERE job_id = ? "
-                           "ORDER BY version DESC", (job_id,)).fetchall()
+        # Resumes only: this asserts on resume structure, and the job now
+        # has cover letters too.
+        rows = con.execute("SELECT * FROM documents WHERE job_id = ? AND "
+                           "kind = 'resume' ORDER BY version DESC",
+                           (job_id,)).fetchall()
     except sqlite3.Error:
         return None
     finally:

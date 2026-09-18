@@ -304,6 +304,13 @@ REVIEW = """{% extends "base" %}{% block body %}
   {% if r.doc %}
     {% set c = r.doc.compare %}
     {% if r.doc.problem %}<p class="note bad">{{ r.doc.problem }}</p>{% endif %}
+    {% if r.doc.kind == 'cover_letter' %}
+      {% if r.doc.note %}<p class="note bad">{{ r.doc.note }}</p>
+      {% else %}<p class="note good">Every word of this letter traces to your profile, the role title or the company name. Read it anyway: only you know whether it is true.</p>{% endif %}
+      {% if r.doc.letter and r.doc.letter.problems %}
+        <p class="note bad">Still flagged: {{ r.doc.letter.problems|join('; ') }}</p>{% endif %}
+      <div class="doc">{% for p in r.doc.paragraphs %}<p>{{ p.text }}</p>{% endfor %}</div>
+    {% endif %}
     {% if c %}
       {% if c.flagged %}<p class="note bad">{{ c.flagged }} line(s) say something your profile does not. Read the highlighted rows before you decide.</p>
       {% else %}<p class="note good">Every line traces back to your profile. Only you know whether each one is true, so read it anyway.</p>{% endif %}
@@ -323,7 +330,7 @@ REVIEW = """{% extends "base" %}{% block body %}
       {% endfor %}
       {% if c.missing_sources %}<p class="note bad">Listed bullets no longer in your profile: {{ c.missing_sources|join(', ') }}</p>{% endif %}
     {% endif %}
-    {% if r.doc.paragraphs %}
+    {% if r.doc.paragraphs and r.doc.kind != 'cover_letter' %}
     <details><summary>Read the whole draft</summary><div class="doc">
       {% for p in r.doc.paragraphs %}
         {% if p.kind == 'heading' %}<h3>{{ p.text }}</h3>
@@ -463,10 +470,23 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             "AND subject_id = ? ORDER BY id DESC LIMIT 1", (document_id,)).fetchone()
         return (row["decision"], row["feedback"]) if row else ("not queued", None)
 
+    def job_row(job_id) -> dict[str, Any]:
+        con = connect()
+        try:
+            row = con.execute(
+                "SELECT j.id, j.title, j.location, c.name AS company FROM jobs j "
+                "LEFT JOIN companies c ON c.id = j.company_id WHERE j.id = ?",
+                (job_id,)).fetchone()
+        finally:
+            con.close()
+        return dict(row) if row else {}
+
     def inspect_document(row, prof) -> dict[str, Any]:
         """Everything the pages show about one document. Never raises."""
         info: dict[str, Any] = {"servable": False, "paragraphs": [],
                                 "compare": None, "problem": None,
+                                "letter": None, "kind": row["kind"],
+                                "note": row["note"],
                                 "job_id": row["job_id"]}
         path = review.safe_document_path(row["path"], out_dir())
         if path is None:
@@ -481,6 +501,14 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         if prof is None:
             info["problem"] = ("Your profile could not be loaded, so this draft "
                                "cannot be checked against it.")
+            return info
+        if row["kind"] == "cover_letter":
+            # Prose has no source bullet to sit beside; what it has is a list
+            # of words nothing in the profile supports. ADR 0007.
+            from . import letter
+            text = chr(10).join(p["text"] for p in info["paragraphs"])
+            info["letter"] = {"problems": letter.check(text, prof,
+                                                       job_row(row["job_id"]))}
             return info
         info["compare"] = review.compare(
             info["paragraphs"], _json_list(row["bullet_ids"]), prof)

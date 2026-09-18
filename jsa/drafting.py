@@ -39,17 +39,22 @@ class DraftOutcome:
     gaps: list[str]
     revert_reasons: dict[str, str] = field(default_factory=dict)
     description_chars: int = 0
+    note: str = ""
+    letter_problems: list[str] = field(default_factory=list)
 
 
-def cover_body(draft) -> str:
-    """Compose the letter from the ALREADY-VERIFIED draft.
+def cover_body(draft, profile: dict[str, Any], job: dict[str, Any]):
+    """The letter's text and how it was produced. See ADR 0007.
 
-    Deliberately no second model call. Every sentence below has passed
-    verify_draft; asking a model for fresh prose here would open a fabrication
-    surface that nothing downstream checks.
+    This used to concatenate the verified summary and three bullets, with no
+    second model call, on the grounds that fresh prose had nothing checking
+    it. Read once, that produced resume bullets in a row with no greeting and
+    no closing: true, and not a letter. jsa/letter.py writes the prose and
+    checks every word of it, falling back to this composition when the drafted
+    letter fails a check.
     """
-    parts = [draft.summary] + [b.text for b in draft.bullets[:3]]
-    return "\n\n".join(part for part in parts if part and part.strip())
+    from . import letter
+    return letter.write(job, profile, draft)
 
 
 def draft_document(
@@ -57,6 +62,7 @@ def draft_document(
     profile: dict[str, Any],
 ) -> DraftOutcome:
     """Commits on success. Raises DraftError otherwise."""
+    letter_problems: list[str] = []
     from . import render
     from .tailor import (
         FabricationError, IdentityLeakError, UndecidedPreferenceError,
@@ -95,14 +101,18 @@ def draft_document(
         out = render.output_path(job.get("company") or "unknown",
                                  job.get("title") or "role", kind, version)
         out.parent.mkdir(parents=True, exist_ok=True)
+        note = ""
         if kind == "resume":
             render.render_resume(draft, profile, job, out)
         else:
-            render.render_cover_letter(draft, profile, job, cover_body(draft), out)
+            written = cover_body(draft, profile, job)
+            note = written.note
+            letter_problems = written.problems
+            render.render_cover_letter(draft, profile, job, written.body, out)
 
         document_id = render.record(
             con, job_id=job_id, kind=kind, path=out, draft=draft,
-            prompt_hash=draft.prompt_hash,
+            prompt_hash=draft.prompt_hash, note=note or None,
         )
         approvals.set_document_pointer(con, application_id, kind, document_id)
         approvals.record_event(
@@ -124,4 +134,5 @@ def draft_document(
         gaps=list(draft.keywords_missing),
         revert_reasons=dict(draft.revert_reasons),
         description_chars=len(job.get("description") or ""),
+        note=note, letter_problems=letter_problems,
     )

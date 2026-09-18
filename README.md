@@ -133,6 +133,19 @@ own words, and the command prints why. Work you describe as ongoing
 ("Building…", "Goal: reduce…") may not be rewritten as finished. A posting
 demanding Kubernetes gets a gap report, not a Kubernetes bullet.
 
+**Cover letters are written, not pasted.** `--kind cover-letter` used to
+concatenate your summary and three bullets: every sentence true, and not a
+letter -- no greeting, no closing, nothing saying what you were applying for.
+A letter is now drafted by the model and then held to one rule (ADR 0007):
+every word must come from your profile, from a fixed list of ordinary
+connective words, or from the role title and company, which are values in your
+tracker. **The posting's wording is deliberately not allowed**, so the letter
+cannot borrow the employer's demands or praise the company. On top of that it
+may never mention a degree, may never describe your ongoing work as finished,
+and may never use a term on your do-not-claim list. If a letter fails those
+checks twice, you get one composed from your own verified sentences, and both
+the command and the review page say so rather than passing it off as prose.
+
 The second check exists because the first one was not enough. It measured only
 what survived, so a rewrite that kept your whole bullet and appended "during
 high-priority support scenarios" scored *higher*. Replayed over every document

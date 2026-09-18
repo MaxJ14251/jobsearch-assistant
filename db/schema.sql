@@ -187,6 +187,7 @@ CREATE TABLE IF NOT EXISTS documents (
     keywords_matched TEXT,                         -- JSON array
     keywords_missing TEXT,                         -- JSON array
     model           TEXT,                          -- 'claude-opus-5'
+    note            TEXT,                          -- how it was produced, when that is not obvious
     prompt_hash     TEXT,                          -- reproducibility
     generated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
     approved_at     TEXT,                          -- set only by a human action

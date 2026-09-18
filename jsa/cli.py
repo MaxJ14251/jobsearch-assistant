@@ -337,11 +337,6 @@ def cmd_tags(args: argparse.Namespace) -> int:
 KIND_ARG = {"resume": "resume", "cover-letter": "cover_letter"}
 
 
-def _cover_body(draft) -> str:
-    from .drafting import cover_body
-    return cover_body(draft)
-
-
 def cmd_tailor(args: argparse.Namespace) -> int:
     from .drafting import DraftError, draft_document
     from .tailor import MAX_DESCRIPTION_CHARS
@@ -370,6 +365,10 @@ def cmd_tailor(args: argparse.Namespace) -> int:
     print(f"  bullets  {', '.join(result.bullet_ids)}")
     if result.gaps:
         print(f"  gaps     {', '.join(result.gaps)}")
+    if result.note:
+        # A letter that fell back to composed sentences says so, here and on
+        # the review page. Never let a template read as drafted prose.
+        print(f"  letter   {result.note}")
     for bullet_id, why in result.revert_reasons.items():
         # The rewrite said something the profile does not, so the profile's own
         # words were used instead. Said out loud, never silently.
@@ -625,6 +624,34 @@ def cmd_save(args: argparse.Namespace) -> int:
     return 0
 
 
+def _print_document(con, document_id: int) -> None:
+    """Read one drafted document here, rather than hunting for the .docx.
+
+    A cover letter is prose, so it is printed whole, with how it was produced
+    and anything the checks in jsa/letter.py flagged. ADR 0007.
+    """
+    from . import render, review
+    from .config import OUTPUT_DIR
+
+    row = con.execute("SELECT * FROM documents WHERE id = ?",
+                      (document_id,)).fetchone()
+    if row is None:
+        return
+    path = review.safe_document_path(row["path"], OUTPUT_DIR)
+    if path is None:
+        print("     (the file is missing from output/)")
+        return
+    print(f"     {row['kind']} v{row['version']}  {path.name}")
+    if row["note"]:
+        print(f"     letter: {row['note']}")
+    elif row["kind"] == "cover_letter":
+        print("     letter: model prose, every word traced to your profile")
+    text = render.extract_text(path)
+    body = text[text.index("Dear"):] if "Dear" in text else text
+    for line in body.splitlines():
+        print(f"       {line}")
+
+
 def cmd_review(args: argparse.Namespace) -> int:
     con = db.connect()
     try:
@@ -642,6 +669,8 @@ def cmd_review(args: argparse.Namespace) -> int:
             print(f"[{item.approval_id}] {item.subject_type} {item.subject_id}"
                   f"  requested {item.requested_at}")
             print(f"     {item.summary}")
+            if args.approval_id and item.subject_type == "document":
+                _print_document(con, item.subject_id)
             if args.approval_id:
                 print(f"     approve:  jsa approve {item.approval_id}")
                 print(f"     reject :  jsa reject {item.approval_id} "
