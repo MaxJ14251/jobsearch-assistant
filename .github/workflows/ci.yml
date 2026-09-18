@@ -56,6 +56,24 @@ jobs:
       - name: Scan for secrets and personal data
         run: python tools/scan_secrets.py
 
+  no-secrets-in-history:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Without this, checkout fetches one commit and the history scan
+          # would pass by only ever looking at HEAD -- a green check that
+          # proves nothing. Publishing publishes all of them.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install PyYAML
+      # Every blob, commit message and ref, not just the working tree. Known
+      # findings live in tools/history_allowlist.txt; a new one fails here.
+      - name: Scan every commit for secrets and personal data
+        run: python tools/scan_history.py
+
   # The development machine cannot run Docker, so the container's claims are
   # proven here: no personal files in any layer, not root, init and matches
   # with no API key, the public-bind guard both ways, and a tracker that

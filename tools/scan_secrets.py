@@ -84,6 +84,25 @@ HOME_PATH_RE = re.compile(
 )
 
 
+# A US street address, by shape rather than by value.
+#
+# Every other personal rule is driven by master_profile.yaml, which means it can
+# only find the operator's own details. The history audit's decoy carried a
+# street address and a phone number belonging to nobody, and not one rule fired:
+# a recruiter's address pasted into a note would have been just as invisible.
+# It also missed a real one: the README named a home town and its postal code
+# in prose, and neither is a field the profile has.
+#
+# Requiring the state code in address position (after a comma or an opening
+# paren, uppercase) is what makes this usable: measured over all 77 tracked
+# files it produced exactly one hit, the real one. The looser version also
+# matched `pa: 85000` in three files.
+US_ADDRESS_RE = re.compile(
+    r"[,(]\s*(?:A[LKZR]|C[AOT]|DE|FL|GA|HI|I[DLNA]|K[SY]|LA"
+    r"|M[EDAINSOT]|N[EVHJMYCD]|O[HKR]|PA|RI|S[CD]|T[NX]|UT|V[TA]|W[AVIY])"
+    r"\b[^\n]{0,8}?\b\d{5}(?:-\d{4})?\b")
+
+
 def home_path_hits(text: str) -> list[str]:
     """Absolute home paths in `text`, minus generic placeholders."""
     hits = []
@@ -114,13 +133,28 @@ RESERVED_EMAIL_DOMAINS = (
     ".test", ".invalid", ".localhost", ".example",
 )
 
+# Addresses that exist so that nobody can be reached at them. The rule above
+# protects a contact; a no-reply mailbox is not a contact, and flagging the
+# attribution trailer on every commit buried the one real finding of the
+# history audit under eighty copies of a non-finding.
+NOREPLY_LOCAL_PARTS = ("noreply", "no-reply", "donotreply", "do-not-reply")
+
+
+def is_noreply(address: str) -> bool:
+    local = address.rsplit("@", 1)[0].lower()
+    domain = address.rsplit("@", 1)[-1].lower()
+    return (local in NOREPLY_LOCAL_PARTS
+            or domain.endswith("users.noreply.github.com"))
+
 
 def real_email_addresses(text: str) -> list[str]:
-    """Addresses that are not obviously placeholders."""
+    """Addresses that are not obviously placeholders, and can be replied to."""
     found = []
     for match in EMAIL_RE.finditer(text):
         domain = match.group(1).lower()
         if any(domain == d or domain.endswith(d) for d in RESERVED_EMAIL_DOMAINS):
+            continue
+        if is_noreply(match.group(0)):
             continue
         found.append(match.group(0))
     return found
@@ -300,6 +334,13 @@ def scan_text(name: str, rel: str, text: str,
         found.append(
             f"{rel}: absolute home path {hit[:40]!r} "
             f"(leaks the OS account name of the machine that built it)"
+        )
+
+    match = US_ADDRESS_RE.search(text)
+    if match:
+        found.append(
+            f"{rel}: US address {match.group(0).strip()[:24]!r} "
+            f"(a postal code identifies a household, whosever it is)"
         )
 
     if name in SKIP_PERSONAL_FILES:

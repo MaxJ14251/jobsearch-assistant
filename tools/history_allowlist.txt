@@ -1,0 +1,21 @@
+# Findings in git history that have been seen, reported and decided about.
+#
+# History cannot be edited without rewriting every commit, so a finding here is
+# not "ignored" -- it is a standing decision the operator has already taken,
+# recorded where the next person will see it. Every line is a Python regex
+# matched against a finding. Anything NOT matched here fails the build.
+#
+# Adding a line is a decision about published data. Do not add one to make the
+# build green; fix the file and, if it is already committed, bring the question
+# back to the repository owner. Each entry says what, when, and why.
+#
+# --------------------------------------------------------------------------
+# 2026-09-18, found by the n8 pre-publishing audit.
+#
+# Sixteen versions of README.md, from the initial release through 42570f3,
+# described the feed coverage in personal terms and named a town and its
+# postal code. HEAD no longer does (see the same commit that added this file).
+# The earlier blobs still do, and only rewriting all 27 commits would remove
+# them -- which breaks every clone and every commit URL the README cites.
+# Status: reported, awaiting the repository owner's decision.
+^README\.md @ [0-9a-f]{8}: US address

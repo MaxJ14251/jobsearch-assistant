@@ -440,7 +440,7 @@ and posting produced only traceable bullets and reported all eight demanded
 technologies as gaps. Reproduce it with `python tools/fabrication_demo.py`;
 the offline regression tests live in `tests/test_tailor.py`.
 
-One boundary bug worth noting, found by these tests: `C\+\+` never matches,
+One boundary bug worth noting, found by these tests: `\bC\+\+\b` never matches,
 because a word boundary cannot sit between `+` and a space. C++ was silently
 undetectable as a banned claim, and so were C#, F# and .NET.
 
@@ -472,10 +472,13 @@ Playwright is deliberately absent from requirements.txt.
 
 ## Feed coverage
 
-Discovery covers three markets, because two relocations are live options:
-Los Angeles (current), San Diego, and south-central PA around Example Town [postal code]
-(family home). `matches --near {la,sd,pa}` filters to commuting range;
-`matches --remote` covers the roles that work from any of them.
+The shipped `config/companies.yaml` covers three US markets: Los Angeles,
+San Diego, and south-central Pennsylvania / north Maryland. They are there
+because they are the markets this feed list was built and verified against,
+not because you have to search in them — `regions:` in your profile names
+your own commute areas, `matches --near <region>` filters to them, and
+`matches --remote` covers the roles that work from anywhere. Adding a market
+means adding its employers here and running `python -m jsa verify`.
 
 *LA / SoCal (16):* ZipRecruiter, Snap, GoodRx, System1, SpaceX, Rocket Lab, Vast, Riot
 Games, Scopely, ServiceTitan, Rivian, GoGuardian, Sidecar Health, Boulevard, Tebra,
@@ -497,24 +500,25 @@ Four of these needed work beyond a board token:
 
 ### San Diego and south-central PA
 
-Added 2026-09-14, since both are live relocation options.
+Added 2026-09-14.
 
 *San Diego (10):* Shield AI, Tealium, Kyriba, Mitek, Illumina, Petco, GoFundMe,
 Airspace, ClickUp, Element Biosciences. Element Biosciences has the highest SD
 density found — 13 of 16 listings at the San Diego HQ.
 
-*PA / Baltimore (5):* T. Rowe Price (Baltimore, ~1hr from Example Town), Johnson Controls
-(Example Town facility), Highmark, Geisinger, Becton Dickinson. Gopuff and Duolingo are
-configured but flagged non-commutable — Philadelphia is ~2hr from Example Town and
-Pittsburgh ~3.5hr — so they count only for remote-eligible roles.
+*PA / Baltimore (5):* T. Rowe Price (Baltimore), Johnson Controls (Example Town facility),
+Highmark, Geisinger, Becton Dickinson. Gopuff and Duolingo are configured but
+flagged non-commutable from south-central PA — Philadelphia is about 2hr away
+and Pittsburgh about 3.5hr — so they count only for remote-eligible roles.
 
-**Your home town has essentially no local tech market.** Across two rounds I
-probed 45 regional employers — Utz (the largest employer in Example Town itself), WellSpan,
-Dentsply Sirona, Harley-Davidson, Rite Aid, D&H, Penn State Health, Johns Hopkins,
+**South-central PA has essentially no local tech market.** Across two rounds the
+feed list probed 45 regional employers — Utz, WellSpan, Dentsply Sirona, Harley-Davidson, Rite Aid, D&H, Penn State Health, Johns Hopkins,
 Example Town General and others. Exactly one, T. Rowe Price, exposes a usable feed, and
 it's in Baltimore. Example Town, McCormick, Under Armour, TE Connectivity and Armstrong run
 SuccessFactors, which needs a per-company ID not published on their careers pages.
-**For Example Town, plan on remote work; the local search is not a volume game.**
+**In a market like this one, plan on remote work; the local search is not a
+volume game.** The same is true of most of the country outside a dozen metros,
+which is why `matches --remote` exists.
 
 ### Known gaps
 
@@ -535,25 +539,72 @@ which is NJ/NY/Sunnyvale rather than LA.
 
 ## Test coverage
 
-213 tests, **59% line coverage**, reported as measured rather than tuned.
+590 tests, **76% line coverage**, reported as measured rather than tuned.
 
 The distribution is the interesting part. The code that decides what reaches a
 document is well covered; the thin parts are network adapters that need live
-endpoints to exercise:
+endpoints to exercise, and argument plumbing over modules that are themselves
+tested:
 
 | Module | Coverage | Why |
 |---|---|---|
-| `render.py` | 97% | Generated documents must be right |
-| `approvals.py` | 97% | The human-approval gate |
-| `scoring.py` | 92% | Every filter decision |
-| `tailor.py` | 83% | The fabrication verifier |
-| `web.py` | 71% | Dashboard routes |
-| `prep.py` | 69% | Degree and gap drills |
+| `render.py` | 99% | Generated documents must be right |
+| `tailor.py` | 98% | The fabrication verifier |
+| `letter.py` | 98% | Cover letter wording, checked word by word |
+| `prep.py` | 98% | Degree and gap drills |
+| `scoring.py` | 97% | Every filter decision |
+| `salary.py` | 96% | Pay read out of prose |
+| `review.py` | 96% | What the dashboard says a draft changed |
+| `approvals.py` | 95% | The human-approval gate |
+| `doctor.py` | 94% | What will not work yet |
+| `web.py` | 90% | Dashboard routes |
+| `llm.py` | 60% | Error paths need a live provider to reach |
+| `cli.py` | 42% | Argument plumbing over tested modules |
 | `sources.py` | 27% | Live ATS endpoints; exercised by `jsa verify` |
-| `cli.py` | 13% | Argument plumbing over tested modules |
 
 `jsa verify` and `tools/fabrication_demo.py` cover the network paths against real
 endpoints, which unit tests deliberately do not touch.
+
+## What publishing this would expose
+
+Before making this repository public it was audited commit by commit, because
+publishing publishes every commit: a file deleted in commit 12 is still
+readable in commit 11. `tools/scan_history.py` reads every blob reachable from
+every ref, every commit message, and every branch name. The checklist for
+running it on your own fork is in
+[CONTRIBUTING.md](CONTRIBUTING.md#before-you-make-a-fork-public).
+
+**The scanner was proved before it was trusted.** A file containing a fake API
+key, a fake address and a fake Windows account path was committed to a scratch
+branch. The pre-commit hook refused it, which is the working-tree scanner doing
+its job, so it was committed with `--no-verify`. The history scan found all
+three. The file was then deleted in a second commit — leaving the working tree
+clean, where a HEAD-only scan reports nothing — and the history scan still
+found it, naming both the commit that added it and the commit that removed it.
+The branch was then deleted, and the finding left the scan's scope, which is
+the same boundary `git push` uses. `tests/test_history_scan.py` keeps all of
+that as tests, against throwaway repositories rather than this one.
+
+What the audit found across 27 commits and 166 blob versions of 77 files:
+
+- **No key, tracker, profile, generated document or coverage file has ever
+  been committed.** `.coveragerc` is in history; `.coverage` never was.
+- **Sixteen versions of this README named a town and a postal code**, and
+  described the feed coverage in the first person. The current file does not.
+  The earlier commits still do, and only rewriting all 27 commits would change
+  that. It is recorded in `tools/history_allowlist.txt` rather than hidden.
+- **Every commit is signed with a personal email address**, as every git commit
+  everywhere is. The scan prints it as a NOTE on every run; whether a public
+  history should carry it is the repository owner's call.
+- No workflow uses `pull_request_target`, references an Actions secret, or
+  stores a token.
+
+Two gaps worth knowing about. The personal-data rules are read from
+*your* `master_profile.yaml`, so they can only find *your* details — a
+recruiter's address pasted into a note was invisible until a shape-based US
+address rule was added, and that rule is a shape, not understanding. And no
+scanner reads prose for intent; the README finding above is what that looks
+like.
 
 ## Limitations
 

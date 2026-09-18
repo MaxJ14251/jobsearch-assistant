@@ -56,12 +56,86 @@ is deliberately unsupported.
 ```bash
 .venv/Scripts/python -m unittest discover -s tests -t .
 .venv/Scripts/python tools/scan_secrets.py
+.venv/Scripts/python tools/scan_history.py
 .venv/Scripts/python tools/fresh_clone_check.py
 ```
 
 The last one simulates a clone and follows the README literally. If you had to
 deviate from the README to get something working, fix the README — that's the
 bug.
+
+## Before you make a fork public
+
+Publishing a repository publishes **every commit**, not the current files. A
+file deleted in commit 12 is still readable in commit 11 by anyone with the
+URL, so `git rm` is not a fix — it is a second commit that mentions the file.
+Check before the first push, not after.
+
+### What must never reach a commit
+
+| | Why |
+|---|---|
+| `.env` | your API key |
+| `profile/master_profile.yaml` | your name, address, phone, email, and your whole work history |
+| `*.db` | the tracker: every posting, every application, and any contact you added — including people who never agreed to be in it |
+| `output/`, `documents/`, `*.docx` | generated resumes and letters, which carry your identity |
+| `.coverage` | not obvious: it embeds absolute paths, so it leaks the OS account name of the machine that ran the tests |
+| `.claude/` | agent session state |
+
+All of these are in `.gitignore`. Trusting that is how the `.coverage` file got
+committed anyway — a pattern that matches nothing looks exactly like one that
+works. Verify instead:
+
+```bash
+git check-ignore -v .env profile/master_profile.yaml jobsearch.db
+```
+
+Silence means a file is **not** ignored.
+
+### How to verify
+
+```bash
+.venv/Scripts/python tools/scan_secrets.py     # the working tree
+.venv/Scripts/python tools/scan_history.py     # every commit, message and ref
+.venv/Scripts/python tools/fresh_clone_check.py
+```
+
+`scan_history.py` is the one that matters here. It reads every blob reachable
+from every ref, every commit message, and every branch name, looking for API
+keys, contactable email addresses, absolute home paths, US postal addresses,
+and the values in your own profile. Both scanners run in CI; the history job
+checks out with `fetch-depth: 0`, because a shallow clone would let it pass
+while looking at one commit.
+
+Findings that have been seen and decided about live in
+`tools/history_allowlist.txt`, with a note saying what and why. **Do not add a
+line there to make a build green.** If something is in history that should not
+be, the options are all expensive, and they belong to whoever owns the
+repository:
+
+- **rewrite the history** (`git filter-repo`) — removes it, and breaks every
+  existing clone, every commit URL, and every CI run link;
+- **start a fresh repository** without the old history — keeps the files,
+  loses the record of how they got there;
+- **leave it private.**
+
+If a real API key ever reaches a commit, none of the above comes first:
+**rotate the key.** It is readable from the moment it is pushed, and a rewrite
+does not un-read it.
+
+### Prose leaks too
+
+The scanners read the values in your profile and a few fixed shapes. They
+cannot read intent. This repository's own README described its feed coverage in
+the first person and named a home town and postal code — nothing a profile
+field could have flagged, and it sat there for sixteen commits. Read your own
+prose as a stranger would before making it public.
+
+Your commit author line is the same kind of decision: every commit carries the
+name and email from `git config`. `scan_history.py` prints it as a NOTE on
+every run. If you would rather a public history not carry your mailbox, set a
+GitHub `users.noreply.github.com` address **before** the first commit —
+changing it later only affects new commits.
 
 ## Style
 
