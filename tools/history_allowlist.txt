@@ -15,7 +15,17 @@
 # Sixteen versions of README.md, from the initial release through 42570f3,
 # described the feed coverage in personal terms and named a town and its
 # postal code. HEAD no longer does (see the same commit that added this file).
-# The earlier blobs still do, and only rewriting all 27 commits would remove
+# The earlier blobs still do, and only rewriting every commit would remove
 # them -- which breaks every clone and every commit URL the README cites.
-# Status: reported, awaiting the repository owner's decision.
+#
+# Status: reported and decided (ADR 0008, 2026-09-19). The repository stays
+# PRIVATE until a stranger can use it with their own details, so nothing is
+# exposed and nothing is rewritten. The rewrite question is deliberately
+# deferred to the moment before publishing, while a rewrite is still cheap --
+# it only gets expensive once other people hold clones. Read ADR 0008 before
+# changing visibility.
+#
+# The same decision covers the commit author identity, which scan_history.py
+# prints as a NOTE on every run rather than listing here: it is not a leak, it
+# is every git commit everywhere, and it would go in the same rewrite.
 ^README\.md @ [0-9a-f]{8}: US address

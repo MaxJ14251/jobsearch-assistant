@@ -567,8 +567,13 @@ endpoints, which unit tests deliberately do not touch.
 
 ## What publishing this would expose
 
-Before making this repository public it was audited commit by commit, because
-publishing publishes every commit: a file deleted in commit 12 is still
+**This repository is private, and stays private until somebody who is not its
+author can use it with their own details** — see
+[ADR 0008](docs/decisions/0008-staying-private-until-publishable.md), which
+also lists what is still missing for that. The audit below is why that is a
+decision rather than an oversight.
+
+It was audited commit by commit, because publishing publishes every commit: a file deleted in commit 12 is still
 readable in commit 11. `tools/scan_history.py` reads every blob reachable from
 every ref, every commit message, and every branch name. The checklist for
 running it on your own fork is in
@@ -585,17 +590,22 @@ The branch was then deleted, and the finding left the scan's scope, which is
 the same boundary `git push` uses. `tests/test_history_scan.py` keeps all of
 that as tests, against throwaway repositories rather than this one.
 
-What the audit found across 27 commits and 166 blob versions of 77 files:
+What the audit found across the 27 commits that existed when it ran,
+166 blob versions of 77 files:
 
 - **No key, tracker, profile, generated document or coverage file has ever
   been committed.** `.coveragerc` is in history; `.coverage` never was.
 - **Sixteen versions of this README named a town and a postal code**, and
   described the feed coverage in the first person. The current file does not.
-  The earlier commits still do, and only rewriting all 27 commits would change
+  The earlier commits still do, and only rewriting all 28 commits would change
   that. It is recorded in `tools/history_allowlist.txt` rather than hidden.
+
+Neither of the last two is being rewritten now. A rewrite changes every commit
+SHA, and its real cost is other people's clones — of which there are none while
+this is private. That makes deferring the decision to the moment before
+publishing the cheap option and the reversible one.
 - **Every commit is signed with a personal email address**, as every git commit
-  everywhere is. The scan prints it as a NOTE on every run; whether a public
-  history should carry it is the repository owner's call.
+  everywhere is. The scan prints it as a NOTE on every run.
 - No workflow uses `pull_request_target`, references an Actions secret, or
   stores a token.
 
