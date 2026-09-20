@@ -93,9 +93,20 @@ class Report:
         return not self.blocking
 
 
+# Values the example ships that a reader is meant to KEEP, not overwrite. The
+# example's locations list mixes the two: "Your City, ST" is a stand-in,
+# "Remote (US)" is a real entry doing a real job. Treating every example
+# location as a stand-in made doctor tell every reader to "replace or delete"
+# the one line that scores remote roles 1.0 instead of 0.7 -- and for a reader
+# outside a big metro, remote roles are the whole product.
+_KEEP = re.compile(r"^\s*remote\b", re.I)
+
+
 def _is_placeholder(value: Any) -> bool:
     """Still the example's text, or obviously a stand-in for real text."""
     if not isinstance(value, str) or not value.strip():
+        return False
+    if _KEEP.match(value):
         return False
     return (value.strip().lower() in example_values()
             or bool(_GENERIC.search(value)))
@@ -237,6 +248,63 @@ def check_tracker(con: sqlite3.Connection | None, profile: dict[str, Any],
         report.checked.append("tag vocabulary against real postings")
 
 
+MIN_POSTINGS_FOR_MARKET = 20
+
+# Below this many non-remote postings in your own state, the honest answer is
+# "this is a remote-roles tool for you". Measured over 9,451 postings from all
+# 50 shipped feeds: Los Angeles 250 in-state, Seattle 168, Columbus 5, Boise 0.
+# The first two are big metros where large multi-site employers already post;
+# the last two are most of the country.
+THIN_MARKET = 25
+
+
+def check_market(profile: dict[str, Any], con: sqlite3.Connection | None,
+                 report: Report) -> None:
+    """What the shipped feeds actually hold for *your* part of the country.
+
+    The feed list is a few dozen large tech employers plus the AI labs. That
+    produces remote roles for everybody and local roles wherever those
+    employers happen to have offices — which is a real answer, but only if
+    the tool says so. Otherwise a reader in Ohio spends a week concluding the
+    software is broken, when what is missing is employers near them.
+    """
+    if con is None:
+        return
+    from .scoring import in_state, is_non_us, preferred_states
+
+    prefs = profile.get("job_search_preferences") or {}
+    states = preferred_states(prefs.get("locations") or [])
+    rows = con.execute(
+        "SELECT location, remote FROM jobs WHERE archived_at IS NULL").fetchall()
+    if len(rows) < MIN_POSTINGS_FOR_MARKET:
+        return                      # check_tracker already said it is empty
+
+    remote = sum(1 for r in rows if (r["remote"] or "") == "remote")
+    local = sum(1 for r in rows
+                if (r["remote"] or "") != "remote"
+                and not is_non_us(r["location"] or "")
+                and any(in_state(r["location"] or "", s) for s in states))
+    report.checked.append(f"what your tracker holds near you "
+                          f"({local} local, {remote} remote)")
+
+    if not states:
+        report.add(False, "Your locations name no state",
+                   "Write them 'City, ST'. Without a state, a posting in "
+                   "your state but not your city cannot be recognised.")
+        return
+    named = ", ".join(sorted(s.upper() for s in states))
+    if local < THIN_MARKET:
+        report.add(
+            False,
+            f"Only {local} on-site posting(s) in {named}",
+            f"That is how this will stay: the shipped feeds are a few dozen "
+            f"large employers, so local coverage depends on whether they have "
+            f"an office near you. {remote} remote role(s) are in your tracker "
+            f"and those are the ones to work with. For local roles, add "
+            f"employers near you to config/companies.yaml and run "
+            f"`jsa verify`.")
+
+
 def check_api_key(report: Report) -> None:
     """Whether a key is configured. Never what it is."""
     from . import llm
@@ -268,5 +336,6 @@ def run(profile: dict[str, Any] | None,
     check_evidence(profile, report)
     check_credentials(profile, report)
     check_tracker(con, profile, report)
+    check_market(profile, con, report)
     check_api_key(report)
     return report

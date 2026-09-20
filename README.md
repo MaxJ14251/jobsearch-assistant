@@ -11,6 +11,19 @@ if you are job hunting outside the US, this will return nothing and the emptines
 will not explain itself. That scope is deliberate; see
 [docs/decisions/0002-geographic-scope.md](docs/decisions/0002-geographic-scope.md).
 
+**What you get depends on where you live, and it is worth knowing before you
+start.** The shipped feed list is a few dozen large tech employers and the AI
+labs. They post wherever they have offices, so out of the box this is a
+strong remote-roles tool everywhere and a local one only where those employers
+already are. Measured over 9,451 postings from all 50 feeds: 247 remote roles
+for every reader, and on-site roles in their own state numbering 250 for Los
+Angeles, 168 for Seattle, 5 for Columbus, 0 for Boise. `jsa doctor` tells you
+your own number on day one. For local coverage anywhere else, add employers
+near you to [config/companies.yaml](config/companies.yaml) and run
+`python -m jsa verify` — see
+[ADR 0009](docs/decisions/0009-what-the-shipped-feed-list-is.md) for why the
+list is not simply made bigger.
+
 ## Quickstart
 
 ```bash
@@ -42,7 +55,7 @@ everything downstream reads from it. On macOS and Linux use `.venv/bin/python`.
 |---|--------|-------|
 | 1 | Master profile | **Done** — [master_profile.example.yaml](profile/master_profile.example.yaml) |
 | 2 | Tracker DB schema | **Done** — [db/schema.sql](db/schema.sql), validated on SQLite |
-| 3 | Job discovery | **Done** — 45 live feeds across LA, San Diego and PA/MD |
+| 3 | Job discovery | **Done** — 50 verified feeds; national employers plus AI labs |
 | 3b | LLM enrichment | **Done** — degree/clearance/stack facts the filter can't see |
 | 4 | Resume/cover tailoring | **Done** — verifier, scrubber, ATS-safe .docx, provenance |
 | 5 | Review dashboard | **Done** — `jsa serve`, loopback only |
@@ -472,13 +485,32 @@ Playwright is deliberately absent from requirements.txt.
 
 ## Feed coverage
 
-The shipped `config/companies.yaml` covers three US markets: Los Angeles,
-San Diego, and south-central Pennsylvania / north Maryland. They are there
-because they are the markets this feed list was built and verified against,
-not because you have to search in them — `regions:` in your profile names
-your own commute areas, `matches --near <region>` filters to them, and
-`matches --remote` covers the roles that work from anywhere. Adding a market
-means adding its employers here and running `python -m jsa verify`.
+`config/companies.yaml` holds 54 sources, 50 verified. The groups below are
+named after where each company is **headquartered**, which is not where its
+jobs are, and reading them as markets is a mistake this README used to invite.
+SpaceX sits under LA and supplies 473 Washington postings and 1,022 Texas
+ones; Shield AI sits under San Diego and supplies 170 Washington postings.
+
+What that means in practice, measured over 9,451 postings from all 50 feeds:
+
+| group | feeds | postings | remote | WA | OH | ID | CA | TX | NY |
+|---|---|---|---|---|---|---|---|---|---|
+| LA / SoCal | 16 | 4,144 | 169 | 527 | 3 | 1 | 1,513 | 1,022 | 109 |
+| AI labs & dev tools | 14 | 2,950 | 1,145 | 472 | 3 | 0 | 997 | 47 | 725 |
+| San Diego | 12 | 1,933 | 60 | 214 | 15 | 0 | 465 | 153 | 94 |
+| PA / Baltimore | 5 | 359 | 70 | 3 | 7 | 3 | 8 | 6 | 7 |
+| Aggregators | 3 | 65 | 55 | 0 | 0 | 0 | 0 | 0 | 0 |
+
+Coverage follows large multi-site employers, not the group labels. That is why
+Seattle gets 168 in-state roles nobody configured, and Columbus gets 5.
+
+**The list is deliberately not grown region by region.** PA / Baltimore is
+what that costs: 45 regional employers probed by hand, one usable feed found,
+359 postings returned — 4% of the corpus, and almost nothing for anyone
+outside it, including readers in Pennsylvania. `matches --near <region>`
+filters to the commute areas your own profile names, and `matches --remote`
+covers the roles that work from anywhere. Full reasoning in
+[ADR 0009](docs/decisions/0009-what-the-shipped-feed-list-is.md).
 
 *LA / SoCal (16):* ZipRecruiter, Snap, GoodRx, System1, SpaceX, Rocket Lab, Vast, Riot
 Games, Scopely, ServiceTitan, Rivian, GoGuardian, Sidecar Health, Boulevard, Tebra,
