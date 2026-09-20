@@ -12,6 +12,7 @@ title, or a years-of-experience requirement well beyond the candidate's.
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import Any
 
 from .config import Preferences
@@ -144,14 +145,31 @@ _NON_US_RE = re.compile(
     r"brazil|sao paulo|mexico|argentina|buenos aires|chile|santiago|"
     r"colombia|bogota|peru|lima|costa rica|"
     r"south africa|nigeria|lagos|kenya|nairobi|"
+    # Counted in the author's tracker: "England - Cambridge" and "Middle East"
+    # were being scored as US locations, because the list held "united kingdom"
+    # but not the constituent countries, and no region names below continent
+    # size.
+    r"england|scotland|wales|northern ireland|middle east|"
     r"emea|apac|latam|europe|asia)\b",
     re.I,
 )
 
 
+def _fold(text: str) -> str:
+    """Strip diacritics so an accented city still matches its plain spelling.
+
+    "São Paulo" was scored as a US location: the pattern holds "sao paulo",
+    and the feed writes the a with a tilde. Every rule that compares a location
+    against a written-out name has this problem, so it is fixed once here
+    rather than by spelling each city twice.
+    """
+    return "".join(c for c in unicodedata.normalize("NFKD", text or "")
+                   if not unicodedata.combining(c))
+
+
 def is_non_us(location: str) -> bool:
     """True when a location names somewhere clearly outside the US."""
-    loc = location or ""
+    loc = _fold(location)
     if _US_RE.search(loc):
         return False
     return bool(_NON_US_RE.search(loc))
@@ -202,8 +220,15 @@ def in_state(location: str, state: str) -> bool:
 
     A bare two-letter test would read "Berlin, DE" as Delaware. is_non_us()
     catches that first, and requiring the comma keeps the rest honest.
+
+    `state` is accepted in any case. It used to be compared against a
+    lowercased location without being lowercased itself, so `in_state(loc,
+    "CA")` was always False and said nothing about why. Its one caller passes
+    the lowercase form that `preferred_states` emits, so nothing was broken --
+    which is precisely the shape of a function that breaks its next caller.
     """
-    loc = (location or "").lower()
+    loc = _fold(location).lower()
+    state = (state or "").strip().lower()
     full = _STATE_NAMES.get(state, state)
     return bool(re.search(r",\s*" + re.escape(state) + r"\b", loc)
                 or re.search(r"\b" + re.escape(full) + r"\b", loc))
@@ -215,9 +240,21 @@ def _matches_city(location: str, pref: str) -> bool:
     A bare substring test is wrong in a way that bites: "York, PA" matches
     inside "New York, NY". So require the city as a whole word AND the state
     to appear too — the state is what actually separates York from New York.
+
+    That guard was then applied even to postings that name no state at all,
+    and 27% of the author's tracker names none: 143 of 514, across 16 distinct
+    strings, 117 of them one feed writing "San Francisco". Every one scored
+    0.0, "outside your list" — the same as another state — for a reader whose
+    own profile said "San Francisco, CA".
+
+    So the state has to agree only when the posting states one. There is no
+    ambiguity to resolve when it does not, and demanding a resolution throws
+    the posting away. The residual risk is a bare "Columbus" that is Georgia
+    reading as Ohio; the location is shown to the reader either way, and
+    ranking a real posting slightly too high beats hiding it.
     """
-    loc = (location or "").lower()
-    parts = [p.strip().lower() for p in pref.split(",")]
+    loc = _fold(location).lower()
+    parts = [p.strip().lower() for p in _fold(pref).split(",")]
     city = parts[0]
     if not city or city.startswith("remote"):
         return False
@@ -227,10 +264,19 @@ def _matches_city(location: str, pref: str) -> bool:
         return True
     state = parts[1]
     full = _STATE_NAMES.get(state, state)
+    if (re.search(rf"\b{re.escape(state)}\b", loc)
+            or re.search(rf"\b{re.escape(full)}\b", loc)):
+        return True
+    return not names_a_state(loc)
+
+
+def names_a_state(location: str) -> bool:
+    """Does this location name a US state at all, by code or by name?"""
+    loc = _fold(location).lower()
     return bool(
-        re.search(rf"\b{re.escape(state)}\b", loc)
-        or re.search(rf"\b{re.escape(full)}\b", loc)
-    )
+        any(re.search(rf",\s*{abbr}\b", loc) for abbr in _STATE_NAMES)
+        or any(re.search(rf"\b{re.escape(name)}\b", loc)
+               for name in _STATE_NAMES.values()))
 
 
 def location_score(
