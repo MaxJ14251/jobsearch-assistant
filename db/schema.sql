@@ -255,9 +255,13 @@ CREATE TABLE IF NOT EXISTS approvals (
     subject_type    TEXT NOT NULL CHECK (subject_type IN ('application','outreach','document')),
     subject_id      INTEGER NOT NULL,
     summary         TEXT NOT NULL,                 -- what the human is being asked to okay
+    -- 'superseded' is closed BY THE TOOL, never by a person: a v1 stops
+    -- needing a decision the moment v2 exists, and asking a human to reject
+    -- their own superseded draft was bookkeeping dressed as judgement. It is
+    -- deliberately not 'approved', so nothing outbound can key off it.
     decision        TEXT NOT NULL DEFAULT 'pending'
-                      CHECK (decision IN ('pending','approved','rejected')),
-    decided_by      TEXT CHECK (decided_by IN ('human')),
+                      CHECK (decision IN ('pending','approved','rejected','superseded')),
+    decided_by      TEXT CHECK (decided_by IN ('human','tool')),
     decided_at      TEXT,
     feedback        TEXT,                          -- why rejected / what to change
     requested_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
@@ -282,6 +286,17 @@ WHEN NEW.decision IN ('approved','rejected')
  AND (NEW.decided_by IS NOT 'human' OR NEW.decided_at IS NULL)
 BEGIN
     SELECT RAISE(ABORT, 'approvals.decision requires decided_by=human and decided_at');
+END;
+
+-- The other direction, and just as important: the tool may close a superseded
+-- draft, and may never sign it as a person. Without this, 'superseded' would
+-- be a hole in the audit trail rather than a distinct entry in it.
+CREATE TRIGGER IF NOT EXISTS trg_supersede_is_never_human
+BEFORE UPDATE OF decision ON approvals
+WHEN NEW.decision = 'superseded'
+ AND (NEW.decided_by IS NOT 'tool' OR NEW.decided_at IS NULL)
+BEGIN
+    SELECT RAISE(ABORT, 'a superseded approval is closed by the tool, not a human');
 END;
 
 -- ---------------------------------------------------------------------------

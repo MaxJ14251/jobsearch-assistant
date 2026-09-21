@@ -102,8 +102,16 @@ def _rebuild_approvals_if_stale(con: sqlite3.Connection, schema_sql: str) -> lis
     row = con.execute(
         "SELECT sql FROM sqlite_master WHERE type='table' AND name='approvals'"
     ).fetchone()
-    if not row or "requested_at)" not in (row["sql"] or "").replace(" ", ""):
+    if not row:
         return []
+    sql = (row["sql"] or "")
+    stale_unique = "requested_at)" in sql.replace(" ", "")
+    # A CHECK constraint cannot be altered either, and an old database would
+    # otherwise reject 'superseded' with a confusing constraint error.
+    missing_superseded = "superseded" not in sql
+    if not (stale_unique or missing_superseded):
+        return []
+    reason = "dropped stale UNIQUE" if stale_unique else "widened decision CHECK"
 
     cols = [r["name"] for r in con.execute("PRAGMA table_info(approvals)")]
     con.executescript(
@@ -125,7 +133,7 @@ def _rebuild_approvals_if_stale(con: sqlite3.Connection, schema_sql: str) -> lis
             f"INSERT INTO approvals ({shared}) SELECT {shared} FROM approvals_old"
         )
     con.executescript("DROP TABLE approvals_old; PRAGMA foreign_keys=ON;")
-    return ["approvals(rebuilt: dropped stale UNIQUE)"]
+    return [f"approvals(rebuilt: {reason})"]
 
 
 # --- upserts ---------------------------------------------------------------

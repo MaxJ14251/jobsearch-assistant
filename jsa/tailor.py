@@ -124,6 +124,19 @@ class TailoredDraft:
 # --- profile access ---------------------------------------------------------
 
 
+def _entry_key(entry: dict[str, Any], *fields: str) -> str:
+    """A key that distinguishes two entries at the same employer.
+
+    `id:` when the profile sets one, otherwise everything that identifies the
+    entry joined together. Never just the company: that is what collapsed
+    "Sales Representative at Riverton" and "Installer at Riverton" into one bucket.
+    """
+    if entry.get("id"):
+        return str(entry["id"])
+    parts = [str(entry.get(f) or "").strip() for f in fields]
+    return " :: ".join(p for p in parts if p)
+
+
 def collect_bullets(profile: dict[str, Any]) -> dict[str, SourceBullet]:
     """Every reusable bullet in the profile, keyed by id."""
     out: dict[str, SourceBullet] = {}
@@ -134,10 +147,16 @@ def collect_bullets(profile: dict[str, Any]) -> dict[str, SourceBullet]:
                 tags=tuple(b.get("tags") or []), family=exp.get("family", ""),
                 strength=int(b.get("strength", 2)), origin="experience",
                 # The ENTRY id, not the company. Two roles at one employer
-                # (Sales Representative and Installer, both at Riverton) collided on
-                # the company name, and the renderer printed one role's bullets
-                # under both.
-                parent=exp.get("id") or exp.get("company", ""),
+                # collided on the company name and the renderer printed one
+                # role's bullets under both headings -- a resume claiming the
+                # installer's work as the sales rep's.
+                #
+                # Preferring the id fixed it for a profile that has ids. The
+                # fallback still collapsed, and `id:` is not required: a
+                # newcomer who was promoted without changing employer hit the
+                # original bug with no warning. The fallback now carries the
+                # title, which is what distinguishes the two roles.
+                parent=_entry_key(exp, "company", "title"),
             )
     for proj in profile.get("projects") or []:
         for b in proj.get("bullets") or []:
@@ -145,7 +164,7 @@ def collect_bullets(profile: dict[str, Any]) -> dict[str, SourceBullet]:
                 id=b["id"], text=" ".join(b["text"].split()),
                 tags=tuple(b.get("tags") or []), family=proj.get("family", ""),
                 strength=int(b.get("strength", 2)), origin="project",
-                parent=proj.get("id") or proj.get("name", ""),
+                parent=_entry_key(proj, "name", "title"),
             )
     return out
 

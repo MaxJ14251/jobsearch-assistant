@@ -412,6 +412,19 @@ def cmd_tailor(args: argparse.Namespace) -> int:
         # The rewrite said something the profile does not, so the profile's own
         # words were used instead. Said out loud, never silently.
         print(f"  reverted {bullet_id}: {why}")
+    if result.superseded:
+        # Closed by the tool, not by you. Said plainly so the queue shrinking
+        # is never mistaken for someone having decided something.
+        ids = ", ".join(str(i) for i in result.superseded)
+        print(f"  closed   approval(s) {ids} — superseded by v{result.version}")
+    if result.prior_feedback:
+        # The point of the whole exercise. This was written, stored, shown on a
+        # page nobody had open, and read by nothing at the moment it mattered.
+        print("  you rejected earlier versions of this document:")
+        for version, note in result.prior_feedback:
+            print(f"    v{version}: {note}")
+        print("  (read as a person, not fed to the model — this tool does not "
+              "tune itself on your notes)")
     print(f"  approve  jsa approve {result.approval_id}")
     return 0
 

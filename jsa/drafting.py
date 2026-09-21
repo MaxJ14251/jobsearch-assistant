@@ -41,6 +41,12 @@ class DraftOutcome:
     description_chars: int = 0
     note: str = ""
     letter_problems: list[str] = field(default_factory=list)
+    # Approvals the tool closed because this version replaced them, and what
+    # a human said about earlier versions. The second is the whole point:
+    # feedback was written, stored, displayed on a page nobody was looking at,
+    # and read by nothing at the moment it would have changed something.
+    superseded: list[int] = field(default_factory=list)
+    prior_feedback: list[tuple[int, str]] = field(default_factory=list)
 
 
 def cover_body(draft, profile: dict[str, Any], job: dict[str, Any]):
@@ -121,6 +127,9 @@ def draft_document(
         approval_id = approvals.queue(
             con, "document", document_id,
             f"{kind} v{version} for {job.get('title')} at {job.get('company')}")
+        # v1 stopped needing a decision the moment v2 was written.
+        superseded = approvals.supersede_older(
+            con, job_id=job_id, kind=kind, version=version)
         con.commit()
     except (approvals.ApprovalError, UndecidedPreferenceError) as exc:
         raise DraftError(str(exc)) from exc
@@ -135,4 +144,7 @@ def draft_document(
         revert_reasons=dict(draft.revert_reasons),
         description_chars=len(job.get("description") or ""),
         note=note, letter_problems=letter_problems,
+        superseded=superseded,
+        prior_feedback=approvals.prior_feedback(
+            con, job_id=job_id, kind=kind, before_version=version),
     )

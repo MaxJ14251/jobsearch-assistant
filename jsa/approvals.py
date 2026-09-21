@@ -89,8 +89,9 @@ def approve(con: sqlite3.Connection, approval_id: int, note: str | None = None) 
 def reject(con: sqlite3.Connection, approval_id: int, feedback: str) -> None:
     """Record a human rejection. Feedback is required.
 
-    It is kept with the decision as the record of why. Nothing reads it back
-    into a redraft yet; an earlier message here claimed otherwise.
+    It is kept with the decision as the record of why, and `prior_feedback`
+    below reads it back to whoever drafts the next version. It is shown to a
+    person; it is not fed to a model, and it does not tune anything.
     """
     if not (feedback or "").strip():
         raise ApprovalError(
@@ -98,6 +99,60 @@ def reject(con: sqlite3.Connection, approval_id: int, feedback: str) -> None:
             "write a short note, then reject again"
         )
     _decide(con, approval_id, "rejected", feedback.strip())
+
+
+def supersede_older(con: sqlite3.Connection, *, job_id: int, kind: str,
+                    version: int) -> list[int]:
+    """Close the pending approvals for earlier versions of this document.
+
+    Four of the twelve rejections in the author's tracker read "superseded by
+    a later version", and six of eight still-pending ones are the same thing.
+    That is bookkeeping, not judgement: v1 stops needing a decision the moment
+    v2 exists, and the tool knows that at the moment it writes v2.
+
+    Closed as 'superseded' with decided_by='tool', which a trigger enforces in
+    both directions — the tool may not sign as a person, and a person may not
+    file a supersede. The audit trail therefore still says exactly who decided
+    what, which is the only reason this is safe to automate at all.
+
+    Returns the approval ids closed.
+    """
+    rows = con.execute(
+        "SELECT a.id FROM approvals a JOIN documents d ON d.id = a.subject_id "
+        "WHERE a.subject_type = 'document' AND a.decision = 'pending' "
+        "AND d.job_id = ? AND d.kind = ? AND d.version < ?",
+        (job_id, kind, version),
+    ).fetchall()
+    closed = [int(r["id"]) for r in rows]
+    for approval_id in closed:
+        con.execute(
+            "UPDATE approvals SET decision = 'superseded', decided_by = 'tool', "
+            "decided_at = ?, feedback = ? WHERE id = ?",
+            (db.utcnow(), f"superseded by v{version}", approval_id),
+        )
+    return closed
+
+
+def prior_feedback(con: sqlite3.Connection, *, job_id: int, kind: str,
+                   before_version: int | None = None) -> list[tuple[int, str]]:
+    """What a human said about earlier versions of this document.
+
+    Read back to the person drafting the next one, which is the one place it
+    would change a decision. Deliberately not passed to a model: it is the
+    operator's own words, it can say anything, and this tool does not tune
+    itself on it.
+    """
+    sql = ("SELECT d.version, a.feedback FROM approvals a "
+           "JOIN documents d ON d.id = a.subject_id "
+           "WHERE a.subject_type = 'document' AND a.decision = 'rejected' "
+           "AND a.feedback IS NOT NULL AND TRIM(a.feedback) != '' "
+           "AND d.job_id = ? AND d.kind = ?")
+    args: list[Any] = [job_id, kind]
+    if before_version is not None:
+        sql += " AND d.version < ?"
+        args.append(before_version)
+    return [(int(r["version"]), r["feedback"].strip())
+            for r in con.execute(sql + " ORDER BY d.version", args)]
 
 
 def is_approved(

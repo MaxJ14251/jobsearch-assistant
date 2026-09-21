@@ -244,9 +244,15 @@ class TestTailorCommand(TailorCase):
         self.assertEqual([r["version"] for r in rows], [1, 2])
         self.assertNotEqual(rows[0]["path"], rows[1]["path"],
                             "v2 overwrote the file v1's row still points at")
-        decisions = con.execute(
-            "SELECT decision FROM approvals ORDER BY id").fetchall()
-        self.assertEqual([d["decision"] for d in decisions], ["pending", "pending"])
+        # v1 stops needing a decision the moment v2 exists. This used to
+        # assert both stayed pending, which is what left six superseded cover
+        # letters sitting in the author's queue waiting to be rejected by hand.
+        rows = con.execute(
+            "SELECT decision, decided_by FROM approvals ORDER BY id").fetchall()
+        self.assertEqual([r["decision"] for r in rows],
+                         ["superseded", "pending"])
+        self.assertEqual(rows[0]["decided_by"], "tool",
+                         "the tool closed it; the trail must not say a human did")
         con.close()
 
 
