@@ -163,6 +163,28 @@ CREATE TABLE IF NOT EXISTS application_events (
 
 CREATE INDEX IF NOT EXISTS idx_events_app ON application_events(application_id, occurred_at);
 
+-- What was actually submitted, fixed when `jsa applied` runs (ADR 0012).
+-- applications.resume_doc_id means "latest drafted" and moves on every
+-- redraft; this does not. One row per kind, written once, never updated: a
+-- kind missing here was not sent, or was not said to be.
+CREATE TABLE IF NOT EXISTS submitted_documents (
+    id              INTEGER PRIMARY KEY,
+    application_id  INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    kind            TEXT NOT NULL CHECK (kind IN ('resume','cover_letter')),
+    document_id     INTEGER NOT NULL REFERENCES documents(id),
+    version         INTEGER NOT NULL,
+    approved        INTEGER NOT NULL CHECK (approved IN (0,1)),  -- at submission
+    sha256          TEXT,                          -- of the file at submission; NULL if it was missing
+    submitted_at    TEXT NOT NULL,
+    UNIQUE (application_id, kind)
+);
+
+CREATE TRIGGER IF NOT EXISTS trg_submitted_is_permanent
+BEFORE UPDATE ON submitted_documents
+BEGIN
+    SELECT RAISE(ABORT, 'what was submitted is a record of the past; it is never edited');
+END;
+
 -- Keep applications.last_activity_at honest without app-layer bookkeeping.
 CREATE TRIGGER IF NOT EXISTS trg_app_event_touch
 AFTER INSERT ON application_events

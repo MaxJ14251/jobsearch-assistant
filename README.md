@@ -351,12 +351,24 @@ into the next draft; to change what future drafts say, edit your profile. A
 decision is per document version and is never inherited by a redraft.
 
 ```bash
-.venv/Scripts/python -m jsa applied 421
+.venv/Scripts/python -m jsa applied 421 --check     # see what it would record
+.venv/Scripts/python -m jsa applied 421             # after YOU submit it
+.venv/Scripts/python -m jsa applied 389 --resume 15 --no-cover
 ```
-Records that **you** submitted it — the tool cannot observe that and never will.
-It does not require an approved document first. The approval gate exists to stop
-the agent acting on its own, not to stop you applying with a resume you wrote by
-hand; it notes the absence rather than blocking you.
+Records that **you** submitted it — the tool cannot observe that and never will —
+and **exactly which documents went out**, fixed at that moment. Drafting a new
+version afterwards does not move it, and the database refuses an edit to it, so
+the day before an interview `jsa prep` drills the resume the interviewer is
+holding rather than whatever was drafted last.
+
+By default it records the one resume and one cover letter you approved. A draft
+you did not approve is never assumed sent; it is named back to you, and you add
+it with `--resume DOC` / `--cover DOC` if it did go out. With two approved
+versions of one kind it refuses and asks which, because a permanent record is
+not written on a guess. Something missing can be added later; something recorded
+cannot be changed. It still does not *require* an approval: the gate stops the
+agent acting on its own, not you applying with a resume you wrote by hand. See
+[ADR 0012](docs/decisions/0012-what-applied-means.md).
 
 ```bash
 .venv/Scripts/python -m jsa status 421 phone_screen --note "30 min with the hiring manager"
@@ -592,7 +604,7 @@ which is NJ/NY/Sunnyvale rather than LA.
 
 ## Test coverage
 
-590 tests, **76% line coverage**, reported as measured rather than tuned.
+680 tests, **76% line coverage**, reported as measured rather than tuned.
 
 The distribution is the interesting part. The code that decides what reaches a
 document is well covered; the thin parts are network adapters that need live

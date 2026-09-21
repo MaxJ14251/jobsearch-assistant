@@ -80,6 +80,9 @@ class Prep:
     questions: list[Question] = field(default_factory=list)
     company_brief: str = ""
     model: str = ""
+    # Which claims were drilled: the resume that went out, or the whole profile
+    # when nothing is recorded as sent. Said out loud so it is never assumed.
+    drilled_from: str = ""
 
 
 # A literal list cannot keep up with conjugation: "obtained my degree" was
@@ -236,6 +239,36 @@ The candidate completed coursework in {field} but the degree was NOT conferred.
 Never write that they hold, earned or graduated with a degree."""
 
 
+def sent_bullets(
+    con: sqlite3.Connection, application_id: int, profile: dict[str, Any],
+) -> tuple[list[Any], str]:
+    """The bullets the interviewer has in front of them, and where that came from.
+
+    An interviewer reads the resume you sent, not your profile and not the
+    newest draft. When submitted_documents names one, prep drills exactly its
+    bullets. Otherwise it falls back to the whole profile and says so.
+    """
+    import json
+
+    from . import approvals
+
+    everything = collect_bullets(profile)
+    for item in approvals.submitted(con, application_id):
+        if item.kind != "resume":
+            continue
+        raw = con.execute("SELECT bullet_ids FROM documents WHERE id = ?",
+                          (item.document_id,)).fetchone()
+        ids = json.loads(raw["bullet_ids"] or "[]") if raw else []
+        chosen = [everything[i] for i in ids if i in everything]
+        if chosen:
+            return chosen, f"the resume you sent (doc {item.document_id} v{item.version})"
+        return list(everything.values()), (
+            f"the whole profile: the resume you sent (doc {item.document_id}) "
+            "has no bullet record this profile still recognises")
+    return list(everything.values()), (
+        "the whole profile: no resume is recorded as sent for this application")
+
+
 def generate(
     con: sqlite3.Connection, application_id: int, *, round: str = "phone_screen",
     profile: dict[str, Any] | None = None, models: list[str] | None = None,
@@ -256,7 +289,7 @@ def generate(
         raise ValueError(f"no application with id {application_id}")
 
     edu = (profile.get("education") or [{}])[0]
-    bullets = collect_bullets(profile).values()
+    bullets, drilled_from = sent_bullets(con, application_id, profile)
     prompt = PROMPT.format(
         round=round.replace("_", " "),
         title=row["title"], company=row["company"],
@@ -292,7 +325,8 @@ def generate(
     assert_no_degree_claim(brief)
 
     prep = Prep(application_id=application_id, round=round,
-                questions=questions, company_brief=brief, model=usage.model)
+                questions=questions, company_brief=brief, model=usage.model,
+                drilled_from=drilled_from)
     save(con, prep)
     return prep
 

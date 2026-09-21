@@ -223,6 +223,10 @@ def set_document_pointer(
 ) -> None:
     """The ONLY writer of applications.resume_doc_id / cover_doc_id.
 
+    They mean "the latest DRAFTED document of this kind" and move on every
+    redraft. They are not what was approved and not what was sent: that is
+    submitted_documents, written once by mark_applied (ADR 0012).
+
     Those columns are a denormalized cache of "the current document of this
     kind" -- the schema says so, and says the app layer keeps them in sync.
     That phrase is how two copies of a fact drift apart, so there is one writer
@@ -256,36 +260,226 @@ def set_document_pointer(
     )
 
 
+# A document id that says "this kind was not sent". Document ids start at 1.
+NOT_SENT = 0
+
+
+@dataclass
+class Sent:
+    """One document as it went out. Read from submitted_documents, never inferred."""
+    kind: str
+    document_id: int
+    version: int
+    approved: bool
+    sha256: str | None
+    submitted_at: str
+    path: str | None = None
+
+    def describe(self) -> str:
+        label = self.kind.replace("_", " ")
+        state = "approved" if self.approved else "NOT approved"
+        return f"{label} doc {self.document_id} v{self.version} ({state})"
+
+
+def _file_sha256(path: str | None) -> str | None:
+    import hashlib
+    from pathlib import Path
+
+    from .config import ROOT
+
+    if not path:
+        return None
+    file = Path(path)
+    if not file.is_absolute():
+        file = ROOT / file
+    try:
+        return hashlib.sha256(file.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def _choose(
+    con: sqlite3.Connection, job_id: int, kind: str, named: int | None,
+) -> sqlite3.Row | None:
+    """The document of `kind` that went out, or None when none is recorded.
+
+    Named explicitly: that one, whatever its approval, provided it belongs to
+    this job and is of this kind. Not named: the newest document a HUMAN
+    approved, provided there is exactly one. Never the newest drafted -- that
+    is the pointer, and the pointer moves. An unapproved draft is recorded only when the operator names it.
+    """
+    if named == NOT_SENT:
+        return None
+    if named is not None:
+        row = con.execute(
+            "SELECT id, job_id, kind, version, path FROM documents WHERE id = ?",
+            (int(named),)).fetchone()
+        if row is None:
+            raise ApprovalError(f"no document with id {named}")
+        if row["job_id"] != int(job_id) or row["kind"] != kind:
+            raise ApprovalError(
+                f"document {named} is a {row['kind'].replace('_', ' ')} for job "
+                f"{row['job_id']}, not a {kind.replace('_', ' ')} for job {job_id}")
+        return row
+    approved = con.execute(
+        "SELECT d.id, d.job_id, d.kind, d.version, d.path FROM documents d "
+        "WHERE d.job_id = ? AND d.kind = ? AND EXISTS ("
+        "  SELECT 1 FROM approvals a WHERE a.subject_type = 'document' "
+        "  AND a.subject_id = d.id AND a.decision = 'approved' "
+        "  AND a.decided_by = 'human') "
+        "ORDER BY d.version DESC", (int(job_id), kind)).fetchall()
+    if len(approved) > 1:
+        # A record that can never be changed is not written on a guess.
+        flag = "--resume" if kind == "resume" else "--cover"
+        choices = ", ".join(f"doc {r['id']} (v{r['version']})" for r in approved)
+        raise ApprovalError(
+            f"job {job_id} has {len(approved)} approved "
+            f"{kind.replace('_', ' ')}s: {choices}. Say which one you sent, "
+            f"e.g. {flag} {approved[0]['id']}. Nothing was recorded.")
+    return approved[0] if approved else None
+
+
+def submitted(con: sqlite3.Connection, application_id: int) -> list[Sent]:
+    """What went out for this application, as recorded when it was applied."""
+    return [
+        Sent(kind=r["kind"], document_id=int(r["document_id"]),
+             version=int(r["version"]), approved=bool(r["approved"]),
+             sha256=r["sha256"], submitted_at=r["submitted_at"], path=r["path"])
+        for r in con.execute(
+            "SELECT s.*, d.path FROM submitted_documents s "
+            "LEFT JOIN documents d ON d.id = s.document_id "
+            "WHERE s.application_id = ? ORDER BY s.kind DESC",
+            (int(application_id),)).fetchall()
+    ]
+
+
+def unsent_drafts(con: sqlite3.Connection, job_id: int, sent: list[Sent]
+                  ) -> list[sqlite3.Row]:
+    """The newest draft of each kind that was NOT recorded, so it can be named.
+
+    A pending cover letter is exactly the case: it may or may not have gone
+    out, and the tool will not guess.
+    """
+    recorded = {s.kind for s in sent}
+    out = []
+    for kind in ("resume", "cover_letter"):
+        if kind in recorded:
+            continue
+        row = con.execute(
+            "SELECT id, kind, version FROM documents WHERE job_id = ? AND kind = ? "
+            "ORDER BY version DESC LIMIT 1", (int(job_id), kind)).fetchone()
+        if row is not None:
+            out.append(row)
+    return out
+
+
+def changed_since_approval(con: sqlite3.Connection, item: Sent) -> bool:
+    """True when the file on disk was modified after a human approved it.
+
+    A warning, not a refusal: editing your own resume before sending it is
+    yours to do. It means the approval no longer covers every word that went
+    out, and the record should say so rather than imply it does.
+    """
+    import os
+    from datetime import datetime, timezone
+    from pathlib import Path
+
+    from .config import ROOT
+
+    if not item.approved or not item.path:
+        return False
+    decided = con.execute(
+        "SELECT MAX(decided_at) FROM approvals WHERE subject_type = 'document' "
+        "AND subject_id = ? AND decision = 'approved' AND decided_by = 'human'",
+        (item.document_id,)).fetchone()[0]
+    file = Path(item.path)
+    if not file.is_absolute():
+        file = ROOT / file
+    try:
+        modified = datetime.fromtimestamp(os.path.getmtime(file), timezone.utc)
+    except OSError:
+        return False
+    return bool(decided) and modified.strftime("%Y-%m-%dT%H:%M:%SZ") > decided
+
+
 def mark_applied(
-    con: sqlite3.Connection, job_id: int, *, when: str | None = None
+    con: sqlite3.Connection, job_id: int, *, when: str | None = None,
+    resume: int | None = None, cover: int | None = None,
 ) -> tuple[int, bool]:
-    """Record that a human submitted this application. Returns (id, had_approval).
+    """Record that a human submitted this application. Returns (id, all_approved).
 
     Deliberately does NOT require an approved document. Decision 4 of ADR 0003:
     the approval gate exists to stop the AGENT acting autonomously, not to stop
     the human doing what they choose. Someone may apply with a resume this tool
     never generated. A tracker that argues with reality gets abandoned.
 
-    It reports whether an approved document existed so the caller can say so,
-    and the event note records it either way.
+    What it does require is that the record be exact (ADR 0012). The documents
+    that went out are written to submitted_documents once, here, with their
+    approval state and a hash of the file, and later drafting cannot move them.
+    `resume` / `cover` name a document id, or NOT_SENT; left out, each kind
+    defaults to its human-approved document, to nothing when none is approved,
+    and to a refusal when more than one is -- the operator names it. `all_approved` is True only when something was recorded and
+    every recorded document was approved -- not when any document for the job
+    happens to be.
     """
     application_id = require_application(con, job_id)
-    approved = any(
-        is_approved(con, "document", int(r["id"]))
-        for r in con.execute(
-            "SELECT id FROM documents WHERE job_id = ?", (int(job_id),)
-        ).fetchall()
-    )
+    already = con.execute(
+        "SELECT applied_at FROM applications WHERE id = ?", (application_id,)
+    ).fetchone()["applied_at"]
+    recorded = {s.kind: s for s in submitted(con, application_id)}
+    if already and resume is None and cover is None:
+        raise ApprovalError(
+            f"job {job_id} was already recorded as applied at {already}. What "
+            "was sent then is fixed. To add a document that is missing from "
+            "the record, name it: --resume DOC or --cover DOC.")
+
+    stamp = already or when or db.utcnow()
+    sent: list[Sent] = []
+    chosen: list[tuple[str, sqlite3.Row]] = []
+    for kind, named in (("resume", resume), ("cover_letter", cover)):
+        if already and named is None:
+            continue
+        if kind in recorded:
+            if named is None or named == NOT_SENT:
+                continue
+            raise ApprovalError(
+                f"the {kind.replace('_', ' ')} for job {job_id} is already "
+                f"recorded as doc {recorded[kind].document_id}. A record of what "
+                "was sent can be added to, never changed.")
+        row = _choose(con, job_id, kind, named)
+        if row is not None:
+            chosen.append((kind, row))
+    # Everything is chosen before anything is written: a refusal on the second
+    # kind must not leave the first behind as half a record.
+    for kind, row in chosen:
+        doc = int(row["id"])
+        item = Sent(kind=kind, document_id=doc, version=int(row["version"]),
+                    approved=is_approved(con, "document", doc),
+                    sha256=_file_sha256(row["path"]), submitted_at=stamp,
+                    path=row["path"])
+        con.execute(
+            "INSERT INTO submitted_documents (application_id, kind, document_id, "
+            "version, approved, sha256, submitted_at) VALUES (?,?,?,?,?,?,?)",
+            (application_id, kind, doc, item.version, int(item.approved),
+             item.sha256, stamp))
+        sent.append(item)
+
+    everything = list(recorded.values()) + sent
+    all_approved = bool(everything) and all(s.approved for s in everything)
+    if already:
+        # An addition to the record, not a second application. The status is
+        # wherever the operator has moved it since; it is not reset here.
+        return application_id, all_approved
     con.execute(
         "UPDATE applications SET applied_at = ? WHERE id = ?",
-        (when or db.utcnow(), application_id),
+        (stamp, application_id),
     )
-    record_event(
-        con, application_id, "applied", actor="human",
-        note=("submitted by hand" if approved
-              else "submitted by hand; no approved document on file"),
-    )
-    return application_id, approved
+    if not sent:
+        note = "submitted by hand; no approved document on file"
+    else:
+        note = "submitted by hand: " + "; ".join(s.describe() for s in sent)
+    record_event(con, application_id, "applied", actor="human", note=note)
+    return application_id, all_approved
 
 
 def record_event(

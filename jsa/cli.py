@@ -607,6 +607,7 @@ def cmd_prep(args: argparse.Namespace) -> int:
     print(f"prep {prep_id} for application {args.application_id} "
           f"({row['title']} at {row['company']}, {args.round})")
     print(f"  {len(result.questions)} question(s)  model {result.model}")
+    print(f"  drilled from {result.drilled_from}")
     for question in result.questions[:2]:
         # The two standard drills lead the list; they are the ones that come up
         # in every screen, so they are the ones worth seeing without opening
@@ -824,23 +825,72 @@ def cmd_due(args: argparse.Namespace) -> int:
     return 0
 
 
+def _shown_path(path: str) -> str:
+    """Relative to the project when it is inside it; the paths are long enough."""
+    from .config import ROOT
+    try:
+        return str(Path(path).resolve().relative_to(ROOT.resolve()))
+    except ValueError:
+        return path
+
+
 def cmd_applied(args: argparse.Namespace) -> int:
+    """Record that YOU submitted it, and exactly what you sent. Sends nothing."""
+    cover = approvals.NOT_SENT if args.no_cover else args.cover
     con = db.connect()
     try:
-        application_id, approved = approvals.mark_applied(
-            con, args.job_id, when=args.date)
-        con.commit()
+        before = con.execute("SELECT applied_at FROM applications WHERE job_id = ?",
+                             (args.job_id,)).fetchone()
+        adding = bool(before and before["applied_at"])
+        application_id, all_approved = approvals.mark_applied(
+            con, args.job_id, when=args.date, resume=args.resume, cover=cover)
         line = _job_line(con, args.job_id)
+        sent = approvals.submitted(con, application_id)
+        edited = [s for s in sent if approvals.changed_since_approval(con, s)]
+        left_out = approvals.unsent_drafts(con, args.job_id, sent)
+        # The record is written once, so it can be looked at first.
+        if args.check:
+            con.rollback()
+        else:
+            con.commit()
     except approvals.ApprovalError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     finally:
         con.close()
-    print(f"marked applied: application {application_id} -- {line}")
-    if not approved:
+    verb = "added to what was sent" if adding else "marked applied"
+    if args.check:
+        verb = "CHECK ONLY, nothing written. Would record"
+    print(f"{verb}: application {application_id} -- {line}")
+    if not sent:
         # Not a refusal. The tracker records what happened; see ADR 0003 #4.
-        print("note: no approved document on file for this job.",
-              file=sys.stderr)
+        print("  recorded as sent: nothing. No approved document on file, and "
+              "none named.")
+    else:
+        print("  recorded as sent (fixed now; later drafts will not change it):"
+              if not args.check else "  as sent:")
+        for item in sent:
+            print(f"    {item.describe()}")
+            if item.path:
+                print(f"      {_shown_path(item.path)}")
+            if not item.sha256:
+                print("      the file was not on disk, so its contents could "
+                      "not be recorded")
+    for item in edited:
+        print(f"  warning: doc {item.document_id} was changed on disk after you "
+              "approved it. What you sent is recorded; the approval covers the "
+              "earlier file.")
+    for row in left_out:
+        label = row["kind"].replace("_", " ")
+        flag = "--resume" if row["kind"] == "resume" else "--cover"
+        how = (f"add {flag} {row['id']} when you record it" if args.check
+               else f"add it:\n      jsa applied {args.job_id} {flag} {row['id']}")
+        print(f"  not recorded: {label} doc {row['id']} v{row['version']} is not "
+              f"approved, so it was not assumed sent. If it went out, {how}")
+    if sent and not all_approved:
+        print("  note: something recorded as sent was not approved.")
+    if args.check:
+        print("  run it again without --check to record this.")
     return 0
 
 
@@ -1022,6 +1072,18 @@ def main(argv: list[str] | None = None) -> int:
     p_done = sub.add_parser("applied", help="record that YOU submitted it")
     p_done.add_argument("job_id", type=int)
     p_done.add_argument("--date", help="ISO timestamp; defaults to now")
+    p_done.add_argument(
+        "--resume", type=int, metavar="DOC",
+        help="the resume document you sent (default: the newest you approved)")
+    p_cover = p_done.add_mutually_exclusive_group()
+    p_cover.add_argument(
+        "--cover", type=int, metavar="DOC",
+        help="the cover letter you sent (default: the newest you approved)")
+    p_cover.add_argument(
+        "--no-cover", action="store_true", help="you sent no cover letter")
+    p_done.add_argument(
+        "--check", action="store_true",
+        help="show what would be recorded, and write nothing")
     p_done.set_defaults(func=cmd_applied)
 
     sub.add_parser(
