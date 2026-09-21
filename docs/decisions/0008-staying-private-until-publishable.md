@@ -65,8 +65,16 @@ simulated newcomer in Columbus, Ohio, which found two real bugs.
   the first paragraph that local coverage means adding your own employers.
 - Rejection feedback is stored and never read back, so the tool does not
   learn from what the operator turns down.
-- The model sees only the first 4,000 characters of a posting.
-- The outreach path has never been used against a real contact.
+- Postings are truncated before the model reads them. Corrected 2026-09-20,
+  because this line was wrong: `enrich.py`, the pass that extracts the
+  disqualifying facts, caps at 6,000 characters, not 4,000 — 39% of postings
+  are truncated there and only 2 to 5 lose a fact entirely. The 4,000 cap is
+  in `tailor.py` and `prep.py`: 90% truncated, and of those, 14 lose the
+  degree requirement, 9 a clearance, 10 the years, 18 the sponsorship line.
+  Smaller than stated here, and in a different place.
+- The outreach path has never been used against a real contact. Done
+  2026-09-20 and it went badly: see ADR 0010. Outreach now refuses about
+  eight times in nine, deliberately, and the README says so.
 - The LICENSE carries the author's name, which is intended, and which makes
   the two history findings above identifying rather than anonymous.
 

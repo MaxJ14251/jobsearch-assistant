@@ -59,7 +59,8 @@ everything downstream reads from it. On macOS and Linux use `.venv/bin/python`.
 | 3b | LLM enrichment | **Done** — degree/clearance/stack facts the filter can't see |
 | 4 | Resume/cover tailoring | **Done** — verifier, scrubber, ATS-safe .docx, provenance |
 | 5 | Review dashboard | **Done** — `jsa serve`, loopback only |
-| 6 | Interview prep + outreach | **Done** — degree/gap drills, draft-only outreach |
+| 6 | Interview prep | **Done** — degree/gap drills |
+| 6b | Outreach | **Refuses more often than it drafts** — see below |
 
 ## Setup
 
@@ -268,6 +269,26 @@ is per version.
 .venv/Scripts/python -m jsa outreach-mark-sent 1
 ```
 Drafts networking messages. **Nothing here can send.** That is proven, not
+**Outreach usually refuses, and that is the honest state of it.** Measured over
+nine real drafts — three postings, three channels — it produced one message and
+declined eight. It declines when the model reaches for a word that nothing in
+your profile, the posting, or the recipient's record supports, because a
+referral ask is read by a person who may check.
+
+Two things are true at once. The drafts it produces are ones a person would
+send. And the check that certifies them is a candidate-vocabulary check
+borrowed from cover letters, where it works because a letter is almost entirely
+about the candidate — while an outreach message is substantially about the
+recipient, their company and the role, so it has no way to tell "the platform
+is reliable" (a claim about their product) from "I am reliable" (a claim about
+you). It fails closed. See
+[ADR 0010](docs/decisions/0010-outreach-verification.md).
+
+In practice: expect to write these yourself, and use the tool's refusal as a
+list of the claims you would have had to stand behind. The failure message
+names the words.
+
+The one thing that has always held: nothing is transmitted, and it is not
 promised: a test walks the whole transitive import graph of `jsa.outreach` and
 asserts no sending library appears anywhere in it. The only network-capable
 module in that graph is the LLM client, and every POST it makes goes to the
