@@ -230,7 +230,7 @@ JOB = """{% extends "base" %}{% block body %}
     {% if d.flagged %}<span class="flag warn">{{ d.flagged }} line(s) not in your profile</span>{% endif %}
     <span class="co">document {{ d.id }}</span>
   </div>
-  <div class="meta">drafted {{ d.generated_at[:16].replace('T',' ') }} · {{ d.model or 'model not recorded' }}</div>
+  <div class="meta">drafted {{ d.generated_at|localtime }} · {{ d.model or 'model not recorded' }}</div>
   {% if d.feedback %}<div class="meta">your note: {{ d.feedback }}</div>{% endif %}
   <div class="flags">
     {% for g in d.gaps %}<span class="flag warn">gap: {{ g }}</span>
@@ -253,7 +253,7 @@ JOB = """{% extends "base" %}{% block body %}
 {% for p in preps %}
 <div class="card"><div class="row1">
   <span class="title"><a class="plain" href="/prep/{{ p.id }}">{{ (p.round or 'general')|replace('_',' ')|capitalize }}</a></span>
-  <span class="co">{{ p.count }} question(s) · {{ p.generated_at[:10] }}</span></div></div>
+  <span class="co">{{ p.count }} question(s) · {{ p.generated_at|localdate }}</span></div></div>
 {% else %}<p class="empty">No interview prep yet.{% if application %} Run <code>jsa prep {{ application.id }}</code> to draft one.{% endif %}</p>{% endfor %}
 
 <h2>Posting</h2>
@@ -265,7 +265,7 @@ JOB = """{% extends "base" %}{% block body %}
 PREP = """{% extends "base" %}{% block body %}
 <p class="sub" style="margin-top:18px"><a class="plain" href="/job/{{ prep.job_id }}">← {{ prep.title }} at {{ prep.company }}</a></p>
 <h1>Interview prep: {{ (prep.round or 'general')|replace('_',' ') }}</h1>
-<p class="sub">{{ questions|length }} question(s) · drafted {{ prep.generated_at[:10] }} · the answers are notes in your own words, not a script</p>
+<p class="sub">{{ questions|length }} question(s) · drafted {{ prep.generated_at|localdate }} · the answers are notes in your own words, not a script</p>
 {% if prep.company_brief %}<h2>Company brief</h2><p style="max-width:70ch;overflow-wrap:anywhere">{{ prep.company_brief }}</p>{% endif %}
 <h2>Questions</h2>
 {% for q in questions %}
@@ -295,7 +295,7 @@ PIPELINE = """{% extends "base" %}{% block body %}
   </div>
   <div class="meta">{{ r.next_action or 'no next action set' }}
     {%- if r.next_action_due %} · due {{ r.next_action_due }}{% endif %}
-    {%- if r.last_activity_at %} · last activity {{ r.last_activity_at[:10] }}{% endif %}</div>
+    {%- if r.last_activity_at %} · last activity {{ r.last_activity_at|localdate }}{% endif %}</div>
   <form method="post" action="/job/{{ r.job_id }}/stage" class="inline">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <select name="stage" aria-label="Stage for {{ r.title }}">
@@ -312,7 +312,7 @@ PIPELINE = """{% extends "base" %}{% block body %}
 <div class="card"><div class="row1"><span class="flag">{{ r.status }}</span>
   <span class="title"><a class="plain" href="/job/{{ r.job_id }}">{{ r.title }}</a></span>
   <span class="co">{{ r.company }}</span></div>
-  <div class="meta">history kept{% if r.last_activity_at %} · last activity {{ r.last_activity_at[:10] }}{% endif %}</div>
+  <div class="meta">history kept{% if r.last_activity_at %} · last activity {{ r.last_activity_at|localdate }}{% endif %}</div>
 </div>
 {% endfor %}
 {% endif %}
@@ -326,7 +326,7 @@ REVIEW = """{% extends "base" %}{% block body %}
 <div class="card" id="{{ ('doc-%s' % r.subject_id) if r.doc else ('item-%s' % r.approval_id) }}">
   <div class="row1"><span class="flag">{{ r.subject_type }}</span>
     <span class="title">{{ r.summary }}</span></div>
-  <div class="meta">requested {{ r.requested_at[:16].replace('T',' ') }}
+  <div class="meta">requested {{ r.requested_at|localtime }}
     {%- if r.doc and r.doc.job_id %} · <a class="plain" href="/job/{{ r.doc.job_id }}">job page</a>{% endif %}</div>
 
   {% if r.doc %}
@@ -396,6 +396,8 @@ env = Environment(
     # description from a third-party board rendered as live HTML.
     autoescape=True,
 )
+env.filters["localtime"] = db.local_time
+env.filters["localdate"] = lambda stamp: str(db.local_date(stamp) or stamp or "")
 
 
 def _regions() -> list[str]:
@@ -732,10 +734,9 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                     pass
             if row["last_activity_at"] and not row["next_action_due"]:
                 try:
-                    quiet = (today - date.fromisoformat(
-                        row["last_activity_at"][:10])).days
+                    quiet = (today - db.local_date(row["last_activity_at"])).days
                     row["quiet"] = quiet if quiet >= approvals.QUIET_DAYS else None
-                except ValueError:
+                except (TypeError, ValueError):
                     pass
         live = [r for r in rows if r["status"] not in approvals.CLOSED]
         closed = [r for r in rows if r["status"] in approvals.CLOSED]

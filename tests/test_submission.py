@@ -241,5 +241,61 @@ class TestTheUpgradeIsAdditive(unittest.TestCase):
         con.execute("SELECT * FROM submitted_documents").fetchall()
 
 
+class TestTimesAreShownLocally(unittest.TestCase):
+    """Stored UTC. At 6:54 pm in California the first real application read
+    "2026-09-22 01:54" and looked like it had happened tomorrow."""
+
+    def test_a_utc_stamp_is_shown_in_local_time(self):
+        from datetime import datetime, timezone
+        stamp = "2026-09-22T01:54:47Z"
+        expected = datetime(2026, 9, 22, 1, 54, 47, tzinfo=timezone.utc).astimezone()
+        self.assertEqual(db.local_time(stamp), expected.strftime("%Y-%m-%d %H:%M"))
+        self.assertEqual(db.local_date(stamp), expected.date())
+
+    def test_something_unreadable_is_shown_as_it_is_not_invented(self):
+        self.assertEqual(db.local_time("not a time"), "not a time")
+        self.assertIsNone(db.local_date(None))
+        self.assertEqual(db.local_time(None), "")
+
+
+class TestAppliedSaysWhatComesNext(SubmissionCase):
+    def run_cli(self, *argv):
+        import contextlib
+        import io
+        from unittest import mock
+        from jsa import cli
+        self.con.commit()
+        out = io.StringIO()
+        real_connect = db.connect
+        path = self.tmp / "t.db"
+        with mock.patch.object(cli.db, "connect", lambda *a, **k: real_connect(path)):
+            with contextlib.redirect_stdout(out):
+                code = cli.main(list(argv))
+        return code, out.getvalue()
+
+    def test_it_suggests_a_follow_up_and_sets_none(self):
+        self.draft(approve=True)
+        code, out = self.run_cli("applied", "5")
+        self.assertEqual(code, 0)
+        self.assertIn("jsa next 5", out)
+        self.assertIn("(your local time)", out)
+        con = db.connect(self.tmp / "t.db")
+        self.addCleanup(con.close)
+        action, = con.execute("SELECT next_action FROM applications").fetchone()
+        self.assertIsNone(action, "an intention is the operator's to state")
+
+    def test_check_writes_nothing(self):
+        self.draft(approve=True)
+        code, out = self.run_cli("applied", "5", "--check")
+        self.assertEqual(code, 0)
+        self.assertIn("nothing written", out)
+        con = db.connect(self.tmp / "t.db")
+        self.addCleanup(con.close)
+        self.assertEqual(con.execute(
+            "SELECT COUNT(*) FROM submitted_documents").fetchone()[0], 0)
+        self.assertIsNone(con.execute(
+            "SELECT applied_at FROM applications").fetchone()[0])
+
+
 if __name__ == "__main__":
     unittest.main()

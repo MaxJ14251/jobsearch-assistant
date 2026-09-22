@@ -183,10 +183,12 @@ class TestNextActions(unittest.TestCase):
             approvals.set_next_action(
                 self.con, job, f"action {job}",
                 due=due.isoformat() if due else None)
-        # Job 4 has no date and has been quiet since it was saved.
+        # Job 4 has no date and has been quiet since it was saved. Noon UTC:
+        # quiet days are counted in LOCAL days, and midnight UTC is the
+        # previous evening west of Greenwich.
         self.con.execute(
             "UPDATE applications SET last_activity_at = ? WHERE job_id = 4",
-            ((today - timedelta(days=40)).isoformat() + "T00:00:00Z",))
+            ((today - timedelta(days=40)).isoformat() + "T12:00:00Z",))
 
         items = approvals.due_items(self.con, days=7, today=today)
         self.assertEqual([i.job_id for i in items], [1, 2, 3, 4])

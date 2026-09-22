@@ -15,6 +15,28 @@ def utcnow() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+# Stored in UTC, shown in local time. Stamped at 6:54 pm in California, an
+# application read "2026-09-22 01:54" and looked like it happened tomorrow.
+def _parse(stamp: str) -> datetime | None:
+    try:
+        when = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    except (AttributeError, ValueError):
+        return None
+    return when if when.tzinfo else when.replace(tzinfo=timezone.utc)
+
+
+def local_time(stamp: str | None) -> str:
+    """'2026-09-21 18:54' for a stored UTC stamp; the input unchanged if unparseable."""
+    when = _parse(stamp or "")
+    return when.astimezone().strftime("%Y-%m-%d %H:%M") if when else (stamp or "")
+
+
+def local_date(stamp: str | None):
+    """The local calendar day of a stored UTC stamp, or None."""
+    when = _parse(stamp or "")
+    return when.astimezone().date() if when else None
+
+
 def connect(path: Path = DB_PATH) -> sqlite3.Connection:
     con = sqlite3.connect(path)
     con.row_factory = sqlite3.Row

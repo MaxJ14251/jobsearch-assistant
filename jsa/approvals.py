@@ -429,7 +429,8 @@ def mark_applied(
     recorded = {s.kind: s for s in submitted(con, application_id)}
     if already and resume is None and cover is None:
         raise ApprovalError(
-            f"job {job_id} was already recorded as applied at {already}. What "
+            f"job {job_id} was already recorded as applied on "
+            f"{db.local_time(already)}. What "
             "was sent then is fixed. To add a document that is missing from "
             "the record, name it: --resume DOC or --cover DOC.")
 
@@ -630,9 +631,9 @@ def due_items(con: sqlite3.Connection, *, days: int = 7,
         quiet = None
         if row["last_activity_at"]:
             try:
-                seen = date.fromisoformat(row["last_activity_at"][:10])
+                seen = db.local_date(row["last_activity_at"])
                 quiet = (today - seen).days
-            except ValueError:
+            except (TypeError, ValueError):
                 quiet = None
         item = DueItem(
             job_id=row["job_id"], application_id=row["application_id"],

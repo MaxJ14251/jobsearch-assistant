@@ -49,6 +49,17 @@ everything downstream reads from it. On macOS and Linux use `.venv/bin/python`.
        · located in Baltimore, MD
 ```
 
+**Every command in this README runs from the project folder.** `.venv/...` is a
+path relative to it, so from anywhere else, including a fresh PowerShell window
+that opens in `C:\WINDOWS\System32`, it fails with "is not recognized". Go there
+first. In Windows PowerShell, `&&` does not work either, so run the two halves
+of those lines separately, and write the path with backslashes:
+
+```powershell
+cd "C:\path\to\jobsearch-assistant"
+.\.venv\Scripts\python -m jsa serve
+```
+
 ## Status
 
 | # | Module | State |
@@ -604,7 +615,7 @@ which is NJ/NY/Sunnyvale rather than LA.
 
 ## Test coverage
 
-680 tests, **76% line coverage**, reported as measured rather than tuned.
+684 tests, **76% line coverage**, reported as measured rather than tuned.
 
 The distribution is the interesting part. The code that decides what reaches a
 document is well covered; the thin parts are network adapters that need live

@@ -720,7 +720,7 @@ def cmd_review(args: argparse.Namespace) -> int:
             return 0
         for item in items:
             print(f"[{item.approval_id}] {item.subject_type} {item.subject_id}"
-                  f"  requested {item.requested_at}")
+                  f"  requested {db.local_time(item.requested_at)}")
             print(f"     {item.summary}")
             if args.approval_id and item.subject_type == "document":
                 _print_document(con, item.subject_id)
@@ -825,6 +825,10 @@ def cmd_due(args: argparse.Namespace) -> int:
     return 0
 
 
+# A week is the usual point to chase an application that has had no reply.
+FOLLOW_UP_DAYS = 7
+
+
 def _shown_path(path: str) -> str:
     """Relative to the project when it is inside it; the paths are long enough."""
     from .config import ROOT
@@ -848,6 +852,9 @@ def cmd_applied(args: argparse.Namespace) -> int:
         sent = approvals.submitted(con, application_id)
         edited = [s for s in sent if approvals.changed_since_approval(con, s)]
         left_out = approvals.unsent_drafts(con, args.job_id, sent)
+        app_row = con.execute(
+            "SELECT applied_at, next_action FROM applications WHERE id = ?",
+            (application_id,)).fetchone()
         # The record is written once, so it can be looked at first.
         if args.check:
             con.rollback()
@@ -862,6 +869,7 @@ def cmd_applied(args: argparse.Namespace) -> int:
     if args.check:
         verb = "CHECK ONLY, nothing written. Would record"
     print(f"{verb}: application {application_id} -- {line}")
+    print(f"  applied {db.local_time(app_row['applied_at'])} (your local time)")
     if not sent:
         # Not a refusal. The tracker records what happened; see ADR 0003 #4.
         print("  recorded as sent: nothing. No approved document on file, and "
@@ -891,6 +899,20 @@ def cmd_applied(args: argparse.Namespace) -> int:
         print("  note: something recorded as sent was not approved.")
     if args.check:
         print("  run it again without --check to record this.")
+    elif not adding and not app_row["next_action"]:
+        # Without one, `jsa due` has nothing to show until three weeks of
+        # silence. Suggested, never set: an intention is yours to state.
+        from datetime import timedelta
+        applied_on = db.local_date(app_row["applied_at"])
+        follow_up = ((applied_on + timedelta(days=FOLLOW_UP_DAYS)).isoformat()
+                     if applied_on else "YYYY-MM-DD")
+        print()
+        print("next: nothing will remind you about this until it has been "
+              f"quiet for {approvals.QUIET_DAYS} days.")
+        print("  To be reminded sooner, set a follow-up:")
+        print(f'    jsa next {args.job_id} "follow up if no reply" --due {follow_up}')
+        print(f"  When they reply:  jsa status {args.job_id} phone_screen  "
+              "(or rejected, technical, ...)")
     return 0
 
 
