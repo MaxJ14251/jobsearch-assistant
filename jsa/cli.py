@@ -660,6 +660,63 @@ def _job_line(con, job_id: int) -> str:
     return f"{row['title']} at {row['name'] or 'unknown company'}"
 
 
+def cmd_add(args: argparse.Namespace) -> int:
+    """Bring in one job discovery did not find. Reads a public posting; sends nothing."""
+    from . import intake
+
+    if bool(args.url) == bool(args.paste):
+        print("error: give a link, or --paste with --company and --title.",
+              file=sys.stderr)
+        return 1
+    try:
+        prefs = Preferences.from_profile(load_profile())
+    except ConfigError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    con = db.connect()
+    try:
+        if args.url:
+            added = intake.add_link(con, args.url, prefs, company=args.company)
+        else:
+            if args.file:
+                text = Path(args.file).read_text(encoding="utf-8")
+            else:
+                print("Paste the posting, then press Ctrl+Z and Enter "
+                      "(Ctrl+D on macOS/Linux):", file=sys.stderr)
+                text = sys.stdin.read()
+            added = intake.add_pasted(
+                con, company=args.company or "", title=args.title or "",
+                text=text, prefs=prefs, url=args.link or "",
+                location=args.location or "")
+        con.commit()
+        if not args.no_enrich:
+            added.enriched = intake.enrich(con, added.job_id)
+            con.commit()
+    except (intake.IntakeError, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        con.close()
+
+    state = "added" if added.new else "already in your tracker"
+    print(f"{state}: job {added.job_id} -- {added.title} at {added.company}")
+    print(f"  score {added.score:.2f}")
+    for reason in added.reasons[:4]:
+        print(f"    · {reason}")
+    if added.enriched:
+        print(f"  {added.enriched}")
+    for warning in added.warnings:
+        print(f"  note: {warning}")
+    print()
+    if added.status:
+        print(f"  you are tracking this one already: {added.status.replace('_', ' ')}")
+        print(f"next:  open it on the dashboard: /job/{added.job_id}")
+    else:
+        print(f"next:  jsa save {added.job_id}   then   jsa tailor {added.job_id}")
+        print(f"       or open it on the dashboard: /job/{added.job_id}")
+    return 0
+
+
 def cmd_save(args: argparse.Namespace) -> int:
     con = db.connect()
     try:
@@ -1050,6 +1107,21 @@ def main(argv: list[str] | None = None) -> int:
         "--force", action="store_true",
         help="draft a new version when one already exists")
     p_tail.set_defaults(func=cmd_tailor)
+
+    p_add = sub.add_parser(
+        "add", help="add one job from a link, or from pasted text")
+    p_add.add_argument("url", nargs="?",
+                       help="a Greenhouse, Lever, Ashby or Workday posting link")
+    p_add.add_argument("--company", help="the company's name")
+    p_add.add_argument("--paste", action="store_true",
+                       help="add a posting you copy in by hand (any site)")
+    p_add.add_argument("--title", help="with --paste: the job title")
+    p_add.add_argument("--link", help="with --paste: where the posting lives")
+    p_add.add_argument("--location", help="with --paste: where the job is")
+    p_add.add_argument("--file", help="with --paste: read the text from a file")
+    p_add.add_argument("--no-enrich", action="store_true",
+                       help="skip the model call that reads degree/clearance/years")
+    p_add.set_defaults(func=cmd_add)
 
     p_save = sub.add_parser("save", help="track a match as an application")
     p_save.add_argument("job_id", type=int)

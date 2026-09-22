@@ -281,43 +281,52 @@ def fetch_workday(entry: dict[str, Any]) -> FetchResult:
 
             for posting in postings[:MAX_DETAIL_FETCHES]:
                 path = posting.get("externalPath") or ""
-                title = posting.get("title") or ""
                 info: dict[str, Any] = {}
                 if path:
                     try:
-                        d = client.get(detail_base + path)
-                        if d.status_code == 200:
-                            info = (d.json() or {}).get("jobPostingInfo") or {}
+                        info = workday_detail(client, detail_base, path)
                     except Exception:  # noqa: BLE001 — degrade, don't abort
                         info = {}
                     time.sleep(DETAIL_DELAY_S)
-
-                desc = strip_html(info.get("jobDescription"))
-                location = info.get("location") or posting.get("locationsText") or ""
-                extra = info.get("additionalLocations") or []
-                if extra:
-                    location = "; ".join([location, *extra])
-                jobs.append(
-                    {
-                        "external_id": str(
-                            info.get("jobReqId")
-                            or (posting.get("bulletFields") or [path])[0]
-                        ),
-                        "title": info.get("title") or title,
-                        "department": None,
-                        "location": location,
-                        "remote": classify_remote(location, desc),
-                        "employment_type": norm_employment(info.get("timeType")),
-                        "url": info.get("externalUrl") or (detail_base + path),
-                        "description": desc,
-                        "description_hash": content_hash(desc),
-                        "posted_at": info.get("startDate"),
-                    }
-                )
+                jobs.append(workday_job(info, detail_base, path, posting))
     except Exception as exc:  # noqa: BLE001
         return _fail(exc)
 
     return FetchResult(True, jobs, "ok")
+
+
+def workday_detail(client: httpx.Client, detail_base: str, path: str) -> dict[str, Any]:
+    """One posting's jobPostingInfo, or {} when Workday does not return it."""
+    d = client.get(detail_base + path)
+    if d.status_code != 200:
+        return {}
+    return (d.json() or {}).get("jobPostingInfo") or {}
+
+
+def workday_job(info: dict[str, Any], detail_base: str, path: str,
+                posting: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The tracker's shape for one Workday posting. Shared with `jsa add`."""
+    posting = posting or {}
+    desc = strip_html(info.get("jobDescription"))
+    location = info.get("location") or posting.get("locationsText") or ""
+    extra = info.get("additionalLocations") or []
+    if extra:
+        location = "; ".join([location, *extra])
+    return {
+        "external_id": str(
+            info.get("jobReqId")
+            or (posting.get("bulletFields") or [path])[0]
+        ),
+        "title": info.get("title") or posting.get("title") or "",
+        "department": None,
+        "location": location,
+        "remote": classify_remote(location, desc),
+        "employment_type": norm_employment(info.get("timeType")),
+        "url": info.get("externalUrl") or (detail_base + path),
+        "description": desc,
+        "description_hash": content_hash(desc),
+        "posted_at": info.get("startDate"),
+    }
 
 
 # --- Workable ---------------------------------------------------------------

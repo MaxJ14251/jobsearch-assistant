@@ -74,9 +74,24 @@ BASE = """<!doctype html>
   .sub{color:var(--mute);font-size:13px;margin:0 0 18px;overflow-wrap:anywhere}
   form.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;
     background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:12px}
-  select,input[type=search]{font:inherit;font-size:13px;padding:6px 8px;
-    border:1px solid var(--rule);border-radius:3px;background:var(--surface);
-    color:var(--ink);min-width:0}
+  select,input[type=search],input[type=text],input[type=url],textarea{font:inherit;
+    font-size:13px;padding:6px 8px;border:1px solid var(--rule);border-radius:3px;
+    background:var(--surface);color:var(--ink);min-width:0}
+  form.stack{display:grid;gap:10px;background:var(--surface);border:1px solid var(--rule);
+    border-radius:4px;padding:14px 16px;margin-bottom:10px}
+  form.stack label{display:grid;gap:4px;font-size:12.5px;color:var(--ink-2)}
+  form.stack .two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+  form.stack button{justify-self:start}
+  textarea{min-height:220px;resize:vertical;line-height:1.45}
+  /* The preview is a sheet of paper in either theme: it shows the document as
+     it prints, and a resume is black on white. */
+  .desk{background:var(--surface-2);border-radius:4px;padding:24px 12px;overflow-x:auto}
+  .sheet{background:#fff;color:#111;max-width:8.5in;margin:0 auto;
+    box-shadow:0 1px 3px rgba(0,0,0,.18),0 8px 24px rgba(0,0,0,.08);
+    padding-block:7%;line-height:1.25;overflow-wrap:anywhere}
+  .sheet p{margin:0;white-space:pre-wrap}
+  .sheet ul{margin:0;padding-left:1.5em}
+  .sheet .blank{height:1.1em}
   button{font:inherit;font-size:13px;padding:6px 12px;border:0;border-radius:3px;
     background:var(--copper);color:#fff;cursor:pointer}
   button:disabled{opacity:.6;cursor:progress}
@@ -137,6 +152,8 @@ BASE = """<!doctype html>
     form.filters{flex-direction:column}
     select,input[type=search],form.filters button{width:100%}
     .pair{grid-template-columns:minmax(0,1fr)}
+    form.stack .two{grid-template-columns:minmax(0,1fr)}
+    .desk{padding:12px 0}
   }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style></head><body>
@@ -144,6 +161,7 @@ BASE = """<!doctype html>
   <a href="/" class="{{ 'on' if page=='matches' }}">Matches</a>
   <a href="/pipeline" class="{{ 'on' if page=='pipeline' }}">Pipeline</a>
   <a href="/review" class="{{ 'on' if page=='review' }}">Review{% if pending_count %} ({{ pending_count }}){% endif %}</a>
+  <a href="/add" class="{{ 'on' if page=='add' }}">Add a job</a>
 </div></nav>
 <div class="wrap">{% block body %}{% endblock %}</div>
 </body></html>"""
@@ -242,7 +260,8 @@ JOB = """{% extends "base" %}{% block body %}
     {% endfor %}</ul>
   </details>
   <div class="inline">
-    {% if d.servable %}<a class="btn" href="/document/{{ d.id }}">Download .docx</a>
+    {% if d.servable %}<a class="btn" href="/document/{{ d.id }}/preview">Preview</a>
+    <a class="btn" href="/document/{{ d.id }}">Download .docx</a>
     {% else %}<span class="meta">The file is missing from output/.</span>{% endif %}
     {% if d.status == 'pending' %}<a class="plain" href="/review#doc-{{ d.id }}">Review it</a>{% endif %}
   </div>
@@ -366,7 +385,8 @@ REVIEW = """{% extends "base" %}{% block body %}
         {% else %}<p>{{ p.text }}</p>{% endif %}
       {% endfor %}</div></details>
     {% endif %}
-    {% if r.doc.servable %}<div class="inline"><a class="btn" href="/document/{{ r.subject_id }}">Download .docx</a></div>{% endif %}
+    {% if r.doc.servable %}<div class="inline"><a class="btn" href="/document/{{ r.subject_id }}/preview">Preview as a page</a>
+      <a class="btn" href="/document/{{ r.subject_id }}">Download .docx</a></div>{% endif %}
   {% elif r.body %}
     <div class="doc" style="margin-top:8px"><p style="white-space:pre-wrap">{{ r.body }}</p></div>
   {% endif %}
@@ -388,9 +408,67 @@ REVIEW = """{% extends "base" %}{% block body %}
 {% else %}<p class="empty">Nothing waiting.</p>{% endfor %}
 {% endblock %}"""
 
+PREVIEW = """{% extends "base" %}{% block body %}
+<p class="sub" style="margin-top:18px"><a class="plain" href="/job/{{ doc.job_id }}">← {{ job_title }} at {{ company }}</a></p>
+<h1>{{ doc.kind|replace('_',' ')|capitalize }} v{{ doc.version }}</h1>
+<p class="sub">document {{ doc.id }} · {{ status }} · drafted {{ doc.generated_at|localtime }} · read from the .docx on disk, so this is the file you would send</p>
+<div class="inline" style="margin-bottom:12px">
+  <a class="btn" href="/document/{{ doc.id }}">Download .docx</a>
+  {% if status == 'pending' %}<a class="plain" href="/review#doc-{{ doc.id }}">Review it</a>{% endif %}
+</div>
+{% if problem %}<p class="note bad">{{ problem }}</p>{% else %}
+<div class="desk"><div class="sheet" style="font-family:'{{ sheet.font }}',Carlito,'Segoe UI',Arial,sans-serif;font-size:{{ sheet.size }}pt;padding-left:{{ sheet.margin_left_pct }}%;padding-right:{{ sheet.margin_right_pct }}%">
+{%- for p in sheet.paragraphs %}
+  {%- if p.empty %}<div class="blank"></div>
+  {%- else %}
+  {%- set style = 'text-align:%s;margin-top:%spt;margin-bottom:%spt' % (p.align, p.before, p.after) %}
+  {%- set body %}{% for r in p.runs %}<span style="font-size:{{ r.size }}pt{{ ';font-weight:700' if r.bold }}{{ ';font-style:italic' if r.italic }}">{{ r.text }}</span>{% endfor %}{% endset %}
+  {%- if p.bullet %}<ul style="{{ style }}"><li>{{ body }}</li></ul>
+  {%- else %}<p style="{{ style }}">{{ body }}</p>{% endif %}
+  {%- endif %}
+{%- endfor %}
+</div></div>
+<p class="sub" style="margin-top:10px">Fonts and line breaks can differ slightly from Word. The words, their order and their emphasis are exactly the file's.</p>
+{% endif %}
+{% endblock %}"""
+
+ADD = """{% extends "base" %}{% block body %}
+<h1>Add a job</h1>
+<p class="sub">For a posting discovery did not find. It is stored and scored like any other, and nothing becomes an application until you save it.</p>
+{% if msg %}<p class="note {{ 'bad' if bad else 'good' }}" role="alert">{{ msg }}</p>{% endif %}
+
+<h2>From a link</h2>
+<form class="stack" method="post" action="/add/link" onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Reading the posting…'">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="add-url">Posting link on Greenhouse, Lever, Ashby or Workday
+    <input type="url" name="url" id="add-url" required placeholder="https://job-boards.greenhouse.io/company/jobs/1234567"></label>
+  <label for="add-company">Company name (optional; otherwise taken from the board)
+    <input type="text" name="company" id="add-company"></label>
+  <button type="submit">Add from link</button>
+  <p class="meta" style="margin:0">The posting is read from that board's public job API, not from the page itself. A LinkedIn, Indeed or company-site link is not fetched: paste the posting below instead.</p>
+</form>
+
+<h2>Paste a posting</h2>
+<form class="stack" method="post" action="/add/paste" onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Adding…'">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="two">
+    <label for="paste-company">Company<input type="text" name="company" id="paste-company" required></label>
+    <label for="paste-title">Job title<input type="text" name="title" id="paste-title" required></label>
+  </div>
+  <div class="two">
+    <label for="paste-location">Location<input type="text" name="location" id="paste-location" placeholder="Remote (US), or City, ST"></label>
+    <label for="paste-link">Where it is posted (optional)<input type="url" name="link" id="paste-link"></label>
+  </div>
+  <label for="paste-text">The whole posting, requirements included
+    <textarea name="text" id="paste-text" required minlength="{{ min_chars }}"></textarea></label>
+  <button type="submit">Add pasted posting</button>
+</form>
+{% endblock %}"""
+
 env = Environment(
     loader=DictLoader({"base": BASE, "matches": MATCHES, "job": JOB,
-                       "prep": PREP, "pipeline": PIPELINE, "review": REVIEW}),
+                       "prep": PREP, "pipeline": PIPELINE, "review": REVIEW,
+                       "preview": PREVIEW, "add": ADD}),
     # Always on. select_autoescape(["html"]) keys on the template NAME, and
     # these are named "base", "job"... so it was silently off, and a job
     # description from a third-party board rendered as live HTML.
@@ -688,6 +766,82 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             return not_found("document")
         return FileResponse(path, filename=path.name, media_type=DOCX_TYPE,
                             headers={"Cache-Control": "no-store"})
+
+    @app.get("/document/{document_id}/preview", response_class=HTMLResponse)
+    def preview(document_id: int):
+        con = connect()
+        try:
+            row = con.execute(
+                "SELECT d.*, j.title AS job_title, c.name AS company FROM documents d "
+                "LEFT JOIN jobs j ON j.id = d.job_id "
+                "LEFT JOIN companies c ON c.id = j.company_id WHERE d.id = ?",
+                (document_id,)).fetchone()
+            status = document_status(con, document_id)[0] if row else ""
+        finally:
+            con.close()
+        path = review.safe_document_path(row["path"], out_dir()) if row else None
+        if path is None:
+            # The same single answer the download gives.
+            return not_found("document")
+        sheet, problem = None, None
+        try:
+            sheet = review.layout(path)
+        except Exception:  # noqa: BLE001 - a corrupt file is reported, not raised
+            problem = "This file could not be read as a Word document."
+        return render("preview", "matches",
+                      title=f"{row['kind'].replace('_', ' ').capitalize()} v{row['version']}",
+                      doc=dict(row), sheet=sheet, problem=problem, status=status,
+                      job_title=row["job_title"] or "job", company=row["company"] or "")
+
+    @app.get("/add", response_class=HTMLResponse)
+    def add_form(msg: str = "", bad: int = 0):
+        from .intake import MIN_PASTED_CHARS
+        return render("add", "add", title="Add a job", msg=msg, bad=bad,
+                      min_chars=MIN_PASTED_CHARS)
+
+    def back_to_add(msg: str) -> RedirectResponse:
+        return RedirectResponse("/add?" + urlencode({"msg": msg, "bad": 1}),
+                                status_code=303)
+
+    def run_intake(action) -> RedirectResponse:
+        """One path for both forms: add, commit, then the optional model check."""
+        from . import intake
+        from .config import Preferences
+        prof = profile()
+        if prof is None:
+            return back_to_add("Your profile could not be loaded, so the job "
+                               "cannot be scored.")
+        con = connect()
+        try:
+            added = action(intake, con, Preferences.from_profile(prof))
+            con.commit()
+            added.enriched = intake.enrich(con, added.job_id)
+            con.commit()
+        except intake.IntakeError as exc:
+            return back_to_add(str(exc))
+        finally:
+            con.close()
+        parts = ["Added." if added.new else "Already in your tracker.",
+                 f"Score {added.score:.2f}."]
+        if added.enriched:
+            parts.append(added.enriched[0].upper() + added.enriched[1:] + ".")
+        parts.extend(added.warnings)
+        if added.status:
+            parts.append(f"You are tracking it: {added.status.replace('_', ' ')}.")
+        return back_to_job(added.job_id, " ".join(parts), False)
+
+    @app.post("/add/link")
+    def add_link(url: str = Form(...), company: str = Form("")):
+        return run_intake(lambda intake, con, prefs: intake.add_link(
+            con, url, prefs, company=company.strip() or None))
+
+    @app.post("/add/paste")
+    def add_paste(company: str = Form(...), title: str = Form(...),
+                  text: str = Form(...), location: str = Form(""),
+                  link: str = Form("")):
+        return run_intake(lambda intake, con, prefs: intake.add_pasted(
+            con, company=company, title=title, text=text, prefs=prefs,
+            url=link, location=location))
 
     @app.get("/prep/{prep_id}", response_class=HTMLResponse)
     def prep_detail(prep_id: int):

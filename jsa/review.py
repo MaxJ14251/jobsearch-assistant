@@ -68,6 +68,71 @@ def readable(path: Path) -> list[dict[str, str]]:
     return out
 
 
+_ALIGN = {0: "left", 1: "center", 2: "right", 3: "justify"}
+
+
+def _pt(length: Any) -> float | None:
+    return round(length.pt, 1) if length is not None else None
+
+
+def layout(path: Path) -> dict[str, Any]:
+    """The document as it would look on a page, read from the .docx itself.
+
+    For the dashboard preview. Only what the file says: alignment, bold,
+    italic, size, bullets, spacing, the page's margins. Anything it does not
+    say falls back to the Normal style, then to Word's own defaults. It returns
+    data, not HTML; the template escapes every word of it.
+    """
+    doc = Document(str(path))
+    normal = doc.styles["Normal"]
+    base_size = _pt(normal.font.size) or 11.0
+    font = normal.font.name or "Calibri"
+
+    section = doc.sections[0] if doc.sections else None
+    width = section.page_width.inches if section is not None and section.page_width else 8.5
+    left = section.left_margin.inches if section is not None and section.left_margin is not None else 1.0
+    right = section.right_margin.inches if section is not None and section.right_margin is not None else 1.0
+
+    paragraphs = []
+    for para in doc.paragraphs:
+        style = para.style
+        fmt, style_fmt = para.paragraph_format, style.paragraph_format if style else None
+        align = para.alignment if para.alignment is not None else (
+            style_fmt.alignment if style_fmt is not None else None)
+        runs = []
+        for run in para.runs:
+            if not run.text:
+                continue
+            runs.append({
+                "text": run.text,
+                "bold": bool(run.bold if run.bold is not None
+                             else (style.font.bold if style else False)),
+                "italic": bool(run.italic if run.italic is not None
+                               else (style.font.italic if style else False)),
+                "size": _pt(run.font.size) or (_pt(style.font.size) if style else None)
+                        or base_size,
+            })
+        before = _pt(fmt.space_before)
+        after = _pt(fmt.space_after)
+        if before is None and style_fmt is not None:
+            before = _pt(style_fmt.space_before)
+        if after is None and style_fmt is not None:
+            after = _pt(style_fmt.space_after)
+        paragraphs.append({
+            "runs": runs,
+            "align": _ALIGN.get(int(align) if align is not None else 0, "left"),
+            "bullet": bool(style is not None and style.name.startswith("List Bullet")),
+            "before": before or 0.0,
+            "after": after if after is not None else 0.0,
+            # An empty paragraph is a blank line on the page, and a letter is
+            # laid out with them. It keeps its height.
+            "empty": not runs,
+        })
+    return {"paragraphs": paragraphs, "font": font, "size": base_size,
+            "margin_left_pct": round(100 * left / width, 2),
+            "margin_right_pct": round(100 * right / width, 2)}
+
+
 def _as_written(text: str, stems: list[str]) -> list[str]:
     """The draft's own words for the stems the verifier flagged.
 

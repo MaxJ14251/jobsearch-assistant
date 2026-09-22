@@ -400,6 +400,22 @@ Closing an application (rejected, withdrawn, ghosted) takes it out of the live
 pipeline and keeps its whole history.
 
 ```bash
+.venv/Scripts/python -m jsa add https://job-boards.greenhouse.io/company/jobs/1234567
+.venv/Scripts/python -m jsa add --paste --company "Acme" --title "Support Engineer" --file posting.txt
+```
+Adds one job discovery did not find, and on the dashboard **Add a job** does
+the same. A Greenhouse, Lever, Ashby or Workday link is read from that
+board's public job API, through the same code discovery uses; the page itself
+is never fetched, and the tool only calls an API address it built from the
+board and posting id, so a link cannot send it anywhere else. Any other link,
+LinkedIn and Indeed included, is refused without being fetched, and you paste
+the posting text instead. It is stored whatever it scores, because you chose
+it, with a note when your filters would have dropped it. If it is already in
+the tracker you get the same row back. One model call reads the posting for
+degree, clearance and years (`--no-enrich` skips it); nothing about you goes
+with it.
+
+```bash
 .venv/Scripts/python -m jsa serve
 ```
 Local review dashboard on http://127.0.0.1:8765. It covers the whole path from a
@@ -409,8 +425,9 @@ match to a resume you can upload yourself:
   next action, overdue flags, and the same stage moves as the CLI.
 - **Job page**: every drafted document, newest version first, with its status
   (pending, approved, rejected and your note), model, the profile bullets it
-  used, the keyword gaps it could not honestly fill, and a **Download .docx**
-  link. Its interview preps are listed below. A **Save** button starts an
+  used, the keyword gaps it could not honestly fill, a **Preview** that shows
+  the .docx as a page (read from the file itself, so it is what you would
+  send) and a **Download .docx** link. Its interview preps are listed below. A **Save** button starts an
   application; a **Tailor** button runs exactly what `jsa tailor --force`
   runs and queues the draft for review.
 - **Interview prep** page: each question, why it is asked, and your
@@ -615,7 +632,7 @@ which is NJ/NY/Sunnyvale rather than LA.
 
 ## Test coverage
 
-684 tests, **76% line coverage**, reported as measured rather than tuned.
+710 tests, **77% line coverage**, reported as measured rather than tuned.
 
 The distribution is the interesting part. The code that decides what reaches a
 document is well covered; the thin parts are network adapters that need live
