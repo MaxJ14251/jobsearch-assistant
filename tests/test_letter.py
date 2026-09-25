@@ -16,6 +16,8 @@ PROFILE = {
     "identity": {"full_name": "Dana Rivers", "email": "dana@example.test",
                  "phone": "+1 (555) 555-0100",
                  "location": {"street": "1 Example Way", "postal_code": "12345"}},
+    "links": {"linkedin": "https://linkedin.com/in/dana",
+              "github": "https://github.com/dana"},
     "ats_keywords": {"have": [], "aspirational_do_not_claim": ["Kubernetes"]},
     "summaries": [{"id": "sum_main", "family": "general",
                    "text": "Field technician turned Python developer building "
@@ -82,6 +84,27 @@ def fake_completion(text):
 class TestTheCheck(unittest.TestCase):
     def test_an_honest_letter_passes(self):
         self.assertEqual(letter.check(GOOD, PROFILE, JOB), [])
+
+    def test_your_own_name_and_contact_details_are_not_foreign_words(self):
+        """Found on a real letter on the dashboard, which reported:
+
+            says words your profile does not: [the owner's own phone, email, links and name]
+
+        Every one of those is the operator's own name, phone, email or link,
+        printed in the letterhead and the signature by render.py. The check
+        built its vocabulary from bullets, summaries and skills only, so the
+        operator's identity read as invention. The letter was fine.
+        """
+        header = ("Dana Rivers\n"
+                  "Example City, CA  |  +1 (555) 555-0100  |  dana@example.test"
+                  "  |  linkedin.com/in/dana  |  github.com/dana\n\n")
+        problems = letter.check(header + GOOD + "\nDana Rivers", PROFILE, JOB)
+        self.assertEqual([p for p in problems if "words your profile" in p], [],
+                         "the operator's own identity is not a foreign claim")
+
+    def test_somebody_elses_name_is_still_a_foreign_word(self):
+        problems = letter.check(GOOD + "\nJordan Hayes", PROFILE, JOB)
+        self.assertTrue(any("hayes" in p for p in problems), problems)
 
     def test_a_claim_the_profile_does_not_make_is_named(self):
         text = GOOD.replace("detects highlights in raw video.",

@@ -154,10 +154,28 @@ class LetterResult:
     model: str = ""
 
 
+def identity_words(profile: dict[str, Any]) -> set[str]:
+    """The operator's own name, contact details and links.
+
+    render.py prints these in the letterhead and signs with the name, so a
+    check run over the whole document saw them. They are the operator's own
+    profile, not invention: a letter signed by its writer is not a claim.
+    Outreach learned the same thing (ADR 0010).
+    """
+    ident = profile.get("identity") or {}
+    parts = [str(ident.get(k) or "") for k in
+             ("full_name", "preferred_name", "email", "phone")]
+    location = ident.get("location") or {}
+    parts += [str(v or "") for v in location.values()]
+    parts += [str(v or "") for v in (profile.get("links") or {}).values()]
+    return _words(" ".join(parts))
+
+
 def allowed_stems(profile: dict[str, Any], job: dict[str, Any]) -> set[str]:
     """Every stem a letter may use."""
     stems = set(_whole_profile_stems(profile))
     stems |= {_stem(w) for w in CONNECTIVES}
+    stems |= {_stem(w) for w in identity_words(profile)}
     for key in ("title", "company", "location"):
         stems |= {_stem(w) for w in _words(str(job.get(key) or ""))}
     return stems

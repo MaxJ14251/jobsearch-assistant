@@ -157,7 +157,10 @@ class TestFilters(unittest.TestCase):
         """SpaceX posts thousands of reqs; it must not fill the page."""
         text = self.client.get("/?limit=200").text
         for company in ("SpaceX", "OpenAI", "Anthropic"):
-            self.assertLessEqual(text.count(f">{company}<"), 3)
+            # The company label, not every mention: "OpenAI" is also a
+            # tech-stack tag on other companies' jobs, and counting those
+            # failed this test once the tracker grew to 1,147 postings.
+            self.assertLessEqual(text.count(f'class="co">{company}<'), 3)
 
     def test_unknown_region_does_not_error(self):
         self.assertEqual(self.client.get("/?near=nowhere").status_code, 200)
