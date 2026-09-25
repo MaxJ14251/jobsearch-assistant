@@ -305,7 +305,10 @@ class TestThisRepository(unittest.TestCase):
     what to do about (1), delete the exemption with it.
     """
 
-    KNOWN = re.compile(r"^README\.md @ [0-9a-f]{8}: US address ")
+    # Read from tools/history_allowlist.txt rather than repeated here. This
+    # test kept its own copy once, and when the scanner was tightened on
+    # 2026-09-24 and found three more things, the copy and the file disagreed
+    # about what had been decided. The file is the record; this reads it.
 
     @classmethod
     def setUpClass(cls):
@@ -323,8 +326,10 @@ class TestThisRepository(unittest.TestCase):
                 + scan_history.scan_refs(never, authorship))
 
     def test_nothing_beyond_the_reported_findings(self):
-        unexpected = [p for p in self.problems() if not self.KNOWN.match(p)]
+        unexpected, accepted = scan_history.split_accepted(self.problems())
         self.assertEqual(unexpected, [], "a NEW leak is in the history")
+        self.assertTrue(accepted, "the known findings vanished: if history was "
+                                  "rewritten, delete the allowlist entries too")
 
     def test_the_working_tree_no_longer_carries_it(self):
         """The part that could be fixed, was."""
@@ -335,14 +340,14 @@ class TestThisRepository(unittest.TestCase):
             scan_secrets.scan_text("README.md", "README.md", text,
                                    never, authorship), [])
 
-    def test_the_known_finding_is_still_there_to_be_decided_about(self):
+    def test_the_known_findings_are_still_there_to_be_decided_about(self):
         """If this starts failing, the history changed. Say so out loud."""
-        known = [p for p in self.problems() if self.KNOWN.match(p)]
+        _, accepted = scan_history.split_accepted(self.problems())
         self.assertTrue(
-            known,
+            any("README.md" in p and "US address" in p for p in accepted),
             "the historical README blobs are clean now -- if the history was "
             "rewritten or the repository recreated, drop this test and the "
-            "exemption above")
+            "allowlist entries with it")
 
 
 if __name__ == "__main__":

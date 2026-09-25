@@ -25,6 +25,10 @@ ROOT = Path(__file__).resolve().parent.parent
 # Where the author's own name may legitimately appear.
 AUTHORSHIP_FILES = {"LICENSE", "README.md", "CONTRIBUTING.md"}
 
+# A name part shorter than this is a word: "Max" is also a builtin, "Lee" is
+# also a surname in a test fixture. Four is where a name stops being generic.
+NAME_PART_MIN = 4
+
 SKIP_DIRS = {".git", ".venv", "__pycache__", "output", "documents", ".claude"}
 
 # Two tiers, because "skip this file" was previously one list doing two jobs.
@@ -183,6 +187,10 @@ def looks_like_a_placeholder(value: str) -> bool:
         return True
     if text.startswith(("your ", "your-", "you@", "example")):
         return True
+    # "123 Example St", the example profile's street: a placeholder in the
+    # middle rather than at the start.
+    if "example" in re.split(r"[^a-z]+", text):
+        return True
     if "@" in text:
         domain = text.rsplit("@", 1)[-1]
         if any(domain == d or domain.endswith(d)
@@ -238,12 +246,41 @@ def personal_values() -> tuple[list[str], list[str]]:
     digits = re.sub(r"\D", "", ident.get("phone") or "")
     if len(digits) >= 10:
         never.append(digits[-10:])
+    # And each four-or-more digit group of it on its own: the same test
+    # docstring carried the last four digits without the rest of the number.
+    # Three-digit groups (an area code) are too common to match on.
+    if not looks_like_a_placeholder(str(ident.get("phone") or "")):
+        for group in re.findall(r"\d{4,}", ident.get("phone") or ""):
+            never.append(group)
+
+    # The house number and street name without the rest of the address: the
+    # first release's tests listed the address in fragments, as a forbidden
+    # list to check against, and the full string never appeared.
+    street = str(loc.get("street") or "").strip()
+    if street and not looks_like_a_placeholder(street):
+        head = re.match(r"\d+\s+\S+", street)
+        if head:
+            never.append(head.group(0))
 
     for value in (ident.get("full_name"), links.get("linkedin"),
                   links.get("github")):
         if (isinstance(value, str) and len(value.strip()) >= 5
                 and not looks_like_a_placeholder(value)):
             authorship.append(value.strip())
+
+    # Each NAME PART on its own, not only the full name. A test docstring
+    # quoting a dashboard message -- which listed the operator's surname,
+    # given name and phone fragments -- was committed and pushed while this
+    # scanner reported clean, because the full name never appeared as one
+    # string. A surname identifies on its own.
+    full_name = str(ident.get("full_name") or "")
+    if not looks_like_a_placeholder(full_name):
+        # A part of the EXAMPLE name ("Your Full Name" -> "Full", "Name") is an
+        # ordinary English word, and on a fresh clone the example IS the
+        # profile, so the whole name is judged before it is split.
+        for part in re.split(r"[^A-Za-z]+", full_name):
+            if len(part) >= NAME_PART_MIN and not looks_like_a_placeholder(part):
+                authorship.append(part)
     return never, authorship
 
 

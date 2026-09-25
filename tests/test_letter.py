@@ -86,9 +86,9 @@ class TestTheCheck(unittest.TestCase):
         self.assertEqual(letter.check(GOOD, PROFILE, JOB), [])
 
     def test_your_own_name_and_contact_details_are_not_foreign_words(self):
-        """Found on a real letter on the dashboard, which reported:
-
-            says words your profile does not: [the owner's own phone, email, links and name]
+        """Found on a real letter on the dashboard, which reported eight
+        "words your profile does not": three groups of digits from a phone
+        number, two mail and link domains, a surname, a first name.
 
         Every one of those is the operator's own name, phone, email or link,
         printed in the letterhead and the signature by render.py. The check

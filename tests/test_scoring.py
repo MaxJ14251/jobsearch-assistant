@@ -3,6 +3,7 @@
 Run: python -m unittest discover -s tests
 """
 
+import re
 import unittest
 
 from jsa.config import Preferences
@@ -370,10 +371,26 @@ class TestConfigurability(unittest.TestCase):
     """Nothing candidate-specific may be hardcoded in the package."""
 
     def test_user_agent_has_no_baked_in_contact(self):
+        """The operator's own details, read from their profile rather than
+        written here: a name in a test file is the leak it is testing for."""
         import inspect
         from jsa import config
-        src = inspect.getsource(config)
-        self.assertNotIn("Example", src.lower())
+        src = inspect.getsource(config).lower()
+        try:
+            identity = (config.load_profile().get("identity") or {})
+        except Exception:                      # noqa: BLE001 - fresh clone
+            self.skipTest("no profile to compare against")
+        from tools.scan_secrets import looks_like_a_placeholder
+        for value in (identity.get("full_name"), identity.get("email"),
+                      identity.get("phone")):
+            # On a fresh clone the profile IS the example, whose "Your Full
+            # Name" and you@example.com are words this source legitimately
+            # contains.
+            if looks_like_a_placeholder(str(value or "")):
+                continue
+            for part in re.split(r"[^A-Za-z0-9]+", str(value or "")):
+                if len(part) >= 4 and not looks_like_a_placeholder(part):
+                    self.assertNotIn(part.lower(), src)
 
     def test_user_agent_uses_env_override(self):
         import os

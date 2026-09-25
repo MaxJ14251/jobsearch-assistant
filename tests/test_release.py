@@ -51,6 +51,33 @@ class TestSecretScanner(unittest.TestCase):
         self.assertEqual(
             scanner.AUTHORSHIP_FILES, {"LICENSE", "README.md", "CONTRIBUTING.md"})
 
+    def test_a_name_part_alone_is_caught_not_only_the_full_name(self):
+        """A test docstring quoting a dashboard message put the operator's
+        surname and phone fragments into a tracked file, and this scanner
+        reported clean: it looked for the full name as one string."""
+        import tools.scan_secrets as scanner
+        never, authorship = [], scanner.personal_values()[1]
+        found = scanner.scan_text(
+            "test_example.py", "tests/test_example.py",
+            "flagged: gmail.com, Ruthersfield, linkedin.com", never,
+            ["Dana Ruthersfield", "Dana", "Ruthersfield"])
+        self.assertTrue(any("Ruthersfield" in f for f in found), found)
+
+    def test_a_phone_fragment_and_a_street_head_are_caught(self):
+        """Also missed on 2026-09-24: the last four digits of the phone, and
+        the house number with the street name, written without the rest."""
+        import tools.scan_secrets as scanner
+        never = ["7100", "42 Example Way"]
+        found = scanner.scan_text(
+            "test_example.py", "tests/test_example.py",
+            "forbidden = ['7100', '42 Example Way']", never, [])
+        self.assertEqual(len(found), 2, found)
+
+    def test_a_short_name_part_is_not_treated_as_an_identity(self):
+        """'Max' is also a builtin; 'Lee' is also somebody else's fixture."""
+        import tools.scan_secrets as scanner
+        self.assertGreaterEqual(scanner.NAME_PART_MIN, 4)
+
     def test_working_tree_is_clean(self):
         """The real check, run as CI runs it."""
         result = subprocess.run(

@@ -25,7 +25,31 @@ cannot undo, because the commits are already written:
 2. **Every commit carries a contactable personal address** in its author and
    committer lines, as every git commit everywhere does.
 
-Both are removable only by rewriting all 28 commits, which changes every SHA.
+**2026-09-24, asked again: "is it safe to make the project public?"** The
+answer is still no, and the scanner was tightened that day to say why in more
+detail. It had only ever looked for the owner's details as WHOLE strings --
+the full name, the full phone number, the full street address -- so fragments
+passed. It now also checks each name part of four or more letters, each
+four-digit-or-longer group of the phone, and the house number with the street
+name. Three more findings appeared immediately, all in history, none of them
+exposed while the repository is private:
+
+3. **tests/test_scoring.py, since the initial release**, listed the surname,
+   the house number and street, the last four phone digits and the GitHub
+   handle as a "forbidden" list to assert against -- checking for a leak by
+   writing the leak down. HEAD now reads those values from the profile at run
+   time and skips when there is none.
+4. **tests/test_letter.py and the message of commit 1c623b7**, both written
+   on 2026-09-24, quote a dashboard warning that names the surname, the given
+   name and phone fragments. The file was fixed the same day; the commit
+   message cannot be.
+
+All of it is recorded in `tools/history_allowlist.txt` with its reasoning, and
+`tests/test_history_scan.py` now reads that file instead of keeping its own
+copy of what is known.
+
+Both original findings are removable only by rewriting all 28 commits, which
+changes every SHA.
 The usual cost of that — breaking existing clones and commit links — is
 currently close to zero, because the repository is private and nobody else
 has a copy. That cost becomes permanent the moment it is published.
@@ -77,6 +101,10 @@ simulated newcomer in Columbus, Ohio, which found two real bugs.
   eight times in nine, deliberately, and the README says so.
 - The LICENSE carries the author's name, which is intended, and which makes
   the two history findings above identifying rather than anonymous.
+- The example profile still contains the author's real employment history
+  (two roles at one employer, ten bullets). A stranger copying it inherits
+  somebody else's life, which is the opposite of what the example is for.
+  This one is fixable in HEAD and should be, before publishing.
 
 ## Consequences
 
