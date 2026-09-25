@@ -113,9 +113,16 @@ job_search_preferences:
   work_authorization: null       # e.g. "US citizen - no sponsorship required"
   needs_visa_sponsorship: null   # true/false
   willing_to_relocate: null      # true/false
-  # Years of experience you can credibly claim. A posting demanding materially
-  # more than this is rejected outright by the discovery filter.
+  # Years of experience you can credibly claim, and what happens to a posting
+  # that asks for more:
+  #   reject  drop it (the default)
+  #   rank    keep it, ranked lower, with the reason shown
+  #   off     ignore years entirely
+  # Many postings ask for more than they hold out for. `rank` lets you try.
+  # Run `jsa rescore`, then `jsa discover`, after changing it: postings already
+  # dropped were never stored, so only a new discovery run brings them back.
   max_years_experience: 3
+  years_filter: reject
 
   # Named commute regions for `matches --near <name>`. Each is a list of
   # substrings matched against a listing's location text. Define whatever

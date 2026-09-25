@@ -191,6 +191,23 @@ def parse_tristate(value: Any, name: str) -> bool | None:
     )
 
 
+YEARS_FILTERS = ("reject", "rank", "off")
+
+
+def parse_years_filter(value: Any) -> str:
+    """reject | rank | off. Unset means reject, which is what it always did."""
+    if value is None or value == "":
+        return "reject"
+    text = str(value).strip().lower()
+    if text not in YEARS_FILTERS:
+        raise ConfigError(
+            f"master_profile.yaml: job_search_preferences.years_filter is "
+            f"{value!r}. Use one of: reject (drop postings asking for more years "
+            f"than max_years_experience), rank (keep them, ranked lower), or off "
+            f"(ignore years).")
+    return text
+
+
 @dataclass
 class Preferences:
     """The subset of the master profile that drives discovery."""
@@ -205,9 +222,12 @@ class Preferences:
     # so an engineering role always outranks an equivalent sales one.
     fallback_titles: list[str] = field(default_factory=list)
     fallback_weight: float = 0.7
-    # Years of experience this candidate can credibly claim. A posting asking
-    # for materially more is a hard reject.
+    # Years of experience this candidate can credibly claim, and what a posting
+    # asking for more does: "reject" drops it, "rank" keeps it and ranks it
+    # lower, "off" ignores years altogether. Plenty of postings ask for more
+    # than they will actually hold out for; the choice to try is the operator's.
     max_years_experience: int = 3
+    years_filter: str = "reject"
     # Named commute regions -> city substrings, for `matches --near <name>`.
     regions: dict[str, list[str]] = field(default_factory=dict)
     # Compensation and authorization. Stored and validated; NOT used by scoring.
@@ -239,6 +259,7 @@ class Preferences:
             fallback_titles=list(prefs.get("fallback_titles") or []),
             fallback_weight=float(prefs.get("fallback_weight") or 0.7),
             max_years_experience=int(prefs.get("max_years_experience") or 3),
+            years_filter=parse_years_filter(prefs.get("years_filter")),
             regions={k: list(v) for k, v in (prefs.get("regions") or {}).items()},
             compensation_floor=parse_compensation_floor(
                 prefs.get("compensation_floor_usd"), prefs.get("regions") or {}

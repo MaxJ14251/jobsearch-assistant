@@ -306,7 +306,7 @@ def enrich(con: sqlite3.Connection, job_id: int) -> str:
                     row["description_hash"])
     facts = []
     if result.degree_required:
-        facts.append("DEGREE REQUIRED")
+        facts.append("asks for a degree")
     if result.clearance_required:
         facts.append("CLEARANCE REQUIRED")
     if result.years_required:

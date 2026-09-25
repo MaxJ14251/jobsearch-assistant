@@ -214,7 +214,7 @@ def cmd_matches(args: argparse.Namespace) -> int:
         print(f"       {row['url']}")
         flags = []
         if row["degree_required"] == 1:
-            flags.append("DEGREE REQUIRED")
+            flags.append("asks for a degree")
         if row["clearance_required"] == 1:
             flags.append("CLEARANCE REQUIRED")
         if row["years_required"] is not None:

@@ -42,7 +42,7 @@ everything downstream reads from it. On macOS and Linux use `.venv/bin/python`.
 ```
 [0.90] T. Rowe Price — Full Stack Software Engineer, AI Lab
        New York, NY; Baltimore, MD (onsite)
-       ⚑ DEGREE REQUIRED  |  2+ yrs
+       ⚑ asks for a degree  |  2+ yrs
        stack: Java, Python, JavaScript, AWS, Azure
        note: BS or MS required or equivalent experience accepted
        · title matches 'AI Engineer' (100%)
@@ -801,7 +801,10 @@ cp .env.example .env
 
 `job_search_preferences` drives everything — `target_titles`, `fallback_titles` and
 `fallback_weight` (a second tier ranked below the first), `locations`,
-`max_years_experience` (the hard reject ceiling), `exclude_keywords`, and `regions`
-(named commute areas for `matches --near`). The User-Agent sent to job boards resolves
+`max_years_experience` and `years_filter` (what a posting asking for more years
+does: `reject` drops it, `rank` keeps it ranked lower, `off` ignores years),
+`exclude_keywords`, and `regions` (named commute areas for `matches --near`).
+A degree requirement is never a filter: it is shown on the job as "asks for a
+degree" and changes neither whether a job appears nor its score. The User-Agent sent to job boards resolves
 `JSA_CONTACT_EMAIL`, then your profile's email, then no contact — never a value baked
 into the source.

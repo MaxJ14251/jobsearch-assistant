@@ -366,7 +366,8 @@ def score_job(job: dict[str, Any], prefs: Preferences) -> tuple[float, list[str]
 
     ceiling = prefs.max_years_experience
     years = required_years(description)
-    if years is not None and years > ceiling:
+    years_filter = getattr(prefs, "years_filter", "reject")
+    if years is not None and years > ceiling and years_filter == "reject":
         return 0.0, [f"rejected: requires {years}+ years of experience"]
 
     if is_non_us(job.get("location") or ""):
@@ -420,9 +421,17 @@ def score_job(job: dict[str, Any], prefs: Preferences) -> tuple[float, list[str]
     if _JUNIOR_HINT_RE.search(title):
         s_score = 1.0
         reasons.append("explicitly entry-level / junior")
+    elif years is not None and years_filter == "off":
+        # Ignored means ignored: scored as if the posting had not said.
+        s_score = 0.5
+        reasons.append(f"asks for {years} years (you set years to be ignored)")
     elif years is not None:
         s_score = 1.0 if years <= ceiling else 0.0
-        reasons.append(f"asks for {years} years")
+        if years <= ceiling:
+            reasons.append(f"asks for {years} years")
+        else:
+            reasons.append(f"asks for {years} years, more than your {ceiling}: "
+                           "ranked lower, not dropped")
     else:
         s_score = 0.5
         reasons.append("seniority unstated")

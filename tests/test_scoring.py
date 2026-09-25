@@ -384,6 +384,47 @@ class TestConfigurability(unittest.TestCase):
         finally:
             os.environ.pop("JSA_CONTACT_EMAIL", None)
 
+    def test_years_filter_reject_rank_off(self):
+        """The operator's choice: drop, keep lower, or ignore."""
+        j = job(title="Engineer", description="Requires 6 years of experience.")
+        fits = job(title="Engineer", description="Requires 2 years of experience.")
+        def prefs(mode):
+            return Preferences(target_titles=["Engineer"], locations=["Remote (US)"],
+                               max_years_experience=3, years_filter=mode)
+        self.assertEqual(score_job(j, prefs("reject"))[0], 0.0)
+
+        ranked, reasons = score_job(j, prefs("rank"))
+        self.assertGreater(ranked, 0.0, "rank must keep it")
+        self.assertLess(ranked, score_job(fits, prefs("rank"))[0],
+                        "and rank it below one that fits")
+        self.assertTrue(any("ranked lower" in r for r in reasons))
+
+        ignored, reasons = score_job(j, prefs("off"))
+        self.assertGreater(ignored, ranked, "off scores it as if years were unstated")
+        self.assertTrue(any("ignored" in r for r in reasons))
+
+    def test_years_filter_unset_is_what_it_always_was(self):
+        from jsa.config import Preferences as P
+        prefs = P.from_profile({"job_search_preferences": {
+            "target_titles": ["Engineer"], "locations": ["Remote (US)"]}})
+        self.assertEqual(prefs.years_filter, "reject")
+
+    def test_years_filter_typo_is_refused_not_guessed(self):
+        from jsa.config import ConfigError, Preferences as P
+        with self.assertRaises(ConfigError) as ctx:
+            P.from_profile({"job_search_preferences": {
+                "target_titles": ["Engineer"], "locations": ["Remote (US)"],
+                "years_filter": "loose"}})
+        self.assertIn("rank", str(ctx.exception))
+
+    def test_a_degree_requirement_never_moves_a_score(self):
+        """Shown, never filtered. The operator would rather be told no."""
+        base = job(title="Engineer", description="Build tools in Python. " * 5)
+        asks = job(title="Engineer", description="Build tools in Python. " * 5
+                   + "Bachelor's degree in Computer Science required.")
+        p = Preferences(target_titles=["Engineer"], locations=["Remote (US)"])
+        self.assertEqual(score_job(base, p)[0], score_job(asks, p)[0])
+
     def test_years_ceiling_comes_from_prefs(self):
         strict = Preferences(target_titles=["Engineer"], locations=["Remote (US)"],
                              max_years_experience=2)

@@ -197,7 +197,7 @@ MATCHES = """{% extends "base" %}{% block body %}
     {%- if r.variant_count and r.variant_count > 1 %} · +{{ r.variant_count - 1 }} more location(s){% endif %}</div>
   <div class="flags">
     {% if r.track == 'sales' %}<span class="flag">sales track</span>{% endif %}
-    {% if r.degree_required == 1 %}<span class="flag warn">degree required</span>
+    {% if r.degree_required == 1 %}<span class="flag" title="Shown so you know, never used to hide or rank a job">asks for a degree</span>
     {% elif r.degree_required == 0 %}<span class="flag ok">no degree needed</span>{% endif %}
     {% if r.clearance_required == 1 %}<span class="flag warn">clearance</span>{% endif %}
     {% if r.years_required is not none %}<span class="flag">{{ r.years_required }}+ yrs</span>{% endif %}
@@ -213,7 +213,7 @@ JOB = """{% extends "base" %}{% block body %}
 <p class="sub">{{ job.company }} · {{ job.location or 'location not stated' }} · {{ job.remote }}</p>
 <div class="flags" style="margin-bottom:14px">
   {% if application %}<span class="flag ok">application: {{ application.status }}</span>{% endif %}
-  {% if job.degree_required == 1 %}<span class="flag warn">degree required</span>
+  {% if job.degree_required == 1 %}<span class="flag" title="Shown so you know, never used to hide or rank a job">asks for a degree</span>
   {% elif job.degree_required == 0 %}<span class="flag ok">no degree needed</span>{% endif %}
   {% if job.clearance_required == 1 %}<span class="flag warn">clearance</span>{% endif %}
   {% if job.years_required is not none %}<span class="flag">{{ job.years_required }}+ yrs</span>{% endif %}
