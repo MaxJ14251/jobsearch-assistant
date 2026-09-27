@@ -84,6 +84,28 @@ BASE = """<!doctype html>
   form.stack button{justify-self:start}
   label.pair-in{display:flex;gap:6px;align-items:center;font-size:13px;
     color:var(--ink-2);white-space:nowrap}
+  input.miles{width:110px;accent-color:var(--copper)}
+  input.miles:disabled{opacity:.45}
+  output{font-variant-numeric:tabular-nums;min-width:66px}
+  /* The map. Drawn from shipped data on this machine: no tiles, so no
+     request tells anybody where the operator lives. */
+  figure.map{margin:0 0 14px;background:var(--surface);border:1px solid var(--rule);
+    border-radius:4px;padding:10px 10px 6px}
+  figure.map svg{display:block;width:100%;height:auto;max-height:62vh}
+  figure.map figcaption{color:var(--mute);font-size:12.5px;padding:4px 4px 2px;
+    overflow-wrap:anywhere}
+  .land{fill:var(--surface-2);stroke:var(--rule);stroke-width:.8}
+  .ring{fill:var(--sage);fill-opacity:.08;stroke:var(--sage);stroke-width:1.2;
+    stroke-dasharray:5 4}
+  .dot{stroke:var(--surface);stroke-width:.8}
+  .dot.in{fill:var(--copper);fill-opacity:.8}
+  .dot.out{fill:var(--mute);fill-opacity:.4}
+  figure.map a:focus-visible .dot{stroke:var(--copper);stroke-width:2.5}
+  .home{fill:var(--ink)}
+  .town{font-size:10px;fill:var(--ink-2);text-anchor:middle;paint-order:stroke;
+    stroke:var(--surface);stroke-width:2.5px}
+  .town.left{text-anchor:start}
+  .bar{fill:var(--ink-2)}
   textarea{min-height:220px;resize:vertical;line-height:1.45}
   /* The preview is a sheet of paper in either theme: it shows the document as
      it prints, and a resume is black on white. */
@@ -177,16 +199,21 @@ MATCHES = """{% extends "base" %}{% block body %}
 {% if hidden %}<p class="sub">{{ hidden }} match(es) hidden by the radius.
   {%- if unplaced %} {{ unplaced }} of them name a place this could not find, so the distance is unknown rather than far.{% endif %}
   <a class="plain" href="{{ nationwide_url }}">Show them anyway</a></p>{% endif %}
-<form class="filters" method="get">
+<form class="filters" method="get" id="where">
   <label class="pair-in" for="f-radius">within
-    <select name="radius" id="f-radius" aria-label="Distance">
-      {% for value, label in radii %}<option value="{{ value }}" {{ 'selected' if value==radius }}>{{ label }}</option>{% endfor %}
-    </select>
+    <input type="range" name="radius" id="f-radius" class="miles"
+           min="{{ radius_min }}" max="{{ radius_max }}" step="5"
+           value="{{ radius or profile_radius }}" aria-label="How far you would go">
+    <output for="f-radius" id="f-radius-out">{{ radius or profile_radius }} miles</output>
   </label>
   <label class="pair-in" for="f-home">of
     <input type="search" name="home" id="f-home" value="{{ home_text }}"
            placeholder="ZIP or City, ST" size="16"
            aria-label="Where you are">
+  </label>
+  <label class="pair-in" for="f-anywhere">
+    <input type="checkbox" name="anywhere" id="f-anywhere" value="1"
+           {{ 'checked' if not radius }}> anywhere in the US
   </label>
   <select name="track" id="f-track" aria-label="Track"><option value="">Both tracks</option>
     <option value="engineering" {{ 'selected' if track=='engineering' }}>Engineering</option>
@@ -201,6 +228,29 @@ MATCHES = """{% extends "base" %}{% block body %}
   </select>
   <button type="submit">Filter</button>
 </form>
+{% if map.drawn %}
+<figure class="map">
+  <svg viewBox="0 0 {{ map.width }} {{ map.height }}" role="img" aria-label="{{ map_note }}">
+    {% for d in map.paths %}<path class="land" d="{{ d }}"/>{% endfor %}
+    {% if map.circle %}<circle id="ring" class="ring" cx="{{ map.width // 2 }}"
+      cy="{{ map.height // 2 }}" r="{{ '%.1f'|format(map.circle) }}"
+      data-per-mile="{{ '%.6f'|format(map.per_mile) }}"/>{% endif %}
+    {% for b in map.bubbles %}<a href="/job/{{ b.job_id }}"><circle
+      class="dot {{ 'in' if b.inside else 'out' }}" cx="{{ '%.1f'|format(b.x) }}"
+      cy="{{ '%.1f'|format(b.y) }}" r="{{ '%.1f'|format(b.r) }}"><title>{{ b.place }}: {{ b.count }} posting(s){% if b.miles is not none %}, {{ b.miles }} miles away{% endif %}</title></circle></a>
+    {% endfor %}
+    {% if map.home %}<circle class="home" cx="{{ '%.1f'|format(map.home[0]) }}"
+      cy="{{ '%.1f'|format(map.home[1]) }}" r="4"><title>{{ map.home_name }}</title></circle>{% endif %}
+    {% for l in map.labels %}<text class="town" x="{{ '%.1f'|format(l.x) }}"
+      y="{{ '%.1f'|format(l.y) }}">{{ l.text }}</text>{% endfor %}
+    <rect class="bar" x="16" y="{{ map.height - 22 }}" width="{{ '%.1f'|format(map.scale_px) }}" height="3"/>
+    <text class="town left" x="16" y="{{ map.height - 28 }}">{{ map.scale_miles }} miles</text>
+  </svg>
+  <figcaption>{{ map_note }}
+    {%- if map.kind == 'local' and map.off_map %}
+    <a class="plain" href="{{ nationwide_url }}">See the whole country</a>{% endif %}</figcaption>
+</figure>
+{% endif %}
 {% for r in rows %}
 <div class="card">
   <div class="row1">
@@ -222,6 +272,37 @@ MATCHES = """{% extends "base" %}{% block body %}
   {% if r.reasons %}<ul class="reasons">{% for x in r.reasons %}<li>{{ x }}</li>{% endfor %}</ul>{% endif %}
 </div>
 {% else %}<p class="empty">Nothing matches those filters.</p>{% endfor %}
+<script>
+/* The slider, live. Everything here is presentation: it resizes the drawn
+   circle and relabels it while the handle moves, and submits the form when
+   the handle is released so the server answers the question again.
+
+   It must never decide which postings match. That answer comes from the
+   server, and a browser quietly disagreeing with it is exactly the bug this
+   map exists to make impossible. Without this script the page still works:
+   the slider and the checkbox are form controls and "Filter" submits them. */
+(function () {
+  var form = document.getElementById('where');
+  if (!form) { return; }
+  var miles = form.querySelector('#f-radius');
+  var shown = form.querySelector('#f-radius-out');
+  var anywhere = form.querySelector('#f-anywhere');
+  var ring = document.getElementById('ring');
+  var perMile = ring ? parseFloat(ring.getAttribute('data-per-mile')) : 0;
+  function paint() {
+    shown.textContent = miles.value + ' miles';
+    miles.disabled = anywhere.checked;
+    if (ring && perMile) { ring.setAttribute('r', (miles.value * perMile).toFixed(1)); }
+  }
+  miles.addEventListener('input', paint);
+  miles.addEventListener('change', function () {
+    anywhere.checked = false;
+    form.submit();
+  });
+  anywhere.addEventListener('change', function () { paint(); form.submit(); });
+  paint();
+})();
+</script>
 {% endblock %}"""
 
 JOB = """{% extends "base" %}{% block body %}
@@ -494,10 +575,50 @@ env.filters["localtime"] = db.local_time
 env.filters["localdate"] = lambda stamp: str(db.local_date(stamp) or stamp or "")
 
 
-# The choices on the Matches page. "" is nationwide: no distance filter at
-# all, which is the honest default for somebody who would move.
-RADII = [("", "anywhere"), ("10", "10 miles"), ("25", "25 miles"),
-         ("50", "50 miles"), ("100", "100 miles"), ("250", "250 miles")]
+# How far the slider goes. Below five miles a radius is a postcode, not a
+# commute; above three hundred it is a move, and `jsa.config.parse_radius`
+# says the same thing to a profile.
+RADIUS_MIN, RADIUS_MAX = 5, 300
+
+
+def _radius(typed: str, anywhere: str) -> float | None:
+    """Miles, or None for the whole country.
+
+    Empty means nationwide, which is what n18's links and the "Show them
+    anyway" link say. A value outside the slider's range is clamped rather
+    than refused: it came from a URL somebody typed, and the honest response
+    to "within 5000 miles" is the largest radius there is.
+    """
+    if anywhere:
+        return None
+    text = (typed or "").strip()
+    if not text:
+        return None
+    try:
+        miles = float(text)
+    except ValueError:
+        return None
+    return min(float(RADIUS_MAX), max(float(RADIUS_MIN), miles))
+
+
+def _map_note(view) -> str:
+    """What the map is not showing, in words. Nothing is dropped in silence."""
+    places_shown = len(view.bubbles)
+    if view.kind == "local":
+        bits = [f"{view.shown} posting(s) in {places_shown} place(s) on this map"]
+        if view.off_map:
+            bits.append(f"{view.off_map} further out than it reaches")
+    else:
+        bits = [f"{view.shown} posting(s) in {places_shown} place(s) "
+                "across the lower 48"]
+        if view.off_map:
+            bits.append(f"{view.off_map} in Alaska, Hawaii or Puerto Rico, "
+                        "which this map does not draw")
+    if view.remote:
+        bits.append(f"{view.remote} remote, with no distance to draw")
+    if view.unplaced:
+        bits.append(f"{view.unplaced} naming a place this could not find")
+    return "; ".join(bits) + "."
 
 
 def _origin(typed: str, profile: dict[str, Any] | None = None):
@@ -528,7 +649,17 @@ def _origin(typed: str, profile: dict[str, Any] | None = None):
     return found, str(found) if found else "", ""
 
 
-def _by_distance(rows, origin, radius: str):
+def _profile_radius(profile: dict[str, Any] | None) -> float:
+    """How far the operator said they would go, or the shipped default."""
+    from .config import DEFAULT_RADIUS_MILES, Preferences
+
+    try:
+        return Preferences.from_profile(profile or {}).radius_miles
+    except Exception:  # noqa: BLE001 - a bad profile is not a reason to 500
+        return DEFAULT_RADIUS_MILES
+
+
+def _by_distance(rows, origin, radius: float | None):
     """Filter to what is within the radius. Returns (rows, hidden, unplaced).
 
     A remote posting always passes: it has no distance, and hiding it behind
@@ -539,11 +670,7 @@ def _by_distance(rows, origin, radius: str):
     """
     from . import places
 
-    miles = None
-    try:
-        miles = float(radius) if radius else None
-    except ValueError:
-        miles = None
+    miles = radius
     for row in rows:
         row["miles"] = None
         if origin is None:
@@ -564,11 +691,6 @@ def _by_distance(rows, origin, radius: str):
         if row["miles"] is None:
             unplaced += 1
     return kept, hidden, unplaced
-
-
-def _regions() -> list[str]:
-    from .cli import load_regions
-    return sorted(load_regions())
 
 
 def _pending_count(con: sqlite3.Connection) -> int:
@@ -711,9 +833,10 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         return info
 
     @app.get("/", response_class=HTMLResponse)
-    def matches(near: str = "", track: str = "", degree: str = "",
-                remote: str = "", limit: int = 60, home: str = "",
-                radius: str = ""):
+    def matches(request: Request, near: str = "", track: str = "",
+                degree: str = "", remote: str = "", limit: int = 60,
+                home: str = "", radius: str = "", anywhere: str = ""):
+        from . import mapview
         from .cli import load_regions, region_clause
         where, params = ["1=1"], {}
         if near and near in load_regions():
@@ -728,9 +851,20 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         if remote == "remote":
             where.append("m.remote = 'remote'")
 
+        origin, home_text, home_problem = _origin(home, profile())
+        prefs_radius = _profile_radius(profile())
+        # A bare visit to "/" is not a request for the whole country: it is
+        # somebody opening their own dashboard, and their profile already
+        # says how far they would go. Any query string is obeyed literally,
+        # so every link on the page keeps meaning what it says.
+        if not request.query_params and origin is not None:
+            wanted = prefs_radius
+        else:
+            wanted = _radius(radius, anywhere)
+
         con = connect()
         try:
-            sql = f"""WITH capped AS (
+            listed = f"""WITH capped AS (
                         SELECT m.*, ROW_NUMBER() OVER (
                           PARTITION BY m.company ORDER BY m.match_score DESC) AS rk
                         FROM v_new_matches m WHERE {' AND '.join(where)})
@@ -739,14 +873,20 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             # Distance is arithmetic on parsed text, not SQL, so a radius
             # filter has to read more rows than it shows. Capped, because
             # this runs on every page load.
-            params["limit"] = limit * 8 if radius else limit
-            rows = [_decode(r) for r in con.execute(sql, params).fetchall()]
+            params["limit"] = limit * 8 if wanted else limit
+            rows = [_decode(r) for r in con.execute(listed, params).fetchall()]
             total = con.execute("SELECT COUNT(*) FROM v_new_matches").fetchone()[0]
+            # The map draws every posting that survived the other filters,
+            # uncapped and unlimited: it is a picture of where the work is,
+            # and the top sixty is not that. Four columns, so it stays cheap.
+            drawn = [dict(r) for r in con.execute(
+                "SELECT m.job_id, m.title, m.location, m.remote FROM "
+                f"v_new_matches m WHERE {' AND '.join(where)}", params)]
         finally:
             con.close()
 
-        origin, home_text, home_problem = _origin(home, profile())
-        rows, hidden, unplaced = _by_distance(rows, origin, radius)
+        view = mapview.build(drawn, origin, wanted)
+        rows, hidden, unplaced = _by_distance(rows, origin, wanted)
         rows = rows[:limit]
         # Remote postings pass any radius, so without this the page can say
         # "within 25 miles" over a list that is mostly remote work.
@@ -754,17 +894,20 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                          if (r.get("remote") or "") != "remote"
                          and r.get("miles") is not None)
         return render("matches", "matches", rows=rows, total=total,
-                      regions=_regions(), near=near, track=track,
+                      near=near, track=track,
                       degree=degree, remote=remote,
-                      home=str(origin) if (origin and radius) else "",
+                      home=str(origin) if (origin and wanted) else "",
                       home_text=home_text, home_problem=home_problem,
-                      radius=radius, radii=RADII, hidden=hidden,
-                      near_count=near_count,
-                      unplaced=unplaced,
+                      radius="%g" % wanted if wanted else "",
+                      profile_radius="%g" % prefs_radius,
+                      radius_min=RADIUS_MIN, radius_max=RADIUS_MAX,
+                      map=view, map_note=_map_note(view),
+                      hidden=hidden, near_count=near_count, unplaced=unplaced,
                       nationwide_url="?" + urlencode(
                           {k: v for k, v in
-                           {"near": near, "track": track, "degree": degree,
-                            "remote": remote, "home": home_text}.items() if v}))
+                           {"anywhere": "1", "near": near, "track": track,
+                            "degree": degree, "remote": remote,
+                            "home": home_text}.items() if v}))
 
     @app.get("/job/{job_id}", response_class=HTMLResponse)
     def job_detail(job_id: int, msg: str = "", bad: int = 0):

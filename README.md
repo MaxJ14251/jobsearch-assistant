@@ -440,11 +440,23 @@ Local review dashboard on http://127.0.0.1:8765. It covers the whole path from a
 match to a resume you can upload yourself:
 
 - **Matches**, filtered by **"within N miles of here"** — a ZIP or a city and
-  a radius, pre-filled from your profile, or *anywhere* for a nationwide
-  search. Each card shows how far away the job is. Remote roles always pass a
-  radius, because a radius is not what decides them; the page says how many
-  of the results are actually near you, how many the radius hid, and how many
-  of those name a place it could not find — unknown is not the same as far.
+  a slider in miles, pre-filled from your profile, or *anywhere in the US* for
+  a nationwide search. Each card shows how far away the job is. Remote roles
+  always pass a radius, because a radius is not what decides them; the page
+  says how many of the results are actually near you, how many the radius hid,
+  and how many of those name a place it could not find — unknown is not the
+  same as far.
+- **A map**, drawn on your machine from the shipped outline: your radius as a
+  circle, one bubble per town sized by how many jobs are in it, and the ones
+  just outside drawn faintly so you can see what widening the slider would
+  reach. Toggle *anywhere* and it becomes the lower 48. There are no map
+  tiles: a tile layer would tell a map server where you live, one request per
+  tile, every time the page loads. A posting that is remote, unplaceable or
+  off the edge is counted under the map in words rather than dropped, and a
+  dot is inside the circle exactly when the list says the job is in range —
+  the picture is measured first and drawn second, so it cannot disagree with
+  the filter. See
+  [ADR 0015](docs/decisions/0015-a-map-that-agrees-with-its-filter.md).
 - A **Pipeline** grouped by stage, with each application's next action,
   overdue flags, and the same stage moves as the CLI.
 - **Job page**: every drafted document, newest version first, with its status
@@ -656,7 +668,7 @@ which is NJ/NY/Sunnyvale rather than LA.
 
 ## Test coverage
 
-811 tests, **79% line coverage**, reported as measured rather than tuned.
+853 tests, **80% line coverage**, reported as measured rather than tuned.
 
 The distribution is the interesting part. The code that decides what reaches a
 document is well covered; the thin parts are network adapters that need live
@@ -810,8 +822,13 @@ jobsearch/
     discover.py                 # feed -> score -> tracker
     llm.py                      # OpenAI-compatible client, fallback chain
     enrich.py                   # LLM pass over survivors, strictly validated
+    places.py                   # a posting's location -> a point on a map
+    mapview.py                  # that map, as geometry: no markup, no tiles
+    web.py                      # the local review dashboard
     cli.py                      # python -m jsa ...
-  tests/                        # 91 tests
+  data/                         # Census centroids + outline, public domain
+  tools/build_map_data.py       # rebuilds data/ from census.gov
+  tests/                        # 853 tests
 ```
 
 ## Configure it for yourself
@@ -840,8 +857,11 @@ A degree requirement is never a filter: it is shown on the job as "asks for a
 degree" and changes neither whether a job appears nor its score.
 
 **Distance.** Postings are placed on a map from Census centroids that ship
-with the tool — 32,109 towns and 33,791 ZIP codes, no geocoding service, so
-your home ZIP never leaves your machine. A town within `radius_miles`
+with the tool — 32,109 towns, 33,791 ZIP codes and a 1:20,000,000 state
+outline, no geocoding service and no map tiles, so your home ZIP never leaves
+your machine. All three files are public domain and can be rebuilt from their
+sources with `python tools/build_map_data.py`, which prints the row count and
+SHA-256 of each so what ships can be checked rather than trusted. A town within `radius_miles`
 (default 40) of `home_location` scores as fully as one you listed by name, so
 you do not have to write down every suburb you would commute to: measured on
 this tracker, Example Town scores 1.0 at 15 miles without appearing in any list.

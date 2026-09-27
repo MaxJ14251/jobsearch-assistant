@@ -67,8 +67,17 @@ class RadiusCase(unittest.TestCase):
 
 
 class TestWhatItShows(RadiusCase):
-    def test_no_radius_shows_everything(self):
-        self.assertEqual(len(self.titles()), len(JOBS))
+    def test_anywhere_shows_everything(self):
+        self.assertEqual(len(self.titles("?anywhere=1")), len(JOBS))
+
+    def test_a_bare_visit_uses_the_radius_in_the_profile(self):
+        """Changed in n19. It used to show the whole country, which is not
+        what somebody opening their own dashboard is asking for: the profile
+        already says how far they would go, and the page says what it hid."""
+        shown = self.titles()
+        self.assertIn("Nearby Engineer", shown)
+        self.assertNotIn("Far Engineer", shown)
+        self.assertIn("hidden by the radius", self.page())
 
     def test_a_radius_keeps_what_is_inside_it(self):
         shown = self.titles("?radius=25")
