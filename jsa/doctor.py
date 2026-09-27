@@ -294,15 +294,25 @@ def check_market(profile: dict[str, Any], con: sqlite3.Connection | None,
         return
     named = ", ".join(sorted(s.upper() for s in states))
     if local < THIN_MARKET:
-        report.add(
-            False,
-            f"Only {local} on-site posting(s) in {named}",
-            f"That is how this will stay: the shipped feeds are a few dozen "
-            f"large employers, so local coverage depends on whether they have "
-            f"an office near you. {remote} remote role(s) are in your tracker "
-            f"and those are the ones to work with. For local roles, add "
-            f"employers near you to config/companies.yaml and run "
-            f"`jsa verify`.")
+        import os
+
+        if os.environ.get("MUSE_API_KEY", "").strip():
+            fix = (f"{remote} remote role(s) are in your tracker. The "
+                   f"nationwide source is configured, so run `jsa discover` "
+                   f"again -- it asks about your own cities. If it stays thin "
+                   f"after that, the local market for these titles is thin, "
+                   f"and adding employers near you to config/companies.yaml "
+                   f"is the next lever.")
+        else:
+            fix = (f"{remote} remote role(s) are in your tracker, and local "
+                   f"coverage is this thin because every shipped feed is one "
+                   f"large employer's own board. Set MUSE_API_KEY in .env "
+                   f"(free, from themuse.com/developers/api/v2/apps): that "
+                   f"source asks about YOUR cities across many employers. "
+                   f"Measured 2026-09-26, it returned 9 Boise postings per "
+                   f"run where these feeds had none at all. You can also add "
+                   f"employers near you to config/companies.yaml.")
+        report.add(False, f"Only {local} on-site posting(s) in {named}", fix)
 
 
 def check_api_key(report: Report) -> None:

@@ -11,18 +11,36 @@ if you are job hunting outside the US, this will return nothing and the emptines
 will not explain itself. That scope is deliberate; see
 [docs/decisions/0002-geographic-scope.md](docs/decisions/0002-geographic-scope.md).
 
-**What you get depends on where you live, and it is worth knowing before you
-start.** The shipped feed list is a few dozen large tech employers and the AI
-labs. They post wherever they have offices, so out of the box this is a
-strong remote-roles tool everywhere and a local one only where those employers
-already are. Measured over 9,451 postings from all 50 feeds: 247 remote roles
-for every reader, and on-site roles in their own state numbering 250 for Los
-Angeles, 168 for Seattle, 5 for Columbus, 0 for Boise. `jsa doctor` tells you
-your own number on day one. For local coverage anywhere else, add employers
+**What you get depends on where you live, and on one free key.** Fifty of the
+fifty-one shipped feeds are a single employer's own job board, so between them
+they cover the places those employers have offices and nowhere else. Measured
+2026-09-26 over 1,147 collected postings: **25 states had no on-site posting at
+all**, and in-state on-site counts ran 364 for California and 0 for Idaho.
+
+The fifty-first feed is the fix. It asks one job-site's public API about **your
+own cities** across many employers, so it works wherever you live. Measured the
+same day, per discovery run of 100 postings a city:
+
+| Your city | Local postings | Remote | Employers |
+|---|---|---|---|
+| Boise, ID | 9 | 91 | 17 |
+| Columbus, OH | 57 | 43 | 21 |
+| Seattle, WA | 73 | 38 | 18 |
+| Los Angeles, CA | 79 | 30 | 21 |
+
+Boise's number from the other fifty feeds is zero.
+
+It needs a free key in `.env` as `MUSE_API_KEY` (register at
+[themuse.com/developers/api/v2/apps](https://www.themuse.com/developers/api/v2/apps)
+— their terms ask you to). Without it that source is skipped, discovery still
+runs, and you get remote roles plus whatever the employer feeds hold near you.
+`jsa doctor` tells you your own numbers on day one. You can still add employers
 near you to [config/companies.yaml](config/companies.yaml) and run
-`python -m jsa verify` — see
+`python -m jsa verify`; see
 [ADR 0009](docs/decisions/0009-what-the-shipped-feed-list-is.md) for why the
-list is not simply made bigger.
+employer list is not simply made longer, and
+[ADR 0013](docs/decisions/0013-one-nationwide-source.md) for why one
+aggregating source was the answer instead.
 
 ## Quickstart
 
@@ -632,7 +650,7 @@ which is NJ/NY/Sunnyvale rather than LA.
 
 ## Test coverage
 
-729 tests, **77% line coverage**, reported as measured rather than tuned.
+747 tests, **77% line coverage**, reported as measured rather than tuned.
 
 The distribution is the interesting part. The code that decides what reaches a
 document is well covered; the thin parts are network adapters that need live

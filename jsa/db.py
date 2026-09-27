@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import json
 import sqlite3
 from datetime import datetime, timezone
@@ -103,6 +104,7 @@ def migrate(con: sqlite3.Connection, schema: Path = SCHEMA_PATH) -> list[str]:
                 pass
 
     applied += _rebuild_approvals_if_stale(con, text)
+    applied += _rebuild_sources_if_stale(con, text)
 
     if applied:
         for row in con.execute(
@@ -156,6 +158,37 @@ def _rebuild_approvals_if_stale(con: sqlite3.Connection, schema_sql: str) -> lis
         )
     con.executescript("DROP TABLE approvals_old; PRAGMA foreign_keys=ON;")
     return [f"approvals(rebuilt: {reason})"]
+
+
+def _rebuild_sources_if_stale(con: sqlite3.Connection, schema_sql: str) -> list[str]:
+    """Widen sources.kind, which a CHECK constraint pins and ALTER cannot move.
+
+    A database created before the nationwide source existed rejects it with a
+    constraint error on the first discovery run, which reads as a bug in the
+    feed rather than an out-of-date table.
+    """
+    row = con.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='sources'"
+    ).fetchone()
+    if not row or "themuse" in (row["sql"] or ""):
+        return []
+
+    import re as _re
+
+    cols = [r["name"] for r in con.execute("PRAGMA table_info(sources)")]
+    match = _re.search(r"CREATE TABLE IF NOT EXISTS\s+sources\s*\(.*?\n\);",
+                       schema_sql, _re.S)
+    if not match:
+        return []
+    con.executescript("PRAGMA foreign_keys=OFF;"
+                      "ALTER TABLE sources RENAME TO sources_old;")
+    con.executescript(match.group(0))
+    shared = ", ".join(
+        c for c in cols
+        if c in {r["name"] for r in con.execute("PRAGMA table_info(sources)")})
+    con.execute(f"INSERT INTO sources ({shared}) SELECT {shared} FROM sources_old")
+    con.executescript("DROP TABLE sources_old; PRAGMA foreign_keys=ON;")
+    return ["sources(rebuilt: widened kind CHECK)"]
 
 
 # --- upserts ---------------------------------------------------------------
@@ -216,12 +249,57 @@ def mark_source_polled(
     )
 
 
+def _norm(text: Any) -> str:
+    """Lowercase, collapse whitespace, drop punctuation. For comparing titles."""
+    return " ".join(re.sub(r"[^a-z0-9 ]+", " ", str(text or "").lower()).split())
+
+
+def _first_city(location: Any) -> str:
+    """The first place named, normalised. "Boise, ID; Flexible / Remote" -> "boise id"."""
+    first = str(location or "").split(";")[0].split("(")[0]
+    return _norm(first)
+
+
+def find_duplicate(con: sqlite3.Connection, job: dict[str, Any]) -> int | None:
+    """The id of the same posting stored from a DIFFERENT source, or None.
+
+    An aggregator lists jobs this tracker already has from the employer's own
+    board, under its own posting id and its own URL, so the (source, external
+    id) key cannot see it. Same company, same title, same first location is
+    the rule; the company is already resolved to one row by slug before this
+    runs, so two employers with similar names cannot collide here.
+
+    It deliberately does NOT merge on company and title alone: the same title
+    in two cities is two jobs, and `v_new_matches` groups those by dedup_key
+    for display. A wrong merge hides a job the operator would have seen,
+    which is worse than showing one posting twice -- so when the location is
+    missing on either side, this reports no duplicate.
+    """
+    title, city = _norm(job.get("title")), _first_city(job.get("location"))
+    if not title or not city or not job.get("company_id"):
+        return None
+    rows = con.execute(
+        "SELECT id, title, location, source_id FROM jobs "
+        "WHERE company_id = ? AND closed_at IS NULL AND archived_at IS NULL",
+        (job["company_id"],)).fetchall()
+    for row in rows:
+        if row["source_id"] == job.get("source_id"):
+            continue                      # same feed: the normal key handles it
+        if _norm(row["title"]) == title and _first_city(row["location"]) == city:
+            return int(row["id"])
+    return None
+
+
 def upsert_job(con: sqlite3.Connection, job: dict[str, Any]) -> tuple[int, bool]:
     """Insert or update a listing. Returns (job_id, is_new)."""
     existing = con.execute(
         "SELECT id, description_hash FROM jobs WHERE source_id IS ? AND external_id IS ?",
         (job.get("source_id"), job.get("external_id")),
     ).fetchone()
+    if existing is None and find_duplicate(con, job) is not None:
+        # Already here from the employer's own board. That row is the better
+        # one: it came from the employer, and its URL is where you apply.
+        return int(find_duplicate(con, job)), False
 
     payload = {
         "company_id": job["company_id"],

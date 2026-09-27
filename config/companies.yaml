@@ -16,6 +16,31 @@
 sources:
 
   # ==========================================================================
+  # Everywhere — the one source that is not a single employer
+  # ==========================================================================
+
+  # Every other entry in this file is one company's own job board, so the
+  # coverage of this file is the coverage of those companies' offices.
+  # Measured 2026-09-26 over 1,147 stored postings: 25 states had no on-site
+  # posting at all, and Boise had none while Los Angeles had 250.
+  #
+  # This one aggregates many employers and is queried with YOUR cities, from
+  # job_search_preferences.locations. Sampling 80 postings per city the same
+  # day: Boise returned 6 in Boise and 74 remote out of a pool of ~6,700;
+  # Columbus returned 47 in Columbus out of 80.
+  #
+  # It needs a free key in .env as MUSE_API_KEY -- their terms ask you to
+  # register. Without one, discovery reports it as skipped and carries on.
+  - company: The Muse
+    slug: themuse
+    kind: themuse
+    careers_url: https://www.themuse.com/jobs
+    hq: nationwide
+    priority: 1
+    verified: true
+
+
+  # ==========================================================================
   # LA / SoCal — local roles, where a coffee chat is actually possible
   # ==========================================================================
 

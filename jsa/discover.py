@@ -21,6 +21,7 @@ class SourceReport:
     kept: int = 0
     new: int = 0
     rejected: int = 0
+    duplicate: int = 0        # already stored from an employer's own board
 
 
 def verify_sources(entries: list[dict[str, Any]] | None = None) -> list[SourceReport]:
@@ -36,7 +37,7 @@ def verify_sources(entries: list[dict[str, Any]] | None = None) -> list[SourceRe
                 SourceReport(entry["company"], entry.get("kind", "?"), "disabled")
             )
             continue
-        result = sources.fetch(entry)
+        result = sources.fetch(_verify_context(entry))
         reports.append(
             SourceReport(
                 company=entry["company"],
@@ -46,6 +47,31 @@ def verify_sources(entries: list[dict[str, Any]] | None = None) -> list[SourceRe
             )
         )
     return reports
+
+
+def _verify_context(entry: dict[str, Any]) -> dict[str, Any]:
+    """Same context, for `jsa verify`, which runs before a tracker exists."""
+    if entry.get("kind") != "themuse":
+        return entry
+    try:
+        prefs = Preferences.from_profile(load_profile())
+    except Exception:  # noqa: BLE001 - verify reports, it does not refuse
+        return entry
+    return _with_context(entry, prefs)
+
+
+def _with_context(entry: dict[str, Any], prefs: Preferences) -> dict[str, Any]:
+    """What a source needs that is not in companies.yaml.
+
+    Every other feed is one employer's board and needs nothing. An aggregator
+    is asked about the operator's own cities, and its key belongs in .env
+    rather than in a file that gets committed.
+    """
+    if entry.get("kind") != "themuse":
+        return entry
+    import os
+    return {**entry, "locations": prefs.locations,
+            "api_key": os.environ.get("MUSE_API_KEY", "")}
 
 
 def discover(
@@ -87,7 +113,7 @@ def discover(
                 company_id=company_id,
             )
 
-            result = sources.fetch(entry)
+            result = sources.fetch(_with_context(entry, prefs))
             report = SourceReport(company, kind, result.status, fetched=len(result.jobs))
 
             if not result.ok:
@@ -106,18 +132,18 @@ def discover(
                 if score < min_score:
                     report.rejected += 1
                     continue
-                job_id, is_new = db.upsert_job(
-                    con,
-                    {
-                        **job,
-                        "company_id": company_id,
-                        "source_id": source_id,
-                        "dedup_key": dedup_key(company_id, job["title"]),
-                        "track": job_track(job["title"], prefs),
-                        "match_score": score,
-                        "match_reasons": reasons,
-                    },
-                )
+                payload = {
+                    **job,
+                    "company_id": company_id,
+                    "source_id": source_id,
+                    "dedup_key": dedup_key(company_id, job["title"]),
+                    "track": job_track(job["title"], prefs),
+                    "match_score": score,
+                    "match_reasons": reasons,
+                }
+                if db.find_duplicate(con, payload) is not None:
+                    report.duplicate += 1
+                job_id, is_new = db.upsert_job(con, payload)
                 report.kept += 1
                 report.new += int(is_new)
 

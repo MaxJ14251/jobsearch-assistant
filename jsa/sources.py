@@ -512,6 +512,114 @@ def fetch_rss(entry: dict[str, Any]) -> FetchResult:
     return FetchResult(True, jobs, "ok")
 
 
+# --- The Muse ---------------------------------------------------------------
+# The one source that is not a single employer. Every other feed here is one
+# company's own board, which is why the shipped list covers the places those
+# companies hire and nowhere else: measured 2026-09-26 over 1,147 stored
+# postings, 25 states had NO on-site posting at all.
+#
+# The Muse aggregates many employers and filters by city, so the query is
+# built from the operator's own `locations` rather than from a board token.
+# Measured the same day, sampling 80 postings per city: Boise returned 6 in
+# Boise and 74 remote from a pool of ~6,700; Columbus 47 in Columbus of 80.
+# Boise's count from the shipped feeds was zero.
+#
+# Terms (https://www.themuse.com/developers/api/v2/terms, read 2026-09-26):
+# registration is required for any use beyond testing (2.2), content shown
+# must link back to themuse.com (3.4) -- the stored URL is their posting
+# page, so that holds -- cloning the content wholesale is forbidden (3.3g),
+# which is why this fetches only the operator's own cities and stops at
+# MAX_PAGES, and rate limits must be respected (4.2): 500 requests/hour
+# without a key, 3,600 with one.
+
+MUSE_BASE = "https://www.themuse.com/api/public/jobs"
+# Per city per run. 20 postings a page, so 5 pages is 100 of the freshest for
+# that city -- enough to keep a tracker fed daily, nowhere near a clone.
+MUSE_MAX_PAGES = 5
+
+
+def themuse_url(entry: dict[str, Any]) -> str:
+    return MUSE_BASE
+
+
+def _muse_job(item: dict[str, Any]) -> dict[str, Any] | None:
+    names = [l.get("name", "") for l in item.get("locations") or []]
+    location = "; ".join(n for n in names if n)
+    desc = strip_html(item.get("contents"))
+    url = ((item.get("refs") or {}).get("landing_page") or "").strip()
+    if not url or not item.get("id"):
+        return None
+    remote = "remote" if any("flexible" in n.lower() or "remote" in n.lower()
+                             for n in names) else classify_remote(location, desc)
+    # The Muse's own level names, mapped to the schema's vocabulary. The
+    # enrichment pass may refine this later from the posting text.
+    levels = [str(l.get("name", "")).lower() for l in item.get("levels") or []]
+    seniority = "unknown"
+    for label, value in (("internship", "intern"), ("entry", "entry"),
+                         ("mid", "mid"), ("senior", "senior"),
+                         ("management", "senior"), ("executive", "principal")):
+        if any(label in lv for lv in levels):
+            seniority = value
+            break
+    return {
+        "external_id": str(item.get("id")),
+        "title": item.get("name") or "",
+        "department": (item.get("categories") or [{}])[0].get("name"),
+        "location": location,
+        "remote": remote,
+        "employment_type": "unknown",
+        "seniority": seniority,
+        "url": url,
+        "description": desc,
+        "description_hash": content_hash(desc),
+        "posted_at": item.get("publication_date"),
+    }
+
+
+def fetch_themuse(entry: dict[str, Any]) -> FetchResult:
+    """Postings near the operator's own locations, from many employers.
+
+    `locations` is filled in by discovery from the profile; an entry with
+    none is a configuration mistake, not an empty result, and says so.
+    """
+    locations = [str(l).strip() for l in (entry.get("locations") or []) if str(l).strip()]
+    if not locations:
+        return FetchResult(
+            False, [], "no locations: fill in job_search_preferences.locations")
+    key = (entry.get("api_key") or "").strip()
+    if not key:
+        # Not a failure: the operator has not registered yet, and the terms
+        # ask them to. Everything else in the run still works.
+        return FetchResult(True, [], "skipped (no MUSE_API_KEY; register free "
+                                     "at themuse.com/developers/api/v2/apps)")
+
+    jobs: dict[str, dict[str, Any]] = {}
+    try:
+        with _client() as client:
+            for city in locations:
+                for page in range(1, MUSE_MAX_PAGES + 1):
+                    params = {"page": page, "location": city, "api_key": key}
+                    resp = client.get(MUSE_BASE, params=params)
+                    if resp.status_code == 403:
+                        return FetchResult(False, list(jobs.values()),
+                                           "rate limited by The Muse (403)")
+                    resp.raise_for_status()
+                    data = resp.json() or {}
+                    results = data.get("results") or []
+                    for item in results:
+                        job = _muse_job(item)
+                        if job:
+                            # The same posting comes back for several of the
+                            # operator's cities. One row, not one per city.
+                            jobs[job["external_id"]] = job
+                    if len(results) < 20 or page >= (data.get("page_count") or 1):
+                        break
+                    time.sleep(POLITE_DELAY_S)
+    except Exception as exc:  # noqa: BLE001
+        return _fail(exc)
+    return FetchResult(True, list(jobs.values()), "ok")
+
+
 # --- dispatch ---------------------------------------------------------------
 
 FETCHERS: dict[str, Callable[[dict[str, Any]], FetchResult]] = {
@@ -522,6 +630,7 @@ FETCHERS: dict[str, Callable[[dict[str, Any]], FetchResult]] = {
     "workable": fetch_workable,
     "custom": fetch_custom,
     "rss": fetch_rss,
+    "themuse": fetch_themuse,
 }
 
 URL_BUILDERS: dict[str, Callable[[dict[str, Any]], str]] = {
@@ -530,6 +639,7 @@ URL_BUILDERS: dict[str, Callable[[dict[str, Any]], str]] = {
     "ashby": ashby_url,
     "workday": workday_url,
     "workable": workable_url,
+    "themuse": themuse_url,
 }
 
 REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
@@ -540,6 +650,7 @@ REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
     "workday": ("tenant", "site"),
     "custom": ("handler",),
     "rss": ("url",),
+    "themuse": (),
 }
 
 
