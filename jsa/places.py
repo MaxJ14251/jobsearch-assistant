@@ -61,7 +61,15 @@ ALIASES = {
     "washington d.c.": ("Washington", "DC"),
     "washington, d.c.": ("Washington", "DC"),
     "d.c.": ("Washington", "DC"),
+    # The Census calls it "Urban Honolulu"; no posting ever will.
+    "honolulu": ("Urban Honolulu", "HI"),
 }
+
+# The first word of a place name, abbreviated or not. The Census picks one
+# ("St. Paul", "Mount Vernon") and a posting picks either, so both are
+# indexed. Written as pairs so it works in both directions.
+FIRST_WORD = (("st.", "saint"), ("st", "saint"), ("ste.", "sainte"),
+              ("mt.", "mount"), ("ft.", "fort"))
 
 # "Remote", "Flexible", "Anywhere" -- a place-shaped word that is not a place.
 REMOTE = re.compile(
@@ -123,15 +131,45 @@ def _places() -> tuple[dict[tuple[str, str], Place], dict[str, list[Place]]]:
             key = place.name.lower()
             by_key[(key, place.state)] = place
             by_name.setdefault(key, []).append(place)
-            # The Census calls Idaho's capital "Boise City"; everybody else
-            # calls it Boise. Index the shorter form too -- but never when
-            # that form is a STATE name, which would turn a posting reading
-            # "Oklahoma" into Oklahoma City and "Kansas" into Kansas City.
-            short = re.sub(r"\s+city$", "", key)
-            if short != key and short not in STATE_CODES:
+            for short in _also_known_as(key):
                 by_key.setdefault((short, place.state), place)
                 by_name.setdefault(short, []).append(place)
     return by_key, by_name
+
+
+def _also_known_as(key: str) -> list[str]:
+    """Other names for the same town, from the Census name alone.
+
+    The Gazetteer records the legal name of a place, and a job posting uses
+    the name people say. Two shapes account for nearly all of the gap:
+
+    - "Boise City" is Idaho's capital; everybody writes Boise.
+    - a consolidated city-county government carries both names --
+      "Nashville-Davidson", "Macon-Bibb County", "Louisville/Jefferson
+      County", "Butte-Silver Bow" -- and a posting says Nashville, Macon,
+      Louisville, Butte. Six of the twenty were unreachable before this.
+
+    Every alias is a name the Census file itself contains, split at a
+    punctuation mark it put there. Nothing is invented, and a STATE name is
+    never produced: "Oklahoma City" must not answer to "Oklahoma", or a
+    posting that named the state lands 1,100 miles from it.
+    """
+    out = []
+    candidates = [re.sub(r"\s+city$", "", key),
+                  re.sub(r"\s+county$", "", key),
+                  re.split(r"[-/]", key, 1)[0].strip()]
+    head, _, tail = key.partition(" ")
+    if tail:
+        for short, long in FIRST_WORD:
+            if head == short:
+                candidates.append(f"{long} {tail}")
+            elif head == long:
+                candidates.append(f"{short} {tail}")
+    for short in candidates:
+        if short and short != key and short not in STATE_CODES:
+            if short not in out:
+                out.append(short)
+    return out
 
 
 @lru_cache(maxsize=1)

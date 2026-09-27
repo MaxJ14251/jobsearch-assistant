@@ -38,6 +38,99 @@ class TestTheShippedData(unittest.TestCase):
             self.assertNotIn(term, source, f"{term} in the placing path")
 
 
+class TestTheNameAPostingActuallyUses(unittest.TestCase):
+    """n19. The Gazetteer records the legal name of a place; a job posting
+    uses the name people say, and for twenty places those are not the same.
+
+    Six of them are cities anybody would job-hunt in. Until the data was
+    rebuilt from a written-down rule (tools/build_map_data.py) every posting
+    in Nashville, Macon, Athens, Augusta, Lexington or Butte was unplaceable,
+    and nobody could see that it was happening.
+    """
+
+    def resolves(self, text):
+        found = places.parse(text).places
+        self.assertTrue(found, f"{text} did not place")
+        return found[0]
+
+    def test_consolidated_city_county_governments(self):
+        for text, state in (("Nashville, TN", "TN"), ("Macon, GA", "GA"),
+                            ("Athens, GA", "GA"), ("Augusta, GA", "GA"),
+                            ("Lexington, KY", "KY"), ("Butte, MT", "MT"),
+                            ("Louisville, KY", "KY"),
+                            ("Indianapolis, IN", "IN")):
+            with self.subTest(text=text):
+                self.assertEqual(self.resolves(text).state, state)
+
+    def test_the_full_legal_name_still_works(self):
+        self.assertIsNotNone(places.resolve("Nashville-Davidson", "TN"))
+        self.assertIsNotNone(places.resolve("Macon-Bibb County", "GA"))
+
+    def test_a_name_that_ends_in_city_keeps_it(self):
+        """Nevada's capital is Carson City, not Carson. Stripping the word
+        "city" a second time is how it stopped being findable."""
+        carson = places.resolve("Carson City", "NV")
+        self.assertIsNotNone(carson)
+        self.assertEqual(carson.name, "Carson City")
+
+    def test_saint_and_st_are_the_same_town(self):
+        for pair in (("Saint Paul, MN", "St. Paul, MN"),
+                     ("Saint Louis, MO", "St. Louis, MO")):
+            with self.subTest(pair=pair):
+                self.assertEqual(self.resolves(pair[0]), self.resolves(pair[1]))
+
+    def test_a_census_name_nobody_uses(self):
+        """The Census calls it Urban Honolulu."""
+        self.assertEqual(self.resolves("Honolulu, HI").state, "HI")
+
+    def test_an_alias_is_never_a_state_name(self):
+        """"Oklahoma City" must not answer to "Oklahoma": a posting naming
+        the state would land 1,100 miles from where it thinks it is."""
+        self.assertIsNone(places.resolve("Oklahoma"))
+        self.assertIsNone(places.resolve("Kansas"))
+        self.assertIsNone(places.resolve("Washington"))
+
+    def test_the_hundred_largest_cities_all_place(self):
+        """The list below is the top hundred by population plus the six the
+        consolidated-government names had swallowed. A miss here is a whole
+        job market the tool cannot see."""
+        misses = [city for city in BIG_CITIES if not places.parse(city).places]
+        self.assertEqual(misses, [])
+
+
+BIG_CITIES = [
+    "New York, NY", "Los Angeles, CA", "Chicago, IL", "Houston, TX",
+    "Phoenix, AZ", "Philadelphia, PA", "San Antonio, TX", "San Diego, CA",
+    "Dallas, TX", "Jacksonville, FL", "Austin, TX", "Fort Worth, TX",
+    "San Jose, CA", "Columbus, OH", "Charlotte, NC", "Indianapolis, IN",
+    "San Francisco, CA", "Seattle, WA", "Denver, CO", "Oklahoma City, OK",
+    "Nashville, TN", "Washington, DC", "El Paso, TX", "Las Vegas, NV",
+    "Boston, MA", "Detroit, MI", "Portland, OR", "Louisville, KY",
+    "Memphis, TN", "Baltimore, MD", "Milwaukee, WI", "Albuquerque, NM",
+    "Tucson, AZ", "Fresno, CA", "Sacramento, CA", "Mesa, AZ", "Atlanta, GA",
+    "Kansas City, MO", "Colorado Springs, CO", "Raleigh, NC", "Omaha, NE",
+    "Miami, FL", "Virginia Beach, VA", "Oakland, CA", "Minneapolis, MN",
+    "Tulsa, OK", "Bakersfield, CA", "Wichita, KS", "Arlington, TX",
+    "Aurora, CO", "Tampa, FL", "New Orleans, LA", "Cleveland, OH",
+    "Anaheim, CA", "Honolulu, HI", "Lexington, KY", "Stockton, CA",
+    "Corpus Christi, TX", "Henderson, NV", "Riverside, CA", "Newark, NJ",
+    "Saint Paul, MN", "Santa Ana, CA", "Cincinnati, OH", "Irvine, CA",
+    "Orlando, FL", "Pittsburgh, PA", "St. Louis, MO", "Greensboro, NC",
+    "Jersey City, NJ", "Anchorage, AK", "Lincoln, NE", "Plano, TX",
+    "Durham, NC", "Buffalo, NY", "Chandler, AZ", "Chula Vista, CA",
+    "Toledo, OH", "Madison, WI", "Gilbert, AZ", "Reno, NV",
+    "Fort Wayne, IN", "North Las Vegas, NV", "St. Petersburg, FL",
+    "Lubbock, TX", "Irving, TX", "Laredo, TX", "Winston-Salem, NC",
+    "Chesapeake, VA", "Glendale, AZ", "Garland, TX", "Scottsdale, AZ",
+    "Norfolk, VA", "Boise, ID", "Fremont, CA", "Spokane, WA",
+    "Santa Clarita, CA", "Baton Rouge, LA", "Richmond, VA", "Hialeah, FL",
+    "San Bernardino, CA", "Tacoma, WA",
+    # the ones a mangled name had hidden
+    "Augusta, GA", "Macon, GA", "Athens, GA", "Butte, MT",
+    "Carson City, NV", "Juneau, AK",
+]
+
+
 class TestDistance(unittest.TestCase):
     def test_a_known_pair(self):
         """Example Town to Example Town is about 5 miles."""
