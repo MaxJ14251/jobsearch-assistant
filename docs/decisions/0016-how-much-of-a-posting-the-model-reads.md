@@ -104,12 +104,13 @@ overstate it:
   wording the model produces and the facts it extracts, not which of the
   operator's bullets get picked. Drafting one long posting at 4,000 and at
   12,000 selected the identical six bullets and reported identical gaps.
-- **Extraction was already mostly fine at 6,000.** Only 43 postings state
-  their requirements *only* after character 4,000, and enrich's own budget
-  was 6,000, where 98% of degree lines and 96% of clearance lines were
-  already visible. An A/B extraction over those 43 was still running when
-  this was written; whatever it shows, the population it can affect is 3% of
-  the tracker.
+- **Extraction did not change at all.** Only 43 postings state their
+  requirements *only* after character 4,000 — the cases where the old cap
+  could not have seen them. Extracting 14 of those (the latest-stated first)
+  at 4,000 and at 12,000 produced **identical facts in 14 of 14**: degree,
+  years, clearance, seniority and remote. The model infers most of these from
+  the role description it could already see, or the posting restates them
+  earlier in looser words than a heading.
 - **Four postings in the live tracker hold facts that contradict their own
   text** (jobs 288 and 514 record no degree requirement while the posting
   states one). Re-extracting them at every budget from 4,000 to 12,000
