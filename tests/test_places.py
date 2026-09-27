@@ -124,6 +124,32 @@ class TestRealLocationStrings(unittest.TestCase):
         self.assertEqual([str(p) for p in parsed.places], ["Los Angeles, CA"])
         self.assertIn("Bellevue - 110 110th Ave NE", parsed.unplaced)
 
+    def test_an_arrangement_in_front_of_the_place(self):
+        """"Hybrid - San Francisco": 25 postings start with an arrangement."""
+        self.assertEqual(self.placed("Hybrid - San Francisco"),
+                         ["San Francisco, CA"])
+        self.assertEqual(self.placed("Onsite - Austin, TX"), ["Austin, TX"])
+
+    def test_a_state_named_between_dashes(self):
+        """"US - California - San Diego", 13 postings."""
+        self.assertEqual(self.placed("US - California - San Diego"),
+                         ["San Diego, CA"])
+
+    def test_a_dash_without_a_state_is_still_refused(self):
+        """The guard on the rule above. Berlin is a town in New Hampshire and
+        Cambridge is one in Massachusetts; neither posting is American."""
+        for text in ("Berlin - Mitte", "England - Cambridge"):
+            with self.subTest(text=text):
+                self.assertEqual(self.placed(text), [])
+
+    def test_a_list_of_cities_with_no_state(self):
+        """"San Francisco, New York City, Austin" is three cities, not a city
+        and a state -- but "Los Angeles, CA" must not be read that way."""
+        self.assertEqual(
+            self.placed("Hybrid - San Francisco, New York City, Austin"),
+            ["San Francisco, CA"])
+        self.assertEqual(self.placed("Los Angeles, CA"), ["Los Angeles, CA"])
+
     def test_a_country_name_alone_places_nothing(self):
         self.assertEqual(self.placed("United States"), [])
 

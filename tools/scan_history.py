@@ -39,6 +39,8 @@ from tools.scan_secrets import (  # noqa: E402
     ScannerUnavailable,
     personal_values,
     real_email_addresses,
+    BINARY_SUFFIXES,
+    TEXT_IN_A_WRAPPER,
     scan_text,
 )
 
@@ -145,6 +147,20 @@ def scan_blobs(never: list[str], authorship: list[str]) -> list[str]:
         text = blob_text(sha)
         if not text:
             continue
+        suffix = Path(path).suffix.lower()
+        if suffix in BINARY_SUFFIXES:
+            continue                      # bytes, not text: see scan_secrets
+        if suffix in TEXT_IN_A_WRAPPER:
+            import gzip
+            import io
+
+            try:
+                raw = subprocess.run(["git", "cat-file", "blob", sha],
+                                     capture_output=True, cwd=ROOT).stdout
+                text = gzip.GzipFile(fileobj=io.BytesIO(raw)).read().decode(
+                    "utf-8", "ignore")
+            except Exception:  # noqa: BLE001 - unreadable is not a finding
+                continue
         # NEVER_SCAN exists because those files hold real values by design and
         # are gitignored. In history their presence is the finding, and their
         # contents must be scanned, not exempted.

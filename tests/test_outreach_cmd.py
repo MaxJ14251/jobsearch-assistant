@@ -342,13 +342,24 @@ class TestScannerCoversContactData(unittest.TestCase):
         tracked = subprocess.run(
             ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True,
         ).stdout.split()
+        from tools.scan_secrets import BINARY_SUFFIXES, TEXT_IN_A_WRAPPER
+
         offenders = []
         for name in tracked:
             path = ROOT / name
-            if not path.exists():
+            if not path.exists() or path.suffix.lower() in BINARY_SUFFIXES:
                 continue
             try:
-                text = path.read_text(encoding="utf-8", errors="ignore")
+                if path.suffix.lower() in TEXT_IN_A_WRAPPER:
+                    # Compressed noise spells an address eventually; what
+                    # matters is what is inside.
+                    import gzip
+
+                    with gzip.open(path, "rt", encoding="utf-8",
+                                   errors="ignore") as fh:
+                        text = fh.read()
+                else:
+                    text = path.read_text(encoding="utf-8", errors="ignore")
             except Exception:
                 continue
             if real_email_addresses(text):

@@ -77,6 +77,11 @@ SPLIT = re.compile(r"\s*(?:;|\||/(?!\s*\d)| or )\s*", re.I)
 # "1 Market St", "110 110th Ave NE": a street address, not a place.
 ADDRESS = re.compile(r"^\d+\s+\S")
 
+# "Hybrid - San Francisco", "Onsite - Austin, TX": an arrangement, then a
+# place. 25 postings in the author's tracker start this way.
+ARRANGEMENT = re.compile(
+    r"^(hybrid|onsite|on-site|in[- ]office|in[- ]person|office)\s*[-–—:,]\s*", re.I)
+
 
 @dataclass(frozen=True)
 class Place:
@@ -207,9 +212,24 @@ def _state_of(token: str) -> str | None:
 
 def _one(part: str) -> Place | None:
     """One comma-separated fragment: "Los Angeles, California", "Bellevue - 1 Main"."""
+    part = ARRANGEMENT.sub("", part)
     part = COUNTRY.sub("", part).strip(" ,-–—")
     if not part:
         return None
+    # "US - California - San Diego": a state named in the middle, the town at
+    # one end. Only attempted when a US state is actually named, so that
+    # "Berlin - Mitte" cannot land in Berlin, New Hampshire.
+    dashed = [b.strip() for b in re.split(r"\s*[-–—]\s*", part) if b.strip()]
+    if len(dashed) > 1:
+        states = [b for b in dashed if _state_of(b)]
+        if states:
+            state = _state_of(states[-1])
+            for bit in dashed:
+                if bit in states:
+                    continue
+                found = resolve(re.split(r"\s*,\s*", bit)[-1].strip(), state)
+                if found:
+                    return found
     # "Example Town - 1 Market St": the street address is not a
     # place, so the head is. But "England - Cambridge" is two place names,
     # and taking its head put a Cambridge (UK) posting in England, Arkansas.
@@ -223,6 +243,15 @@ def _one(part: str) -> Place | None:
 
     bits = [b.strip() for b in re.split(r",", head_no_paren) if b.strip()]
     if not bits:
+        return None
+    # "San Francisco, New York City, Austin" is a LIST of cities, not one
+    # city and a state. Only when nothing in it is a state: otherwise
+    # "Los Angeles, CA" would be read as two cities.
+    if len(bits) >= 3 and not any(_state_of(b) for b in bits):
+        for bit in bits:
+            found = resolve(bit)
+            if found:
+                return found
         return None
     if len(bits) >= 2:
         state = _state_of(bits[-1])

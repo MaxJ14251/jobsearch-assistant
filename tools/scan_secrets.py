@@ -215,6 +215,11 @@ def looks_like_a_placeholder(value: str) -> bool:
         if any(domain == d or domain.endswith(d)
                for d in RESERVED_EMAIL_DOMAINS):
             return True
+    # "00000" and "11111" are not postal codes anybody lives in. The example
+    # profile uses the first, so on a fresh clone every file mentioning five
+    # zeros -- including the tests for the ZIP lookup -- read as a leak.
+    if re.fullmatch(r"(\d)\1{4}", text):
+        return True
     # 555 numbers are reserved for fiction for exactly this reason.
     digits = re.sub(r"\D", "", text)
     if len(digits) >= 10 and digits[-7:].startswith("555"):
