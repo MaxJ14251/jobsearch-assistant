@@ -656,7 +656,7 @@ which is NJ/NY/Sunnyvale rather than LA.
 
 ## Test coverage
 
-747 tests, **77% line coverage**, reported as measured rather than tuned.
+811 tests, **79% line coverage**, reported as measured rather than tuned.
 
 The distribution is the interesting part. The code that decides what reaches a
 document is well covered; the thin parts are network adapters that need live
