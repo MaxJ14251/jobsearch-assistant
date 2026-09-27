@@ -62,9 +62,15 @@ anywhere, now scores 1.0 at 15 miles.
 
 **They stay, and they are no longer the way to say where you live.**
 
-`regions` is now one thing only: named groups for the `--near` filter and the
-dashboard's region dropdown, which are *display* filters the operator drives
-by hand. Scoring no longer consults them for anything a radius can answer.
+`regions` is now one thing only: named groups for the `jsa matches --near`
+filter, a *display* filter the operator drives by hand. Scoring no longer
+consults them for anything a radius can answer.
+
+**Amended 2026-09-27 (n18):** this file originally said the dashboard's region
+dropdown would keep using them. It does not. That dropdown was replaced by
+"within [radius] of [ZIP or city]", because two controls answering the same
+question with different answers is worse than either. `--near` on the command
+line is unchanged.
 
 They were not deleted because they do something a radius cannot: name a set
 of places that is not a circle — "the towns along this train line", "the two

@@ -91,7 +91,8 @@ class Place:
     lon: float
 
     def __str__(self) -> str:
-        return f"{self.name}, {self.state}"
+        # A ZIP has no state attached; "90401," reads like a bug.
+        return f"{self.name}, {self.state}" if self.state else self.name
 
 
 @dataclass

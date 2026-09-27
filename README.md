@@ -439,8 +439,14 @@ with it.
 Local review dashboard on http://127.0.0.1:8765. It covers the whole path from a
 match to a resume you can upload yourself:
 
-- **Matches**, and a **Pipeline** grouped by stage, with each application's
-  next action, overdue flags, and the same stage moves as the CLI.
+- **Matches**, filtered by **"within N miles of here"** — a ZIP or a city and
+  a radius, pre-filled from your profile, or *anywhere* for a nationwide
+  search. Each card shows how far away the job is. Remote roles always pass a
+  radius, because a radius is not what decides them; the page says how many
+  of the results are actually near you, how many the radius hid, and how many
+  of those name a place it could not find — unknown is not the same as far.
+- A **Pipeline** grouped by stage, with each application's next action,
+  overdue flags, and the same stage moves as the CLI.
 - **Job page**: every drafted document, newest version first, with its status
   (pending, approved, rejected and your note), model, the profile bullets it
   used, the keyword gaps it could not honestly fill, a **Preview** that shows
@@ -828,7 +834,8 @@ cp .env.example .env
 `max_years_experience` and `years_filter` (what a posting asking for more years
 does: `reject` drops it, `rank` keeps it ranked lower, `off` ignores years),
 `exclude_keywords`, `home_location` and `radius_miles` (below), and `regions`
-(named groups for the `matches --near` filter).
+(named groups for the `matches --near` filter; the dashboard uses a radius
+instead).
 A degree requirement is never a filter: it is shown on the job as "asks for a
 degree" and changes neither whether a job appears nor its score.
 

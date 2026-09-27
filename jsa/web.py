@@ -82,6 +82,8 @@ BASE = """<!doctype html>
   form.stack label{display:grid;gap:4px;font-size:12.5px;color:var(--ink-2)}
   form.stack .two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
   form.stack button{justify-self:start}
+  label.pair-in{display:flex;gap:6px;align-items:center;font-size:13px;
+    color:var(--ink-2);white-space:nowrap}
   textarea{min-height:220px;resize:vertical;line-height:1.45}
   /* The preview is a sheet of paper in either theme: it shows the document as
      it prints, and a resume is black on white. */
@@ -168,11 +170,24 @@ BASE = """<!doctype html>
 
 MATCHES = """{% extends "base" %}{% block body %}
 <h1>Matches</h1>
-<p class="sub">{{ total }} unreviewed · showing {{ rows|length }}</p>
+<p class="sub">{{ total }} unreviewed · showing {{ rows|length }}
+  {%- if home %} · within {{ radius }} miles of {{ home }}:
+    {{ near_count }} near you, {{ rows|length - near_count }} remote{% endif %}</p>
+{% if home_problem %}<p class="note bad" role="alert">{{ home_problem }}</p>{% endif %}
+{% if hidden %}<p class="sub">{{ hidden }} match(es) hidden by the radius.
+  {%- if unplaced %} {{ unplaced }} of them name a place this could not find, so the distance is unknown rather than far.{% endif %}
+  <a class="plain" href="{{ nationwide_url }}">Show them anyway</a></p>{% endif %}
 <form class="filters" method="get">
-  <select name="near" id="f-near" aria-label="Region"><option value="">Anywhere</option>
-    {% for r in regions %}<option value="{{ r }}" {{ 'selected' if r==near }}>{{ r }}</option>{% endfor %}
-  </select>
+  <label class="pair-in" for="f-radius">within
+    <select name="radius" id="f-radius" aria-label="Distance">
+      {% for value, label in radii %}<option value="{{ value }}" {{ 'selected' if value==radius }}>{{ label }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="pair-in" for="f-home">of
+    <input type="search" name="home" id="f-home" value="{{ home_text }}"
+           placeholder="ZIP or City, ST" size="16"
+           aria-label="Where you are">
+  </label>
   <select name="track" id="f-track" aria-label="Track"><option value="">Both tracks</option>
     <option value="engineering" {{ 'selected' if track=='engineering' }}>Engineering</option>
     <option value="sales" {{ 'selected' if track=='sales' }}>Sales</option>
@@ -194,6 +209,7 @@ MATCHES = """{% extends "base" %}{% block body %}
     <span class="co">{{ r.company }}</span>
   </div>
   <div class="meta">{{ r.location or 'location not stated' }} · {{ r.remote }}
+    {%- if r.miles is not none and r.remote != 'remote' %} · {{ r.miles }} mi away{% endif %}
     {%- if r.variant_count and r.variant_count > 1 %} · +{{ r.variant_count - 1 }} more location(s){% endif %}</div>
   <div class="flags">
     {% if r.track == 'sales' %}<span class="flag">sales track</span>{% endif %}
@@ -478,6 +494,78 @@ env.filters["localtime"] = db.local_time
 env.filters["localdate"] = lambda stamp: str(db.local_date(stamp) or stamp or "")
 
 
+# The choices on the Matches page. "" is nationwide: no distance filter at
+# all, which is the honest default for somebody who would move.
+RADII = [("", "anywhere"), ("10", "10 miles"), ("25", "25 miles"),
+         ("50", "50 miles"), ("100", "100 miles"), ("250", "250 miles")]
+
+
+def _origin(typed: str, profile: dict[str, Any] | None = None):
+    """(Place, what to show in the box, a problem to report).
+
+    Typed text wins; otherwise the profile's own origin, so the box is
+    pre-filled with where the operator already said they are. The profile is
+    passed in rather than loaded here: the app takes a profile_loader, and
+    reading the real one behind its back is how a test passes while the
+    feature is broken for anybody with a different profile.
+    """
+    from . import places
+
+    typed = (typed or "").strip()
+    if typed:
+        found = places.origin(typed)
+        if found is None:
+            return None, typed, (
+                f"{typed!r} is not a ZIP code or a US town this recognises, "
+                "so the radius is off. Try a ZIP, or \"City, ST\".")
+        return found, typed, ""
+    try:
+        from .config import Preferences
+
+        found = Preferences.from_profile(profile or {}).home()
+    except Exception:  # noqa: BLE001 - a missing profile is not an error here
+        found = None
+    return found, str(found) if found else "", ""
+
+
+def _by_distance(rows, origin, radius: str):
+    """Filter to what is within the radius. Returns (rows, hidden, unplaced).
+
+    A remote posting always passes: it has no distance, and hiding it behind
+    a radius would be hiding the jobs that are open to everybody. A posting
+    whose location cannot be placed is hidden when a radius is set -- but
+    counted separately and named on the page, because "unknown" is not
+    "far away".
+    """
+    from . import places
+
+    miles = None
+    try:
+        miles = float(radius) if radius else None
+    except ValueError:
+        miles = None
+    for row in rows:
+        row["miles"] = None
+        if origin is None:
+            continue
+        distance = places.nearest(origin, row.get("location") or "")
+        if distance is not None:
+            row["miles"] = round(distance)
+    if miles is None or origin is None:
+        return rows, 0, 0
+
+    kept, hidden, unplaced = [], 0, 0
+    for row in rows:
+        if (row.get("remote") or "") == "remote" or (
+                row["miles"] is not None and row["miles"] <= miles):
+            kept.append(row)
+            continue
+        hidden += 1
+        if row["miles"] is None:
+            unplaced += 1
+    return kept, hidden, unplaced
+
+
 def _regions() -> list[str]:
     from .cli import load_regions
     return sorted(load_regions())
@@ -624,7 +712,8 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
 
     @app.get("/", response_class=HTMLResponse)
     def matches(near: str = "", track: str = "", degree: str = "",
-                remote: str = "", limit: int = 60):
+                remote: str = "", limit: int = 60, home: str = "",
+                radius: str = ""):
         from .cli import load_regions, region_clause
         where, params = ["1=1"], {}
         if near and near in load_regions():
@@ -647,14 +736,35 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                         FROM v_new_matches m WHERE {' AND '.join(where)})
                       SELECT * FROM capped WHERE rk <= 3
                       ORDER BY match_score DESC LIMIT :limit"""
-            params["limit"] = limit
+            # Distance is arithmetic on parsed text, not SQL, so a radius
+            # filter has to read more rows than it shows. Capped, because
+            # this runs on every page load.
+            params["limit"] = limit * 8 if radius else limit
             rows = [_decode(r) for r in con.execute(sql, params).fetchall()]
             total = con.execute("SELECT COUNT(*) FROM v_new_matches").fetchone()[0]
         finally:
             con.close()
+
+        origin, home_text, home_problem = _origin(home, profile())
+        rows, hidden, unplaced = _by_distance(rows, origin, radius)
+        rows = rows[:limit]
+        # Remote postings pass any radius, so without this the page can say
+        # "within 25 miles" over a list that is mostly remote work.
+        near_count = sum(1 for r in rows
+                         if (r.get("remote") or "") != "remote"
+                         and r.get("miles") is not None)
         return render("matches", "matches", rows=rows, total=total,
                       regions=_regions(), near=near, track=track,
-                      degree=degree, remote=remote)
+                      degree=degree, remote=remote,
+                      home=str(origin) if (origin and radius) else "",
+                      home_text=home_text, home_problem=home_problem,
+                      radius=radius, radii=RADII, hidden=hidden,
+                      near_count=near_count,
+                      unplaced=unplaced,
+                      nationwide_url="?" + urlencode(
+                          {k: v for k, v in
+                           {"near": near, "track": track, "degree": degree,
+                            "remote": remote, "home": home_text}.items() if v}))
 
     @app.get("/job/{job_id}", response_class=HTMLResponse)
     def job_detail(job_id: int, msg: str = "", bad: int = 0):
