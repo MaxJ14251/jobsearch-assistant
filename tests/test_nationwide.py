@@ -254,5 +254,166 @@ class TestTheDuplicateRule(unittest.TestCase):
         return self.con.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
 
 
+class TestAnOlderTrackerSurvivesTheNewSource(unittest.TestCase):
+    """What actually happened on 2026-09-26, on the author's own tracker.
+
+    The migration existed and `jsa init` applied it, but discovery did not
+    call it, so the first real run died on:
+
+        sqlite3.IntegrityError: CHECK constraint failed: kind IN (...)
+
+    1,190 stored postings and a run that got most of the way through before
+    failing. The fix is that writing commands upgrade first.
+    """
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+        self.path = self.dir / "old.db"
+        db.init_db(self.path)
+        con = db.connect(self.path)
+        # Put the table back the way it was before the kind existed.
+        con.executescript(
+            "PRAGMA foreign_keys=OFF;"
+            "ALTER TABLE sources RENAME TO sources_old;"
+            "CREATE TABLE sources ("
+            " id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE,"
+            " kind TEXT NOT NULL CHECK (kind IN ('greenhouse','lever','ashby',"
+            "   'workday','workable','custom','rss','manual','other')),"
+            " url TEXT NOT NULL, company_id INTEGER,"
+            " enabled INTEGER NOT NULL DEFAULT 1,"
+            " poll_interval_h INTEGER NOT NULL DEFAULT 24,"
+            " last_polled_at TEXT, last_status TEXT,"
+            " created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),"
+            " archived_at TEXT);"
+            "DROP TABLE sources_old; PRAGMA foreign_keys=ON;")
+        con.execute("INSERT INTO companies (id,name,slug) VALUES (1,'Acme','acme')")
+        con.commit()
+        con.close()
+
+    def test_the_old_check_refuses_the_new_kind(self):
+        """The failure this is about, asserted before the fix is applied."""
+        con = db.connect(self.path)
+        self.addCleanup(con.close)
+        with self.assertRaises(sqlite3.IntegrityError):
+            db.upsert_source(con, name="themuse-themuse", kind="themuse",
+                             url="https://x", company_id=None)
+
+    def test_upgrade_widens_it_and_keeps_the_rows(self):
+        applied = db.upgrade(self.path)
+        self.assertTrue(any("sources" in a for a in applied), applied)
+        con = db.connect(self.path)
+        self.addCleanup(con.close)
+        self.assertEqual(
+            con.execute("SELECT COUNT(*) FROM companies").fetchone()[0], 1)
+        source = db.upsert_source(con, name="themuse-themuse", kind="themuse",
+                                  url="https://x", company_id=1)
+        self.assertTrue(source)
+
+    def test_upgrading_a_current_tracker_changes_nothing(self):
+        db.upgrade(self.path)
+        self.assertEqual(db.upgrade(self.path), [])
+
+
+class TestRebuildingATableKeepsEveryoneElsesReferences(unittest.TestCase):
+    """Since SQLite 3.25, renaming a table rewrites every REFERENCES to it.
+
+    The sources rebuild renamed sources to sources_old before recreating it,
+    so jobs.source_id was helpfully rewritten to point at sources_old -- and
+    then sources_old was dropped. SQLite accepts that until the first insert
+    and then says:
+
+        sqlite3.OperationalError: no such table: main.sources_old
+
+    which is what the author's tracker did on the first run of the new
+    source, with 1,190 postings in it and nothing wrong with the data.
+    """
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+        self.path = self.dir / "t.db"
+        db.init_db(self.path)
+
+    def jobs_ddl(self) -> str:
+        con = db.connect(self.path)
+        self.addCleanup(con.close)
+        return con.execute(
+            "SELECT sql FROM sqlite_master WHERE name='jobs'").fetchone()[0]
+
+    def old_sources_table(self):
+        """Put the sources table back the way it was before 'themuse'."""
+        con = db.connect(self.path)
+        con.executescript(
+            "PRAGMA foreign_keys=OFF; PRAGMA legacy_alter_table=ON;"
+            "ALTER TABLE sources RENAME TO sources_tmp;"
+            "CREATE TABLE sources ("
+            " id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE,"
+            " kind TEXT NOT NULL CHECK (kind IN ('greenhouse','manual')),"
+            " url TEXT NOT NULL, company_id INTEGER,"
+            " enabled INTEGER NOT NULL DEFAULT 1,"
+            " poll_interval_h INTEGER NOT NULL DEFAULT 24,"
+            " last_polled_at TEXT, last_status TEXT,"
+            " created_at TEXT NOT NULL DEFAULT '2026-01-01T00:00:00Z',"
+            " archived_at TEXT);"
+            "DROP TABLE sources_tmp;"
+            "PRAGMA legacy_alter_table=OFF; PRAGMA foreign_keys=ON;")
+        con.commit()
+        con.close()
+
+    def test_after_the_rebuild_jobs_still_points_at_sources(self):
+        self.old_sources_table()
+        db.upgrade(self.path)
+        ddl = self.jobs_ddl()
+        self.assertIn("REFERENCES sources(id)", ddl.replace('"', ""))
+        self.assertNotIn("sources_old", ddl)
+
+    def test_and_a_posting_can_still_be_stored(self):
+        """The assertion the DDL check exists for."""
+        self.old_sources_table()
+        db.upgrade(self.path)
+        con = db.connect(self.path)
+        self.addCleanup(con.close)
+        company = db.upsert_company(con, name="Acme", slug="acme")
+        source = db.upsert_source(con, name="themuse-themuse", kind="themuse",
+                                  url="https://x", company_id=company)
+        job_id, is_new = db.upsert_job(con, {
+            "company_id": company, "source_id": source, "external_id": "1",
+            "title": "Support Engineer", "url": "https://x/1"})
+        self.assertTrue(is_new and job_id)
+
+    def test_a_tracker_already_damaged_is_repaired_with_its_rows(self):
+        con = db.connect(self.path)
+        con.execute("INSERT INTO companies (id,name,slug) VALUES (1,'Acme','acme')")
+        con.execute("INSERT INTO sources (id,name,kind,url) "
+                    "VALUES (1,'acme-greenhouse','greenhouse','https://x')")
+        con.execute("INSERT INTO jobs (company_id,source_id,external_id,title,url) "
+                    "VALUES (1,1,'1','Support Engineer','https://x/1')")
+        con.commit()
+        # Exactly the damage, on the real table: every column as it is, with
+        # the one reference pointing at a table that no longer exists.
+        ddl = con.execute(
+            "SELECT sql FROM sqlite_master WHERE name='jobs'").fetchone()[0]
+        broken_ddl = ddl.replace("REFERENCES sources(id)",
+                                 "REFERENCES sources_old(id)")
+        self.assertNotEqual(ddl, broken_ddl, "the fixture no longer matches")
+        cols = ", ".join(r["name"] for r in con.execute("PRAGMA table_info(jobs)"))
+        con.executescript(
+            "PRAGMA foreign_keys=OFF; PRAGMA legacy_alter_table=ON;"
+            "ALTER TABLE jobs RENAME TO jobs_tmp;"
+            f"{broken_ddl};"
+            f"INSERT INTO jobs ({cols}) SELECT {cols} FROM jobs_tmp;"
+            "DROP TABLE jobs_tmp;"
+            "PRAGMA legacy_alter_table=OFF; PRAGMA foreign_keys=ON;")
+        con.commit()
+        con.close()
+
+        applied = db.upgrade(self.path)
+        self.assertTrue(any("jobs" in a for a in applied), applied)
+        con = db.connect(self.path)
+        self.addCleanup(con.close)
+        self.assertEqual(con.execute("SELECT COUNT(*) FROM jobs").fetchone()[0], 1)
+        self.assertNotIn("sources_old", self.jobs_ddl())
+        self.assertEqual(con.execute("PRAGMA foreign_key_check").fetchall(), [])
+
+
 if __name__ == "__main__":
     unittest.main()

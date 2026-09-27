@@ -82,9 +82,14 @@ def discover(
     profile = load_profile()
     prefs = Preferences.from_profile(profile)
     entries = load_sources()
+    # An older tracker may predate a source kind or a column this run needs.
+    upgraded = db.upgrade()
 
     con = db.connect()
     reports: list[SourceReport] = []
+    if upgraded:
+        reports.append(SourceReport("(tracker)", "schema",
+                                    "upgraded: " + ", ".join(upgraded)))
     try:
         for entry in entries:
             company = entry["company"]

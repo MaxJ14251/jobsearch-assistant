@@ -47,14 +47,32 @@ def connect(path: Path = DB_PATH) -> sqlite3.Connection:
 
 def init_db(path: Path = DB_PATH, schema: Path = SCHEMA_PATH) -> Path:
     """Create or upgrade the database. Safe to run repeatedly."""
+    upgrade(path, schema)
+    return path
+
+
+def upgrade(path: Path = DB_PATH, schema: Path = SCHEMA_PATH) -> list[str]:
+    """Bring an existing tracker up to the current schema. Returns what changed.
+
+    `jsa init` is not the only command that needs this. A tracker created
+    before a new source kind existed rejects it with a CHECK-constraint error
+    on the first discovery run, which reads as a broken feed:
+
+        sqlite3.IntegrityError: CHECK constraint failed: kind IN (...)
+
+    That is exactly what happened to the author's own tracker the day the
+    nationwide source shipped. Anything that writes to the tracker calls this
+    first, so the upgrade happens where the need arises rather than in a
+    command people run once and forget.
+    """
     con = connect(path)
     try:
         con.executescript(schema.read_text(encoding="utf-8"))
-        migrate(con, schema)
+        applied = migrate(con, schema)
         con.commit()
     finally:
         con.close()
-    return path
+    return applied
 
 
 def migrate(con: sqlite3.Connection, schema: Path = SCHEMA_PATH) -> list[str]:
@@ -105,6 +123,7 @@ def migrate(con: sqlite3.Connection, schema: Path = SCHEMA_PATH) -> list[str]:
 
     applied += _rebuild_approvals_if_stale(con, text)
     applied += _rebuild_sources_if_stale(con, text)
+    applied += _repair_dangling_references(con, text)
 
     if applied:
         for row in con.execute(
@@ -140,6 +159,11 @@ def _rebuild_approvals_if_stale(con: sqlite3.Connection, schema_sql: str) -> lis
     cols = [r["name"] for r in con.execute("PRAGMA table_info(approvals)")]
     con.executescript(
         "PRAGMA foreign_keys=OFF;"
+        # Without this, SQLite 3.25+ helpfully rewrites every REFERENCES to
+        # this table in OTHER tables to say approvals_old -- and the copy is
+        # about to be dropped. It cost the author's tracker a dangling
+        # foreign key on jobs.source_id when sources was rebuilt this way.
+        "PRAGMA legacy_alter_table=ON;"
         "ALTER TABLE approvals RENAME TO approvals_old;"
     )
     import re as _re
@@ -156,8 +180,54 @@ def _rebuild_approvals_if_stale(con: sqlite3.Connection, schema_sql: str) -> lis
         con.execute(
             f"INSERT INTO approvals ({shared}) SELECT {shared} FROM approvals_old"
         )
-    con.executescript("DROP TABLE approvals_old; PRAGMA foreign_keys=ON;")
+    con.executescript("DROP TABLE approvals_old;"
+                      "PRAGMA legacy_alter_table=OFF; PRAGMA foreign_keys=ON;")
     return [f"approvals(rebuilt: {reason})"]
+
+
+def _repair_dangling_references(con: sqlite3.Connection, schema_sql: str) -> list[str]:
+    """Rebuild any table whose REFERENCES point at a table that is gone.
+
+    A rebuild done without `legacy_alter_table` left jobs.source_id pointing
+    at "sources_old", which SQLite accepts until the first INSERT and then
+    refuses with `no such table: main.sources_old`. The data is fine; the
+    table definition is not. This puts the definition back from the schema
+    and copies every row across.
+    """
+    import re as _re
+
+    live = {r["name"] for r in con.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'")}
+    broken = []
+    for row in con.execute(
+            "SELECT name, sql FROM sqlite_master WHERE type='table'").fetchall():
+        for target in _re.findall(r'REFERENCES\s+"?([A-Za-z_][A-Za-z_0-9]*)"?',
+                                  row["sql"] or ""):
+            if target not in live and row["name"] not in broken:
+                broken.append(row["name"])
+    if not broken:
+        return []
+
+    applied = []
+    for name in broken:
+        match = _re.search(
+            rf"CREATE TABLE IF NOT EXISTS\s+{name}\s*\(.*?\n\);",
+            schema_sql, _re.S)
+        if not match:
+            continue
+        cols = [r["name"] for r in con.execute(f"PRAGMA table_info({name})")]
+        con.executescript("PRAGMA foreign_keys=OFF;"
+                          "PRAGMA legacy_alter_table=ON;"
+                          f"ALTER TABLE {name} RENAME TO {name}_broken;")
+        con.executescript(match.group(0))
+        shared = ", ".join(
+            c for c in cols
+            if c in {r["name"] for r in con.execute(f"PRAGMA table_info({name})")})
+        con.execute(f"INSERT INTO {name} ({shared}) SELECT {shared} FROM {name}_broken")
+        con.executescript(f"DROP TABLE {name}_broken;"
+                          "PRAGMA legacy_alter_table=OFF; PRAGMA foreign_keys=ON;")
+        applied.append(f"{name}(repaired: reference to a table that was gone)")
+    return applied
 
 
 def _rebuild_sources_if_stale(con: sqlite3.Connection, schema_sql: str) -> list[str]:
@@ -181,13 +251,15 @@ def _rebuild_sources_if_stale(con: sqlite3.Connection, schema_sql: str) -> list[
     if not match:
         return []
     con.executescript("PRAGMA foreign_keys=OFF;"
+                      "PRAGMA legacy_alter_table=ON;"
                       "ALTER TABLE sources RENAME TO sources_old;")
     con.executescript(match.group(0))
     shared = ", ".join(
         c for c in cols
         if c in {r["name"] for r in con.execute("PRAGMA table_info(sources)")})
     con.execute(f"INSERT INTO sources ({shared}) SELECT {shared} FROM sources_old")
-    con.executescript("DROP TABLE sources_old; PRAGMA foreign_keys=ON;")
+    con.executescript("DROP TABLE sources_old;"
+                      "PRAGMA legacy_alter_table=OFF; PRAGMA foreign_keys=ON;")
     return ["sources(rebuilt: widened kind CHECK)"]
 
 
