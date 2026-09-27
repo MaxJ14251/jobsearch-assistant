@@ -42,6 +42,24 @@ def load_profile():
 PROFILE = load_profile()
 
 
+def any_bullet(*, ongoing: bool = False):
+    """A bullet id from whatever profile is on disk, and its source.
+
+    These tests used to name the author's own bullet ids while loading the
+    profile from disk, so on any other machine -- a fresh clone's example
+    profile included -- they raised KeyError before asserting anything. What
+    they test is the verifier, not which bullet it is handed.
+    """
+    sources = collect_bullets(PROFILE)
+    for key, bullet in sources.items():
+        text = bullet.text.lower()
+        if ongoing == text.startswith(("building", "designing", "integrating",
+                                       "goal:")):
+            return key, bullet
+    key = next(iter(sources))
+    return key, sources[key]
+
+
 def credential_says_not_conferred(profile) -> bool:
     """True when this profile describes an unconferred credential.
 
@@ -116,11 +134,11 @@ class TestFabricationResistance(unittest.TestCase):
         This is the subtle case: the id is valid and most of the wording
         survives, so only the do-not-claim check catches it.
         """
-        source = collect_bullets(PROFILE)["b_game_apis"]
+        bullet_id, source = any_bullet()
         for term in ("Kubernetes", "PyTorch", "TensorFlow"):
             with self.subTest(term=term):
                 draft = self._draft_with([
-                    DraftBullet(source_id="b_game_apis",
+                    DraftBullet(source_id=bullet_id,
                                 text=f"{source.text} Deployed with {term}.")
                 ])
                 with self.assertRaises(FabricationError) as ctx:
@@ -128,9 +146,9 @@ class TestFabricationResistance(unittest.TestCase):
                 self.assertIn(term, str(ctx.exception))
 
     def test_banned_term_in_summary_is_rejected(self):
-        source = collect_bullets(PROFILE)["b_vid_design"]
+        bullet_id, source = any_bullet()
         draft = self._draft_with(
-            [DraftBullet(source_id="b_vid_design", text=source.text)],
+            [DraftBullet(source_id=bullet_id, text=source.text)],
             summary="Engineer with deep PyTorch and Kubernetes experience.",
         )
         with self.assertRaises(FabricationError):
@@ -138,13 +156,12 @@ class TestFabricationResistance(unittest.TestCase):
 
     def test_faithful_rewording_is_allowed(self):
         """The verifier must not be so strict that legitimate tailoring fails."""
-        source = collect_bullets(PROFILE)["b_game_build"]
+        # A rewording of the bullet's own words: same claim, fewer of them.
+        bullet_id, source = any_bullet(ongoing=True)
+        words = source.text.split()
         draft = self._draft_with([
-            DraftBullet(
-                source_id="b_game_build",
-                text="Built a Python application with Claude and Gemini that "
-                     "analyzes streaming game data and surfaces insights in real time.",
-            )
+            DraftBullet(source_id=bullet_id,
+                        text=" ".join(words[:max(6, len(words) - 3)]).rstrip(",") + ".")
         ])
         self.assertIs(verify_draft(draft, PROFILE), draft)
 
@@ -283,9 +300,9 @@ class TestTermBoundaries(unittest.TestCase):
 
     def test_banned_cpp_claim_is_caught(self):
         """The bug's real consequence: a C++ claim would have slipped through."""
-        source = collect_bullets(PROFILE)["b_game_build"]
+        bullet_id, source = any_bullet()
         draft = TailoredDraft(bullets=[
-            DraftBullet(source_id="b_game_build",
+            DraftBullet(source_id=bullet_id,
                         text=source.text + " Written in C++.")
         ])
         with self.assertRaises(FabricationError) as ctx:

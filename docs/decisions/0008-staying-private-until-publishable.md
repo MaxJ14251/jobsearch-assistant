@@ -74,7 +74,13 @@ The bar is that somebody who is not the author can fill in their own profile
 and get useful work out of this, without editing code and without inheriting
 the author's life. Progress so far, and what is left:
 
-**Done.** The example profile ships de-personalised (n7). `jsa doctor` names
+**Done.** The example profile ships de-personalised -- properly, as of
+2026-09-26 (n15). n7 claimed this and was wrong: every experience bullet was
+still the author's own, verbatim, with the real employer, titles and dates.
+It is now an invented person, with the shapes the tool needs kept on purpose
+(two roles at one employer, a project in development, no conferred degree),
+and `tests/test_example_profile.py` fails if any bullet, summary, employer,
+school or project name is shared with the author's real profile. `jsa doctor` names
 what a newcomer has not filled in yet. Location scoring works for all fifty
 states, not just the author's. The README's first hour was walked by a
 simulated newcomer in Columbus, Ohio, which found two real bugs.
@@ -105,6 +111,20 @@ simulated newcomer in Columbus, Ohio, which found two real bugs.
   (two roles at one employer, ten bullets). A stranger copying it inherits
   somebody else's life, which is the opposite of what the example is for.
   This one is fixable in HEAD and should be, before publishing.
+
+## How the rewrite would be done
+
+Written up and rehearsed on a throwaway mirror clone on 2026-09-26:
+[docs/pre-publication-rewrite.md](../pre-publication-rewrite.md). The
+rehearsal reached a clean scan -- with the allowlist emptied and the owner's
+profile in place, so the scanner actually had values to look for -- and it
+found three ways to get the rewrite wrong that are now written down.
+
+The one that changes the plan: **a force-push does not remove anything from
+GitHub.** Old commits stay reachable by SHA until GitHub garbage collects,
+and a fork or pull request keeps them indefinitely. So the rewrite ends by
+deleting the GitHub repository and pushing the rewritten history to a new
+one, not by force-pushing over the old.
 
 ## Consequences
 

@@ -29,8 +29,20 @@ JOB = {
 
 
 def sample_draft():
+    """Four bullets from whatever profile is on disk.
+
+    The ids used to be written out, and they were the author's own: on any
+    other machine -- including a fresh clone, where the profile is the example
+    -- this raised KeyError before the first assertion ran. What is being
+    tested is the round trip through .docx, not which bullets go in it.
+    """
     sources = collect_bullets(PROFILE)
-    ids = ["b_vid_design", "b_game_build", "b_riv_sell", "b_inst_install"]
+    # Some of each: a resume with no project bullet never renders the
+    # "in development" label these tests check for.
+    projects = [k for k, b in sources.items() if b.origin == "project"][:2]
+    experience = [k for k, b in sources.items() if b.origin != "project"][:2]
+    ids = projects + experience
+    assert ids, "the profile on disk has no bullets to render"
     return TailoredDraft(
         summary=PROFILE["summaries"][0]["text"],
         bullets=[DraftBullet(source_id=i, text=sources[i].text) for i in ids],

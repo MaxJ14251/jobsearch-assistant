@@ -632,7 +632,7 @@ which is NJ/NY/Sunnyvale rather than LA.
 
 ## Test coverage
 
-710 tests, **77% line coverage**, reported as measured rather than tuned.
+729 tests, **77% line coverage**, reported as measured rather than tuned.
 
 The distribution is the interesting part. The code that decides what reaches a
 document is well covered; the thin parts are network adapters that need live
@@ -792,7 +792,13 @@ jobsearch/
 
 ## Configure it for yourself
 
-Nothing about one candidate is hardcoded. Copy the example profile and edit:
+Nothing about one candidate is hardcoded, and the example profile is an
+invented person — a field technician promoted into sales, two projects still
+in development, coursework without a conferred degree. It is shaped that way
+on purpose: two roles at one employer exercises the case that used to print
+one role's bullets under the other's heading, and the honest credential line
+shows how to answer the degree question the tool refuses to lie about. Copy it
+and replace every line with your own:
 
 ```bash
 cp profile/master_profile.example.yaml profile/master_profile.yaml

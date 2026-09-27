@@ -407,8 +407,8 @@ sources:
     hq: Cork / Example Town PA operations
     priority: 3
     verified: true
-    # Relevant here because of the Example Town, PA facility — and because fire alarm
-    # and building-safety systems are literally Max's Riverton background.
+    # Relevant here because of the Example Town, PA facility — and because building
+    # safety systems are close to the operator's own field background.
 
   - company: T. Rowe Price
     slug: t-rowe-price

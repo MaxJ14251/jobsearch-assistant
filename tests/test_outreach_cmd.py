@@ -30,6 +30,7 @@ from jsa.outreach import (
     verify_message,
 )
 from jsa.tailor import FabricationError
+from jsa.tailor import FabricationError
 from tests.test_prep_cmd import PROFILE
 
 JSA = ROOT / "jsa"
@@ -183,8 +184,18 @@ class TestContactPrivacy(unittest.TestCase):
             return mock.Mock(text="A short note about the role.", model="test/model")
 
         with mock.patch("jsa.outreach.llm.complete", side_effect=spy):
-            outreach.draft(self.con, PROFILE, contact_id=self.contact_id,
-                           job_id=1, channel="email")
+            try:
+                outreach.draft(self.con, PROFILE, contact_id=self.contact_id,
+                               job_id=1, channel="email")
+            except FabricationError:
+                # What these tests examine is the PROMPT, which is captured
+                # before any check runs. Whether the canned reply survives
+                # verification depends on the profile on this machine --
+                # PROFILE is read from disk -- and a fresh clone's example
+                # profile does not contain the words this mock happens to
+                # use. Outreach refusing is normal (ADR 0010); it must not
+                # decide whether a privacy test runs.
+                pass
         return captured["sent"]
 
     def test_name_and_title_reach_the_prompt(self):

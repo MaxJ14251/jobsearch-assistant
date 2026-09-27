@@ -129,7 +129,8 @@ def _entry_key(entry: dict[str, Any], *fields: str) -> str:
 
     `id:` when the profile sets one, otherwise everything that identifies the
     entry joined together. Never just the company: that is what collapsed
-    "Sales Representative at Riverton" and "Installer at Riverton" into one bucket.
+    "Account Representative at Riverton" and "Service Technician at
+    Riverton" into one bucket.
     """
     if entry.get("id"):
         return str(entry["id"])

@@ -165,41 +165,47 @@ summaries:
   - id: sum_general
     family: general
     text: >-
-      Emerging AI practitioner with hands-on experience building real automation
-      pipelines using Claude and Gemini, not just coursework. Comfortable across the
-      full development cycle: prompt engineering, multi-API orchestration, and
-      cloud-native integration. Brings an uncommon combination of technical AI skills
-      and real-world sales experience, with a proven ability to learn complex systems
-      quickly and apply them to practical problems.
+      Career-changer with hands-on experience building real automation in Python,
+      not just coursework. Comfortable across the whole cycle: reading an API's
+      docs, wiring services together, and testing the result. Brings an uncommon
+      combination of technical work and customer-facing work, and a record of
+      learning complicated systems quickly because the job required it.
   - id: sum_ai_eng
     family: ai_engineering
     text: >-
-      Self-directed AI practitioner building production-shaped LLM pipelines in Python
-      with Claude and Gemini — prompt design, multi-API orchestration, and cloud-native
-      integration. Currently shipping two applied projects: an automated video
-      highlight pipeline and a real-time streaming game data analysis tool.
+      Self-directed developer building language-model tooling in Python: prompt
+      design, multi-API orchestration, and an evaluation set to check the output
+      against. Currently building two applied projects, a support-ticket triage
+      assistant and a transit reliability report.
   - id: sum_customer_facing
     family: customer_facing_technical
     text: >-
-      Technical practitioner with a sales background: three years selling and installing
-      fire alarm and security systems, now building LLM automation pipelines in Python
-      with Claude and Gemini. Combines hands-on system knowledge with the customer-facing
-      skills to explain it — a fit for solutions, forward-deployed, and technical
-      account roles.
+      Technical practitioner with a sales background: three years installing and
+      then selling commercial HVAC and building-control systems, now building
+      language-model automation in Python. Combines hands-on system knowledge
+      with the customer-facing skills to explain it — a fit for solutions,
+      forward-deployed, and technical account roles.
 
 # ---------------------------------------------------------------------------
 # Work experience. `bullets` are the reusable units.
 #   strength: how load-bearing the bullet is (1 = always include, 3 = filler)
 #   tags:     matched against JD keywords by the tailoring module
+#
+# NOTE the shape here, because two things depend on it:
+#   - Two roles at ONE employer. Being promoted without changing employer is
+#     common, and it used to collapse both roles into one heading (ADR 0011).
+#     Keep the `id:` on each entry.
+#   - `family` decides which bullets a track prefers: engineering favours
+#     ai_engineering and data_ml, sales favours sales and technical_field.
 # ---------------------------------------------------------------------------
 experience:
-  - id: exp_riv_sales
-    company: Riverton
-    company_descriptor: Fire Alarm & Security Systems
-    title: Sales Representative
+  - id: exp_riverton_sales
+    company: Riverton Mechanical
+    company_descriptor: Commercial HVAC & Building Controls
+    title: Account Representative
     location: null              # TODO — needed for a complete resume header
-    start: 2022-02
-    end: 2023-11
+    start: 2022-03
+    end: 2023-10
     current: false
     family: sales
     # Optional. The bullet to show when this job appears only so the resume
@@ -210,172 +216,175 @@ experience:
       - id: b_riv_promo
         strength: 1
         text: >-
-          Promoted from installer to sales based on technical expertise and
-          customer-facing performance.
+          Promoted from service technician to account representative on the
+          strength of field experience and customer-facing work.
         tags: [promotion, growth, customer-facing, technical-credibility]
       - id: b_riv_sell
         strength: 1
         text: >-
-          Sold fire alarm and security system solutions to residential and commercial
-          clients, leveraging firsthand installation knowledge to build credibility and
-          close deals.
-        tags: [sales, solution-selling, b2b, b2c, technical-sales, customer-facing]
+          Sold rooftop unit replacements and building-control retrofits to property
+          managers, using firsthand installation experience to size the job and
+          answer technical objections.
+        tags: [sales, technical-sales, b2b, account-management, customer-facing]
       - id: b_riv_cycle
         strength: 2
         text: >-
-          Managed the full sales cycle from prospecting and site assessment through
+          Managed the full sales cycle from site walk-through and estimate through
           proposal, negotiation, and close.
         tags: [sales-cycle, prospecting, negotiation, account-management, ownership]
 
-  - id: exp_riv_installer
-    company: Riverton
-    company_descriptor: Fire Alarm & Security Systems
-    title: Installer
+  - id: exp_riverton_tech
+    company: Riverton Mechanical
+    company_descriptor: Commercial HVAC & Building Controls
+    title: Service Technician
     location: null              # TODO
-    start: 2021-01
-    end: 2022-02
+    start: 2020-06
+    end: 2022-03
     current: false
     family: technical_field
     bullets:
-      - id: b_inst_install
+      - id: b_riv_install
         strength: 1
         text: >-
-          Installed and commissioned fire alarm panels, smoke/heat detectors, and
-          security systems in residential and commercial settings.
+          Installed and commissioned rooftop units, thermostats, and building-control
+          panels across commercial sites.
         tags: [systems, hardware, commissioning, troubleshooting, hands-on]
-      - id: b_inst_codes
+      - id: b_riv_codes
         strength: 2
         text: >-
-          Ensured all installations met safety codes and client specifications,
-          developing deep technical product knowledge that supported a move into sales.
+          Ensured every installation met mechanical code and manufacturer
+          specification, and documented the work for inspection.
         tags: [compliance, standards, quality, attention-to-detail, documentation]
 
 # ---------------------------------------------------------------------------
 # Applied projects — the strongest evidence for technical roles.
-# `status: in_development` must be shown honestly on every tailored resume.
+# `status: in_development` must be shown honestly on every tailored resume, and
+# the verifier will refuse a draft that turns "Building" into "Built".
 # ---------------------------------------------------------------------------
 projects:
-  - id: proj_video_pipeline
-    name: Automated Highlight & Social-Short Video Pipeline
+  - id: proj_ticket_triage
+    name: Support Ticket Triage Assistant
     status: in_development
-    repo: null                  # TODO — link the GitHub repo once public
+    repo: null                  # TODO — link the repo once it is public
     demo: null                  # TODO
-    stack: [Python, Claude API, Gemini API, cloud-native]
+    stack: [Python, SQLite, LLM APIs]
     family: ai_engineering
     bullets:
-      - id: b_vid_design
+      - id: b_tix_design
         strength: 1
         text: >-
-          Designing and iterating on a cloud-native pipeline using Claude and Gemini
-          with Python to automatically identify highlight-worthy moments in raw video
-          footage.
-        tags: [python, llm, claude, gemini, pipeline, cloud-native, multimodal, video]
-      - id: b_vid_captions
+          Designing a Python service that reads an incoming support ticket with a
+          language model and drafts a suggested first reply for a person to approve.
+        tags: [python, llm, pipeline, automation, api-integration, customer-facing]
+      - id: b_tix_eval
         strength: 1
         text: >-
-          Architected closed-caption generation and segment-stitching logic to produce
-          short-form clips ready for social media publishing.
-        tags: [python, media-processing, automation, architecture, captions, ffmpeg-adjacent]
-      - id: b_vid_goal
+          Building an evaluation set from past tickets, and measuring suggestion
+          quality against it before changing a prompt.
+        tags: [evaluation, accuracy, prompt-engineering, testing, iteration]
+      - id: b_tix_goal
         strength: 2
         text: >-
-          Goal: reduce a multi-hour manual editing workflow to a repeatable, automated
-          process, actively refining accuracy of AI-identified highlights.
-        tags: [automation, workflow, evaluation, accuracy, iteration]
+          Goal: cut the time to a first response while a person still approves
+          every reply that goes out.
+        tags: [automation, workflow, iteration]
 
-  - id: proj_game_data
-    name: Live Streaming Game Data Analysis Tool
+  - id: proj_transit_report
+    name: Transit Reliability Report
     status: in_development
     repo: null                  # TODO
     demo: null
-    stack: [Python, Claude API, Gemini API]
+    stack: [Python, pandas, public transit APIs]
     family: data_ml
     bullets:
-      - id: b_game_build
+      - id: b_transit_build
         strength: 1
         text: >-
-          Building a Python-based application using Claude and Gemini to analyze
-          streaming game data and surface relevant insights in real time.
-        tags: [python, real-time, streaming, data-analysis, llm, claude, gemini]
-      - id: b_game_apis
+          Building a Python tool that reads a city's public transit feed and reports
+          which routes run late most often.
+        tags: [python, data-analysis, real-time, api-integration, reporting]
+      - id: b_transit_apis
         strength: 1
         text: >-
-          Integrating multiple AI APIs into a single cloud-native workflow; gaining
-          direct, practical experience in AI orchestration, prompt design, and
-          automation architecture.
-        tags: [api-integration, orchestration, prompt-engineering, cloud-native, architecture]
+          Integrating several public APIs into one scheduled job, including retries
+          and a record of what each run fetched.
+        tags: [api-integration, orchestration, scheduling, architecture, automation]
 
-  # Self-referential: this repo is a legitimate portfolio project. Bullets stay
-  # empty until it actually does the thing — do not claim it before it ships.
+  # Self-referential: the tool you are reading is a legitimate portfolio project
+  # for whoever builds on it. Bullets stay empty until it actually does the
+  # thing — do not claim it before it works.
   - id: proj_job_agent
     name: Agentic Job Search Assistant
     status: in_development
     repo: null
     demo: null
-    stack: [Python, SQLite, Claude API, FastAPI]
+    stack: [Python, SQLite, FastAPI, LLM APIs]
     family: ai_engineering
     bullets: []                 # TODO — write these from what actually gets built
 
+# ---------------------------------------------------------------------------
+# Certifications. Printed on the resume under EDUCATION. `components` is
+# optional: use it when one enrolment covered several separately-assessed
+# courses, so the resume can name the enrolment rather than list seven lines.
+# ---------------------------------------------------------------------------
 certifications:
-  - id: cert_umich_genai
-    name: Applied Generative AI Specialization
-    issuer: University of Michigan College of Engineering
-    issued: 2026
+  - id: cert_example_program
+    name: Applied Machine Learning, Professional Certificate
+    issuer: Example Online Institute
+    issued: 2025
     credential_url: null        # TODO — add the verification link
     description: >-
-      Hands-on program covering large language model application design, prompt
-      engineering, and deployment of generative AI tools (Claude, Gemini) for
-      real-world automation tasks.
-  - id: cert_simplilearn_bundle
-    name: Simplilearn ME-AGS Course Certificates
-    issuer: Simplilearn
-    issued: 2026-06
+      Coursework in language-model application design, prompt engineering, and
+      deploying small automation tools, assessed by project.
+  - id: cert_example_bundle
+    name: Example Provider Course Certificates
+    issuer: Example Provider
+    issued: 2025-06
     credential_url: null        # TODO
     components:
-      - name: AI Literacy
+      - name: Python for Automation
         result: Project passed
-        date: 2026-03
-      - name: "Advanced Generative AI: Models and Architecture"
+        date: 2025-03
+      - name: Working with APIs
         result: Test passed
-        date: 2026-06
-      - name: "Advanced Generative AI: Building LLM Applications"
+        date: 2025-05
+      - name: Introduction to Data Analysis
         result: Project passed
-        date: 2026-06
-      - name: "Advanced Generative AI: Agentic AI Frameworks With Model Context and Tooling Protocols"
-        result: Project passed
-        date: 2026-06
-      - name: "Advanced Generative AI: Image Generation"
-        result: Test passed
-        date: 2026-06
-      - name: Generative AI Governance
-        result: Test passed
-        date: 2026-06
+        date: 2025-06
 
+# ---------------------------------------------------------------------------
+# Education. State your credential EXACTLY and honestly.
+#
+# The example shows the harder case on purpose: coursework without a conferred
+# degree. Roughly half of the postings this tool collects state a degree
+# requirement, and nothing in this project will imply a degree you do not hold
+# — `jsa prep` drills the question and the verifier refuses a draft that claims
+# one. If you did finish, write it plainly instead:
+#
+#     credential: BS Computer Science
+#
+# Either way, state the FIELD: it is what "BS in X or equivalent experience"
+# postings actually care about.
+# ---------------------------------------------------------------------------
 education:
   - id: edu_example
-    institution: Your University
-    credential: BS Computer Science          # or e.g. "Coursework completed (degree not conferred)"
+    institution: State University
+    credential: Coursework completed (degree not conferred)
     field: Computer Science
     start: 2018
-    end: 2022
-    # State your credential exactly and honestly. If a degree was not
-    # conferred, say so — and still state the FIELD, which is what most
-    # "BS in X or equivalent experience" postings actually care about.
+    end: 2020
 
 skills:
   ai_tools:
-    - Claude
-    - Gemini
     - Prompt Engineering
     - LLM Application Design
-    - Agentic Workflows
+    - Evaluation Sets
   technical:
     - Python
-    - Cloud-Native Application Development
     - Automation Pipelines
     - API Integration
+    - SQLite
   applied_focus:
-    - Video/Media Automation
     - Data Analysis
     - Rapid Prototyping
     - Self-Directed Learning
@@ -392,7 +401,7 @@ skills:
 
 # ---------------------------------------------------------------------------
 # ATS keyword bank. The tailoring module scores a JD against `have` and reports
-# `missing` so the candidate knows the real gap instead of keyword-stuffing.
+# `missing` so you see the real gap instead of keyword-stuffing.
 # ---------------------------------------------------------------------------
 ats_keywords:
   have:
@@ -401,18 +410,15 @@ ats_keywords:
     - LLM
     - Generative AI
     - Prompt Engineering
-    - Claude
-    - Gemini
     - API Integration
     - Automation
-    - Cloud-Native
-    - Agentic Workflows
-    - Model Context Protocol
     - Data Analysis
     - Rapid Prototyping
     - Technical Sales
     - Customer-Facing
   # Never insert these into a resume unless the underlying skill becomes true.
+  # The verifier treats this list as a hard refusal, wherever the words came
+  # from — including a job description that asks for them.
   aspirational_do_not_claim:
     - Kubernetes
     - Distributed Systems
@@ -425,26 +431,28 @@ ats_keywords:
 
 # ---------------------------------------------------------------------------
 # Honest positioning notes. Used by the tailoring and interview-prep modules;
-# never printed on a resume.
+# never printed on a resume. Write the things you would rather not say out
+# loud: this is where the tool learns what NOT to claim.
 # ---------------------------------------------------------------------------
 gaps_and_notes:
   - id: gap_no_swe_employment
     note: >-
       No paid software engineering employment yet. Both technical projects are
       self-directed and in development. Discovery should target entry/junior/
-      associate roles, apprenticeships, and AI-adjacent customer-facing roles
-      (solutions engineer, forward-deployed engineer, technical support engineer)
-      where the sales background is an asset rather than a detour.
+      associate roles, apprenticeships, and technical customer-facing roles
+      (solutions engineer, forward-deployed engineer, support engineer) where a
+      field and sales background is an asset rather than a detour.
   - id: gap_employment_break
     note: >-
-      Gap from November 2023 to present. Frame as a deliberate pivot into AI:
-      certifications completed 2026 plus two applied projects. Have a one-sentence
-      answer ready — the interview-prep module should drill this.
+      Gap from late 2023 to present. Frame as a deliberate pivot: certificates
+      in 2025 plus two applied projects. Have a one-sentence answer ready — the
+      interview-prep module drills this one every time.
   - id: gap_no_shipped_repo
     note: >-
-      Nothing public on GitHub yet is the single biggest fixable weakness. One
-      finished, documented repo would outweigh another certificate.
+      Nothing public on the repo host yet is the single biggest fixable
+      weakness. One finished, documented project would outweigh another
+      certificate.
   - id: strength_sales
     note: >-
-      Three years of real revenue-facing work is genuinely differentiating against
+      Three years of revenue-facing work is genuinely differentiating against
       other career-changers. Lead with it for any role that touches a customer.
