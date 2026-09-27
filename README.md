@@ -284,12 +284,17 @@ what survived, so a rewrite that kept your whole bullet and appended "during
 high-priority support scenarios" scored *higher*. Replayed over every document
 written before the fix, it reverted 13 of 19 rewrites.
 
-Two limits worth knowing. The model sees the first 4,000 characters of a
-posting, and **88% of postings in this tracker are longer than that** — so
-requirements stated late cannot influence the draft. The command says so when it
-truncates. And a redraft needs `--force`, producing a new version, a new file
-and a new pending approval; the old one is never overwritten, because approval
-is per version.
+One limit worth knowing, down from two. The model reads the first **12,000**
+characters of a posting, which covers 99.7% of this tracker completely; it
+used to read 4,000, at which point 92% of postings were cut and one in five
+that stated a degree requirement stated it where the model could not see it.
+The command still says so when it truncates, and now quotes the words it
+stopped at so you can find the boundary in the posting. One function decides
+this for every model call — see
+[ADR 0016](docs/decisions/0016-how-much-of-a-posting-the-model-reads.md), which
+is also honest about how much the change actually fixed. And a redraft needs
+`--force`, producing a new version, a new file and a new pending approval; the
+old one is never overwritten, because approval is per version.
 
 ```bash
 .venv/Scripts/python -m jsa contact-add --name "..." --company Replit --title "..."
@@ -822,6 +827,7 @@ jobsearch/
     discover.py                 # feed -> score -> tracker
     llm.py                      # OpenAI-compatible client, fallback chain
     enrich.py                   # LLM pass over survivors, strictly validated
+    posting.py                  # how much of a posting a model may read
     places.py                   # a posting's location -> a point on a map
     mapview.py                  # that map, as geometry: no markup, no tiles
     web.py                      # the local review dashboard

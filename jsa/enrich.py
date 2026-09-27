@@ -38,7 +38,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Any
 
-from . import db, llm
+from . import db, llm, posting
 
 # Small and cheap: this runs hundreds of times per pass.
 ENRICH_MODELS = [
@@ -47,7 +47,10 @@ ENRICH_MODELS = [
     "openai/gpt-oss-20b",
 ]
 
-MAX_DESCRIPTION_CHARS = 6000
+# One rule, in jsa/posting.py. This used to be 6000 while tailoring used
+# 4000, so a resume was written from less of the posting than the extraction
+# pass had already read.
+MAX_DESCRIPTION_CHARS = posting.MAX_DESCRIPTION_CHARS
 DEFAULT_WORKERS = 4
 
 SYSTEM = (
@@ -168,7 +171,7 @@ def enrich_one(title: str, description: str, metrics=None) -> Enrichment:
     """Call the model for a single listing. Raises LLMError or ValueError."""
     prompt = PROMPT.format(
         title=title or "(untitled)",
-        description=(description or "")[:MAX_DESCRIPTION_CHARS],
+        description=posting.visible(description).text,
     )
     data, _usage = llm.complete_json(
         prompt,

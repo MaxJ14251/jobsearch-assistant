@@ -364,7 +364,11 @@ class TestLongPostingsAreNotSilentlyTruncated(TailorCase):
         with redirect_stderr(err),              mock.patch("jsa.tailor.llm.complete_json",
                         return_value=fake_completion(some_bullet_ids(PROFILE))),              mock.patch("jsa.cli.load_profile", return_value=PROFILE),              mock.patch("jsa.render.OUTPUT_DIR", self.tmp / "output"):
             quiet(cmd_tailor, Namespace(job_id=1, kind="resume", force=False))
-        self.assertIn("the model saw the first", err.getvalue())
+        said = err.getvalue()
+        self.assertIn("the model read the first", said)
+        # n14: it says what was left out, in words the operator can find in
+        # the posting, rather than only how many characters were kept.
+        self.assertIn("and not the last", said)
 
     def test_the_limit_is_named_not_inline(self):
         """It was a bare 4000 in the middle of a format call."""
@@ -372,6 +376,24 @@ class TestLongPostingsAreNotSilentlyTruncated(TailorCase):
         source = (ROOT / "jsa" / "tailor.py").read_text(encoding="utf-8")
         self.assertIsInstance(MAX_DESCRIPTION_CHARS, int)
         self.assertNotIn("description[:4000]", source)
+
+    def test_every_model_call_reads_the_posting_through_one_function(self):
+        """n14. Four modules used to slice the description themselves, at
+        three different lengths: a resume was tailored from less of the
+        posting than the extraction pass had already read."""
+        from jsa import posting
+        for name in ("tailor", "prep", "enrich", "letter", "outreach"):
+            source = (ROOT / "jsa" / f"{name}.py").read_text(encoding="utf-8")
+            with self.subTest(module=name):
+                self.assertNotRegex(
+                    source, r"description(?:\s*or\s*\"\")?\)?\[:\s*\d",
+                    f"jsa/{name}.py slices the description itself")
+                self.assertIn("visible(", source)
+        from jsa import enrich, prep
+        self.assertEqual(posting.MAX_DESCRIPTION_CHARS,
+                         enrich.MAX_DESCRIPTION_CHARS)
+        self.assertEqual(posting.MAX_DESCRIPTION_CHARS,
+                         prep.MAX_DESCRIPTION_CHARS)
 
 
 class TestOutputStaysUntracked(unittest.TestCase):

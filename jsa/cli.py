@@ -379,7 +379,6 @@ KIND_ARG = {"resume": "resume", "cover-letter": "cover_letter"}
 
 def cmd_tailor(args: argparse.Namespace) -> int:
     from .drafting import DraftError, draft_document
-    from .tailor import MAX_DESCRIPTION_CHARS
 
     kind = KIND_ARG[args.kind]
     con = db.connect()
@@ -393,11 +392,11 @@ def cmd_tailor(args: argparse.Namespace) -> int:
     finally:
         con.close()
 
-    if result.description_chars > MAX_DESCRIPTION_CHARS:
-        # Silent truncation is how a draft ends up ignoring a requirement that
-        # was stated in the part the model never saw.
-        print(f"note: posting is {result.description_chars:,} chars; the model "
-              f"saw the first {MAX_DESCRIPTION_CHARS:,}", file=sys.stderr)
+    # Silent truncation is how a draft ends up ignoring a requirement that was
+    # stated in the part the model never saw. Since n14 this fires on 0.3% of
+    # postings rather than 92% of them, which is what makes it worth reading.
+    if result.description_note:
+        print(f"note: {result.description_note}", file=sys.stderr)
     print(f"wrote {result.path}")
     print(f"  document {result.document_id} v{result.version}  model {result.model}")
     # Printed so a misclassified title is visible on every run. ADR 0005.
@@ -580,7 +579,7 @@ def cmd_prep(args: argparse.Namespace) -> int:
 
         profile = load_profile()
         require_decided_preferences(profile)
-        full = len(row["description"] or "")
+        description = row["description"] or ""
         result = prep_mod.generate(
             con, args.application_id, round=args.round, profile=profile)
         prep_id = con.execute(
@@ -601,10 +600,10 @@ def cmd_prep(args: argparse.Namespace) -> int:
     finally:
         con.close()
 
-    from .prep import MAX_DESCRIPTION_CHARS
-    if full > MAX_DESCRIPTION_CHARS:
-        print(f"note: posting is {full:,} chars; the model saw the first "
-              f"{MAX_DESCRIPTION_CHARS:,}", file=sys.stderr)
+    from . import posting
+    said = posting.note(posting.visible(description))
+    if said:
+        print(f"note: {said}", file=sys.stderr)
     print(f"prep {prep_id} for application {args.application_id} "
           f"({row['title']} at {row['company']}, {args.round})")
     print(f"  {len(result.questions)} question(s)  model {result.model}")

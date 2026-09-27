@@ -22,17 +22,13 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Any
 
-from . import db, llm
+from . import db, llm, posting
 from .tailor import collect_bullets, scrub_prompt, term_pattern
 
 # Phrasings that assert a conferred degree. Checked case-insensitively against
 # every generated answer. Fluent and false is the failure mode being caught.
-# How much of a posting the model is shown, matching jsa/tailor.py. 88% of the
-# tracker's descriptions are longer than this, so for most jobs the back half
-# cannot influence the questions. jsa/enrich.py independently uses 6000 for the
-# same job; the three have never been reconciled, and that is worth doing once
-# somebody measures the token budget rather than guessing at it.
-MAX_DESCRIPTION_CHARS = 4000
+# How much of a posting the model is shown. One rule, in jsa/posting.py.
+MAX_DESCRIPTION_CHARS = posting.MAX_DESCRIPTION_CHARS
 
 DEGREE_DENY = [
     "my degree in",
@@ -293,7 +289,7 @@ def generate(
     prompt = PROMPT.format(
         round=round.replace("_", " "),
         title=row["title"], company=row["company"],
-        description=(row["description"] or "")[:MAX_DESCRIPTION_CHARS],
+        description=posting.visible(row["description"]).text,
         bullets="\n".join(f"- {b.text}" for b in bullets),
         field=edu.get("field") or "their field",
     )

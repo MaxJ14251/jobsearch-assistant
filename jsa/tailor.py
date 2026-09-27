@@ -28,7 +28,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
-from . import llm
+from . import llm, posting
 
 # A reworded bullet must retain this share of its source's meaningful words.
 # Below it, the text has drifted far enough to be asserting something new.
@@ -46,15 +46,10 @@ MIN_SOURCE_OVERLAP = 0.45
 # 0.20 sits in the gap between invention and imprecision.
 FABRICATION_FLOOR = 0.20
 
-# How much of a posting the model is shown. 88% of the tracker's descriptions
-# are longer than this (median 5,668 chars, longest 10,661), so for most jobs
-# the back half is invisible to tailoring -- requirements stated late in a
-# posting cannot influence the draft. The number was previously inline and
-# unnamed; enrich.py independently uses 6000 for the same job, and the two have
-# never been reconciled. Raising it is a token-budget decision that needs its
-# own evidence, so for now it is named, measured, and surfaced by `jsa tailor`
-# rather than silently applied.
-MAX_DESCRIPTION_CHARS = 4000
+# How much of a posting the model is shown. Decided once, in jsa/posting.py,
+# which carries the measurement behind the number; re-exported here because
+# letter.py and the CLI have always imported it from tailor.
+MAX_DESCRIPTION_CHARS = posting.MAX_DESCRIPTION_CHARS
 
 # Words carried by every bullet; they say nothing about whether meaning survived.
 _STOP = {
@@ -870,7 +865,7 @@ def tailor(
     listing = "\n".join(f'- [{b.id}] {b.text}' for b in chosen)
     prompt = PROMPT.format(
         title=job.get("title") or "the role",
-        description=description[:MAX_DESCRIPTION_CHARS],
+        description=posting.visible(description).text,
         summary=" ".join(summary["text"].split()),
         bullets=listing,
     )

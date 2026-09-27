@@ -32,7 +32,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from . import llm
+from . import llm, posting
 from .tailor import (
     MAX_DESCRIPTION_CHARS, TailoredDraft, _stem, _whole_profile_stems, _words,
     do_not_claim, scrub_prompt, term_pattern,
@@ -303,7 +303,7 @@ def write(job: dict[str, Any], profile: dict[str, Any], draft: TailoredDraft,
         location=job.get("location") or "not stated",
         summary=" ".join(draft.summary.split()),
         bullets=notes,
-        description=(job.get("description") or "")[:MAX_DESCRIPTION_CHARS],
+        description=posting.visible(job.get("description")).text,
     )
     scrub_prompt(prompt, profile)       # fails closed before any network call
 

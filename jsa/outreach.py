@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from . import approvals, db, llm
+from . import posting as posting_text
 from .tailor import (
     FabricationError,
     collect_bullets,
@@ -138,9 +139,11 @@ informational follow following up thank thanks
 """.split())
 
 
-# What the model is shown of the posting. It is here to answer "why this role",
-# not to be quoted: the word check rejects anything it borrows about the sender.
-MAX_POSTING_CHARS = 2000
+# What the model is shown of the posting. Smaller than a drafting call's
+# budget on purpose -- it is here to answer "why this role", not to be quoted,
+# and the word check rejects anything it borrows about the sender -- but it
+# goes through the same function, in jsa/posting.py.
+MAX_POSTING_CHARS = posting_text.OUTREACH_CHARS
 
 
 def salutation(name: str) -> str:
@@ -383,7 +386,8 @@ def draft(
         recipient=f"{contact['name']}, {contact['title'] or 'unknown role'}, "
                   f"at {contact['company_name'] or 'unknown company'}. "
                   f"Address them as {salutation(contact['name'])}.",
-        posting=(description or "")[:MAX_POSTING_CHARS] or "(not available)",
+        posting=posting_text.visible(description, MAX_POSTING_CHARS).text
+                or "(not available)",
     )
     scrub_prompt(prompt, profile)
 

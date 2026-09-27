@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from . import approvals
+from . import posting
 
 
 class DraftError(RuntimeError):
@@ -39,6 +40,9 @@ class DraftOutcome:
     gaps: list[str]
     revert_reasons: dict[str, str] = field(default_factory=dict)
     description_chars: int = 0
+    # What the model was not shown of the posting, in words, or "" when it
+    # read all of it. Computed here because this is where the posting is.
+    description_note: str = ""
     note: str = ""
     letter_problems: list[str] = field(default_factory=list)
     # Approvals the tool closed because this version replaced them, and what
@@ -143,6 +147,7 @@ def draft_document(
         gaps=list(draft.keywords_missing),
         revert_reasons=dict(draft.revert_reasons),
         description_chars=len(job.get("description") or ""),
+        description_note=posting.note(posting.visible(job.get("description"))),
         note=note, letter_problems=letter_problems,
         superseded=superseded,
         prior_feedback=approvals.prior_feedback(
