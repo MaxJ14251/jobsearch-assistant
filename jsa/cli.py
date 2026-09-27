@@ -124,9 +124,10 @@ def cmd_discover(args: argparse.Namespace) -> int:
     width = max(len(r.company) for r in reports)
     total_new = 0
     for r in reports:
+        dupes = f"  dup {r.duplicate:>3}" if r.duplicate else ""
         print(
             f"  {r.company:<{width}}  fetched {r.fetched:>4}  kept {r.kept:>3}  "
-            f"new {r.new:>3}  filtered {r.rejected:>4}  {r.status}"
+            f"new {r.new:>3}  filtered {r.rejected:>4}{dupes}  {r.status}"
         )
         total_new += r.new
     print(f"\n{total_new} new listing(s) above score {args.min}. "

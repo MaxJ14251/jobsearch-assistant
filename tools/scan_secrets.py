@@ -31,6 +31,15 @@ NAME_PART_MIN = 4
 
 SKIP_DIRS = {".git", ".venv", "__pycache__", "output", "documents", ".claude"}
 
+# Compressed and binary files, read as text with errors ignored, are random
+# letters -- and random letters eventually spell something. The shipped
+# Census data reported an email address that existed only in the gzip
+# stream. A scanner that cries wolf gets ignored, which is the actual risk
+# here. Anything listed is DECOMPRESSED or skipped, never scanned as bytes.
+BINARY_SUFFIXES = {".zip", ".docx", ".pdf", ".png", ".jpg", ".jpeg", ".gif",
+                   ".ico", ".woff", ".woff2", ".ttf", ".db", ".sqlite"}
+TEXT_IN_A_WRAPPER = {".gz"}
+
 # Two tiers, because "skip this file" was previously one list doing two jobs.
 #
 # NEVER_SCAN: local files that hold real values BY DESIGN. Both are gitignored
@@ -50,9 +59,19 @@ NEVER_SCAN = {
 # list had switched key detection off for .env.example, which is the single
 # most likely place for somebody to paste a real key by accident: the one file
 # that most needed the check was the one file exempt from it.
+#
+# The shipped Census data is the same shape of problem from the other end: a
+# public list of every US town and ZIP code necessarily contains the
+# operator's own ZIP, a town sharing a name with somebody's family name, and
+# digit runs that match part of anybody's phone number. Those are facts
+# about the United States,
+# not about the operator. Key and home-path detection still run on them, so a
+# key pasted into one is still caught.
 SKIP_PERSONAL_FILES = {
     ".env.example",
     "master_profile.example.yaml",
+    "us_places.csv.gz",
+    "us_zips.csv.gz",
 }
 
 # Credential shapes that are never acceptable, regardless of whose they are.
@@ -416,8 +435,19 @@ def main(argv: list[str]) -> int:
         if not path.exists() or path.name in NEVER_SCAN:
             continue
         rel = path.relative_to(ROOT).as_posix()
+        suffix = path.suffix.lower()
+        if suffix in BINARY_SUFFIXES:
+            continue
         try:
-            text = path.read_text(encoding="utf-8", errors="ignore")
+            if suffix in TEXT_IN_A_WRAPPER:
+                # Scan what is INSIDE it: a key pasted into a compressed file
+                # is still a committed key.
+                import gzip
+
+                with gzip.open(path, "rt", encoding="utf-8", errors="ignore") as fh:
+                    text = fh.read()
+            else:
+                text = path.read_text(encoding="utf-8", errors="ignore")
         except Exception:
             continue
         problems.extend(scan_text(path.name, rel, text, never, authorship))
