@@ -191,6 +191,27 @@ def parse_tristate(value: Any, name: str) -> bool | None:
     )
 
 
+# Far enough to include the next city over, close enough that "near me" still
+# means something. Overridden per profile with radius_miles.
+DEFAULT_RADIUS_MILES = 40.0
+
+
+def parse_radius(value: Any) -> float:
+    if value is None or value == "":
+        return DEFAULT_RADIUS_MILES
+    try:
+        miles = float(value)
+    except (TypeError, ValueError):
+        raise ConfigError(
+            f"master_profile.yaml: job_search_preferences.radius_miles is "
+            f"{value!r}. Give a number of miles, e.g. 40.") from None
+    if not 1 <= miles <= 3000:
+        raise ConfigError(
+            f"radius_miles is {miles:g}. Use 1 to 3000 miles -- for the whole "
+            f"country, there is no radius to set: leave locations remote-only.")
+    return miles
+
+
 YEARS_FILTERS = ("reject", "rank", "off")
 
 
@@ -228,6 +249,11 @@ class Preferences:
     # than they will actually hold out for; the choice to try is the operator's.
     max_years_experience: int = 3
     years_filter: str = "reject"
+    # Where you are, and how far you would go. `home_location` is a ZIP or a
+    # "City, ST"; left unset it is the first real place in `locations`, so an
+    # existing profile gains distance scoring without being edited.
+    home_location: str = ""
+    radius_miles: float = DEFAULT_RADIUS_MILES
     # Named commute regions -> city substrings, for `matches --near <name>`.
     regions: dict[str, list[str]] = field(default_factory=dict)
     # Compensation and authorization. Stored and validated; NOT used by scoring.
@@ -236,6 +262,22 @@ class Preferences:
     work_authorization: str | None = None
     needs_visa_sponsorship: bool | None = None
     willing_to_relocate: bool | None = None
+
+    def home(self):
+        """The operator's origin as a Place, or None if it cannot be placed.
+
+        Falls back to the first entry in `locations` that names a real town,
+        so a profile written before this existed still gets distances.
+        """
+        from . import places
+
+        for candidate in [self.home_location, *self.locations]:
+            if not candidate or "remote" in str(candidate).lower():
+                continue
+            found = places.origin(str(candidate))
+            if found is not None:
+                return found
+        return None
 
     @classmethod
     def from_profile(cls, profile: dict[str, Any]) -> "Preferences":
@@ -260,6 +302,8 @@ class Preferences:
             fallback_weight=float(prefs.get("fallback_weight") or 0.7),
             max_years_experience=int(prefs.get("max_years_experience") or 3),
             years_filter=parse_years_filter(prefs.get("years_filter")),
+            home_location=str(prefs.get("home_location") or "").strip(),
+            radius_miles=parse_radius(prefs.get("radius_miles")),
             regions={k: list(v) for k, v in (prefs.get("regions") or {}).items()},
             compensation_floor=parse_compensation_floor(
                 prefs.get("compensation_floor_usd"), prefs.get("regions") or {}

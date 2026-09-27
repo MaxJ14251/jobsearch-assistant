@@ -196,5 +196,97 @@ class TestTheOperatorsOrigin(unittest.TestCase):
                 self.assertIsNone(places.origin(text))
 
 
+class TestDistanceDecidesTheScore(unittest.TestCase):
+    """What the map is for: ranking by how far away a job actually is.
+
+    Before this, a posting scored on whether its text matched a city the
+    operator had written down by hand. Somebody in Los Angeles had to list
+    Example Town, Example Town, Example Town and every other suburb, or those jobs
+    scored zero.
+    """
+
+    def prefs(self, home="Boise, ID", radius=40, locations=None):
+        from jsa.config import Preferences
+
+        return Preferences(
+            target_titles=["Engineer"],
+            locations=locations if locations is not None else ["Remote (US)"],
+            home_location=home, radius_miles=radius)
+
+    def score(self, location, prefs=None):
+        from jsa.scoring import location_score
+
+        return location_score(location, "onsite", prefs or self.prefs())
+
+    def test_near_outranks_far(self):
+        near, _ = self.score("Meridian, ID")        # ~10 miles from Boise
+        far, _ = self.score("Twin Falls, ID")       # ~110 miles
+        self.assertEqual(near, 1.0)
+        self.assertLess(far, near)
+
+    def test_a_town_nobody_listed_still_scores(self):
+        """The whole point. Meridian is not in `locations`."""
+        value, why = self.score("Meridian, ID")
+        self.assertEqual(value, 1.0)
+        self.assertIn("miles away", why)
+        self.assertIn("radius", why)
+
+    def test_a_city_you_named_wins_whatever_the_mileage(self):
+        """An explicit choice outranks arithmetic about it."""
+        prefs = self.prefs(locations=["Remote (US)", "New York, NY"])
+        value, why = self.score("New York, NY", prefs)
+        self.assertEqual(value, 1.0)
+        self.assertIn("New York", why)
+
+    def test_the_radius_is_the_operators(self):
+        tight, loose = self.prefs(radius=10), self.prefs(radius=100)
+        self.assertLess(self.score("Nampa, ID", tight)[0],
+                        self.score("Nampa, ID", loose)[0])
+
+    def test_far_away_and_never_listed_still_scores_nothing(self):
+        """Distance must not become a floor under jobs across the country."""
+        value, _ = self.score("Miami, FL")
+        self.assertEqual(value, 0.0)
+
+    def test_a_posting_that_cannot_be_placed_is_said_so(self):
+        value, why = self.score("Starbase, TX")
+        self.assertEqual(value, 0.2)
+        self.assertIn("could not be placed", why)
+
+    def test_outside_the_us_is_still_rejected_before_any_distance(self):
+        for text in ("London, United Kingdom", "Toronto, ON", "São Paulo"):
+            with self.subTest(text=text):
+                value, why = self.score(text)
+                self.assertEqual(value, 0.0)
+                self.assertIn("outside the US", why)
+
+    def test_remote_is_untouched_by_distance(self):
+        from jsa.scoring import location_score
+
+        value, why = location_score("Remote (US)", "remote", self.prefs())
+        self.assertEqual(value, 1.0)
+        self.assertNotIn("miles", why)
+
+    def test_the_home_falls_back_to_the_first_real_location(self):
+        """An existing profile gets distances without being edited."""
+        prefs = self.prefs(home="", locations=["Remote (US)", "Boise, ID"])
+        self.assertIsNotNone(prefs.home())
+        self.assertEqual(prefs.home().state, "ID")
+
+    def test_a_profile_with_nowhere_placeable_still_scores(self):
+        prefs = self.prefs(home="", locations=["Remote (US)"])
+        self.assertIsNone(prefs.home())
+        self.assertEqual(self.score("Meridian, ID", prefs)[0], 0.0)
+
+    def test_a_bad_radius_is_refused_by_name(self):
+        from jsa.config import ConfigError, Preferences
+
+        with self.assertRaises(ConfigError) as ctx:
+            Preferences.from_profile({"job_search_preferences": {
+                "target_titles": ["Engineer"], "locations": ["Remote (US)"],
+                "radius_miles": "as far as I can drive"}})
+        self.assertIn("miles", str(ctx.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

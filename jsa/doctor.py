@@ -279,6 +279,36 @@ def check_market(profile: dict[str, Any], con: sqlite3.Connection | None,
     if len(rows) < MIN_POSTINGS_FOR_MARKET:
         return                      # check_tracker already said it is empty
 
+    # What the radius actually holds, now that postings sit on a map.
+    from . import places
+    from .config import Preferences
+
+    try:
+        home = Preferences.from_profile(profile).home()
+        radius = Preferences.from_profile(profile).radius_miles
+    except Exception:  # noqa: BLE001 - doctor reports, it never raises
+        home, radius = None, 0.0
+    if home is not None:
+        inside = unplaceable = 0
+        for r in rows:
+            if (r["remote"] or "") == "remote":
+                continue
+            parsed = places.parse(r["location"] or "")
+            if not parsed.places:
+                unplaceable += 1
+                continue
+            if places.nearest(home, parsed) <= radius:
+                inside += 1
+        report.checked.append(
+            f"postings within {radius:.0f} miles of {home} ({inside})")
+        if unplaceable:
+            report.add(
+                False,
+                f"{unplaceable} posting(s) name a place this cannot find",
+                "They are scored on everything else and never dropped. Mostly "
+                "postings that name no town, a department instead of a place, "
+                "or a town too new for the shipped Census data.")
+
     remote = sum(1 for r in rows if (r["remote"] or "") == "remote")
     local = sum(1 for r in rows
                 if (r["remote"] or "") != "remote"

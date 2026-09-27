@@ -279,6 +279,19 @@ def names_a_state(location: str) -> bool:
                for name in _STATE_NAMES.values()))
 
 
+# How a posting scores by distance. Beyond the radius it is ranked lower, not
+# rejected: a job 50 miles away is a real job, and the operator decides
+# whether the drive is worth it. Nothing here ever returns 0 for distance
+# alone -- that is reserved for the hard rejects above.
+def distance_score(miles: float, radius: float) -> tuple[float, str]:
+    near = f"{miles:.0f} mile{'s' if round(miles) != 1 else ''} away"
+    if miles <= radius:
+        return 1.0, f"{near}, inside your {radius:.0f}-mile radius"
+    if miles <= radius * 2:
+        return 0.65, f"{near}, just outside your {radius:.0f}-mile radius"
+    return 0.35, f"{near}"
+
+
 def location_score(
     location: str, remote: str, prefs: Preferences
 ) -> tuple[float, str]:
@@ -289,17 +302,46 @@ def location_score(
         if any("remote" in p.lower() for p in prefs.locations):
             return 1.0, "remote role and remote is acceptable"
         return 0.7, "remote role"
+
     for pref in prefs.locations:
         if _matches_city(loc, pref):
             return 1.0, f"located in {pref}"
+    # Distance, for a town the operator never listed. This is the whole point
+    # of placing postings on a map: nobody should have to write down every
+    # suburb they would commute to, and the old `regions` block asked them to.
+    #
+    # It sits BELOW the explicit list -- a city you named is a city you want,
+    # whatever the mileage -- and it stops at five radii. Beyond that the
+    # explicit lists decide, so a Los Angeles posting still scores zero for
+    # somebody in Texas who never mentioned California.
+    from . import places
+
+    home = prefs.home() if hasattr(prefs, "home") else None
+    distance = (places.nearest(home, location or "") if home is not None
+                else None)
+
     # Your state, but not your city: worth something, not everything. This
     # used to be a hardcoded California bonus, which ranked the author's home
     # state above a reader's own city.
     for state in sorted(preferred_states(prefs.locations)):
         if in_state(location, state):
-            return 0.6, f"in {_STATE_NAMES[state].title()}, a state you listed"
+            named = f"in {_STATE_NAMES[state].title()}, a state you listed"
+            if distance is None:
+                return 0.6, named
+            # Both are true. Take the better score and say both things: a
+            # Dallas posting for somebody in Austin is in their state AND 182
+            # miles away, and the mileage is the part they can act on.
+            value, why = distance_score(distance, prefs.radius_miles)
+            return max(value, 0.6), f"{why}, {named}"
+
+    if distance is not None and distance <= prefs.radius_miles * 5:
+        return distance_score(distance, prefs.radius_miles)
     if not loc:
         return 0.4, "location not stated"
+    if home is not None and not places.parse(location or "").places:
+        # Placed nowhere and matched nothing: say which, because "outside
+        # your list" would be a claim about a place nobody identified.
+        return 0.2, f"location {location[:40]!r} could not be placed on a map"
     return 0.0, f"location {location!r} is outside your list"
 
 

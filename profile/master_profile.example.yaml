@@ -124,6 +124,17 @@ job_search_preferences:
   max_years_experience: 3
   years_filter: reject
 
+  # How near is near. Postings are placed on a map from shipped Census data
+  # (no geocoding service, nothing leaves your machine), and a town within
+  # this radius scores as fully as one you listed above -- so you do not have
+  # to write down every suburb you would commute to.
+  #
+  # Both lines are OPTIONAL. Unset, the radius is 40 miles and the origin is
+  # the first real place in `locations` above. Set them to be explicit:
+  #
+  #   home_location: "12345"        # a ZIP, or "Your City, ST"
+  #   radius_miles: 40
+
   # Named commute regions for `matches --near <name>`. Each is a list of
   # substrings matched against a listing's location text. Define whatever
   # makes sense for where you'd actually work.

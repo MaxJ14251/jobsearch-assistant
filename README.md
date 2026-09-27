@@ -827,8 +827,23 @@ cp .env.example .env
 `fallback_weight` (a second tier ranked below the first), `locations`,
 `max_years_experience` and `years_filter` (what a posting asking for more years
 does: `reject` drops it, `rank` keeps it ranked lower, `off` ignores years),
-`exclude_keywords`, and `regions` (named commute areas for `matches --near`).
+`exclude_keywords`, `home_location` and `radius_miles` (below), and `regions`
+(named groups for the `matches --near` filter).
 A degree requirement is never a filter: it is shown on the job as "asks for a
-degree" and changes neither whether a job appears nor its score. The User-Agent sent to job boards resolves
+degree" and changes neither whether a job appears nor its score.
+
+**Distance.** Postings are placed on a map from Census centroids that ship
+with the tool — 32,109 towns and 33,791 ZIP codes, no geocoding service, so
+your home ZIP never leaves your machine. A town within `radius_miles`
+(default 40) of `home_location` scores as fully as one you listed by name, so
+you do not have to write down every suburb you would commute to: measured on
+this tracker, Example Town scores 1.0 at 15 miles without appearing in any list.
+Both settings are optional — unset, the origin is the first real place in
+`locations`. Further out ranks lower rather than being dropped, a city you
+named always wins whatever the mileage, and a posting whose location cannot
+be placed is scored on everything else and reported by `jsa doctor` rather
+than guessed at. Measured 2026-09-26 over 1,224 open postings: 91.2% are
+usable by a radius. See
+[ADR 0014](docs/decisions/0014-distance-not-place-names.md). The User-Agent sent to job boards resolves
 `JSA_CONTACT_EMAIL`, then your profile's email, then no contact — never a value baked
 into the source.
