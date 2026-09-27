@@ -111,6 +111,20 @@ class TestTheAdapter(unittest.TestCase):
         self.assertIn("Python", job["description"])
         self.assertNotIn("<b>", job["description"], "HTML reached the tracker")
 
+    def test_each_posting_names_its_own_employer(self):
+        """Found on the dashboard: a SpaceX job filed under "The Muse".
+
+        Every other feed is one employer, so discovery took the company from
+        companies.yaml. An aggregator names a different employer on every
+        posting, and filing them all under the job site also silently
+        disables the duplicate rule, which matches within a company.
+        """
+        result, _ = fetch_with(FakeResponse(SAMPLE), locations=["Boise, ID"],
+                               api_key="k")
+        employers = {j["title"]: j["employer"] for j in result.jobs}
+        self.assertEqual(employers["Support Engineer"], "Acme Robotics")
+        self.assertEqual(employers["Data Analyst"], "Globex")
+
     def test_a_flexible_posting_is_remote(self):
         result, _ = fetch_with(FakeResponse(SAMPLE), locations=["Boise, ID"],
                                api_key="k")
@@ -413,6 +427,36 @@ class TestRebuildingATableKeepsEveryoneElsesReferences(unittest.TestCase):
         self.assertEqual(con.execute("SELECT COUNT(*) FROM jobs").fetchone()[0], 1)
         self.assertNotIn("sources_old", self.jobs_ddl())
         self.assertEqual(con.execute("PRAGMA foreign_key_check").fetchall(), [])
+
+
+class TestDiscoveryFilesAggregatedJobsUnderTheirEmployer(unittest.TestCase):
+    """The other half of the same bug, on the storing side."""
+
+    def setUp(self):
+        from jsa import discover
+        self.discover = discover
+        self.dir = Path(tempfile.mkdtemp())
+        self.path = self.dir / "t.db"
+        db.init_db(self.path)
+
+    def test_the_slug_matches_an_existing_board_entry(self):
+        """So an aggregator's "SpaceX" lands on the SpaceX row already here,
+        which is what lets the duplicate rule see across sources at all."""
+        con = db.connect(self.path)
+        self.addCleanup(con.close)
+        existing = db.upsert_company(con, name="SpaceX", slug="spacex")
+        again = db.upsert_company(con, name="SpaceX",
+                                  slug=self.discover._slug("SpaceX"))
+        self.assertEqual(existing, again)
+
+    def test_punctuation_and_case_do_not_make_a_second_company(self):
+        con = db.connect(self.path)
+        self.addCleanup(con.close)
+        first = db.upsert_company(con, name="Acme Robotics",
+                                  slug=self.discover._slug("Acme Robotics"))
+        second = db.upsert_company(con, name="ACME  Robotics!",
+                                   slug=self.discover._slug("ACME  Robotics!"))
+        self.assertEqual(first, second)
 
 
 if __name__ == "__main__":

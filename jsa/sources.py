@@ -563,6 +563,11 @@ def _muse_job(item: dict[str, Any]) -> dict[str, Any] | None:
             break
     return {
         "external_id": str(item.get("id")),
+        # The employer, not the job site. Every other feed IS one employer, so
+        # the company came from companies.yaml -- which filed a SpaceX job
+        # under "The Muse" on the first real run, and made every aggregator
+        # posting look like one company's.
+        "employer": ((item.get("company") or {}).get("name") or "").strip(),
         "title": item.get("name") or "",
         "department": (item.get("categories") or [{}])[0].get("name"),
         "location": location,

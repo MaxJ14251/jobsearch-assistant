@@ -49,6 +49,14 @@ def verify_sources(entries: list[dict[str, Any]] | None = None) -> list[SourceRe
     return reports
 
 
+def _slug(name: str) -> str:
+    """A company slug from a name, so an aggregator's "SpaceX" lands on the
+    same row as the SpaceX board already in companies.yaml."""
+    import re
+
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "company"
+
+
 def _verify_context(entry: dict[str, Any]) -> dict[str, Any]:
     """Same context, for `jsa verify`, which runs before a tracker exists."""
     if entry.get("kind") != "themuse":
@@ -130,6 +138,12 @@ def discover(
 
             seen: list[str] = []
             for job in result.jobs:
+                # An aggregator names a different employer on every posting.
+                job_company_id = company_id
+                employer = str(job.pop("employer", "") or "").strip()
+                if employer:
+                    job_company_id = db.upsert_company(
+                        con, name=employer, slug=_slug(employer))
                 seen.append(job["external_id"])
                 # Pay is read before scoring, because scoring ranks on it.
                 job.update(salary.columns(salary.extract(job.get("description"))))
@@ -139,9 +153,9 @@ def discover(
                     continue
                 payload = {
                     **job,
-                    "company_id": company_id,
+                    "company_id": job_company_id,
                     "source_id": source_id,
-                    "dedup_key": dedup_key(company_id, job["title"]),
+                    "dedup_key": dedup_key(job_company_id, job["title"]),
                     "track": job_track(job["title"], prefs),
                     "match_score": score,
                     "match_reasons": reasons,
