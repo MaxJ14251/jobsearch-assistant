@@ -95,6 +95,14 @@ class TestYears(unittest.TestCase):
     def test_none_when_absent(self):
         self.assertIsNone(required_years("We want someone great."))
 
+    def test_an_age_is_not_experience(self):
+        for text in ("Must be 21 years of age or older", "Must be 18 years or older",
+                     "at least 18 years old", "18 years or over"):
+            self.assertIsNone(required_years(text), text)
+        self.assertEqual(required_years("Must be 18 years or older. 3 years of "
+                                        "retail experience."), 3)
+        self.assertEqual(required_years("2 years or more of experience"), 2)
+
     def test_rejects_too_senior(self):
         score, reasons = score_job(
             job(description="Requires 8+ years of experience."), PREFS

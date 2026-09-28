@@ -44,7 +44,12 @@ PAY_HIGH = 200_000
 # pay component. Zero would sink the ~half of postings that state no pay.
 PAY_UNKNOWN = 0.5
 
-_YEARS_RE = re.compile(r"(\d+)\+?\s*(?:-\s*\d+\s*)?years?\b", re.I)
+# "Must be 21 years of age or older" is an age, not experience. Lever keeps it
+# in the requirement lists, and once those were stored it read as "asks for 21
+# years" on 208 of Gopuff's 779 postings (measured 2026-09-28).
+_YEARS_RE = re.compile(
+    r"(\d+)\+?\s*(?:-\s*\d+\s*)?years?\b"
+    r"(?!\s+(?:of\s+age|old\b|or\s+(?:older|over)))", re.I)
 
 # Deliberately does NOT include "manager" or "architect": "Technical Account
 # Manager" and "Solutions Architect" are target titles. Specific senior manager
