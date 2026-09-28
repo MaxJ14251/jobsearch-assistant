@@ -288,27 +288,16 @@ class TestCIScansTheWholeHistory(unittest.TestCase):
 
 
 class TestThisRepository(unittest.TestCase):
-    """The audit's own findings, pinned so that a NEW one cannot slip in.
+    """This repository's own history, scanned with the operator's own values.
 
-    Two things in this history are known, reported, and not fixable by editing
-    a file, because history is what publishing exposes:
-
-      1. Older versions of README.md named a home town and its postal code in
-         prose. HEAD no longer does. The 16 earlier blobs still do, and only
-         rewriting every commit would change that -- which is the operator's
-         decision, not this test's.
-      2. Every commit is signed with a contactable personal address
-         (scan_identities, reported separately).
-
-    Asserting `problems == []` here would be asserting something false, so the
-    known ones are named and everything else fails. When the operator decides
-    what to do about (1), delete the exemption with it.
+    Until 2026-09-28 this class pinned known findings -- a town and postal
+    code in old README versions, and the owner's details in fragments in two
+    old test files and one commit message -- and asserted they were still
+    there, so a NEW one could not hide among them. The history was rewritten
+    that day (ADR 0008) and the allowlist emptied, so anything found now is
+    new. The allowlist is still honoured: adding to it is a decision recorded
+    in tools/history_allowlist.txt, not in this file.
     """
-
-    # Read from tools/history_allowlist.txt rather than repeated here. This
-    # test kept its own copy once, and when the scanner was tightened on
-    # 2026-09-24 and found three more things, the copy and the file disagreed
-    # about what had been decided. The file is the record; this reads it.
 
     @classmethod
     def setUpClass(cls):
@@ -326,10 +315,8 @@ class TestThisRepository(unittest.TestCase):
                 + scan_history.scan_refs(never, authorship))
 
     def test_nothing_beyond_the_reported_findings(self):
-        unexpected, accepted = scan_history.split_accepted(self.problems())
+        unexpected, _ = scan_history.split_accepted(self.problems())
         self.assertEqual(unexpected, [], "a NEW leak is in the history")
-        self.assertTrue(accepted, "the known findings vanished: if history was "
-                                  "rewritten, delete the allowlist entries too")
 
     def test_the_working_tree_no_longer_carries_it(self):
         """The part that could be fixed, was."""
@@ -339,15 +326,6 @@ class TestThisRepository(unittest.TestCase):
         self.assertEqual(
             scan_secrets.scan_text("README.md", "README.md", text,
                                    never, authorship), [])
-
-    def test_the_known_findings_are_still_there_to_be_decided_about(self):
-        """If this starts failing, the history changed. Say so out loud."""
-        _, accepted = scan_history.split_accepted(self.problems())
-        self.assertTrue(
-            any("README.md" in p and "US address" in p for p in accepted),
-            "the historical README blobs are clean now -- if the history was "
-            "rewritten or the repository recreated, drop this test and the "
-            "allowlist entries with it")
 
 
 if __name__ == "__main__":

@@ -1,8 +1,11 @@
 # ADR 0008 — Staying private until anyone can use it
 
-Status: accepted
+Status: accepted. The history rewrite it deferred was performed on
+2026-09-28; see "The rewrite, performed" below. Still private.
 Date: 2026-09-19
 Decided by: the repository owner, after the n8 pre-publishing history audit.
+
+*SHAs below are the rewritten ones; the originals no longer exist.*
 
 ## Context
 
@@ -19,7 +22,7 @@ It found two things that publishing would expose and that editing a file
 cannot undo, because the commits are already written:
 
 1. **Sixteen versions of README.md**, from the initial release through
-   `42570f3`, described the feed coverage in the first person and named a
+   `e41ce16`, described the feed coverage in the first person and named a
    town and its postal code. HEAD no longer does. The earlier commits still
    do.
 2. **Every commit carries a contactable personal address** in its author and
@@ -39,7 +42,7 @@ exposed while the repository is private:
    handle as a "forbidden" list to assert against -- checking for a leak by
    writing the leak down. HEAD now reads those values from the profile at run
    time and skips when there is none.
-4. **tests/test_letter.py and the message of commit 1c623b7**, both written
+4. **tests/test_letter.py and the message of commit 761932f**, both written
    on 2026-09-24, quote a dashboard warning that names the surname, the given
    name and phone fragments. The file was fixed the same day; the commit
    message cannot be.
@@ -126,16 +129,52 @@ and a fork or pull request keeps them indefinitely. So the rewrite ends by
 deleting the GitHub repository and pushing the rewritten history to a new
 one, not by force-pushing over the old.
 
+## The rewrite, performed (2026-09-28, goal n15b)
+
+The owner decided, in that session:
+
+| | Question | Decision |
+|---|---|---|
+| a | Name and address on commits | Keep the name; the GitHub noreply address |
+| b | Name in the LICENSE | Keep it |
+| c | How the old commits leave GitHub | Delete the repository and create a new one, not force-push |
+| d | The three CI runs the README linked as evidence | Keep the claim, drop the links (they die with the repository) |
+| e | Repository name | Keep `jobsearch-assistant` |
+
+**What ran.** All 54 commits on `main` were rewritten with git-filter-repo;
+`ci/docker`, merged and stale, was deleted rather than rewritten. The
+replacement was **path-aware**, not the runbook's `--replace-text` rules
+file, because the rehearsal of that file showed three rules that were only
+right in some files: it rewrote the owner's name in the LICENSE (deciding
+(b) for them), turned the handle in the project's own clone URL into a
+placeholder, and would have touched the Census data. So personal details
+were replaced everywhere; the name and profile links everywhere except
+LICENSE, README.md and CONTRIBUTING.md (the scanner's AUTHORSHIP_FILES) and
+the project URL; `data/` and binary files not at all. Every number rule is
+bounded so it cannot match inside a longer number. 14 rules, 20 file
+versions and 1 commit message changed. The values were read from the
+profile in memory and never written to a file.
+
+**Result, verified:**
+
+- `tools/scan_history.py` with the owner's real profile and an **empty**
+  allowlist: clean, and the commit-identity note is gone.
+- Every author and committer line carries the noreply address.
+- The current files came out byte-identical to before (same HEAD tree), so
+  nothing in HEAD needed repairing except what referred to the old history.
+- `data/*.gz` byte-identical, by SHA-256.
+- The allowlist's four entries and the two tests that pinned the findings
+  were deleted with the findings.
+
+A mirror backup of the old history exists outside the project, is never
+pushed, and is the owner's to delete once the new repository is confirmed.
+
 ## Consequences
 
-- No force-push, no history rewrite, no change of visibility, now.
-- `tools/scan_history.py` runs in CI on every push and fails on any **new**
-  finding. The two known ones are allowlisted with their reasons.
-- When publication is next considered, re-read this file first, re-run
-  `tools/scan_history.py`, and decide about the rewrite while it is still
-  cheap. If a rewrite happens, delete the allowlist entry and the two tests
-  in `tests/test_history_scan.py` that pin it.
-- Turning on GitHub's "Keep my email address private" and "Block command line
-  pushes that expose my email" does not fix the 28 existing commits, but it
-  prevents the same finding in the next repository. It is free and worth
-  doing regardless of what happens here.
+- No force-push and no change of visibility. The repository is still
+  private; publishing is a separate decision against the bar above.
+- `tools/scan_history.py` runs in CI on every push and fails on any finding.
+  The allowlist is empty; adding to it is a decision about published data.
+- Before the first push to the new repository, turn on GitHub's "Keep my
+  email address private" and "Block command line pushes that expose my
+  email", so the clean history cannot be re-contaminated.

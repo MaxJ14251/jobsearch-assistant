@@ -1,10 +1,24 @@
 # Pre-publication rewrite: the runbook
 
-**Status: rehearsed, not performed.** The repository is still private and its
-history is unchanged. This file is the plan, proved on a throwaway copy on
-2026-09-26, written so somebody else could follow it. Read
-[ADR 0008](decisions/0008-staying-private-until-publishable.md) first: it
-records *why* this is deferred to the moment before publishing.
+**Status: performed, 2026-09-28.** The history was rewritten locally, the
+scan is clean with an empty allowlist, and the repository is still private.
+[ADR 0008](decisions/0008-staying-private-until-publishable.md) records the
+owner's decisions and the result. This file is kept as the plan, for
+whoever does this to their own fork.
+
+**One change from the plan below, found by rehearsing it.** Step 3's
+`--replace-text` rules file cannot tell *which file* a line is in, and three
+rules were only right in some files: the owner's name belongs in LICENSE,
+README.md and CONTRIBUTING.md; the GitHub handle is part of the project's
+own URL; and `data/*.gz` is public Census data that contains every town and
+postal code, the owner's included. The real rewrite therefore used
+git-filter-repo's Python API with a per-file callback: personal details
+replaced everywhere, the name and links everywhere except those three files
+and the project URL, `data/` and binaries never. Rehearse it the same way,
+and check the rehearsal's HEAD tree against the real one -- if they match,
+no current file was touched.
+
+*SHAs below are the rewritten ones; the originals no longer exist.*
 
 Nothing here runs automatically. Every step is the repository owner's to take.
 
@@ -16,9 +30,9 @@ Run `python tools/scan_history.py` for the current list. As of 2026-09-26, in
 | # | What | Where |
 |---|---|---|
 | 1 | The owner's email | author and committer lines of all 39 commits |
-| 2 | A town and its postal code | 16 versions of `README.md`, through `42570f3` |
+| 2 | A town and its postal code | 16 versions of `README.md`, through `e41ce16` |
 | 3 | Surname, house number and street, last four phone digits, repo handle | `tests/test_scoring.py`, from the initial release until 2026-09-24 |
-| 4 | Surname, given name, phone fragments | `tests/test_letter.py` at `fe57681a`, and the commit *message* of `1c623b7` |
+| 4 | Surname, given name, phone fragments | `tests/test_letter.py` as added in `761932f`, and that commit's *message* |
 
 Items 3 and 4 are gone from HEAD. Only a rewrite removes them from history.
 
@@ -118,8 +132,10 @@ caught it. After the real rewrite, before pushing anything:
 - delete the two tests in `tests/test_history_scan.py` that assert the known
   findings are *still there*. They say so in their own failure messages;
 - re-point or remove links to commits that no longer exist: `README.md` (4),
-  ADR 0008 (2), `tools/history_allowlist.txt` (5, which go anyway). CI run
-  URLs in the README survive; they point at GitHub Actions, not commits.
+  ADR 0008 (2), `tools/history_allowlist.txt` (5, which go anyway).
+- CI run URLs do **not** survive the delete-and-recreate recommended below:
+  runs belong to the repository. This file said they would, and was wrong.
+  Either re-run the builds on the new repository, or drop the links.
 
 ## The remote is not the local copy
 

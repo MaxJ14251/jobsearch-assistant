@@ -10,54 +10,12 @@
 # back to the repository owner. Each entry says what, when, and why.
 #
 # --------------------------------------------------------------------------
-# 2026-09-18, found by the n8 pre-publishing audit.
+# 2026-09-28: EMPTY, on purpose.
 #
-# Sixteen versions of README.md, from the initial release through 42570f3,
-# described the feed coverage in personal terms and named a town and its
-# postal code. HEAD no longer does (see the same commit that added this file).
-# The earlier blobs still do, and only rewriting every commit would remove
-# them -- which breaks every clone and every commit URL the README cites.
-#
-# Status: reported and decided (ADR 0008, 2026-09-19). The repository stays
-# PRIVATE until a stranger can use it with their own details, so nothing is
-# exposed and nothing is rewritten. The rewrite question is deliberately
-# deferred to the moment before publishing, while a rewrite is still cheap --
-# it only gets expensive once other people hold clones. Read ADR 0008 before
-# changing visibility.
-#
-# The same decision covers the commit author identity, which scan_history.py
-# prints as a NOTE on every run rather than listing here: it is not a leak, it
-# is every git commit everywhere, and it would go in the same rewrite.
-^README\.md @ [0-9a-f]{8}: US address
-
-# --------------------------------------------------------------------------
-# 2026-09-24, found the day the owner asked "is it safe to make this public?"
-#
-# The scanner was tightened that day and immediately found three things it had
-# been blind to, all of them the owner's own details in fragments rather than
-# whole:
-#
-#   1. tests/test_scoring.py, since the initial release (536bb85), listed the
-#      surname, the house number and street, the last four digits of the phone
-#      and the GitHub handle as a "forbidden" list to assert against. Checking
-#      for leaked details by writing them down is how they leak. HEAD no
-#      longer does this: the test reads those values from the profile at run
-#      time and skips when there is none.
-#   2. tests/test_letter.py @ fe57681a, added the same day, quoted a dashboard
-#      message in a docstring that named the surname, given name and phone
-#      fragments. Removed from HEAD the same day.
-#   3. The commit message of 1c623b7 quotes that same dashboard line, so it is
-#      in the history as a message, not a blob.
-#
-# Why the old scanner missed all three: it looked for the FULL name, the FULL
-# phone number and the FULL street as single strings. It now also checks each
-# name part of four or more letters, each four-digit-or-longer group of the
-# phone, and the house number with the street name.
-#
-# Status: reported and decided, under ADR 0008. The repository is PRIVATE, so
-# none of this is exposed. It goes in the same rewrite as the README findings
-# above, decided immediately before publishing -- and it is a second reason
-# that rewrite is the right call rather than a nicety.
-^tests/test_scoring\.py @ [0-9a-f]{8}: (author identity|personal detail)
-^tests/test_letter\.py @ [0-9a-f]{8}: (author identity|personal detail)
-^commit 1c623b7 message: (author identity|personal detail)
+# This file held four entries, for the findings of the n8 audit (2026-09-18)
+# and the tightened scanner (2026-09-24): a town and postal code in sixteen old
+# README versions, and the owner's details in fragments in two old test files
+# and one commit message. The history was rewritten on 2026-09-28 (ADR 0008,
+# docs/pre-publication-rewrite.md) and the scan is clean with nothing excused,
+# so the entries went with the findings. An allowlist that outlives its
+# findings teaches the next person to ignore it.
