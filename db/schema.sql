@@ -367,7 +367,11 @@ SELECT r.id            AS job_id,
        r.years_required,
        r.tech_stack,
        r.enrichment_note,
-       r.enriched_at
+       r.enriched_at,
+       -- pay as the posting states it, for the dashboard's area analytics
+       r.salary_min,
+       r.salary_max,
+       r.salary_period
   FROM ranked r
   JOIN companies c ON c.id = r.company_id
  WHERE r.rn = 1

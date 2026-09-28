@@ -317,6 +317,44 @@ def national(rows, origin: places.Place | None = None,
     return view
 
 
+def points(rows, origin: places.Place) -> tuple[list[dict], int, int]:
+    """Every placeable posting as a point in miles about `origin`, for the
+    dashboard's interactive map. Returns (points, remote, unplaced).
+
+    The same azimuthal-equidistant geometry as `local`, without the pixels:
+    x east, y north, and `d` the posting's distance -- the exact float
+    `places.nearest` gives, so the browser compares the very number the
+    server's radius filter compared. Rounding x and y is for size only; the
+    browser decides inside/outside from `d`, never from x and y.
+
+    No titles: a posting the radius hides must not be on the page at all,
+    and this list holds every posting, inside the circle or not.
+    """
+    out: list[dict] = []
+    remote = unplaced = 0
+    for row in rows:
+        if (row.get("remote") or "") == "remote":
+            remote += 1
+            continue
+        placement = places.parse(row.get("location") or "")
+        if not placement.places:
+            unplaced += 1
+            continue
+        spot = min(placement.places, key=lambda p: places.miles(origin, p))
+        distance = places.miles(origin, spot)
+        angle = bearing(origin, spot)
+        out.append({
+            "key": row.get("key") or f"job:{row.get('job_id')}",
+            "job": row.get("job_id"),
+            "status": row.get("status") or "new",
+            "place": spot.name,
+            "x": round(distance * math.sin(angle), 3),
+            "y": round(distance * math.cos(angle), 3),
+            "d": distance,
+        })
+    return out, remote, unplaced
+
+
 def _labels(bubbles: list[Bubble], most: int = 5, apart: float = 58.0):
     """Name the places with the most postings, and only those.
 

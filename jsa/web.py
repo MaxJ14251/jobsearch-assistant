@@ -52,15 +52,19 @@ BASE = """<!doctype html>
     --ink-2:#39423E;--mute:#6E7873;--rule:#D3D7D0;
     --copper:#B5652E;--sage:#3F7A66;--sage-soft:#DDEAE3;
     --clay:#A8412F;--clay-soft:#F5DFDA;
+    --blue:#2F6BC4;--violet:#7A4DC4;
   }
   @media (prefers-color-scheme:dark){:root{
     --paper:#121615;--surface:#191F1D;--surface-2:#222927;--ink:#E8EBE7;
     --ink-2:#C0C7C2;--mute:#8B958F;--rule:#2C3532;--copper:#D98A4F;
-    --sage:#6DAF96;--sage-soft:#1B2A25;--clay:#D2705B;--clay-soft:#2E1B17;}}
+    --sage:#6DAF96;--sage-soft:#1B2A25;--clay:#D2705B;--clay-soft:#2E1B17;
+    --blue:#6FA3EE;--violet:#AE8BEB;}}
   *{box-sizing:border-box}
+  [hidden]{display:none!important}
   body{margin:0;background:var(--paper);color:var(--ink);line-height:1.55;
     font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
   .wrap{max-width:1000px;margin:0 auto;padding:0 16px 64px}
+  .wrap.wide{max-width:1480px}
   nav{border-bottom:1px solid var(--rule);background:var(--surface);
       position:sticky;top:0;z-index:5}
   nav .wrap{display:flex;gap:18px;padding-block:12px;align-items:center;
@@ -106,6 +110,112 @@ BASE = """<!doctype html>
     stroke:var(--surface);stroke-width:2.5px}
   .town.left{text-anchor:start}
   .bar{fill:var(--ink-2)}
+  /* n21: the Matches page as map + list + analytics. Without the script it
+     is the page above: the server's map, the server's list. */
+  .st-new,[data-status=new]{--st:var(--mute)} .st-saved,[data-status=saved]{--st:var(--blue)}
+  .st-applied,[data-status=applied]{--st:var(--sage)}
+  .st-interview,[data-status=interview]{--st:var(--violet)}
+  .split{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+  .feed{min-width:0}
+  @media (width>=1100px){
+    .split.live{grid-template-columns:minmax(0,1fr) 440px;align-items:start}
+    .split.live .mapcol{position:sticky;top:58px}
+    .split.live .feed{max-height:calc(100vh - 70px);overflow-y:auto;
+      padding-right:4px;scrollbar-width:thin}
+  }
+  .pill{font:600 10.5px ui-monospace,Menlo,monospace;letter-spacing:.05em;
+    text-transform:uppercase;padding:2px 6px;border-radius:3px;white-space:nowrap;
+    color:var(--st);background:color-mix(in srgb,var(--st) 15%,transparent)}
+  .eta{white-space:nowrap}
+  .card[data-key]{cursor:pointer;transition:border-color .12s}
+  .card.hov{border-color:var(--ink-2)}
+  .card.sel{border-color:var(--copper);box-shadow:inset 3px 0 0 var(--copper)}
+  .feed-head{display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+    justify-content:space-between;position:sticky;top:0;z-index:2;
+    background:var(--paper);padding:0 0 10px}
+  .chips,.seg{display:flex;flex-wrap:wrap;gap:4px}
+  .chip{display:inline-flex;gap:6px;align-items:center;font-size:12px;padding:4px 8px;
+    border:1px solid var(--rule);border-radius:3px;background:var(--surface);color:var(--ink)}
+  .chip i{width:9px;height:9px;border-radius:50%;background:var(--st);display:inline-block}
+  .chip[aria-pressed="false"]{color:var(--mute);border-style:dashed;background:transparent}
+  .chip[aria-pressed="false"] i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--st)}
+  .chip b{font:500 11px ui-monospace,Menlo,monospace;color:var(--mute)}
+  .seg button{font-size:12px;padding:4px 8px;background:transparent;color:var(--mute);
+    border:1px solid var(--rule)}
+  .seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .livemap{position:relative;height:min(70vh,720px);min-height:360px;overflow:hidden;
+    border-radius:3px;background:var(--surface);touch-action:none;user-select:none}
+  figure.map .livemap svg{display:block;width:100%;height:100%;max-height:none}
+  .livemap .mk{cursor:pointer}
+  .livemap .mk:focus-visible circle{stroke:var(--copper);stroke-width:3}
+  .rp{position:absolute;left:10px;top:10px;width:250px;z-index:3;display:grid;gap:10px;
+    background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:12px;
+    box-shadow:0 8px 24px -14px rgba(0,0,0,.45);font-size:12.5px;
+    max-height:calc(100% - 20px);overflow-y:auto}
+  .rp .num{font:500 34px/1 ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+  .rp .stbar{display:flex;height:5px;border-radius:3px;overflow:hidden;background:var(--surface-2)}
+  .rp .stbar span{background:var(--st)}
+  .rp .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .rp .modes{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;
+    background:var(--surface-2);border-radius:3px;padding:2px}
+  .rp .modes button{background:transparent;color:var(--mute);font-size:11.5px;padding:5px 0}
+  .rp .modes button[aria-checked="true"]{background:var(--surface);color:var(--ink);
+    box-shadow:0 1px 2px rgba(0,0,0,.15)}
+  .rp .sw{display:flex;gap:6px}
+  .rp .sw button{width:18px;height:18px;padding:0;border-radius:50%;background:var(--c);
+    border:2px solid transparent}
+  .rp .sw button[aria-checked="true"]{border-color:var(--ink)}
+  .rp input[type=range]{width:120px;accent-color:var(--copper)}
+  .rp details{margin:0}
+  .rp details p{margin:6px 0 0;color:var(--mute)}
+  .mapctl{position:absolute;right:10px;top:10px;z-index:3;display:grid;
+    border:1px solid var(--rule);border-radius:3px;overflow:hidden;background:var(--surface)}
+  .mapctl button{background:transparent;color:var(--ink-2);width:30px;height:30px;
+    padding:0;border-radius:0;border-bottom:1px solid var(--rule);font-size:15px}
+  .mapctl button:last-child{border-bottom:0}
+  .maplegend{position:absolute;right:10px;bottom:10px;z-index:2;display:grid;gap:3px;
+    background:var(--surface);border:1px solid var(--rule);border-radius:3px;
+    padding:6px 8px;font-size:11px;pointer-events:none}
+  .maplegend span{display:flex;gap:6px;align-items:center}
+  .maplegend i{width:9px;height:9px;border-radius:50%;background:var(--st)}
+  .mapfoot{position:absolute;left:10px;bottom:10px;z-index:2;pointer-events:none;
+    font:11px ui-monospace,Menlo,monospace;color:var(--mute)}
+  .mapfoot .sb{height:6px;border:1.5px solid var(--ink-2);border-top:0;margin-top:3px}
+  .tip{position:absolute;z-index:4;pointer-events:none;max-width:260px;font-size:12px;
+    background:var(--surface);border:1px solid var(--rule);border-radius:3px;
+    padding:7px 9px;box-shadow:0 6px 18px -10px rgba(0,0,0,.5)}
+  .tip b{display:block;font-weight:600}
+  .tip span{display:block;color:var(--mute)}
+  .drawer{margin-top:16px;background:var(--surface);border:1px solid var(--rule);border-radius:4px}
+  .drawer>summary{padding:10px 14px;font-size:13px;color:var(--ink);list-style-position:inside}
+  .drawer>summary b{letter-spacing:.06em;text-transform:uppercase;font-size:12px;margin-right:8px}
+  .an{display:grid;gap:20px 28px;padding:4px 14px 16px;
+    grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+  .an h3{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);
+    margin:8px 0 8px;display:flex;justify-content:space-between;gap:8px}
+  .an h3 small{letter-spacing:0;text-transform:none}
+  .an ol{list-style:none;margin:0;padding:0;display:grid;gap:3px}
+  .an li{display:grid;grid-template-columns:minmax(0,7.5rem) 1fr 2.2rem;gap:8px;
+    align-items:center;font-size:12px}
+  .an li>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .an .track{height:7px;background:var(--surface-2);border-radius:2px;overflow:hidden}
+  .an .track i{display:block;height:100%;background:var(--ink-2);border-radius:2px}
+  .an li b{font:500 11.5px ui-monospace,Menlo,monospace;text-align:right}
+  .an .foot{color:var(--mute);font-size:11.5px;margin:6px 0 0}
+  .an li[role=button]{cursor:pointer;border-radius:2px;padding:1px 2px}
+  .an li[role=button]:hover{background:var(--surface-2)}
+  .an li[aria-pressed="true"]{font-weight:600}
+  .an li[aria-pressed="true"] .track i{background:var(--copper)}
+  .facet{font-size:12px;display:flex;gap:6px;align-items:center;width:100%}
+  .facet button{font-size:12px;padding:3px 8px;background:var(--ink);color:var(--paper)}
+  @media (max-width:760px){
+    .rp{position:static;width:auto;max-height:none;border-width:0 0 1px;border-radius:0;
+      box-shadow:none}
+    .livemap{height:auto;display:flex;flex-direction:column}
+    figure.map .livemap svg{height:58vh;min-height:320px}
+    .maplegend{display:none}
+    .mapctl{top:auto;bottom:44px}
+  }
   textarea{min-height:220px;resize:vertical;line-height:1.45}
   /* The preview is a sheet of paper in either theme: it shows the document as
      it prints, and a resume is black on white. */
@@ -187,18 +297,21 @@ BASE = """<!doctype html>
   <a href="/review" class="{{ 'on' if page=='review' }}">Review{% if pending_count %} ({{ pending_count }}){% endif %}</a>
   <a href="/add" class="{{ 'on' if page=='add' }}">Add a job</a>
 </div></nav>
-<div class="wrap">{% block body %}{% endblock %}</div>
+<div class="wrap{{ ' wide' if wide }}">{% block body %}{% endblock %}</div>
 </body></html>"""
 
 MATCHES = """{% extends "base" %}{% block body %}
 <h1>Matches</h1>
-<p class="sub">{{ total }} unreviewed · showing {{ rows|length }}
+<div id="summary">
+<p class="sub">{{ total }} unreviewed · showing {{ rows|length - mine }}
+  {%- if mine %} and {{ mine }} of your applications{% endif %}
   {%- if home %} · within {{ radius }} miles of {{ home }}:
     {{ near_count }} near you, {{ rows|length - near_count }} remote{% endif %}</p>
 {% if home_problem %}<p class="note bad" role="alert">{{ home_problem }}</p>{% endif %}
 {% if hidden %}<p class="sub">{{ hidden }} match(es) hidden by the radius.
   {%- if unplaced %} {{ unplaced }} of them name a place this could not find, so the distance is unknown rather than far.{% endif %}
   <a class="plain" href="{{ nationwide_url }}">Show them anyway</a></p>{% endif %}
+</div>
 <form class="filters" method="get" id="where">
   <label class="pair-in" for="f-radius">within
     <input type="range" name="radius" id="f-radius" class="miles"
@@ -228,8 +341,10 @@ MATCHES = """{% extends "base" %}{% block body %}
   </select>
   <button type="submit">Filter</button>
 </form>
+<div class="split{{ ' live' if live }}">
+<div class="mapcol">
 {% if map.drawn %}
-<figure class="map">
+<figure class="map" id="map-figure">
   <svg viewBox="0 0 {{ map.width }} {{ map.height }}" role="img" aria-label="{{ map_note }}">
     {% for d in map.paths %}<path class="land" d="{{ d }}"/>{% endfor %}
     {% if map.circle %}<circle id="ring" class="ring" cx="{{ map.width // 2 }}"
@@ -246,22 +361,69 @@ MATCHES = """{% extends "base" %}{% block body %}
     <rect class="bar" x="16" y="{{ map.height - 22 }}" width="{{ '%.1f'|format(map.scale_px) }}" height="3"/>
     <text class="town left" x="16" y="{{ map.height - 28 }}">{{ map.scale_miles }} miles</text>
   </svg>
-  <figcaption>{{ map_note }}
+  <figcaption id="map-note">{{ map_note }}
     {%- if map.kind == 'local' and map.off_map %}
     <a class="plain" href="{{ nationwide_url }}">See the whole country</a>{% endif %}</figcaption>
 </figure>
 {% endif %}
+{% if live %}
+<div class="rp" id="radius-panel" hidden>
+  <div>
+    <div class="lbl">Inside the circle</div>
+    <div class="row" style="justify-content:flex-start;align-items:baseline">
+      <span class="num" id="rp-count" aria-live="polite">0</span><span id="rp-of" class="meta" style="margin:0"></span>
+    </div>
+  </div>
+  <div class="stbar" id="rp-bar" aria-hidden="true"></div>
+  <div class="row"><span>Commute bands</span>
+    <label class="pair-in" for="rp-bands"><input type="checkbox" id="rp-bands"> show</label></div>
+  <div class="modes" id="rp-modes" role="radiogroup" aria-label="How you would get there">
+    <button type="button" role="radio" data-mode="drive">Drive</button>
+    <button type="button" role="radio" data-mode="transit">Transit</button>
+    <button type="button" role="radio" data-mode="bike">Bike</button>
+    <button type="button" role="radio" data-mode="walk">Walk</button>
+  </div>
+  <div class="meta" id="rp-median" style="margin:0"></div>
+  <details><summary>How the times are estimated</summary>
+    <p>Straight-line distance, times a typical detour, at an average speed, plus a start-up time:
+      drive ×1.25 at 32 mph +4 min; transit ×1.35 at 13 mph +12 min; bike ×1.3 at 11 mph +2 min;
+      walk ×1.25 at 3 mph. Not routed. Traffic, timetables and hills are not in it.</p></details>
+  <div class="row"><span>Circle</span>
+    <span class="sw" id="rp-fence" role="radiogroup" aria-label="Circle colour">
+      <button type="button" role="radio" data-fence="sage" style="--c:var(--sage)" aria-label="Sage"></button>
+      <button type="button" role="radio" data-fence="copper" style="--c:var(--copper)" aria-label="Copper"></button>
+      <button type="button" role="radio" data-fence="blue" style="--c:var(--blue)" aria-label="Blue"></button>
+      <button type="button" role="radio" data-fence="ink" style="--c:var(--ink-2)" aria-label="Ink"></button>
+    </span></div>
+  <label class="row" for="rp-fill"><span>Fill</span>
+    <input type="range" id="rp-fill" min="0" max="40" step="1"></label>
+</div>
+{% endif %}
+</div>
+<section class="feed" id="feed" aria-label="The list">
+  <div class="feed-head" id="feed-head" hidden>
+    <div class="chips" id="feed-chips" role="group" aria-label="Show by status"></div>
+    <div class="seg" id="feed-sort" role="group" aria-label="Sort the list">
+      <button type="button" data-sort="score" aria-pressed="true">Best match</button>
+      <button type="button" data-sort="near" aria-pressed="false">Nearest</button>
+      <button type="button" data-sort="pay" aria-pressed="false">Pay</button>
+      <button type="button" data-sort="new" aria-pressed="false">Newest</button>
+    </div>
+    <div class="facet" id="feed-facet" hidden></div>
+  </div>
+  <div id="feed-list">
 {% for r in rows %}
-<div class="card">
+<div class="card" data-key="{{ r.key }}" data-status="{{ r.status }}">
   <div class="row1">
     <span class="score">{{ '%.2f'|format(r.match_score or 0) }}</span>
+    {% if r.status != 'new' %}<span class="pill" title="Your application">{{ r.stage|replace('_',' ') }}</span>{% endif %}
     <span class="title"><a class="plain" href="/job/{{ r.job_id }}">{{ r.title }}</a></span>
     <span class="co">{{ r.company }}</span>
   </div>
   <div class="meta">{{ r.location or 'location not stated' }} · {{ r.remote }}
     {%- if r.miles is not none and r.remote != 'remote' %} · {{ r.miles }} mi away
       {%- if r.via_copy %} (its nearest location){% endif %}{% endif %}
-    {%- if r.variant_count and r.variant_count > 1 %} · +{{ r.variant_count - 1 }} more location(s){% endif %}</div>
+    {%- if r.variant_count and r.variant_count > 1 %} · +{{ r.variant_count - 1 }} more location(s){% endif %}<span class="eta"></span></div>
   <div class="flags">
     {% if r.track == 'sales' %}<span class="flag">sales track</span>{% endif %}
     {% if r.degree_required == 1 %}<span class="flag" title="Shown so you know, never used to hide or rank a job">asks for a degree</span>
@@ -273,35 +435,707 @@ MATCHES = """{% extends "base" %}{% block body %}
   {% if r.reasons %}<ul class="reasons">{% for x in r.reasons %}<li>{{ x }}</li>{% endfor %}</ul>{% endif %}
 </div>
 {% else %}<p class="empty">Nothing matches those filters.</p>{% endfor %}
+  </div>
+</section>
+</div>
+{% if live %}
+<details class="drawer" id="analytics" open>
+  <summary><b>Area analytics</b><span id="an-sum" class="meta"></span></summary>
+  <div class="an" id="an-body"><p class="empty">The area analytics need JavaScript.</p></div>
+</details>
+<script type="application/json" id="map-data">{{ live|tojson }}</script>
+{% endif %}
 <script>
-/* The slider, live. Everything here is presentation: it resizes the drawn
-   circle and relabels it while the handle moves, and submits the form when
-   the handle is released so the server answers the question again.
+/* The Matches page, live (n21). Presentation only, as it was before n21.
 
-   It must never decide which postings match. That answer comes from the
-   server, and a browser quietly disagreeing with it is exactly the bug this
-   map exists to make impossible. Without this script the page still works:
-   the slider and the checkbox are form controls and "Filter" submits them. */
+   The server decides which postings are in the list, every time. While the
+   radius handle moves, this redraws the circle and sorts DOTS into inside
+   and outside by "d" -- the distance the server measured, the same float
+   its filter compared, compared the same way. When the handle settles it
+   asks the server for the page again and swaps the list in. The
+   three-per-company cap, folding and the remote rule live in Python only.
+
+   Chips, sorting and the analytics rearrange what the server sent; they
+   never add to it. Commute times are estimates and say so. Nothing here
+   reaches another host. Without this script the page is the form, the
+   server's map and the server's list. */
 (function () {
+  'use strict';
   var form = document.getElementById('where');
   if (!form) { return; }
-  var miles = form.querySelector('#f-radius');
+  var slider = form.querySelector('#f-radius');
   var shown = form.querySelector('#f-radius-out');
   var anywhere = form.querySelector('#f-anywhere');
-  var ring = document.getElementById('ring');
-  var perMile = ring ? parseFloat(ring.getAttribute('data-per-mile')) : 0;
-  function paint() {
-    shown.textContent = miles.value + ' miles';
-    miles.disabled = anywhere.checked;
-    if (ring && perMile) { ring.setAttribute('r', (miles.value * perMile).toFixed(1)); }
+  var dataEl = document.getElementById('map-data');
+
+  if (!dataEl) {
+    /* No home, or "anywhere": the server's map, with its circle resized
+       while the handle moves and the form submitted when it is let go. */
+    var ring = document.getElementById('ring');
+    var perMile = ring ? parseFloat(ring.getAttribute('data-per-mile')) : 0;
+    var paint = function () {
+      shown.textContent = slider.value + ' miles';
+      slider.disabled = anywhere.checked;
+      if (ring && perMile) { ring.setAttribute('r', (slider.value * perMile).toFixed(1)); }
+    };
+    slider.addEventListener('input', paint);
+    slider.addEventListener('change', function () { anywhere.checked = false; form.submit(); });
+    anywhere.addEventListener('change', function () { paint(); form.submit(); });
+    paint();
+    return;
   }
-  miles.addEventListener('input', paint);
-  miles.addEventListener('change', function () {
-    anywhere.checked = false;
-    form.submit();
+
+  var live = JSON.parse(dataEl.textContent);
+  var R = live.radius;
+  var NS = 'http://www.w3.org/2000/svg';
+  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---- per-viewer preferences: conveniences, so a failure is harmless -- */
+  function load(k, d) {
+    try { var v = localStorage.getItem('jsa.map.' + k); return v === null ? d : JSON.parse(v); }
+    catch (e) { return d; }
+  }
+  function save(k, v) { try { localStorage.setItem('jsa.map.' + k, JSON.stringify(v)); } catch (e) { /* private window */ } }
+
+  var MODES = {
+    drive: {noun: 'driving', detour: 1.25, mph: 32, start: 4, rings: [10, 20, 30, 45, 60, 90]},
+    transit: {noun: 'by transit', detour: 1.35, mph: 13, start: 12, rings: [20, 30, 45, 60, 90, 120]},
+    bike: {noun: 'cycling', detour: 1.3, mph: 11, start: 2, rings: [15, 30, 45, 60, 90, 120]},
+    walk: {noun: 'walking', detour: 1.25, mph: 3, start: 0, rings: [15, 30, 45, 60, 90, 120]}
+  };
+  var FENCE = {sage: 'var(--sage)', copper: 'var(--copper)', blue: 'var(--blue)', ink: 'var(--ink-2)'};
+  var ST_COLOR = {'new': 'var(--mute)', saved: 'var(--blue)', applied: 'var(--sage)', interview: 'var(--violet)'};
+  var STATUSES = [['interview', 'Interview'], ['applied', 'Applied'], ['saved', 'Saved'], ['new', 'New']];
+
+  var state = {
+    mode: MODES[load('mode', 'drive')] ? load('mode', 'drive') : 'drive',
+    bands: load('bands', true) === true,
+    fence: FENCE[load('fence', 'sage')] ? load('fence', 'sage') : 'sage',
+    fill: Math.max(0, Math.min(40, +load('fill', 10) || 0)),
+    on: {interview: true, applied: true, saved: true, 'new': true},
+    sort: 'score', sel: null, hov: null, facet: null
+  };
+
+  function minutes(d) { var m = MODES[state.mode]; return m.start + d * m.detour / m.mph * 60; }
+  function reach(t) { var m = MODES[state.mode]; return Math.max(0, t - m.start) * m.mph / 60 / m.detour; }
+  function fmtMin(x) {
+    if (x < 60) { return Math.max(1, Math.round(x)) + ' min'; }
+    var h = Math.floor(x / 60), r = Math.round(x % 60);
+    return r ? h + ' h ' + r + ' min' : h + ' h';
+  }
+  function fmtMiles(r) { return (r % 1 ? r.toFixed(1) : String(r)) + ' mi'; }
+  function money(n) { return '$' + Math.round(n / 1000) + 'k'; }
+  function median(xs) {
+    if (!xs.length) { return null; }
+    var s = xs.slice().sort(function (a, b) { return a - b; }), m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  }
+  function node(tag, attrs, parent, svg) {
+    var n = svg ? document.createElementNS(NS, tag) : document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      if (attrs[k] !== null && attrs[k] !== undefined) { n.setAttribute(k, attrs[k]); }
+    });
+    if (parent) { parent.appendChild(n); }
+    return n;
+  }
+  function sv(tag, attrs, parent) { return node(tag, attrs, parent, true); }
+  function text(parent, tag, words, cls) {
+    var n = node(tag, cls ? {'class': cls} : {}, parent); n.textContent = words; return n;
+  }
+  function clear(n) { while (n.firstChild) { n.removeChild(n.firstChild); } }
+
+  /* ---- the map ---------------------------------------------------------- */
+  var fig = document.getElementById('map-figure');
+  var staticSvg = fig.querySelector('svg');
+  if (staticSvg) { staticSvg.style.display = 'none'; }
+  var box = node('div', {'class': 'livemap'});
+  fig.insertBefore(box, fig.firstChild);
+  var panel = document.getElementById('radius-panel');
+  box.appendChild(panel);
+  panel.hidden = false;
+  var svg = sv('svg', {role: 'img', 'aria-label': 'Map of postings around ' + live.home}, box);
+  var clipC = sv('circle', {cx: 0, cy: 0}, sv('clipPath', {id: 'fence-clip'}, sv('defs', {}, svg)));
+  sv('rect', {width: '100%', height: '100%'}, svg).style.fill = 'var(--surface)';
+  var world = sv('g', {}, svg);
+  var gridG = sv('g', {}, world);
+  var fenceFill = sv('circle', {cx: 0, cy: 0}, world);
+  var bandsG = sv('g', {'clip-path': 'url(#fence-clip)'}, world);
+  var fenceLine = sv('circle', {cx: 0, cy: 0, 'vector-effect': 'non-scaling-stroke'}, world);
+  var marksG = sv('g', {}, svg);
+  var labelsG = sv('g', {}, svg);
+  var overG = sv('g', {}, svg);
+
+  var ctl = node('div', {'class': 'mapctl'}, box);
+  [['+', 'Zoom in', function () { zoomBy(1.6); }],
+   ['−', 'Zoom out', function () { zoomBy(1 / 1.6); }],
+   ['⤢', 'Fit the circle', function () { fly(fitView(R)); }],
+   ['⌖', 'Back to home', function () { fly(centerOn(0, 0, view.s)); }]
+  ].forEach(function (b) {
+    var btn = node('button', {type: 'button', title: b[1], 'aria-label': b[1]}, ctl);
+    btn.textContent = b[0];
+    btn.addEventListener('click', b[2]);
   });
-  anywhere.addEventListener('change', function () { paint(); form.submit(); });
-  paint();
+  var legend = node('div', {'class': 'maplegend', 'aria-hidden': 'true'}, box);
+  STATUSES.forEach(function (s) {
+    var row = node('span', {'class': 'st-' + s[0]}, legend);
+    node('i', {}, row); row.appendChild(document.createTextNode(s[1]));
+  });
+  var foot = node('div', {'class': 'mapfoot'}, box);
+  var tip = node('div', {'class': 'tip', hidden: ''}, box);
+
+  var view = {cx: 0, cy: 0, s: 1};
+  function size() { return {w: svg.clientWidth || box.clientWidth || 600, h: svg.clientHeight || 420}; }
+  function panelWidth() { return window.innerWidth > 760 ? panel.offsetWidth + 20 : 0; }
+  /* The view that puts (x, y) in the middle of the part of the map the
+     panel does not cover. */
+  function centerOn(x, y, s) {
+    var z = size(), left = panelWidth(), target = left + (z.w - left) / 2;
+    return {cx: x + (z.w / 2 - target) / s, cy: y, s: s};
+  }
+  function fitView(r) {
+    var z = size(), left = panelWidth(), room = Math.max(120, Math.min(z.w - left, z.h));
+    return centerOn(0, 0, room / 2 / (Math.max(r, 2) * 1.12));
+  }
+  function clampS(s) { return Math.max(0.03, Math.min(250, s)); }
+
+  var raf = 0;
+  function redraw() { if (!raf) { raf = requestAnimationFrame(function () { raf = 0; draw(); }); } }
+  var anim = 0;
+  function fly(to) {
+    cancelAnimationFrame(anim);
+    to.s = clampS(to.s);
+    if (reduced) { view = to; redraw(); return; }
+    var from = {cx: view.cx, cy: view.cy, s: view.s}, t0 = performance.now();
+    (function step(t) {
+      var k = Math.min(1, (t - t0) / 340), e = 1 - Math.pow(1 - k, 3);
+      view = {cx: from.cx + (to.cx - from.cx) * e, cy: from.cy + (to.cy - from.cy) * e,
+              s: from.s * Math.pow(to.s / from.s, e)};
+      draw();
+      if (k < 1) { anim = requestAnimationFrame(step); }
+    })(t0);
+  }
+  function zoomBy(k) { fly({cx: view.cx, cy: view.cy, s: view.s * k}); }
+
+  function feedKeys() {
+    var keys = {};
+    cards().forEach(function (c) { if (!c.hidden) { keys[c.getAttribute('data-key')] = c; } });
+    return keys;
+  }
+
+  function cluster(pts, px) {
+    var out = [];
+    pts.forEach(function (p) {
+      var best = null, bd = px;
+      out.forEach(function (c) {
+        if (c.inside !== p.inside) { return; }
+        var d = Math.hypot(c.x - p.x, c.y - p.y);
+        if (d < bd) { best = c; bd = d; }
+      });
+      if (best) {
+        var n = best.m.length;
+        best.x = (best.x * n + p.x) / (n + 1); best.y = (best.y * n + p.y) / (n + 1);
+        best.m.push(p);
+      } else { out.push({x: p.x, y: p.y, inside: p.inside, m: [p]}); }
+    });
+    return out;
+  }
+
+  function draw() {
+    var z = size(), w = z.w, h = z.h, S = view.s;
+    svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+    var tx = w / 2 - view.cx * S, ty = h / 2 + view.cy * S;
+    world.setAttribute('transform', 'matrix(' + S + ' 0 0 ' + (-S) + ' ' + tx + ' ' + ty + ')');
+    var X = function (x) { return tx + x * S; }, Y = function (y) { return ty - y * S; };
+    var color = FENCE[state.fence];
+
+    /* Range rings about home: in this projection a circle IS a distance. */
+    clear(gridG);
+    var far = Math.hypot(Math.max(Math.abs(X(0)), Math.abs(w - X(0))), Math.max(Math.abs(Y(0)), Math.abs(h - Y(0)))) / S;
+    var step = [1, 2, 5, 10, 25, 50, 100, 250, 500].find(function (m) { return m * S >= 70; }) || 1000;
+    for (var k = 1; k * step <= far && k <= 60; k++) {
+      var g = sv('circle', {cx: 0, cy: 0, r: k * step, 'vector-effect': 'non-scaling-stroke'}, gridG);
+      g.style.fill = 'none'; g.style.stroke = 'var(--rule)'; g.style.strokeWidth = '1px';
+    }
+
+    clipC.setAttribute('r', R);
+    fenceFill.setAttribute('r', R);
+    fenceFill.style.fill = color;
+    fenceFill.style.fillOpacity = (state.bands ? state.fill * 0.5 : state.fill) / 100;
+    fenceLine.setAttribute('r', R);
+    fenceLine.style.fill = 'none'; fenceLine.style.stroke = color; fenceLine.style.strokeWidth = '1.75px';
+
+    clear(bandsG);
+    var rings = [];
+    if (state.bands) {
+      MODES[state.mode].rings.forEach(function (t) { var r = reach(t); if (r > 0) { rings.push({t: t, r: r}); } });
+    }
+    rings.slice().reverse().forEach(function (b) {
+      var c = sv('circle', {cx: 0, cy: 0, r: b.r}, bandsG);
+      c.style.fill = color; c.style.fillOpacity = 0.09;
+    });
+    rings.forEach(function (b) {
+      var c = sv('circle', {cx: 0, cy: 0, r: b.r, 'vector-effect': 'non-scaling-stroke'}, bandsG);
+      c.style.fill = 'none'; c.style.stroke = color; c.style.strokeOpacity = 0.6;
+      c.style.strokeWidth = '1px'; c.style.strokeDasharray = '3 4';
+    });
+
+    /* Markers. Inside or outside is decided by d, never by x and y. */
+    var inFeed = feedKeys();
+    var pts = [];
+    live.points.forEach(function (p) {
+      if (!state.on[p.status]) { return; }
+      var x = X(p.x), y = Y(p.y);
+      if (x < -30 || y < -30 || x > w + 30 || y > h + 30) { return; }
+      pts.push({p: p, x: x, y: y, inside: p.d <= R});
+    });
+    clear(marksG); clear(labelsG); clear(overG);
+    var clusters = cluster(pts, 22);
+    clusters.filter(function (c) { return !c.inside; }).forEach(function (c) { drawCluster(c, inFeed); });
+    clusters.filter(function (c) { return c.inside; }).forEach(function (c) { drawCluster(c, inFeed); });
+
+    /* Name the places with the most postings, where the names fit. */
+    var taken = [];
+    clusters.slice().sort(function (a, b) { return b.m.length - a.m.length; }).slice(0, 14).forEach(function (c) {
+      if (c.m.length < 2 && S < 6) { return; }
+      var count = {}, best = null;
+      c.m.forEach(function (q) { count[q.p.place] = (count[q.p.place] || 0) + 1; });
+      Object.keys(count).forEach(function (n) { if (!best || count[n] > count[best]) { best = n; } });
+      var r = c.m.length > 1 ? 12 + Math.min(9, Math.log2(c.m.length) * 2.4) : 8;
+      var bx = [c.x + r + 3, c.y - 8, c.x + r + 5 + best.length * 6.3, c.y + 6];
+      if (taken.some(function (t) { return bx[0] < t[2] && bx[2] > t[0] && bx[1] < t[3] && bx[3] > t[1]; })) { return; }
+      taken.push(bx);
+      var tl = sv('text', {x: c.x + r + 4, y: c.y + 4, 'class': 'town left'}, labelsG);
+      tl.textContent = best;
+    });
+
+    /* The card under the pointer, and the chosen one: every copy of it. */
+    [[state.sel, 2, null], [state.hov, 1.25, '2 3']].forEach(function (s) {
+      if (!s[0]) { return; }
+      pts.forEach(function (q) {
+        if (q.p.key !== s[0]) { return; }
+        var c = sv('circle', {cx: q.x, cy: q.y, r: 12}, overG);
+        c.style.fill = 'none'; c.style.stroke = 'var(--ink)'; c.style.strokeWidth = s[1] + 'px';
+        if (s[2]) { c.style.strokeDasharray = s[2]; }
+        c.style.pointerEvents = 'none';
+      });
+    });
+
+    var lastY = Infinity;
+    rings.forEach(function (b) {
+      if (b.r >= R * 0.97 || b.r * S < 16) { return; }
+      var x = X(0), y = Y(b.r);
+      if (y < 0 || y > h || lastY - y < 20) { return; }
+      lastY = y;
+      var label = b.t >= 60 ? fmtMin(b.t) : b.t + ' min';
+      var g = sv('g', {transform: 'translate(' + x + ' ' + y + ')'}, overG);
+      g.style.pointerEvents = 'none';
+      var bg = sv('rect', {x: -label.length * 3.3 - 5, y: -8, width: label.length * 6.6 + 10, height: 16, rx: 3}, g);
+      bg.style.fill = 'var(--surface)'; bg.style.opacity = 0.92;
+      var t = sv('text', {'text-anchor': 'middle', dy: '0.35em'}, g);
+      t.style.fill = color; t.style.font = '10px ui-monospace,Menlo,monospace';
+      t.textContent = label;
+    });
+
+    var ex = X(R), ey = Y(0);
+    if (ex > 0 && ex < w) {
+      var rl = fmtMiles(R), rg = sv('g', {transform: 'translate(' + ex + ' ' + ey + ')'}, overG);
+      rg.style.pointerEvents = 'none';
+      sv('rect', {x: -rl.length * 3.6 - 6, y: -10, width: rl.length * 7.2 + 12, height: 20, rx: 3}, rg).style.fill = color;
+      var rt = sv('text', {'text-anchor': 'middle', dy: '0.35em'}, rg);
+      rt.style.fill = 'var(--surface)'; rt.style.font = '600 11px ui-monospace,Menlo,monospace';
+      rt.textContent = rl;
+    }
+
+    var home = sv('g', {transform: 'translate(' + X(0) + ' ' + Y(0) + ')'}, overG);
+    home.style.pointerEvents = 'none';
+    var hc = sv('circle', {r: 8}, home); hc.style.fill = 'var(--surface)'; hc.style.stroke = 'var(--ink)'; hc.style.strokeWidth = '2px';
+    sv('circle', {r: 2.5}, home).style.fill = 'var(--ink)';
+    var ht = sv('text', {x: 12, y: -10, 'class': 'town left'}, home);
+    ht.style.fontWeight = '600'; ht.textContent = 'Home';
+
+    var scaleMi = [0.5, 1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500].filter(function (m) { return m * S <= 130; }).pop() || 0.5;
+    clear(foot);
+    text(foot, 'div', scaleMi + ' mi');
+    node('div', {'class': 'sb', style: 'width:' + (scaleMi * S).toFixed(1) + 'px'}, foot);
+  }
+
+  function drawCluster(c, inFeed) {
+    var n = c.m.length;
+    var g = sv('g', {transform: 'translate(' + c.x.toFixed(1) + ' ' + c.y.toFixed(1) + ')',
+                     'class': 'mk', role: 'button', tabindex: c.inside ? 0 : -1}, marksG);
+    var dimmed = state.facet && !c.m.some(function (q) { return inFeed[q.p.key]; });
+    g.style.opacity = !c.inside ? 0.32 : (dimmed ? 0.3 : 1);
+    if (n === 1) {
+      var p = c.m[0].p;
+      g.setAttribute('aria-label', titleOf(p) + ', ' + p.d.toFixed(1) + ' miles');
+      sv('circle', {r: 11}, g).style.fill = 'transparent';
+      var big = p.key === state.sel || p.key === state.hov;
+      var dot = sv('circle', {r: big ? 7.5 : 5.5}, g);
+      dot.style.fill = ST_COLOR[p.status]; dot.style.stroke = 'var(--surface)'; dot.style.strokeWidth = '2px';
+    } else {
+      g.setAttribute('aria-label', n + ' postings here. Zoom in.');
+      var r = 11 + Math.min(9, Math.log2(n) * 2.4), C = 2 * Math.PI * (r - 2), acc = 0;
+      var back = sv('circle', {r: r + 1.5}, g); back.style.fill = 'var(--surface)';
+      STATUSES.forEach(function (s) {
+        var share = c.m.filter(function (q) { return q.p.status === s[0]; }).length / n;
+        if (!share) { return; }
+        var arc = sv('circle', {r: r - 2, transform: 'rotate(-90)'}, g);
+        arc.style.fill = 'none'; arc.style.stroke = ST_COLOR[s[0]]; arc.style.strokeWidth = '3.5px';
+        arc.style.strokeDasharray = (share * C) + ' ' + C; arc.style.strokeDashoffset = String(-acc * C);
+        acc += share;
+      });
+      var t = sv('text', {'text-anchor': 'middle', dy: '0.36em'}, g);
+      t.style.fill = 'var(--ink)'; t.style.font = '500 11px ui-monospace,Menlo,monospace';
+      t.textContent = n;
+    }
+    g.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+    var open = function () {
+      if (n > 1) {
+        var z = size(), mx = view.cx + (c.x - z.w / 2) / view.s, my = view.cy - (c.y - z.h / 2) / view.s;
+        fly({cx: mx, cy: my, s: view.s * 2.4});
+        return;
+      }
+      var p = c.m[0].p, card = feedKeys()[p.key];
+      if (card) { select(p.key, false); card.scrollIntoView({block: 'nearest', behavior: reduced ? 'auto' : 'smooth'}); }
+      else { window.location.assign('/job/' + p.job); }
+    };
+    g.addEventListener('click', open);
+    g.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+    g.addEventListener('pointerenter', function () { showTip(c); if (n === 1) { hover(c.m[0].p.key); } });
+    g.addEventListener('pointerleave', function () { tip.hidden = true; if (n === 1) { hover(null); } });
+  }
+
+  /* The map data carries no titles: a posting the radius hides must not be
+     on the page at all (tests/test_radius). A listed card names itself. */
+  function titleOf(p) {
+    var card = feedKeys()[p.key], t = card && card.querySelector('.title');
+    return t ? t.textContent.trim() : 'A posting in ' + p.place;
+  }
+  function showTip(c) {
+    clear(tip);
+    var inFeed = feedKeys();
+    if (c.m.length === 1) {
+      var p = c.m[0].p;
+      text(tip, 'b', titleOf(p));
+      text(tip, 'span', p.place + ' · ' + p.d.toFixed(1) + ' mi · ~' + fmtMin(minutes(p.d)) + ' ' + MODES[state.mode].noun + ' (est.)');
+      var where = !c.inside ? 'Outside the circle. Click to open it.'
+        : inFeed[p.key] ? 'In the list. Click to find it.'
+        : 'Inside, but not in the list (three per company). Click to open it.';
+      text(tip, 'span', where);
+    } else {
+      text(tip, 'b', c.m.length + ' postings ' + (c.inside ? 'inside' : 'outside') + ' the circle');
+      text(tip, 'span', STATUSES.map(function (s) {
+        var k = c.m.filter(function (q) { return q.p.status === s[0]; }).length;
+        return k ? k + ' ' + s[1].toLowerCase() : '';
+      }).filter(Boolean).join(' · '));
+      text(tip, 'span', 'Click to zoom in.');
+    }
+    var z = size();
+    tip.style.left = Math.min(c.x + 16, z.w - 270) + 'px';
+    tip.style.top = Math.max(8, Math.min(c.y - 12, z.h - 90)) + 'px';
+    tip.hidden = false;
+  }
+
+  /* Pan, zoom. */
+  var drag = null;
+  svg.addEventListener('pointerdown', function (e) {
+    if (e.button !== 0) { return; }
+    cancelAnimationFrame(anim);
+    drag = {x: e.clientX, y: e.clientY, cx: view.cx, cy: view.cy, moved: false};
+    svg.setPointerCapture(e.pointerId);
+  });
+  svg.addEventListener('pointermove', function (e) {
+    if (!drag) { return; }
+    var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (Math.abs(dx) + Math.abs(dy) > 3) { drag.moved = true; }
+    view.cx = drag.cx - dx / view.s; view.cy = drag.cy + dy / view.s;
+    redraw();
+  });
+  function endDrag(e) {
+    if (drag && !drag.moved && e.type === 'pointerup') { select(null, false); }
+    drag = null;
+  }
+  svg.addEventListener('pointerup', endDrag);
+  svg.addEventListener('pointercancel', endDrag);
+  svg.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    cancelAnimationFrame(anim);
+    var r = svg.getBoundingClientRect(), z = size();
+    var sx = e.clientX - r.left, sy = e.clientY - r.top;
+    var mx = view.cx + (sx - z.w / 2) / view.s, my = view.cy - (sy - z.h / 2) / view.s;
+    var s = clampS(view.s * Math.exp(-e.deltaY * 0.0016));
+    view = {s: s, cx: mx - (sx - z.w / 2) / s, cy: my + (sy - z.h / 2) / s};
+    redraw();
+  }, {passive: false});
+  if (window.ResizeObserver) { new ResizeObserver(redraw).observe(box); }
+
+  /* ---- the panel -------------------------------------------------------- */
+  var bandsBox = document.getElementById('rp-bands');
+  var fill = document.getElementById('rp-fill');
+  bandsBox.checked = state.bands;
+  fill.value = state.fill;
+  function radio(groupId, attr, value) {
+    Array.prototype.forEach.call(document.querySelectorAll('#' + groupId + ' [' + attr + ']'), function (b) {
+      b.setAttribute('aria-checked', String(b.getAttribute(attr) === value));
+    });
+  }
+  radio('rp-modes', 'data-mode', state.mode);
+  radio('rp-fence', 'data-fence', state.fence);
+  document.getElementById('rp-modes').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-mode]'); if (!b) { return; }
+    state.mode = b.getAttribute('data-mode'); save('mode', state.mode);
+    radio('rp-modes', 'data-mode', state.mode); refresh();
+  });
+  document.getElementById('rp-fence').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-fence]'); if (!b) { return; }
+    state.fence = b.getAttribute('data-fence'); save('fence', state.fence);
+    radio('rp-fence', 'data-fence', state.fence); redraw();
+  });
+  bandsBox.addEventListener('change', function () { state.bands = bandsBox.checked; save('bands', state.bands); redraw(); });
+  fill.addEventListener('input', function () { state.fill = +fill.value; save('fill', state.fill); redraw(); });
+
+  function counter() {
+    var by = {interview: 0, applied: 0, saved: 0, 'new': 0}, n = 0, mins = [];
+    live.points.forEach(function (p) {
+      if (state.on[p.status] && p.d <= R) { n++; by[p.status]++; mins.push(minutes(p.d)); }
+    });
+    document.getElementById('rp-count').textContent = n;
+    document.getElementById('rp-of').textContent = ' postings within ' + fmtMiles(R) +
+      (live.remote ? '; ' + live.remote + ' remote have no distance' : '');
+    var bar = document.getElementById('rp-bar'); clear(bar);
+    STATUSES.forEach(function (s) {
+      if (by[s[0]]) { node('span', {'class': 'st-' + s[0], style: 'width:' + (100 * by[s[0]] / n) + '%'}, bar); }
+    });
+    var med = median(mins);
+    document.getElementById('rp-median').textContent = med === null ? 'Nothing inside the circle yet.'
+      : 'Median ' + MODES[state.mode].noun + ' inside: about ' + fmtMin(med) + ' (estimated).';
+  }
+
+  /* ---- the list --------------------------------------------------------- */
+  var feed = document.getElementById('feed');
+  document.getElementById('feed-head').hidden = false;
+  var chips = document.getElementById('feed-chips');
+  STATUSES.forEach(function (s) {
+    var b = node('button', {type: 'button', 'class': 'chip st-' + s[0], 'aria-pressed': 'true', 'data-status': s[0]}, chips);
+    node('i', {}, b); b.appendChild(document.createTextNode(s[1] + ' ')); node('b', {}, b);
+  });
+  chips.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-status]'); if (!b) { return; }
+    var st = b.getAttribute('data-status');
+    state.on[st] = !state.on[st];
+    b.setAttribute('aria-pressed', String(state.on[st]));
+    refresh();
+  });
+  document.getElementById('feed-sort').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-sort]'); if (!b) { return; }
+    state.sort = b.getAttribute('data-sort');
+    Array.prototype.forEach.call(this.querySelectorAll('[data-sort]'), function (x) {
+      x.setAttribute('aria-pressed', String(x === b));
+    });
+    applyFeed();
+  });
+  function cards() { return Array.prototype.slice.call(document.querySelectorAll('#feed-list .card[data-key]')); }
+  function info(c) { return live.cards[c.getAttribute('data-key')] || {}; }
+  function bindFeed() { cards().forEach(function (c, i) { c.setAttribute('data-i', i); }); }
+  function facetOk(d) {
+    if (!state.facet) { return true; }
+    return state.facet.kind === 'skill' ? (d.skills || []).indexOf(state.facet.value) >= 0
+                                        : d.company === state.facet.value;
+  }
+  var SORTS = {
+    score: function (a, b) { return +a.getAttribute('data-i') - +b.getAttribute('data-i'); },
+    near: function (a, b) {
+      var x = info(a), y = info(b);
+      var dx = x.remote || x.miles === null || x.miles === undefined ? Infinity : x.miles;
+      var dy = y.remote || y.miles === null || y.miles === undefined ? Infinity : y.miles;
+      return dx - dy || SORTS.score(a, b);
+    },
+    pay: function (a, b) {
+      var x = info(a).pay, y = info(b).pay;
+      return (y ? y[1] : -1) - (x ? x[1] : -1) || SORTS.score(a, b);
+    },
+    'new': function (a, b) {
+      var x = info(a).found || '', y = info(b).found || '';
+      return x < y ? 1 : x > y ? -1 : SORTS.score(a, b);
+    }
+  };
+  function applyFeed() {
+    var list = document.getElementById('feed-list');
+    var all = cards(), counts = {interview: 0, applied: 0, saved: 0, 'new': 0}, visible = 0;
+    all.sort(SORTS[state.sort]).forEach(function (c) { list.appendChild(c); });
+    all.forEach(function (c) {
+      var d = info(c), st = c.getAttribute('data-status'), key = c.getAttribute('data-key');
+      counts[st] += 1;
+      c.hidden = !(state.on[st] && facetOk(d));
+      if (!c.hidden) { visible++; }
+      var eta = c.querySelector('.eta');
+      if (eta) {
+        eta.textContent = d.miles !== null && d.miles !== undefined && !d.remote
+          ? ' · about ' + fmtMin(minutes(d.miles)) + ' ' + MODES[state.mode].noun + ' (est.)' : '';
+      }
+      c.classList.toggle('sel', key === state.sel);
+      c.classList.toggle('hov', key === state.hov);
+    });
+    Array.prototype.forEach.call(chips.querySelectorAll('[data-status]'), function (b) {
+      b.querySelector('b').textContent = counts[b.getAttribute('data-status')];
+    });
+    var none = document.getElementById('feed-none');
+    if (!visible && all.length) {
+      if (!none) { none = text(list, 'p', 'Everything in the list is hidden by the choices above.', 'empty'); none.id = 'feed-none'; }
+    } else if (none) { none.remove(); }
+    var facet = document.getElementById('feed-facet'); clear(facet);
+    facet.hidden = !state.facet;
+    if (state.facet) {
+      text(facet, 'span', 'Only ' + (state.facet.kind === 'skill' ? 'asking for ' : 'at ') + state.facet.value, 'meta');
+      var x = node('button', {type: 'button'}, facet); x.textContent = 'Show all';
+      x.addEventListener('click', function () { state.facet = null; refresh(); });
+    }
+    analytics();
+  }
+  function hover(key) {
+    if (state.hov === key) { return; }
+    state.hov = key;
+    cards().forEach(function (c) { c.classList.toggle('hov', c.getAttribute('data-key') === key); });
+    redraw();
+  }
+  function select(key, flyTo) {
+    state.sel = key;
+    cards().forEach(function (c) { c.classList.toggle('sel', c.getAttribute('data-key') === key); });
+    if (flyTo && key) {
+      var best = null;
+      live.points.forEach(function (p) { if (p.key === key && (!best || p.d < best.d)) { best = p; } });
+      if (best) { fly(centerOn(best.x, best.y, Math.max(view.s, fitView(12).s))); }
+    }
+    redraw();
+  }
+  feed.addEventListener('mouseover', function (e) {
+    var c = e.target.closest('.card[data-key]'); hover(c ? c.getAttribute('data-key') : null);
+  });
+  feed.addEventListener('mouseleave', function () { hover(null); });
+  feed.addEventListener('click', function (e) {
+    if (e.target.closest('a,button')) { return; }
+    var c = e.target.closest('.card[data-key]'); if (!c) { return; }
+    select(c.getAttribute('data-key'), true);
+  });
+
+  /* ---- analytics of what the list shows ---------------------------------- */
+  var an = document.getElementById('an-body'), anSum = document.getElementById('an-sum');
+  function bars(parent, title, note, rows, pick) {
+    var col = node('div', {}, parent);
+    var h = text(col, 'h3', title); if (note) { text(h, 'small', note); }
+    var ol = node('ol', {}, col), top = Math.max.apply(null, rows.map(function (r) { return r[1]; }).concat([1]));
+    rows.forEach(function (r) {
+      var li = node('li', {}, ol);
+      text(li, 'span', r[0]).title = r[0];
+      node('i', {style: 'width:' + (100 * r[1] / top) + '%'}, node('span', {'class': 'track'}, li));
+      text(li, 'b', String(r[1]));
+      if (pick) {
+        var on = !!state.facet && state.facet.kind === pick && state.facet.value === r[0];
+        li.setAttribute('role', 'button'); li.setAttribute('tabindex', '0');
+        li.setAttribute('aria-pressed', String(on));
+        var go = function () { state.facet = on ? null : {kind: pick, value: r[0]}; refresh(); };
+        li.addEventListener('click', go);
+        li.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+      }
+    });
+    if (!rows.length) { text(col, 'p', 'Nothing to count.', 'foot'); }
+    return col;
+  }
+  function tally(xs) {
+    var m = {};
+    xs.forEach(function (x) { m[x] = (m[x] || 0) + 1; });
+    return Object.keys(m).map(function (k) { return [k, m[k]]; })
+      .sort(function (a, b) { return b[1] - a[1] || (a[0] < b[0] ? -1 : 1); });
+  }
+  function analytics() {
+    var shownCards = cards().filter(function (c) { return !c.hidden; }).map(info);
+    clear(an);
+    var pays = shownCards.filter(function (d) { return d.pay; }).map(function (d) { return (d.pay[0] + d.pay[1]) / 2; });
+    var BANDS = [[0, 60000, 'under 60k'], [60000, 90000, '60-90k'], [90000, 120000, '90-120k'],
+                 [120000, 150000, '120-150k'], [150000, 200000, '150-200k'], [200000, Infinity, '200k and up']];
+    var pay = bars(an, 'Pay, by midpoint', pays.length + ' of ' + shownCards.length + ' state it',
+      BANDS.map(function (b) { return [b[2], pays.filter(function (v) { return v >= b[0] && v < b[1]; }).length]; }));
+    var mp = median(pays);
+    if (mp !== null) { text(pay, 'p', 'Median ' + money(mp) + ' a year. Hourly pay is counted at 2,080 hours.', 'foot'); }
+    var withSkills = shownCards.filter(function (d) { return d.skills && d.skills.length; });
+    bars(an, 'Skills asked for', 'from ' + withSkills.length + ' read by enrich',
+      tally([].concat.apply([], withSkills.map(function (d) { return d.skills; }))).slice(0, 8), 'skill');
+    bars(an, 'Hiring here', 'click to filter',
+      tally(shownCards.map(function (d) { return d.company; })).slice(0, 6), 'company');
+    var placed = shownCards.filter(function (d) { return d.miles !== null && d.miles !== undefined && !d.remote; });
+    var ringsNow = MODES[state.mode].rings, rows = ringsNow.map(function (t, i) {
+      var lo = i ? ringsNow[i - 1] : 0;
+      return [(i ? lo + '-' : 'up to ') + fmtMin(t), placed.filter(function (d) { var m = minutes(d.miles); return m > lo && m <= t; }).length];
+    });
+    var last = ringsNow[ringsNow.length - 1];
+    rows.push(['over ' + fmtMin(last), placed.filter(function (d) { return minutes(d.miles) > last; }).length]);
+    var com = bars(an, 'Time ' + MODES[state.mode].noun, 'estimated', rows);
+    var remoteN = shownCards.length - placed.length;
+    if (remoteN) { text(com, 'p', remoteN + ' remote or unplaced, with no trip to estimate.', 'foot'); }
+    anSum.textContent = shownCards.length + ' in the list' + (mp !== null ? ' · median pay ' + money(mp) : '');
+  }
+
+  /* ---- the radius: live circle, then the server's list -------------------- */
+  var timer = 0, inflight = null;
+  function requery(ms) { clearTimeout(timer); timer = setTimeout(fetchList, ms); }
+  function fetchList() {
+    var params = new URLSearchParams(new FormData(form));
+    params.set('radius', String(R));
+    params.delete('anywhere');
+    var url = '?' + params.toString();
+    if (inflight) { inflight.abort(); }
+    var mine = inflight = new AbortController();
+    var list = document.getElementById('feed-list');
+    list.setAttribute('aria-busy', 'true'); list.style.opacity = 0.55;
+    fetch(url, {signal: mine.signal, credentials: 'same-origin'})
+      .then(function (r) { if (!r.ok) { throw new Error(String(r.status)); } return r.text(); })
+      .then(function (html) {
+        if (mine !== inflight) { return; }
+        inflight = null;
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        ['summary', 'feed-list'].forEach(function (id) {
+          var a = document.getElementById(id), b = doc.getElementById(id);
+          if (a && b) { a.replaceWith(document.importNode(b, true)); }
+        });
+        var d = doc.getElementById('map-data');
+        if (d) { live.cards = JSON.parse(d.textContent).cards; }
+        history.replaceState(null, '', url);
+        bindFeed(); applyFeed(); redraw();
+      })
+      .catch(function (e) {
+        if (e.name === 'AbortError') { return; }
+        var l = document.getElementById('feed-list');
+        l.style.opacity = 1; l.removeAttribute('aria-busy');
+        if (!document.getElementById('feed-stale')) {
+          var p = text(l, 'p', 'The list did not refresh for ' + fmtMiles(R) + '. Press Filter to reload the page.', 'note bad');
+          p.id = 'feed-stale'; l.insertBefore(p, l.firstChild);
+        }
+      });
+  }
+  slider.addEventListener('input', function () {
+    R = +slider.value;
+    shown.textContent = slider.value + ' miles';
+    counter(); redraw(); requery(250);
+  });
+  slider.addEventListener('change', function () {
+    requery(0);
+    var z = size();
+    if (R * view.s > Math.min(z.w - panelWidth(), z.h) / 2) { fly(fitView(R)); }
+  });
+  anywhere.addEventListener('change', function () { form.submit(); });
+
+  function refresh() { counter(); applyFeed(); redraw(); }
+
+  var note = document.getElementById('map-note');
+  if (note) {
+    note.textContent = live.points.length + ' posting(s) on the map' +
+      (live.remote ? '; ' + live.remote + ' remote, with no distance to draw' : '') +
+      (live.unplaced ? '; ' + live.unplaced + ' naming a place this could not find' : '') +
+      '. Drag to pan, scroll to zoom. Distances are straight-line miles from ' + live.home + '.';
+  }
+  view = fitView(R);
+  bindFeed();
+  refresh();
 })();
 </script>
 {% endblock %}"""
@@ -754,6 +1588,82 @@ def _by_distance(rows, origin, radius: float | None, copies=None):
     return kept, hidden, unplaced
 
 
+# The four colours on the Matches map (n21). A card with no application is
+# "new"; a live application is grouped by how far along it is. Closed ones
+# (approvals.CLOSED) are never on this page. The pill on a card still says
+# the real stage -- "offer", "phone screen" -- the group is only its colour.
+STATUS_GROUP = {
+    "saved": "saved", "drafting": "saved", "ready": "saved",
+    "applied": "applied",
+    "phone_screen": "interview", "technical": "interview",
+    "onsite": "interview", "offer": "interview",
+}
+
+
+def _annual(row: dict[str, Any]) -> tuple[int | None, int | None]:
+    """The posting's pay as yearly dollars, or (None, None) when it states none.
+
+    Hourly figures are multiplied out the same way jsa.salary does, so the
+    dashboard's pay ranges compare like with like.
+    """
+    from .salary import HOURS_PER_YEAR
+
+    low, high = row.get("salary_min"), row.get("salary_max")
+    if low is None and high is None:
+        return None, None
+    low = low if low is not None else high
+    high = high if high is not None else low
+    if row.get("salary_period") == "hour":
+        return low * HOURS_PER_YEAR, high * HOURS_PER_YEAR
+    return low, high
+
+
+def _pipeline_rows(con: sqlite3.Connection, where: list[str],
+                   params: dict[str, Any]) -> list[dict[str, Any]]:
+    """Live applications, shaped like v_new_matches cards, under the page's
+    own filters. Not capped per company: these are the operator's own."""
+    closed = ",".join(f"'{s}'" for s in sorted(approvals.CLOSED))
+    rows = con.execute(
+        "SELECT m.id AS job_id, c.name AS company, m.title, m.location, "
+        "       m.remote, m.match_score, m.match_reasons, m.url, m.track, "
+        "       m.discovered_at, 1 AS variant_count, NULL AS dedup_key, "
+        "       m.degree_required, m.clearance_required, m.years_required, "
+        "       m.tech_stack, m.enrichment_note, m.enriched_at, "
+        "       m.salary_min, m.salary_max, m.salary_period, "
+        "       a.status AS stage "
+        "  FROM applications a JOIN jobs m ON m.id = a.job_id "
+        "  LEFT JOIN companies c ON c.id = m.company_id "
+        f" WHERE a.archived_at IS NULL AND a.status NOT IN ({closed}) "
+        f"   AND {' AND '.join(where)}", params).fetchall()
+    out = []
+    for row in rows:
+        card = _decode(row)
+        card["status"] = STATUS_GROUP.get(card["stage"], "saved")
+        card["key"] = f"app:{card['job_id']}"
+        out.append(card)
+    return out
+
+
+def _card_data(rows) -> dict[str, dict[str, Any]]:
+    """What the page's script needs to know about each listed card, keyed the
+    way the map's points are. Presentation only: the list itself is already
+    decided."""
+    out = {}
+    for row in rows:
+        low, high = _annual(row)
+        out[row["key"]] = {
+            "company": row.get("company") or "",
+            "status": row["status"],
+            "miles": row.get("exact_miles"),
+            "remote": bool(row.get("any_remote")),
+            "pay": [low, high] if low is not None else None,
+            "skills": [str(s) for s in row.get("stack") or []][:12],
+            "found": row.get("discovered_at") or "",
+            "score": row.get("match_score") or 0,
+        }
+    return out
+
+
 def _pending_count(con: sqlite3.Connection) -> int:
     return con.execute(
         "SELECT COUNT(*) FROM approvals WHERE decision='pending'").fetchone()[0]
@@ -934,31 +1844,57 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             listed = ("SELECT m.* FROM v_new_matches m WHERE "
                       f"{' AND '.join(where)} ORDER BY m.match_score DESC")
             rows = [_decode(r) for r in con.execute(listed, params).fetchall()]
+            for row in rows:
+                row["status"] = "new"
+                row["key"] = row.get("dedup_key") or f"job:{row['job_id']}"
             total = con.execute("SELECT COUNT(*) FROM v_new_matches").fetchone()[0]
             # The map draws every posting that survived the other filters,
             # uncapped and unlimited: it is a picture of where the work is,
             # and the top sixty is not that. Every COPY, not one per card
             # (n20): a card is kept when any of its copies is inside the
             # radius, so a dot inside the circle must exist for each one.
+            # `key` is the card a copy belongs to -- the same grouping
+            # v_new_matches folds by -- so a dot and its card can find
+            # each other on the page.
             drawn = [dict(r) for r in con.execute(
-                "SELECT m.id AS job_id, m.title, m.location, m.remote "
+                "SELECT m.id AS job_id, m.title, m.location, m.remote, "
+                "COALESCE(m.dedup_key, 'job:' || m.id) AS key "
                 "FROM jobs m WHERE m.archived_at IS NULL "
                 "AND m.closed_at IS NULL AND NOT EXISTS "
                 "(SELECT 1 FROM applications a WHERE a.job_id = m.id) "
                 f"AND {' AND '.join(where)}", params)]
             copies = _copies(con, rows)
+            # The operator's own live applications (n21): on the map in
+            # their status colour, and in the list when inside the radius.
+            mine = _pipeline_rows(con, where, params)
         finally:
             con.close()
 
         view = mapview.build(drawn, origin, wanted)
         rows, hidden, unplaced = _by_distance(rows, origin, wanted, copies)
         rows = _per_company(rows, PER_COMPANY)[:limit]
+        mine, _, _ = _by_distance(mine, origin, wanted)
+        rows = sorted(mine + rows, key=lambda r: -(r.get("match_score") or 0))
         # Remote postings pass any radius, so without this the page can say
         # "within 25 miles" over a list that is mostly remote work.
         near_count = sum(1 for r in rows
                          if not r.get("any_remote")
                          and r.get("miles") is not None)
+
+        # What the page's script draws. Only for the local map: with no home
+        # there is no distance to measure, and "anywhere" is the national
+        # picture the server already drew.
+        live = None
+        if origin is not None and wanted:
+            pts, remote_n, unplaced_n = mapview.points(
+                drawn + [{**r, "status": r["status"]} for r in mine], origin)
+            live = {"radius": wanted, "min": RADIUS_MIN, "max": RADIUS_MAX,
+                    "home": str(origin), "points": pts,
+                    "remote": remote_n, "unplaced": unplaced_n,
+                    "cards": _card_data(rows)}
         return render("matches", "matches", rows=rows, total=total,
+                      mine=sum(1 for r in rows if r["status"] != "new"),
+                      live=live, wide=True,
                       near=near, track=track,
                       degree=degree, remote=remote,
                       home=str(origin) if (origin and wanted) else "",

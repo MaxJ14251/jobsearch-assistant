@@ -462,6 +462,20 @@ match to a resume you can upload yourself:
   the picture is measured first and drawn second, so it cannot disagree with
   the filter. See
   [ADR 0015](docs/decisions/0015-a-map-that-agrees-with-its-filter.md).
+- **Live, with JavaScript on** (it works without; this is what it adds): the
+  map sits beside the list and pans and zooms. The circle and a count of the
+  postings inside it follow the slider as you drag, and the list refreshes
+  from the server when you let go. Markers cluster when they overlap and are
+  coloured by status: your saved, applied and interviewing jobs appear
+  alongside new matches, with chips to show or hide each. Hovering a card
+  rings its markers; clicking one moves the map to it. Shaded bands show
+  **estimated** commute times by car, transit, bike or on foot, and every card
+  gets one too. They are straight-line distance times a typical detour at an
+  average speed, not a route, and the page says so. Below the map and list,
+  **area analytics** cover what the list shows: pay (only for postings that
+  state it, and it says how many do), the skills asked for, who is hiring,
+  and the spread of commute times. Nothing is loaded from any other host. See
+  [ADR 0018](docs/decisions/0018-the-matches-page-as-a-live-map.md).
 - A **Pipeline** grouped by stage, with each application's next action,
   overdue flags, and the same stage moves as the CLI.
 - **Job page**: every drafted document, newest version first, with its status
