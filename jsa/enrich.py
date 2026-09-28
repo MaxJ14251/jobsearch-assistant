@@ -188,13 +188,26 @@ def enrich_one(title: str, description: str, metrics=None) -> Enrichment:
 
 
 def pending(
-    con: sqlite3.Connection, *, min_score: float, limit: int, force: bool
+    con: sqlite3.Connection, *, min_score: float, limit: int, force: bool,
+    job_ids: list[int] | None = None,
 ) -> list[sqlite3.Row]:
     """Listings worth spending a call on, best matches first.
 
     Re-enriches when the posting text changed since last time, so an edited
     repost does not keep stale facts.
+
+    `job_ids` names postings outright, and then they are redone whatever
+    their score or freshness: naming one is the operator saying its facts
+    are wrong. It exists because they were -- jobs 288 and 514 were enriched
+    when this read 6,000 characters, their degree lines sit past 6,800, and
+    the only way to redo two rows was --force over eight hundred.
     """
+    if job_ids:
+        marks = ",".join("?" * len(job_ids))
+        return con.execute(
+            "SELECT j.id, j.title, j.description, j.description_hash FROM jobs j "
+            f"WHERE j.id IN ({marks}) AND j.description IS NOT NULL "
+            "ORDER BY j.id", list(job_ids)).fetchall()
     where = [
         "j.archived_at IS NULL",
         "j.closed_at IS NULL",
@@ -264,12 +277,14 @@ def run(
     workers: int = DEFAULT_WORKERS,
     progress: bool = True,
     metrics=None,
+    job_ids: list[int] | None = None,
 ) -> EnrichReport:
     """Enrich pending listings. Safe to interrupt — each row commits as it lands."""
     con = db.connect()
     report = EnrichReport()
     try:
-        rows = pending(con, min_score=min_score, limit=limit, force=force)
+        rows = pending(con, min_score=min_score, limit=limit, force=force,
+                       job_ids=job_ids)
         report.attempted = len(rows)
         if not rows:
             return report

@@ -94,6 +94,53 @@ class TestPendingQuery(unittest.TestCase):
         self.assertIn("enrichment_hash IS NOT j.description_hash", src)
 
 
+class TestRedoingOnePosting(unittest.TestCase):
+    """`jsa enrich --job N`. Jobs 288 and 514 were enriched when this read
+    6,000 characters; their degree lines sit past 6,800, so the stored fact
+    said no degree was required. The only way to redo two rows was --force
+    over eight hundred."""
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        from pathlib import Path
+        from jsa import db
+
+        self.dir = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        path = self.dir / "t.db"
+        db.init_db(path)
+        self.con = db.connect(path)
+        self.addCleanup(self.con.close)
+        self.con.execute("INSERT INTO companies (id,name,slug) VALUES (1,'A','a')")
+        # Fresh (already enriched, text unchanged) and scoring below any
+        # threshold: exactly what the normal pass skips.
+        for job_id in (1, 2):
+            self.con.execute(
+                "INSERT INTO jobs (id,company_id,title,url,description,"
+                "description_hash,enrichment_hash,enriched_at,match_score) "
+                "VALUES (?,1,'Engineer',?,?,'h','h','2026-09-15T00:00:00Z',0.1)",
+                (job_id, f"https://a.test/{job_id}", "x" * 400))
+        self.con.commit()
+
+    def pending(self, **kw):
+        from jsa.enrich import pending
+        return [r["id"] for r in pending(self.con, min_score=0.5, limit=100,
+                                         force=False, **kw)]
+
+    def test_the_normal_pass_skips_them(self):
+        self.assertEqual(self.pending(), [])
+
+    def test_naming_one_redoes_it_whatever_its_score_or_freshness(self):
+        self.assertEqual(self.pending(job_ids=[2]), [2])
+
+    def test_only_the_named_ones(self):
+        self.assertEqual(self.pending(job_ids=[1, 2]), [1, 2])
+
+    def test_an_unknown_id_is_nothing_not_everything(self):
+        self.assertEqual(self.pending(job_ids=[99]), [])
+
+
 class TestSchemaAgreement(unittest.TestCase):
     """The validator's vocabulary must match the database's CHECK constraint.
 

@@ -111,16 +111,26 @@ overstate it:
   years, clearance, seniority and remote. The model infers most of these from
   the role description it could already see, or the posting restates them
   earlier in looser words than a heading.
-- **Four postings in the live tracker hold facts that contradict their own
-  text** (jobs 288 and 514 record no degree requirement while the posting
-  states one). Re-extracting them at every budget from 4,000 to 12,000
-  returns `degree_required=True` regardless, so **truncation is not what
-  produced those rows** — an older model or prompt did. That is a separate
-  bug and is not fixed here.
+- **Two postings held a degree fact that contradicted their own text** (jobs
+  288 and 514). *Corrected 2026-09-27:* this ADR first said truncation did not
+  cause them, because re-extracting at any budget returned
+  `degree_required=True`. That was the wrong inference. Both were enriched on
+  2026-09-15 when enrich read 6,000 characters; their degree lines sit at
+  6,945 and 6,890; the stored notes read "Degree requirement not specified";
+  and the model and prompt are unchanged. The re-extraction only showed the
+  model can *guess* a degree from the rest of the role. Truncation is the
+  likely cause. Both were redone with `jsa enrich --job`, added for exactly
+  this, and now read "required" — 288 with "or equivalent experience
+  accepted", 514 also gaining its "3+ years". No wholesale re-enrichment:
+  the same check across every enriched posting found these two and one
+  more, job 828, whose missing "5+ years" is under *Nice to have* and
+  correctly stored as not required.
 
-The case for the change is therefore insurance rather than a demonstrated
-repair: the model can now see the requirement it is being asked to write
-against, on 99.7% of postings instead of 8%. That is worth 580 tokens.
+For drafting, the case is insurance rather than a demonstrated repair: the
+model can now see the requirement it is being asked to write against, on
+99.7% of postings instead of 8%. For extraction there is one demonstrated
+repair, small but real: two stored degree facts the old 6,000 budget got
+wrong (above). Either way it is worth 580 tokens.
 
 ## Consequences
 

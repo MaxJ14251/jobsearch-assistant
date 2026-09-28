@@ -245,15 +245,22 @@ def cmd_enrich(args: argparse.Namespace) -> int:
         print(exc, file=sys.stderr)
         return 2
 
-    print(f"enriching up to {args.limit} listing(s) scoring >= {args.min}"
-          f"{' (forced re-run)' if args.force else ''}...")
+    if args.job:
+        print(f"re-enriching job(s) {', '.join(map(str, args.job))}...")
+    else:
+        print(f"enriching up to {args.limit} listing(s) scoring >= {args.min}"
+              f"{' (forced re-run)' if args.force else ''}...")
     from .log import RunMetrics
     metrics = RunMetrics()
     report = enrich.run(min_score=args.min, limit=args.limit,
                         force=args.force, workers=args.workers,
-                        metrics=metrics)
+                        metrics=metrics, job_ids=args.job or None)
 
     if not report.attempted:
+        if args.job:
+            print("no such posting, or it has no description to read: "
+                  f"{', '.join(map(str, args.job))}", file=sys.stderr)
+            return 1
         print("nothing pending — everything above that score is already enriched.")
         return 0
 
@@ -1041,6 +1048,9 @@ def main(argv: list[str] | None = None) -> int:
     p_enrich.add_argument("--workers", type=int, default=4)
     p_enrich.add_argument("--force", action="store_true",
                           help="re-enrich even if already done")
+    p_enrich.add_argument("--job", type=int, action="append", metavar="ID",
+                          help="redo just this posting, whatever its score; "
+                               "repeatable. For a fact you know is wrong")
     p_enrich.set_defaults(func=cmd_enrich)
 
     p_serve = sub.add_parser("serve", help="local review dashboard")
