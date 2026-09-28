@@ -78,19 +78,98 @@ def _norm(text: str) -> str:
     return re.sub(r"[^a-z0-9+ ]", " ", (text or "").lower())
 
 
-_TITLE_QUALIFIER_RE = re.compile(r"\s*[\(\[].*?[\)\]]\s*")
 
 
-def dedup_key(company_id: int, title: str) -> str:
-    """Collapse regional variants of the same req.
+def dedup_key(company_id: int, title: str, location: str | None = None) -> str:
+    """Collapse regional copies of one req -- and nothing else.
 
     Boards post one req per location: "Forward Deployed Engineer (Korea)",
-    "... (West Coast)", "... (UK/Europe)". Those are one job to a human, so
-    strip parenthetical qualifiers and any trailing location clause.
+    "... (West Coast)". Those are one job to a human, so a qualifier that
+    says WHERE is stripped from the key.
+
+    This used to strip every parenthetical, and SpaceX puts the TEAM there.
+    Measured 2026-09-27 (n20): "Software Engineer (Starlink)", "(Platform
+    Team)", "(AI Data Engineering)" and fifteen more folded into one card,
+    and across the tracker 139 distinct titles were hidden behind 69 cards.
+    A wrong fold hides a job, which is worse than showing one twice, so a
+    qualifier is kept unless `regional_qualifier` can show it is a place.
     """
-    base = _TITLE_QUALIFIER_RE.sub(" ", title or "")
+    base = title or ""
+    for match in reversed(list(_QUALIFIER_RE.finditer(base))):
+        if regional_qualifier(match.group(1), location):
+            base = base[:match.start()] + " " + base[match.end():]
     base = re.sub(r"\s*[-–—,]\s*(remote|us|usa|emea|apac|latam)\b.*$", "", base, flags=re.I)
     return f"{company_id}:{' '.join(_norm(base).split())}"
+
+
+_QUALIFIER_RE = re.compile(r"[\(\[]([^\)\]]*)[\)\]]")
+
+# Words that say where, or how, and never name a team. A foreign country or
+# city is caught by _NON_US_RE; a US state by its name or code.
+_REGION_WORDS = {
+    "remote", "hybrid", "onsite", "on-site", "in office", "in-office",
+    "us", "usa", "u.s.", "uk", "emea", "apac", "latam", "europe", "americas",
+    "amer", "north america", "east coast", "west coast", "middle east",
+    "global", "worldwide", "anywhere", "bay area", "sf bay area",
+}
+_ARRANGEMENT_RE = re.compile(
+    r"^(hybrid|remote|onsite|on-site|in[- ]office)\b\s*[-–—:]?\s*", re.I)
+_CITY_ST_RE = re.compile(r"^[A-Za-z .'-]+,\s*[A-Za-z]{2}$")
+_QUALIFIER_SPLIT_RE = re.compile(r"\s*[,/|]\s*|\s+or\s+|\s+&\s+", re.I)
+
+# How close a qualifier's place must be to the posting's own to count as
+# naming it: "(NYC)" on a posting in Jersey City is a regional copy.
+_SAME_PLACE_MILES = 30
+
+
+def regional_qualifier(qualifier: str, location: str | None) -> bool:
+    """Whether "(this)" in a title says where the job is, rather than which.
+
+    Looking a bare name up in the Gazetteer cannot decide it: "(Falcon)" is
+    SpaceX's rocket program and also Falcon, Colorado; "(AI)", "(Oil and
+    Gas)" and "(Farmer)" are all real towns. What decides it is whether the
+    qualifier names WHERE THE POSTING ITSELF IS -- "(Chicago)" on a posting
+    located in Chicago restates its location, "(Falcon)" on one in Hawthorne
+    does not -- or is a word that can only mean a place: a region, a
+    country, a US state, a "City, ST".
+    """
+    from . import places
+
+    text = _ARRANGEMENT_RE.sub("", (qualifier or "").strip()).strip(" .")
+    if not text:
+        return bool((qualifier or "").strip())     # "(Remote)", "(Hybrid)"
+    if _CITY_ST_RE.match(text):
+        return bool(places.parse(text).places)
+    parts = [p for p in _QUALIFIER_SPLIT_RE.split(text) if p.strip()]
+    return bool(parts) and all(_names_a_place(p, location) for p in parts)
+
+
+def _names_a_place(part: str, location: str | None) -> bool:
+    from . import places
+
+    part = _ARRANGEMENT_RE.sub("", part.strip()).strip(" .")
+    if not part:
+        return True
+    lowered = part.lower()
+    if lowered in _REGION_WORDS:
+        return True
+    foreign = _NON_US_RE.search(part)
+    if foreign and foreign.group(0).lower() == lowered:
+        return True
+    if lowered in places.STATE_CODES or part.upper() in places.CODES:
+        return True
+    if _CITY_ST_RE.match(part):
+        return bool(places.parse(part).places)
+    # A bare name counts only if it is where this posting is: whole-word in
+    # its own location field ("ai" is inside "Mountain View"), or a place
+    # within a commute of it.
+    if re.search(r"(?<![a-z])" + re.escape(lowered) + r"(?![a-z])",
+                 (location or "").lower()):
+        return True
+    spot = places.parse(part).places
+    here = places.parse(location or "").places
+    return bool(spot and here and min(
+        places.miles(spot[0], h) for h in here) <= _SAME_PLACE_MILES)
 
 
 def title_score(title: str, targets: list[str]) -> tuple[float, str | None]:

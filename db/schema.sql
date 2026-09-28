@@ -359,6 +359,8 @@ SELECT r.id            AS job_id,
        r.track,
        r.discovered_at,
        r.variant_count,
+       -- the group a folded card stands for; the radius looks at every copy
+       r.dedup_key,
        -- populated by `jsa enrich`; NULL means not yet looked at
        r.degree_required,
        r.clearance_required,

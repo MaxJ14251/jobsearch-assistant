@@ -573,9 +573,17 @@ above 3 years of experience, or a location outside the US.
 Engineering") it's a people-management job and rejected; trailing ("Technical Account
 Manager") it's an IC role and a target.
 
-**Regional duplicates collapse.** Boards post one req per location — "Forward Deployed
-Engineer (Korea)", "(West Coast)", "(UK/Europe)". Those share a `dedup_key`, and
-`v_new_matches` shows the best-scoring one with a count of the rest.
+**Regional copies collapse; different jobs do not.** Boards post one req per
+location — "Forward Deployed Engineer (Korea)", "(West Coast)". Those share a
+`dedup_key`, and the dashboard shows the best-scoring one with a count of the
+rest. A qualifier folds only when it says *where*: a region, a state, or the
+posting's own town. It used to fold every parenthetical, and SpaceX puts the
+team there — eighteen different "Software Engineer (Starlink / Platform Team /
+AI Data Engineering…)" jobs were one card, and 139 titles were hidden that way.
+Place names alone cannot decide it ("Falcon" is a rocket and a town in
+Colorado), so the posting's own location does. With a radius set, a folded card
+counts as near you if *any* of its copies is. See
+[ADR 0017](docs/decisions/0017-what-folds-into-one-card.md).
 
 **Feeds are public JSON only** — the same endpoints each company's own careers page
 already calls: Greenhouse `boards-api`, Lever `api.lever.co`, Ashby `posting-api`,
@@ -673,7 +681,7 @@ which is NJ/NY/Sunnyvale rather than LA.
 
 ## Test coverage
 
-853 tests, **80% line coverage**, reported as measured rather than tuned.
+888 tests, **80% line coverage**, reported as measured rather than tuned.
 
 The distribution is the interesting part. The code that decides what reaches a
 document is well covered; the thin parts are network adapters that need live
@@ -834,7 +842,7 @@ jobsearch/
     cli.py                      # python -m jsa ...
   data/                         # Census centroids + outline, public domain
   tools/build_map_data.py       # rebuilds data/ from census.gov
-  tests/                        # 853 tests
+  tests/                        # 888 tests
 ```
 
 ## Configure it for yourself

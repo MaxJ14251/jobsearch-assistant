@@ -259,7 +259,8 @@ MATCHES = """{% extends "base" %}{% block body %}
     <span class="co">{{ r.company }}</span>
   </div>
   <div class="meta">{{ r.location or 'location not stated' }} · {{ r.remote }}
-    {%- if r.miles is not none and r.remote != 'remote' %} · {{ r.miles }} mi away{% endif %}
+    {%- if r.miles is not none and r.remote != 'remote' %} · {{ r.miles }} mi away
+      {%- if r.via_copy %} (its nearest location){% endif %}{% endif %}
     {%- if r.variant_count and r.variant_count > 1 %} · +{{ r.variant_count - 1 }} more location(s){% endif %}</div>
   <div class="flags">
     {% if r.track == 'sales' %}<span class="flag">sales track</span>{% endif %}
@@ -659,7 +660,47 @@ def _profile_radius(profile: dict[str, Any] | None) -> float:
         return DEFAULT_RADIUS_MILES
 
 
-def _by_distance(rows, origin, radius: float | None):
+# How many cards one employer may take on the Matches page, so a board that
+# posts four hundred roles cannot fill it.
+PER_COMPANY = 3
+
+
+def _per_company(rows, cap: int):
+    """The first `cap` rows per company, order kept."""
+    seen: dict[str, int] = {}
+    out = []
+    for row in rows:
+        company = row.get("company") or ""
+        if seen.get(company, 0) < cap:
+            out.append(row)
+            seen[company] = seen.get(company, 0) + 1
+    return out
+
+
+def _copies(con, rows) -> dict[str, list[tuple[str, str]]]:
+    """Every copy's (location, remote) for the folded cards among `rows`.
+
+    A card on the Matches page can stand for several postings of one req in
+    different cities. Its own row is whichever scored best from the
+    profile's home, which is not necessarily the one near the place somebody
+    just typed into the box.
+    """
+    keys = sorted({r["dedup_key"] for r in rows
+                   if r.get("dedup_key") and (r.get("variant_count") or 1) > 1})
+    out: dict[str, list[tuple[str, str]]] = {}
+    for start in range(0, len(keys), 500):          # SQLite's parameter limit
+        chunk = keys[start:start + 500]
+        for row in con.execute(
+                "SELECT j.dedup_key, j.location, j.remote FROM jobs j "
+                "WHERE j.archived_at IS NULL AND j.closed_at IS NULL "
+                "AND NOT EXISTS (SELECT 1 FROM applications a WHERE a.job_id = j.id) "
+                f"AND j.dedup_key IN ({','.join('?' * len(chunk))})", chunk):
+            out.setdefault(row["dedup_key"], []).append(
+                (row["location"] or "", row["remote"] or ""))
+    return out
+
+
+def _by_distance(rows, origin, radius: float | None, copies=None):
     """Filter to what is within the radius. Returns (rows, hidden, unplaced).
 
     A remote posting always passes: it has no distance, and hiding it behind
@@ -667,28 +708,48 @@ def _by_distance(rows, origin, radius: float | None):
     whose location cannot be placed is hidden when a radius is set -- but
     counted separately and named on the page, because "unknown" is not
     "far away".
+
+    A folded card is judged by its NEAREST copy (`copies`, from _copies):
+    "Deployed Engineer" with copies in Atlanta and Boston is near somebody
+    in Boston even when the card's own row is the Atlanta one. A remote copy
+    makes the whole card remote.
+
+    The comparison is on the exact distance and only the DISPLAY is rounded.
+    It used to compare the rounded number, so a job 25.4 miles away passed a
+    25-mile radius while the map (which compares exactly) drew it outside
+    the circle -- the one disagreement n19 said could not happen.
     """
     from . import places
 
-    miles = radius
     for row in rows:
-        row["miles"] = None
+        row["miles"] = row["exact_miles"] = None
+        row["via_copy"] = False
+        row["any_remote"] = (row.get("remote") or "") == "remote"
+        spots = [(row.get("location") or "", False)]
+        for location, remote in (copies or {}).get(row.get("dedup_key"), []):
+            row["any_remote"] = row["any_remote"] or remote == "remote"
+            spots.append((location, True))
         if origin is None:
             continue
-        distance = places.nearest(origin, row.get("location") or "")
-        if distance is not None:
-            row["miles"] = round(distance)
-    if miles is None or origin is None:
+        best = None
+        for location, is_copy in spots:
+            distance = places.nearest(origin, location)
+            if distance is not None and (best is None or distance < best[0]):
+                best = (distance, is_copy and location != spots[0][0])
+        if best is not None:
+            row["exact_miles"], row["via_copy"] = best
+            row["miles"] = round(best[0])
+    if radius is None or origin is None:
         return rows, 0, 0
 
     kept, hidden, unplaced = [], 0, 0
     for row in rows:
-        if (row.get("remote") or "") == "remote" or (
-                row["miles"] is not None and row["miles"] <= miles):
+        if row["any_remote"] or (
+                row["exact_miles"] is not None and row["exact_miles"] <= radius):
             kept.append(row)
             continue
         hidden += 1
-        if row["miles"] is None:
+        if row["exact_miles"] is None:
             unplaced += 1
     return kept, hidden, unplaced
 
@@ -864,34 +925,38 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
 
         con = connect()
         try:
-            listed = f"""WITH capped AS (
-                        SELECT m.*, ROW_NUMBER() OVER (
-                          PARTITION BY m.company ORDER BY m.match_score DESC) AS rk
-                        FROM v_new_matches m WHERE {' AND '.join(where)})
-                      SELECT * FROM capped WHERE rk <= 3
-                      ORDER BY match_score DESC LIMIT :limit"""
-            # Distance is arithmetic on parsed text, not SQL, so a radius
-            # filter has to read more rows than it shows. Capped, because
-            # this runs on every page load.
-            params["limit"] = limit * 8 if wanted else limit
+            # Every card, best first. The three-per-company cap is applied
+            # AFTER the radius, in Python: applied first (it used to be, in
+            # this SQL), a company's three slots went to its best cards
+            # anywhere, the radius then hid them, and the one near you had
+            # already been capped out. Measured in n20 at 40 miles: Austin
+            # showed 2 nearby cards and now shows 6, Seattle 10 and now 15.
+            listed = ("SELECT m.* FROM v_new_matches m WHERE "
+                      f"{' AND '.join(where)} ORDER BY m.match_score DESC")
             rows = [_decode(r) for r in con.execute(listed, params).fetchall()]
             total = con.execute("SELECT COUNT(*) FROM v_new_matches").fetchone()[0]
             # The map draws every posting that survived the other filters,
             # uncapped and unlimited: it is a picture of where the work is,
-            # and the top sixty is not that. Four columns, so it stays cheap.
+            # and the top sixty is not that. Every COPY, not one per card
+            # (n20): a card is kept when any of its copies is inside the
+            # radius, so a dot inside the circle must exist for each one.
             drawn = [dict(r) for r in con.execute(
-                "SELECT m.job_id, m.title, m.location, m.remote FROM "
-                f"v_new_matches m WHERE {' AND '.join(where)}", params)]
+                "SELECT m.id AS job_id, m.title, m.location, m.remote "
+                "FROM jobs m WHERE m.archived_at IS NULL "
+                "AND m.closed_at IS NULL AND NOT EXISTS "
+                "(SELECT 1 FROM applications a WHERE a.job_id = m.id) "
+                f"AND {' AND '.join(where)}", params)]
+            copies = _copies(con, rows)
         finally:
             con.close()
 
         view = mapview.build(drawn, origin, wanted)
-        rows, hidden, unplaced = _by_distance(rows, origin, wanted)
-        rows = rows[:limit]
+        rows, hidden, unplaced = _by_distance(rows, origin, wanted, copies)
+        rows = _per_company(rows, PER_COMPANY)[:limit]
         # Remote postings pass any radius, so without this the page can say
         # "within 25 miles" over a list that is mostly remote work.
         near_count = sum(1 for r in rows
-                         if (r.get("remote") or "") != "remote"
+                         if not r.get("any_remote")
                          and r.get("miles") is not None)
         return render("matches", "matches", rows=rows, total=total,
                       near=near, track=track,

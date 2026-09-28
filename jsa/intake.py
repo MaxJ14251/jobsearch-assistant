@@ -207,7 +207,7 @@ def _store(con: sqlite3.Connection, job: dict[str, Any], *, company: str, slug: 
         **job,
         "company_id": company_id,
         "source_id": source_id,
-        "dedup_key": dedup_key(company_id, job["title"]),
+        "dedup_key": dedup_key(company_id, job["title"], job.get("location")),
         "track": job_track(job["title"], prefs),
         "match_score": score,
         "match_reasons": reasons,

@@ -69,10 +69,36 @@ def upgrade(path: Path = DB_PATH, schema: Path = SCHEMA_PATH) -> list[str]:
     try:
         con.executescript(schema.read_text(encoding="utf-8"))
         applied = migrate(con, schema)
+        rekeyed = rekey(con)
+        if rekeyed:
+            applied.append(f"re-keyed {rekeyed} posting(s) for duplicate folding")
         con.commit()
     finally:
         con.close()
     return applied
+
+
+def rekey(con: sqlite3.Connection) -> int:
+    """Recompute every stored dedup_key under the current rule. Returns how
+    many changed; a second run returns 0.
+
+    The key is stored when a posting is first seen, so a better rule does
+    nothing for the postings already in the tracker until something rewrites
+    them. n20 changed the rule after 1,500 postings were stored with the old
+    one, which had folded eighteen different SpaceX jobs into one card.
+    """
+    from .scoring import dedup_key
+
+    changed = 0
+    rows = con.execute(
+        "SELECT id, company_id, title, location, dedup_key FROM jobs").fetchall()
+    for row in rows:
+        key = dedup_key(row["company_id"], row["title"], row["location"])
+        if key != row["dedup_key"]:
+            con.execute("UPDATE jobs SET dedup_key = ? WHERE id = ?",
+                        (key, row["id"]))
+            changed += 1
+    return changed
 
 
 def migrate(con: sqlite3.Connection, schema: Path = SCHEMA_PATH) -> list[str]:
@@ -125,12 +151,16 @@ def migrate(con: sqlite3.Connection, schema: Path = SCHEMA_PATH) -> list[str]:
     applied += _rebuild_sources_if_stale(con, text)
     applied += _repair_dangling_references(con, text)
 
-    if applied:
-        for row in con.execute(
-            "SELECT name FROM sqlite_master WHERE type='view'"
-        ).fetchall():
-            con.execute(f"DROP VIEW IF EXISTS {row['name']}")
-        con.executescript(text)
+    # Views are rebuilt every time, not only when a table changed. They hold
+    # no data, and `CREATE VIEW IF NOT EXISTS` leaves an old definition in
+    # place forever: n20 added a column to v_new_matches, and on an existing
+    # tracker it silently never appeared, because no TABLE had changed to
+    # trigger the rebuild. Tests could not see it -- they start from empty.
+    for row in con.execute(
+        "SELECT name FROM sqlite_master WHERE type='view'"
+    ).fetchall():
+        con.execute(f"DROP VIEW IF EXISTS {row['name']}")
+    con.executescript(text)
     return applied
 
 
