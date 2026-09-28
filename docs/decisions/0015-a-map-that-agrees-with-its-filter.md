@@ -1,6 +1,6 @@
 # ADR 0015 — A map that agrees with its filter
 
-Status: accepted
+Status: accepted; decision 2 amended by ADR 0019
 Date: 2026-09-27
 Relates to: ADR 0002 (geographic scope), ADR 0014 (distance, not place names).
 
@@ -39,7 +39,9 @@ tile grid breaks the guarantee, and the test fails when it does.
   and **no coastline**. The shipped outline is a 1:20,000,000 generalisation.
   On a fifty-mile-wide map it draws a straight line across the mouth of a bay,
   and would show a real job in the sea. Omitting it is a rule, not an
-  oversight.
+  oversight. *(Amended 2026-09-28 by ADR 0019: the local map now has ground
+  under it, from 1:500,000 data measured good to about 0.1 mile. The
+  1:20,000,000 outline is still never drawn at this scale.)*
 - **National** ("anywhere in the US"): Albers equal-area conic, the projection
   the lower 48 is the right shape in, with the outline drawn at the scale it
   was generalised for.

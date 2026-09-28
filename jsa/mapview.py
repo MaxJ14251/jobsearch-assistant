@@ -15,9 +15,11 @@ Two views, because one projection cannot serve both scales:
 
 - LOCAL, when a radius is set. Azimuthal equidistant about the operator:
   bearing sets the direction, distance sets the length, and the circle is a
-  real circle. No coastline -- the shipped outline is a 1:20,000,000
-  generalisation, and at fifty miles across it would draw a straight line
-  across the mouth of a bay and put a real job in the sea.
+  real circle. The national outline is NOT drawn here -- at 1:20,000,000,
+  fifty miles across, it draws a straight line across the mouth of a bay and
+  puts a real job in the sea. The ground under this map is jsa.basemap's
+  1:500,000 data instead, placed by `projector()`, the same function as the
+  pins (n23, ADR 0019).
 - NATIONAL, when the answer is "anywhere". Albers equal-area conic, the
   projection the lower 48 is the right shape in, with the outline drawn at
   the scale it is true at.
@@ -105,6 +107,7 @@ class MapView:
     per_mile: float = 0.0           # px per mile, so the page can rescale it
     scale_miles: int = 0
     scale_px: float = 0.0
+    ground: dict = field(default_factory=dict)   # basemap layer -> path, in miles
     remote: int = 0                 # counted in words, never drawn
     unplaced: int = 0
     off_map: int = 0
@@ -130,6 +133,53 @@ def bearing(a: places.Place, b: places.Place) -> float:
     x = (math.cos(lat1) * math.sin(lat2)
          - math.sin(lat1) * math.cos(lat2) * math.cos(dlon))
     return math.atan2(y, x)
+
+
+def projector(origin: places.Place):
+    """The one projection of the local map: (lat, lon) -> (x east, y north)
+    in miles, azimuthal equidistant about `origin`.
+
+    Pins (`points`, `local`) and the ground under them (jsa.basemap) are all
+    placed by the function this returns, so they cannot disagree about where
+    anything is (n23, ADR 0019). hypot(x, y) is the great-circle distance
+    and atan2(x, y) is `bearing(origin, ...)`: the same geometry the radius
+    filter measures, written so that one call is cheap enough to run on a
+    few hundred thousand basemap vertices.
+    """
+    lat0 = math.radians(origin.lat)
+    lon0 = math.radians(origin.lon)
+    sin0, cos0 = math.sin(lat0), math.cos(lat0)
+    sin, cos, atan2, hypot = math.sin, math.cos, math.atan2, math.hypot
+    radians = math.pi / 180
+
+    def project(lat: float, lon: float) -> tuple[float, float]:
+        phi, dlon = lat * radians, lon * radians - lon0
+        sin_p, cos_p, cos_d = sin(phi), cos(phi), cos(dlon)
+        east = cos_p * sin(dlon)                       # sin(c) * sin(bearing)
+        north = cos0 * sin_p - sin0 * cos_p * cos_d    # sin(c) * cos(bearing)
+        s = hypot(east, north)                         # sin(c)
+        if s == 0.0:
+            return 0.0, 0.0
+        c = atan2(s, sin0 * sin_p + cos0 * cos_p * cos_d)  # the arc, stable near 0
+        k = places.EARTH_MILES * c / s
+        return east * k, north * k
+
+    return project
+
+
+def unproject(origin: places.Place, x: float, y: float) -> tuple[float, float]:
+    """(lat, lon) of the point `projector(origin)` puts at (x, y) miles.
+    Used to find what ground a view is looking at; nothing is placed by it."""
+    c = math.hypot(x, y) / places.EARTH_MILES
+    if c == 0.0:
+        return origin.lat, origin.lon
+    lat0, lon0 = math.radians(origin.lat), math.radians(origin.lon)
+    theta = math.atan2(x, y)
+    lat = math.asin(math.sin(lat0) * math.cos(c)
+                    + math.cos(lat0) * math.sin(c) * math.cos(theta))
+    lon = lon0 + math.atan2(math.sin(theta) * math.sin(c) * math.cos(lat0),
+                            math.cos(c) - math.sin(lat0) * math.sin(lat))
+    return math.degrees(lat), (math.degrees(lon) + 540.0) % 360.0 - 180.0
 
 
 def albers(lat: float, lon: float) -> tuple[float, float]:
@@ -220,18 +270,20 @@ def local(rows, origin: places.Place, radius: float,
     view.per_mile = per_mile
     view.scale_miles = _nice_miles(reach)
     view.scale_px = view.scale_miles * per_mile
+    view.ground = _ground(origin, per_mile, max(width, height) / 2 / per_mile * 1.3)
 
     most = max((g["count"] for g in groups.values()), default=1)
+    project = projector(origin)
     placed: list[Bubble] = []
     for group in sorted(groups.values(), key=lambda g: -g["count"]):
         distance = places.miles(origin, group["place"])
         if distance > reach:
             view.off_map += group["count"]
             continue
-        angle = bearing(origin, group["place"])
+        east, north = project(group["place"].lat, group["place"].lon)
         placed.append(Bubble(
-            x=width / 2 + per_mile * distance * math.sin(angle),
-            y=height / 2 - per_mile * distance * math.cos(angle),
+            x=width / 2 + per_mile * east,
+            y=height / 2 - per_mile * north,
             r=_bubble_radius(group["count"], most),
             miles=round(distance),
             # The one line that has to be right: same comparison, same
@@ -317,6 +369,18 @@ def national(rows, origin: places.Place | None = None,
     return view
 
 
+def _ground(origin: places.Place, per_mile: float, reach: float) -> dict:
+    """The basemap for the static map's frame (n23): the same data and the
+    same projector as the live map's, cut to what this frame shows. Empty
+    past the finest tier's honest scale, or when the data is missing."""
+    from . import basemap          # imports this module, so not at the top
+
+    if per_mile > basemap.PPM["fine"] or not basemap.available():
+        return {}
+    got = basemap.layers(origin, basemap.tier_for(per_mile), reach=reach)
+    return got["layers"] if got else {}
+
+
 def points(rows, origin: places.Place) -> tuple[list[dict], int, int]:
     """Every placeable posting as a point in miles about `origin`, for the
     dashboard's interactive map. Returns (points, remote, unplaced).
@@ -332,6 +396,7 @@ def points(rows, origin: places.Place) -> tuple[list[dict], int, int]:
     """
     out: list[dict] = []
     remote = unplaced = 0
+    project = projector(origin)
     for row in rows:
         if (row.get("remote") or "") == "remote":
             remote += 1
@@ -342,14 +407,14 @@ def points(rows, origin: places.Place) -> tuple[list[dict], int, int]:
             continue
         spot = min(placement.places, key=lambda p: places.miles(origin, p))
         distance = places.miles(origin, spot)
-        angle = bearing(origin, spot)
+        east, north = project(spot.lat, spot.lon)
         out.append({
             "key": row.get("key") or f"job:{row.get('job_id')}",
             "job": row.get("job_id"),
             "status": row.get("status") or "new",
             "place": spot.name,
-            "x": round(distance * math.sin(angle), 3),
-            "y": round(distance * math.cos(angle), 3),
+            "x": round(east, 3),
+            "y": round(north, 3),
             "d": distance,
         })
     return out, remote, unplaced

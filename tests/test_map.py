@@ -276,8 +276,13 @@ class TestNothingHereReachesTheNetwork(unittest.TestCase):
         one exception, and it is not importable from jsa/."""
         source = (ROOT / "tools" / "build_map_data.py").read_text("utf-8")
         self.assertIn("urllib.request", source)
+        # Imports, not mentions: doctor names the tool so a reader can run it.
         for path in sorted((ROOT / "jsa").glob("*.py")):
-            self.assertNotIn("build_map_data", path.read_text("utf-8"),
+            names = self.imports_of(path.stem) | {
+                n.module or "" for n in ast.walk(ast.parse(path.read_text("utf-8")))
+                if isinstance(n, ast.ImportFrom)}
+            self.assertFalse({"tools", "build_map_data"} & names
+                             or any("build_map_data" in n for n in names),
                              f"{path.name} imports the build tool")
 
 

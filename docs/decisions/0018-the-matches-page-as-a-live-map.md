@@ -1,6 +1,6 @@
 # ADR 0018 — The Matches page as a live map
 
-Status: accepted
+Status: accepted; its map gained ground under it in ADR 0019
 Date: 2026-09-28
 Relates to: ADR 0014 (distance, not place names), ADR 0015 (a map that
 agrees with its filter), ADR 0017 (what folds into one card).

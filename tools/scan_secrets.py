@@ -66,12 +66,16 @@ NEVER_SCAN = {
 # digit runs that match part of anybody's phone number. Those are facts
 # about the United States,
 # not about the operator. Key and home-path detection still run on them, so a
-# key pasted into one is still caught.
+# key pasted into one is still caught. The basemap (n23) is a few million
+# coordinate integers; some of them are bound to spell anybody's ZIP.
 SKIP_PERSONAL_FILES = {
     ".env.example",
     "master_profile.example.yaml",
     "us_places.csv.gz",
     "us_zips.csv.gz",
+    "us_basemap_coarse.json.gz",
+    "us_basemap_medium.json.gz",
+    "us_basemap_fine.json.gz",
 }
 
 # Credential shapes that are never acceptable, regardless of whose they are.

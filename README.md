@@ -478,8 +478,14 @@ match to a resume you can upload yourself:
   average speed, not a route, and the page says so. Below the map and list,
   **area analytics** cover what the list shows: pay (only for postings that
   state it, and it says how many do), the skills asked for, who is hiring,
-  and the spread of commute times. Nothing is loaded from any other host. See
-  [ADR 0018](docs/decisions/0018-the-matches-page-as-a-live-map.md).
+  and the spread of commute times. Under it all is a real map: coast, lakes,
+  built-up areas, county lines and freeways. It is drawn from public Census
+  data that ships with the tool, and placed by the same calculation as the
+  markers, so a marker in a town sits on that town. Past the zoom at which
+  that data is accurate (about a tenth of a mile), the map fades out and says
+  so. Nothing is loaded from any other host. See
+  [ADR 0018](docs/decisions/0018-the-matches-page-as-a-live-map.md) and
+  [ADR 0019](docs/decisions/0019-a-basemap-from-shipped-public-data.md).
 - A **Pipeline** grouped by stage, with each application's next action,
   overdue flags, and the same stage moves as the CLI.
 - **Job page**: every drafted document, newest version first, with its status
@@ -861,10 +867,11 @@ jobsearch/
     posting.py                  # how much of a posting a model may read
     places.py                   # a posting's location -> a point on a map
     mapview.py                  # that map, as geometry: no markup, no tiles
+    basemap.py                  # the ground under it, from data/, same projection
     web.py                      # the local review dashboard
     cli.py                      # python -m jsa ...
-  data/                         # Census centroids + outline, public domain
-  tools/build_map_data.py       # rebuilds data/ from census.gov
+  data/                         # Census centroids, outline, basemap; public domain
+  tools/build_map_data.py       # rebuilds data/ from its public sources
   tests/                        # 888 tests
 ```
 
@@ -896,9 +903,12 @@ degree" and changes neither whether a job appears nor its score.
 **Distance.** Postings are placed on a map from Census centroids that ship
 with the tool — 32,109 towns, 33,791 ZIP codes and a 1:20,000,000 state
 outline, no geocoding service and no map tiles, so your home ZIP never leaves
-your machine. All three files are public domain and can be rebuilt from their
-sources with `python tools/build_map_data.py`, which prints the row count and
-SHA-256 of each so what ships can be checked rather than trusted. A town within `radius_miles`
+your machine. The ground under the live map ships too: US Census Bureau
+boundaries, urban areas and primary roads at 1:500,000, and Natural Earth
+lakes, in three levels of detail (7.5 MB in all). Every file is public domain
+and can be rebuilt from its sources with `python tools/build_map_data.py`,
+which prints the count and SHA-256 of each so what ships can be checked rather
+than trusted. A town within `radius_miles`
 (default 40) of `home_location` scores as fully as one you listed by name, so
 you do not have to write down every suburb you would commute to: measured on
 this tracker, Example Town scores 1.0 at 15 miles without appearing in any list.

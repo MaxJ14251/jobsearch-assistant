@@ -1,28 +1,37 @@
-"""Rebuild the three shipped data files in data/ from their Census sources.
+"""Rebuild the shipped data files in data/ from their public sources.
 
-`data/` holds 700 KB of compressed binary that decides where every job
-posting is placed on a map. Until this script existed there was no way for
-anybody reading the repository to check it: the files had to be taken on
-trust, which is not a thing to ask of somebody cloning a job-search tool.
+`data/` holds 7.5 MB of compressed binary that decides where every job
+posting is placed on a map, and what ground is drawn under it. Until this
+script existed there was no way for anybody reading the repository to check
+it: the files had to be taken on trust, which is not a thing to ask of
+somebody cloning a job-search tool.
 
 Run it and diff:
 
-    python tools/build_map_data.py --out data
+    python tools/build_map_data.py --out data --cache <somewhere>
 
-It fetches three public-domain files from census.gov, rebuilds all three
-shipped files, and prints the row count and SHA-256 of each. The gzip member
-is written with mtime=0 so the bytes are reproducible: the same sources give
-the same hash on any machine, any day.
+It fetches the public-domain sources below, rebuilds every shipped file, and
+prints the count and SHA-256 of each. The gzip member is written with
+mtime=0 so the bytes are reproducible: the same sources give the same hash on
+any machine, any day. --cache keeps the downloads (about 100 MB) so a second
+run fetches nothing.
 
 This is a BUILD tool. Nothing in jsa/ imports it, and it is the only file in
 the project allowed to open a socket for reference data -- tests/test_map.py
 asserts that the drawing path cannot.
 
-Sources, all US Census Bureau, all public domain (17 USC 105):
-  2024 Gazetteer places  -> data/us_places.csv.gz   (town centroids)
-  2024 Gazetteer ZCTAs   -> data/us_zips.csv.gz     (ZIP centroids)
-  2023 cartographic
-  boundaries, 1:20m      -> data/us_outline.json.gz (state outlines)
+Sources. US Census Bureau files are public domain (17 USC 105); Natural
+Earth is dedicated to the public domain by its makers.
+  2024 Gazetteer places,
+  2023 place bounds 1:500k   -> data/us_places.csv.gz   (town points; see OFFSHORE_MILES)
+  2024 Gazetteer ZCTAs       -> data/us_zips.csv.gz     (ZIP centroids)
+  2023 states 1:20m          -> data/us_outline.json.gz (the national map's outline)
+  2023 states and counties
+  1:500k, 2020 urban areas
+  1:500k, 2024 TIGER primary
+  roads, Natural Earth 10m
+  lakes                      -> data/us_basemap_{coarse,medium,fine}.json.gz
+                                (the ground under the live map, n23, ADR 0019)
 """
 
 from __future__ import annotations
@@ -33,6 +42,7 @@ import gzip
 import hashlib
 import io
 import json
+import math
 import re
 import struct
 import sys
@@ -55,6 +65,51 @@ OUTLINE_URL = ("https://www2.census.gov/geo/tiger/GENZ2023/shp/"
 #   0.15 deg        1,046 points   4 KB gzipped   visibly angular
 OUTLINE_TOLERANCE = 0.05
 OUTLINE_DECIMALS = 3
+
+# The basemap under the live map (n23, ADR 0019). All public domain: the
+# Census files under 17 USC 105, Natural Earth by its own dedication.
+GENZ = "https://www2.census.gov/geo/tiger/GENZ{0}/shp/cb_{0}_us_{1}.zip"
+BASEMAP_URLS = {
+    "state": GENZ.format(2023, "state_500k"),       # land: clipped to the shore
+    "county": GENZ.format(2023, "county_500k"),
+    "urban": GENZ.format(2020, "ua20_corrected_500k"),
+    "roads": ("https://www2.census.gov/geo/tiger/TIGER2024/PRIMARYROADS/"
+              "tl_2024_us_primaryroads.zip"),
+    "lakes": "https://naciscdn.org/naturalearth/10m/physical/ne_10m_lakes.zip",
+    "lakes_na": ("https://naciscdn.org/naturalearth/10m/physical/"
+                 "ne_10m_lakes_north_america.zip"),
+}
+PLACE_BOUNDS_URL = GENZ.format(2023, "place_500k")
+
+MILES_PER_DEGREE = 69.05          # of latitude; the tolerances below are in it
+
+# One tier per band of zoom, named by the largest scale (pixels per mile) it
+# is drawn at. Each is simplified to half a pixel at that scale, so nothing
+# the simplification moves can be seen. FINE stops at 20 px/mi because the
+# 1:500,000 coastline itself is only that good: measured against the TIGER
+# coastline, its 95th-percentile error is about 0.1 mile, which is 2 px at
+# 20 px/mi (ADR 0019). Past that the page fades the basemap out.
+#   lakes: Natural Earth is 1:10,000,000 -- honest at regional zoom only.
+#   county lines: clutter until you are looking at one metro.
+#   coarse roads: the interstates only; the rest is noise at country scale.
+TIERS = {
+    "coarse": {"ppm": 0.8, "q": 500,
+               "layers": ("land", "lake", "urban", "road")},
+    "medium": {"ppm": 4.0, "q": 2000,
+               "layers": ("land", "lake", "urban", "road")},
+    "fine": {"ppm": 20.0, "q": 10000,
+             "layers": ("land", "county", "urban", "road")},
+}
+COARSE_ROADS = {"I"}              # RTTYP: interstates
+
+# A Census internal point is inside the place's area INCLUDING its water, so
+# a city that owns a bay -- or, for San Francisco, the Farallon Islands --
+# can have its point out at sea. Measured against the 2023 1:500,000 place
+# boundaries: 70 of 32,333 points fall outside their own town, 6 by more than
+# half a mile. Those six move onto their town's largest piece of land; the
+# rest are within the boundary file's own error and stay where Census put
+# them, so a rebuild does not move towns for nothing.
+OFFSHORE_MILES = 0.5
 
 # The Gazetteer writes the legal descriptor into the name: "Abbeville city",
 # "Juneau city and borough", "Nashville-Davidson metropolitan government
@@ -132,8 +187,12 @@ def plain_name(name: str, lsad: str) -> str:
     return name
 
 
-def build_places(archive: bytes) -> list[tuple[str, str, float, float]]:
+def build_places(archive: bytes, bounds: dict[str, list] | None = None
+                 ) -> list[tuple[str, str, float, float]]:
     """name,state,lat,lon -- one row per town, biggest wins a shared name.
+
+    With `bounds` (place_bounds()), a point more than OFFSHORE_MILES outside
+    its own town is moved onto the town's land; see OFFSHORE_MILES.
 
     A name repeats inside a state (Arkansas has two Salems). The larger by
     land area is the one a job posting means often enough that guessing the
@@ -143,11 +202,15 @@ def build_places(archive: bytes) -> list[tuple[str, str, float, float]]:
     best: dict[tuple[str, str], tuple[int, tuple[str, str, float, float]]] = {}
     for row in _tsv(archive):
         state, name, land = row[0], plain_name(row[3], row[4]), int(row[6])
+        lat, lon = float(row[10]), float(row[11])
+        rings = (bounds or {}).get(row[1])
+        if rings and _miles_outside(rings, lon, lat) > OFFSHORE_MILES:
+            lon, lat = point_on_land(rings)
+            print(f"  moved   {name}, {state}: its Census point is off its land")
         key = (name.lower(), state)
         found = best.get(key)
         if found is None or land > found[0]:
-            best[key] = (land, (name, state, round(float(row[10]), 4),
-                                round(float(row[11]), 4)))
+            best[key] = (land, (name, state, round(lat, 4), round(lon, 4)))
     return sorted((v[1] for v in best.values()), key=lambda r: (r[1], r[0]))
 
 
@@ -175,15 +238,24 @@ def _dbf_column(dbf: bytes, wanted: str) -> list[str]:
     return values
 
 
-def _shp_polygons(shp: bytes) -> list[list[list[tuple[float, float]]]]:
-    """Every shape as a list of rings of (lon, lat). Polygons only (type 5)."""
+def _shp_polygons(shp: bytes, kinds: tuple[int, ...] = (5,)
+                  ) -> list[list[list[tuple[float, float]]]]:
+    """Every shape as a list of parts of (lon, lat).
+
+    Polygons (type 5) by default; polylines are type 3. The Z and M variants
+    lay their x/y out the same way, so 13 and 15 read here too.
+    """
     shapes, at = [], 100
     while at < len(shp):
         length = struct.unpack_from(">ii", shp, at)[1]
         body = at + 8
         kind = struct.unpack_from("<i", shp, body)[0]
-        if kind != 5:
-            raise SystemExit(f"shape type {kind} is not a polygon")
+        if kind == 0:                     # a null shape: a record with no geometry
+            shapes.append([])
+            at = body + length * 2
+            continue
+        if kind not in kinds:
+            raise SystemExit(f"shape type {kind} is not one of {kinds}")
         parts_count, point_count = struct.unpack_from("<ii", shp, body + 36)
         starts = list(struct.unpack_from(f"<{parts_count}i", shp, body + 44))
         flat = struct.unpack_from(f"<{point_count * 2}d", shp,
@@ -250,6 +322,150 @@ def build_outline(archive: bytes) -> dict[str, list[list[list[float]]]]:
     return outline
 
 
+def _inside(ring, x: float, y: float) -> bool:
+    """Even-odd ray test of (x, y) against one closed ring of (lon, lat)."""
+    hit = False
+    for (xa, ya), (xb, yb) in zip(ring, ring[1:]):
+        if (ya > y) != (yb > y) and x < (xb - xa) * (y - ya) / (yb - ya) + xa:
+            hit = not hit
+    return hit
+
+
+def _miles_outside(rings, x: float, y: float) -> float:
+    """0 inside the shape; otherwise miles to its nearest edge (flat-earth
+    approximation, good to a fraction of a percent over a few miles)."""
+    if sum(_inside(r, x, y) for r in rings) % 2:
+        return 0.0
+    kx = math.cos(math.radians(y)) * MILES_PER_DEGREE
+    best = math.inf
+    for ring in rings:
+        for (x1, y1), (x2, y2) in zip(ring, ring[1:]):
+            ax, ay = (x1 - x) * kx, (y1 - y) * MILES_PER_DEGREE
+            vx, vy = (x2 - x1) * kx, (y2 - y1) * MILES_PER_DEGREE
+            span = vx * vx + vy * vy
+            t = 0.0 if span == 0 else max(0.0, min(1.0, -(ax * vx + ay * vy) / span))
+            best = min(best, math.hypot(ax + t * vx, ay + t * vy))
+    return best
+
+
+def _area(ring) -> float:
+    return 0.5 * abs(sum(x1 * y2 - x2 * y1
+                         for (x1, y1), (x2, y2) in zip(ring, ring[1:])))
+
+
+def point_on_land(rings) -> tuple[float, float]:
+    """A point inside the largest ring: its centroid when that is inside
+    (it usually is), else the middle of the widest crossing at the
+    centroid's latitude -- a point on the surface by construction."""
+    ring = max(rings, key=_area)
+    a = cx = cy = 0.0
+    for (x1, y1), (x2, y2) in zip(ring, ring[1:]):
+        cross = x1 * y2 - x2 * y1
+        a += cross
+        cx += (x1 + x2) * cross
+        cy += (y1 + y2) * cross
+    cx, cy = cx / (3 * a), cy / (3 * a)
+    if _inside(ring, cx, cy):
+        return cx, cy
+    xs = sorted((xb - xa) * (cy - ya) / (yb - ya) + xa
+                for (xa, ya), (xb, yb) in zip(ring, ring[1:])
+                if (ya > cy) != (yb > cy))
+    left, right = max(zip(xs[0::2], xs[1::2]), key=lambda p: p[1] - p[0])
+    return (left + right) / 2, cy
+
+
+def place_bounds(archive: bytes) -> dict[str, list]:
+    """{GEOID: rings} from the 1:500,000 place boundaries."""
+    ids = _dbf_column(_only_member(archive, ".dbf"), "GEOID")
+    return dict(zip(ids, _shp_polygons(_only_member(archive, ".shp"))))
+
+
+def _ring_flat(points, q: int) -> list[int]:
+    """[x0, y0, dx1, dy1, ...] in units of 1/q degree. Deltas are small
+    numbers, and small numbers are most of what makes the file compress."""
+    out, px, py = [], 0, 0
+    for x, y in points:
+        ix, iy = round(x * q), round(y * q)
+        out += (ix - px, iy - py)
+        px, py = ix, iy
+    return out
+
+
+def _features(parts, tolerance: float, q: int, closed: bool) -> list:
+    """[[minx, miny, maxx, maxy, flat], ...], one per ring or line, with its
+    box in the same 1/q units so the server can clip without decoding.
+
+    A shape under 2 px across at the tier's largest scale (four tolerances)
+    is left out: an islet or a hamlet's urban area drawn as a speck says
+    nothing, and 5,575 of them were most of the coarse file."""
+    out = []
+    for part in parts:
+        kept = simplify(part, tolerance)
+        if len(kept) < (4 if closed else 2):
+            continue                   # below half a pixel: not drawable
+        xs, ys = [p[0] for p in kept], [p[1] for p in kept]
+        if closed and max(max(xs) - min(xs), max(ys) - min(ys)) < 4 * tolerance:
+            continue
+        out.append([round(min(xs) * q), round(min(ys) * q),
+                    round(max(xs) * q), round(max(ys) * q),
+                    _ring_flat(kept, q)])
+    return out
+
+
+def basemap_sources(fetcher) -> dict[str, list]:
+    """Every layer's raw parts, once, for all tiers to simplify from."""
+    def parts(name, kinds=(5,)):
+        archive = fetcher(BASEMAP_URLS[name])
+        return archive, _shp_polygons(_only_member(archive, ".shp"), kinds)
+
+    _, states = parts("state")
+    land = [ring for shape in states for ring in shape]
+    _, counties = parts("county")
+    _, urban = parts("urban")
+    roads_zip, roads = parts("roads", (3,))
+    kinds = _dbf_column(_only_member(roads_zip, ".dbf"), "RTTYP")
+    boxes = [(min(p[0] for p in r), min(p[1] for p in r),
+              max(p[0] for p in r), max(p[1] for p in r), r) for r in land]
+    lakes = []
+    for name in ("lakes", "lakes_na"):
+        for shape in parts(name)[1]:
+            if not shape:
+                continue
+            # Only lakes inside the land. The Great Lakes are already the
+            # edge of the land (the Census states are clipped to their
+            # shore), and Natural Earth's 1:10m shore drawn over a 1:500k
+            # one would show two coastlines a mile apart.
+            x, y = point_on_land(shape)
+            if -170 < x < -64 and 17 < y < 72 and _land_at(boxes, x, y):
+                lakes += shape
+    return {
+        "land": land,
+        "county": [ring for shape in counties for ring in shape],
+        "urban": [ring for shape in urban for ring in shape],
+        "road": [part for shape in roads for part in shape],
+        "road_i": [part for shape, kind in zip(roads, kinds)
+                   if kind in COARSE_ROADS for part in shape],
+        "lake": lakes,
+    }
+
+
+def _land_at(boxes, x: float, y: float) -> bool:
+    return any(_inside(ring, x, y) for x0, y0, x1, y1, ring in boxes
+               if x0 <= x <= x1 and y0 <= y <= y1)
+
+
+def build_basemap_tier(name: str, raw: dict[str, list]) -> dict:
+    tier = TIERS[name]
+    tolerance = 0.5 / tier["ppm"] / MILES_PER_DEGREE
+    layers = {}
+    for layer in tier["layers"]:
+        source = "road_i" if (layer == "road" and name == "coarse") else layer
+        layers[layer] = _features(raw[source], tolerance, tier["q"],
+                                  closed=layer != "road")
+    return {"tier": name, "ppm": tier["ppm"], "q": tier["q"],
+            "tolerance_deg": round(tolerance, 7), "layers": layers}
+
+
 def write_gz(path: Path, payload: bytes) -> str:
     """Write `payload` gzipped with no timestamp, and return its SHA-256.
 
@@ -279,28 +495,29 @@ def main(argv: list[str] | None = None) -> int:
                         help="where to write the three files (default: data)")
     parser.add_argument("--cache", type=Path, default=None,
                         help="keep the downloaded archives here and reuse them")
-    parser.add_argument("--only", choices=("places", "zips", "outline"),
+    parser.add_argument("--only", choices=("places", "zips", "outline", "basemap"),
                         action="append", help="build just this one; repeatable")
     args = parser.parse_args(argv)
 
     out: Path = args.out
     out.mkdir(parents=True, exist_ok=True)
-    wanted = set(args.only or ("places", "zips", "outline"))
+    wanted = set(args.only or ("places", "zips", "outline", "basemap"))
     report = []
 
     if "places" in wanted:
         print("us_places.csv.gz")
-        rows = build_places(_only_member(fetch(PLACES_URL, args.cache), ".txt"))
+        rows = build_places(_only_member(fetch(PLACES_URL, args.cache), ".txt"),
+                            place_bounds(fetch(PLACE_BOUNDS_URL, args.cache)))
         digest = write_gz(out / "us_places.csv.gz",
                           as_csv(("name", "state", "lat", "lon"), rows))
-        report.append(("us_places.csv.gz", len(rows), digest))
+        report.append(("us_places.csv.gz", len(rows), digest, "rows"))
 
     if "zips" in wanted:
         print("us_zips.csv.gz")
         rows = build_zips(_only_member(fetch(ZIPS_URL, args.cache), ".txt"))
         digest = write_gz(out / "us_zips.csv.gz",
                           as_csv(("zip", "lat", "lon"), rows))
-        report.append(("us_zips.csv.gz", len(rows), digest))
+        report.append(("us_zips.csv.gz", len(rows), digest, "rows"))
 
     if "outline" in wanted:
         print("us_outline.json.gz")
@@ -309,12 +526,27 @@ def main(argv: list[str] | None = None) -> int:
                              sort_keys=True).encode("utf-8")
         digest = write_gz(out / "us_outline.json.gz", payload)
         points = sum(len(ring) for rings in outline.values() for ring in rings)
-        report.append(("us_outline.json.gz", points, digest))
+        report.append(("us_outline.json.gz", points, digest, "points"))
+
+    if "basemap" in wanted:
+        print("basemap")
+        raw = basemap_sources(lambda url: fetch(url, args.cache))
+        for name in TIERS:
+            tier = build_basemap_tier(name, raw)
+            payload = json.dumps(tier, separators=(",", ":")).encode("utf-8")
+            file = f"us_basemap_{name}.json.gz"
+            digest = write_gz(out / file, payload)
+            points = sum(len(f[4]) // 2 for feats in tier["layers"].values()
+                         for f in feats)
+            report.append((file, points, digest, "points"))
+            for layer, feats in tier["layers"].items():
+                print(f"  {name:7} {layer:7} {len(feats):6} features "
+                      f"{sum(len(f[4]) // 2 for f in feats):8} points")
 
     print()
-    for name, count, digest in report:
+    for name, count, digest, unit in report:
         size = (out / name).stat().st_size
-        print(f"{name:22} {count:>7} rows  {size / 1024:6.1f} KB  {digest}")
+        print(f"{name:26} {count:>8} {unit:6} {size / 1024:7.1f} KB  {digest}")
     return 0
 
 

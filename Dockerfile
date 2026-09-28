@@ -20,6 +20,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY jsa/ ./jsa/
 COPY db/ ./db/
 COPY config/ ./config/
+# The shipped public-domain reference data: town and ZIP points, outlines and
+# the basemap (n23). Without it nothing can be placed on a map.
+COPY data/*.gz ./data/
 COPY tools/ ./tools/
 COPY profile/master_profile.example.yaml ./profile/
 COPY .env.example ./

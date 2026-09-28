@@ -359,6 +359,20 @@ def check_api_key(report: Report) -> None:
     report.checked.append("API key (presence only)")
 
 
+def check_basemap(report: Report) -> None:
+    """The ground under the live map (n23). Advisory: without it the map
+    still works and still agrees with its filter, it is just flat."""
+    from . import basemap
+
+    if not basemap.available():
+        report.add(False, "The map has no land, water or roads under it",
+                   "The basemap files are missing from data/. Rebuild them "
+                   "with `python tools/build_map_data.py --only basemap` "
+                   "(downloads public Census and Natural Earth files once), "
+                   "or restore data/us_basemap_*.json.gz from the repository.")
+    report.checked.append("map data")
+
+
 def run(profile: dict[str, Any] | None,
         con: sqlite3.Connection | None) -> Report:
     """Every check. Reads only."""
@@ -377,5 +391,6 @@ def run(profile: dict[str, Any] | None,
     check_credentials(profile, report)
     check_tracker(con, profile, report)
     check_market(profile, con, report)
+    check_basemap(report)
     check_api_key(report)
     return report

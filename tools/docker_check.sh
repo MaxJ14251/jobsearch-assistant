@@ -106,6 +106,13 @@ uid="$(docker run --rm --entrypoint id "$IMAGE" -u)"
 [ "$uid" != "0" ] || fail "the container runs as root (uid 0)"
 ok "runs as uid $uid"
 
+# --- 2b. the reference data is in the image ------------------------------------------
+# It was not until n23: the image placed nothing on any map. The basemap has
+# to be there too, and the drawing path has to find it.
+has="$(docker run --rm --entrypoint python "$IMAGE" -c   'from jsa import basemap, places; print(places.data_is_present(), basemap.available())')"
+[ "$has" = "True True" ] || fail "the image is missing its map data (places, basemap: $has)"
+ok "town, ZIP and basemap data are in the image"
+
 # --- 3. init and matches, example profile, no key -----------------------------------
 mkdir -p "$WORK/profile"
 cp profile/master_profile.example.yaml "$WORK/profile/master_profile.yaml"

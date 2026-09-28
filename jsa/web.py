@@ -29,8 +29,8 @@ from typing import Any, Callable
 from urllib.parse import parse_qs, urlencode
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import (FileResponse, HTMLResponse, PlainTextResponse,
-                               RedirectResponse)
+from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
+                               PlainTextResponse, RedirectResponse)
 from jinja2 import DictLoader, Environment
 
 from . import approvals, db, review
@@ -53,12 +53,18 @@ BASE = """<!doctype html>
     --copper:#B5652E;--sage:#3F7A66;--sage-soft:#DDEAE3;
     --clay:#A8412F;--clay-soft:#F5DFDA;
     --blue:#2F6BC4;--violet:#7A4DC4;
+    /* The ground under the live map (n23): context, so quieter than
+       anything drawn on it. */
+    --map-water:#D5E1E6;--map-land:#F7F6F1;--map-urban:#ECE6DA;
+    --map-road:#D8B98C;--map-edge:#BCC5C0;
   }
   @media (prefers-color-scheme:dark){:root{
     --paper:#121615;--surface:#191F1D;--surface-2:#222927;--ink:#E8EBE7;
     --ink-2:#C0C7C2;--mute:#8B958F;--rule:#2C3532;--copper:#D98A4F;
     --sage:#6DAF96;--sage-soft:#1B2A25;--clay:#D2705B;--clay-soft:#2E1B17;
-    --blue:#6FA3EE;--violet:#AE8BEB;}}
+    --blue:#6FA3EE;--violet:#AE8BEB;
+    --map-water:#0D1518;--map-land:#1A201E;--map-urban:#252B28;
+    --map-road:#5E5140;--map-edge:#34403B;}}
   *{box-sizing:border-box}
   [hidden]{display:none!important}
   body{margin:0;background:var(--paper);color:var(--ink);line-height:1.55;
@@ -146,6 +152,16 @@ BASE = """<!doctype html>
   .livemap{position:relative;height:min(70vh,720px);min-height:360px;overflow:hidden;
     border-radius:3px;background:var(--surface);touch-action:none;user-select:none}
   figure.map .livemap svg{display:block;width:100%;height:100%;max-height:none}
+  .bm-land{fill:var(--map-land);stroke:var(--map-edge);stroke-width:.8px}
+  .bm-urban{fill:var(--map-urban)}
+  .bm-water{fill:var(--map-water)}
+  .bm-county{fill:none;stroke:var(--map-edge);stroke-width:.5px;stroke-dasharray:4 3}
+  .bm-lake{fill:var(--map-water);stroke:var(--map-edge);stroke-width:.5px}
+  .bm-road{fill:none;stroke:var(--map-road);stroke-width:1.1px;stroke-linejoin:round}
+  .livemap{isolation:isolate}
+  .livemap .bm-canvas{position:absolute;z-index:-1;pointer-events:none;transform-origin:0 0}
+  .livemap .bm-note{position:absolute;left:10px;bottom:34px;font-size:11.5px;
+    color:var(--mute);background:var(--surface);padding:2px 6px;border-radius:3px}
   .livemap .mk{cursor:pointer}
   .livemap .mk:focus-visible circle{stroke:var(--copper);stroke-width:3}
   .rp{position:absolute;left:10px;top:10px;width:250px;z-index:3;display:grid;gap:10px;
@@ -346,6 +362,7 @@ MATCHES = """{% extends "base" %}{% block body %}
 {% if map.drawn %}
 <figure class="map" id="map-figure">
   <svg viewBox="0 0 {{ map.width }} {{ map.height }}" role="img" aria-label="{{ map_note }}">
+    {% if map.ground %}<g aria-hidden="true"><rect class="bm-water" width="100%" height="100%"/><g transform="matrix({{ '%.6f'|format(map.per_mile) }} 0 0 {{ '%.6f'|format(-map.per_mile) }} {{ map.width / 2 }} {{ map.height / 2 }})">{% for name, d in map.ground.items() %}<path class="bm-{{ name }}" vector-effect="non-scaling-stroke" d="{{ d }}"/>{% endfor %}</g></g>{% endif %}
     {% for d in map.paths %}<path class="land" d="{{ d }}"/>{% endfor %}
     {% if map.circle %}<circle id="ring" class="ring" cx="{{ map.width // 2 }}"
       cy="{{ map.height // 2 }}" r="{{ '%.1f'|format(map.circle) }}"
@@ -555,7 +572,8 @@ MATCHES = """{% extends "base" %}{% block body %}
   panel.hidden = false;
   var svg = sv('svg', {role: 'img', 'aria-label': 'Map of postings around ' + live.home}, box);
   var clipC = sv('circle', {cx: 0, cy: 0}, sv('clipPath', {id: 'fence-clip'}, sv('defs', {}, svg)));
-  sv('rect', {width: '100%', height: '100%'}, svg).style.fill = 'var(--surface)';
+  var ground = sv('rect', {width: '100%', height: '100%'}, svg);
+  ground.style.fill = 'var(--surface)';
   var world = sv('g', {}, svg);
   var gridG = sv('g', {}, world);
   var fenceFill = sv('circle', {cx: 0, cy: 0}, world);
@@ -581,6 +599,152 @@ MATCHES = """{% extends "base" %}{% block body %}
     node('i', {}, row); row.appendChild(document.createTextNode(s[1]));
   });
   var foot = node('div', {'class': 'mapfoot'}, box);
+  var bmNote = node('div', {'class': 'bm-note', hidden: ''}, box);
+  bmNote.textContent = 'Map detail ends at this zoom';
+
+  /* ---- the ground ------------------------------------------------------- */
+  /* Land, towns and roads from this machine's own data (n23). The server
+     projects every vertex with the function that places the pins, and this
+     paints them with the same view numbers (S, tx, ty) the pins are drawn
+     with, so the two cannot drift. It is painted into a canvas BEHIND the
+     svg, once per settled view: while the view moves, the canvas is only
+     moved and scaled -- the same affine change the pins get -- because
+     repainting megabytes of outline on every frame is what made a pan stall.
+     Context only: no tab stop, no accessible name. */
+  var BM = live.basemap, bm = {chunks: {}, pending: {}, shown: null, at: null};
+  var BM_TIERS = ['coarse', 'medium', 'fine'];
+  var BM_LAYERS = ['land', 'urban', 'county', 'lake', 'road'];
+  var BM_MARGIN = 0.5;          /* painted beyond each edge, for panning into */
+  var canvas = null, paint = null;
+  if (BM) {
+    canvas = node('canvas', {'class': 'bm-canvas', 'aria-hidden': 'true'}, null);
+    box.insertBefore(canvas, box.firstChild);
+    paint = canvas.getContext('2d');
+  }
+  /* The coarsest tier still honest at this scale. */
+  function bmWant(S) {
+    for (var i = 0; i < BM_TIERS.length; i++) { if (S <= BM.ppm[BM_TIERS[i]]) { return BM_TIERS[i]; } }
+    return 'fine';
+  }
+  /* A chunk is used only if it holds the whole view. */
+  function bmCovers(ch) {
+    if (ch.reach === null) { return true; }
+    var z = size(), half = Math.hypot(z.w, z.h) / 2 / view.s;
+    return Math.hypot(view.cx - ch.at[0], view.cy - ch.at[1]) + half <= ch.reach;
+  }
+  function bmBuild(d) {
+    var paths = {};
+    BM_LAYERS.forEach(function (name) { if (d.layers[name]) { paths[name] = new Path2D(d.layers[name]); } });
+    return {paths: paths, tier: d.tier, reach: d.reach, at: d.at};
+  }
+  function bmEnsure(tier) {
+    var ch = bm.chunks[tier];
+    if ((ch && bmCovers(ch)) || bm.pending[tier]) { return; }
+    var at = BM.reach[tier] === null ? [0, 0] : [view.cx, view.cy];
+    bm.pending[tier] = true;
+    var q = new URLSearchParams({home: BM.home, x: at[0].toFixed(1), y: at[1].toFixed(1)});
+    fetch('/basemap/' + tier + '?' + q.toString(), {credentials: 'same-origin'})
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { bm.pending[tier] = false; if (d) { bm.chunks[tier] = bmBuild(d); redraw(); } })
+      .catch(function () { bm.pending[tier] = false; });
+  }
+  /* Work that waits for the view to stop: a fly or a drag passes through
+     scales and places nobody stops at. */
+  var bmTimer = 0, flying = false;
+  function bmSoon() {
+    if (bmTimer) { return; }
+    bmTimer = setTimeout(function () {
+      bmTimer = 0;
+      if (flying || drag) { bmSoon(); return; }
+      bmEnsure(bmWant(view.s));
+      bm.shown = bmPick(view.s);
+      bmPaint();
+      bmDraw(view.s);
+    }, 120);
+  }
+  /* The tier this scale wants when it is here; while it loads, a FINER
+     one that already covers the view (more detail than needed is still
+     true). Never a coarser one: at this scale its simplified coast would
+     be visibly in the wrong place, so the ground stays flat instead. */
+  function bmPick(S) {
+    var want = bmWant(S), have = bm.chunks[want];
+    if (!(have && bmCovers(have))) { bmSoon(); }
+    for (var i = BM_TIERS.indexOf(want); i < BM_TIERS.length; i++) {
+      var ch = bm.chunks[BM_TIERS[i]];
+      if (ch && bmCovers(ch)) { return ch; }
+    }
+    return null;
+  }
+  function bmColor(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue('--map-' + name).trim();
+  }
+  /* Paint the shown chunk at the current view. The transform is the one
+     `world` gets in draw(), shifted by the margin: same S, same tx, ty. */
+  function bmPaint() {
+    if (!canvas) { return; }
+    var z = size(), dpr = window.devicePixelRatio || 1;
+    var ox = z.w * BM_MARGIN, oy = z.h * BM_MARGIN;
+    var W = z.w + 2 * ox, H = z.h + 2 * oy;
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    /* An svg has no offsetLeft; place by the boxes the browser laid out. */
+    var sr = svg.getBoundingClientRect(), br = box.getBoundingClientRect();
+    canvas.style.left = (sr.left - br.left - box.clientLeft - ox) + 'px';
+    canvas.style.top = (sr.top - br.top - box.clientTop - oy) + 'px';
+    canvas.style.transform = 'none';
+    var ch = bm.shown, S = view.s;
+    paint.setTransform(1, 0, 0, 1, 0, 0);
+    paint.clearRect(0, 0, canvas.width, canvas.height);
+    bm.at = {cx: view.cx, cy: view.cy, s: S, w: z.w, h: z.h, ch: ch};
+    if (!ch) { return; }
+    paint.fillStyle = bmColor('water');
+    paint.fillRect(0, 0, canvas.width, canvas.height);
+    var tx = ox + z.w / 2 - view.cx * S, ty = oy + z.h / 2 + view.cy * S;
+    paint.setTransform(dpr * S, 0, 0, -dpr * S, dpr * tx, dpr * ty);
+    var px = 1 / S, p = ch.paths, edge = bmColor('edge');
+    paint.lineJoin = 'round';
+    if (p.land) { paint.fillStyle = bmColor('land'); paint.fill(p.land); }
+    if (p.urban) { paint.fillStyle = bmColor('urban'); paint.fill(p.urban); }
+    if (p.county) {
+      paint.strokeStyle = edge; paint.lineWidth = 0.5 * px;
+      paint.setLineDash([4 * px, 3 * px]); paint.stroke(p.county); paint.setLineDash([]);
+    }
+    if (p.land) { paint.strokeStyle = edge; paint.lineWidth = 0.8 * px; paint.stroke(p.land); }
+    if (p.lake) {
+      paint.fillStyle = bmColor('water'); paint.fill(p.lake);
+      paint.strokeStyle = edge; paint.lineWidth = 0.5 * px; paint.stroke(p.lake);
+    }
+    if (p.road) { paint.strokeStyle = bmColor('road'); paint.lineWidth = 1.1 * px; paint.stroke(p.road); }
+  }
+  function bmDraw(S) {
+    if (!BM) { return; }
+    var ch = bmPick(S), z = size(), a = bm.at;
+    bm.shown = ch;
+    if (!a || a.ch !== ch || a.w !== z.w || a.h !== z.h) {
+      if (flying || drag) { bmSoon(); } else { bmPaint(); }
+    } else if (a.s !== view.s || a.cx !== view.cx || a.cy !== view.cy) {
+      bmSoon();
+    }
+    a = bm.at;
+    if (a && a.ch) {
+      /* Map what was painted at view `a` onto the view now: an affine
+         change, exactly the one the pins just went through. */
+      var k = view.s / a.s, ox = a.w * BM_MARGIN, oy = a.h * BM_MARGIN;
+      var ex = (1 - k) * (ox + a.w / 2) + (a.cx - view.cx) * view.s;
+      var ey = (1 - k) * (oy + a.h / 2) + (view.cy - a.cy) * view.s;
+      canvas.style.transform = 'matrix(' + k + ',0,0,' + k + ',' + ex + ',' + ey + ')';
+    }
+    ground.style.fill = (a && a.ch) ? 'transparent' : 'var(--surface)';
+    /* Past the finest tier's measured accuracy the ground fades out rather
+       than pretend to a precision it does not have (ADR 0019). */
+    var limit = BM.ppm.fine, fade = S <= limit ? 1 : Math.max(0, 1 - (S - limit) / limit);
+    canvas.style.opacity = fade;
+    bmNote.hidden = !(a && a.ch && S > limit);
+  }
+  if (BM && window.matchMedia) {
+    var scheme = window.matchMedia('(prefers-color-scheme: dark)');
+    if (scheme.addEventListener) { scheme.addEventListener('change', function () { bm.at = null; redraw(); }); }
+  }
   var tip = node('div', {'class': 'tip', hidden: ''}, box);
 
   var view = {cx: 0, cy: 0, s: 1};
@@ -606,10 +770,12 @@ MATCHES = """{% extends "base" %}{% block body %}
     to.s = clampS(to.s);
     if (reduced) { view = to; redraw(); return; }
     var from = {cx: view.cx, cy: view.cy, s: view.s}, t0 = performance.now();
+    flying = true;
     (function step(t) {
       var k = Math.min(1, (t - t0) / 340), e = 1 - Math.pow(1 - k, 3);
       view = {cx: from.cx + (to.cx - from.cx) * e, cy: from.cy + (to.cy - from.cy) * e,
               s: from.s * Math.pow(to.s / from.s, e)};
+      flying = k < 1;
       draw();
       if (k < 1) { anim = requestAnimationFrame(step); }
     })(t0);
@@ -647,6 +813,7 @@ MATCHES = """{% extends "base" %}{% block body %}
     world.setAttribute('transform', 'matrix(' + S + ' 0 0 ' + (-S) + ' ' + tx + ' ' + ty + ')');
     var X = function (x) { return tx + x * S; }, Y = function (y) { return ty - y * S; };
     var color = FENCE[state.fence];
+    bmDraw(S);
 
     /* Range rings about home: in this projection a circle IS a distance. */
     clear(gridG);
@@ -840,7 +1007,7 @@ MATCHES = """{% extends "base" %}{% block body %}
   var drag = null;
   svg.addEventListener('pointerdown', function (e) {
     if (e.button !== 0) { return; }
-    cancelAnimationFrame(anim);
+    cancelAnimationFrame(anim); flying = false;
     drag = {x: e.clientX, y: e.clientY, cx: view.cx, cy: view.cy, moved: false};
     svg.setPointerCapture(e.pointerId);
   });
@@ -859,7 +1026,7 @@ MATCHES = """{% extends "base" %}{% block body %}
   svg.addEventListener('pointercancel', endDrag);
   svg.addEventListener('wheel', function (e) {
     e.preventDefault();
-    cancelAnimationFrame(anim);
+    cancelAnimationFrame(anim); flying = false;
     var r = svg.getBoundingClientRect(), z = size();
     var sx = e.clientX - r.left, sy = e.clientY - r.top;
     var mx = view.cx + (sx - z.w / 2) / view.s, my = view.cy - (sy - z.h / 2) / view.s;
@@ -1892,8 +2059,14 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         if origin is not None and wanted:
             pts, remote_n, unplaced_n = mapview.points(
                 drawn + [{**r, "status": r["status"]} for r in mine], origin)
+            from . import basemap
             live = {"radius": wanted, "min": RADIUS_MIN, "max": RADIUS_MAX,
                     "home": str(origin), "points": pts,
+                    # Where the page fetches its ground from, and how far
+                    # each tier may be zoomed. None: no data, a flat map.
+                    "basemap": ({"home": home, "ppm": basemap.PPM,
+                                 "reach": basemap.REACH}
+                                if basemap.available() else None),
                     "remote": remote_n, "unplaced": unplaced_n,
                     "cards": _card_data(rows)}
         return render("matches", "matches", rows=rows, total=total,
@@ -1913,6 +2086,28 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                            {"anywhere": "1", "near": near, "track": track,
                             "degree": degree, "remote": remote,
                             "home": home_text}.items() if v}))
+
+    @app.get("/basemap/{tier}")
+    def basemap_tier(tier: str, home: str = "", x: float = 0.0, y: float = 0.0):
+        """The ground under the live map around (x, y) miles from the centre
+        (n23). Same origin, same Host check as every other route: the only
+        place map data comes from is this machine."""
+        import math
+
+        from . import basemap
+        if tier not in basemap.TIERS:
+            return PlainTextResponse("no such tier", status_code=404)
+        if not (math.isfinite(x) and math.isfinite(y)):
+            return PlainTextResponse("x and y must be numbers", status_code=400)
+        origin, _, _ = _origin(home, profile())
+        if origin is None:
+            return PlainTextResponse("no centre to draw around", status_code=404)
+        limit = 13000.0                   # half the Earth's circumference, in miles
+        data = basemap.layers(origin, tier, (max(-limit, min(limit, x)),
+                                             max(-limit, min(limit, y))))
+        if data is None:
+            return PlainTextResponse("no basemap data", status_code=404)
+        return JSONResponse(data, headers={"Cache-Control": "private, max-age=86400"})
 
     @app.get("/job/{job_id}", response_class=HTMLResponse)
     def job_detail(job_id: int, msg: str = "", bad: int = 0):
@@ -2274,4 +2469,8 @@ def serve(host: str = HOST, port: int = PORT) -> None:
     # open postings do. Upgrade once, here, before the first page.
     db.upgrade()
     print(f"review dashboard: http://{host}:{port}  (ctrl-c to stop)")
+    import threading
+
+    from . import basemap
+    threading.Thread(target=basemap.warm, name="basemap-warm", daemon=True).start()
     uvicorn.run(create_app(), host=host, port=port, log_level="warning")
