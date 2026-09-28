@@ -166,8 +166,16 @@ profile in memory and never written to a file.
 - The allowlist's four entries and the two tests that pinned the findings
   were deleted with the findings.
 
+The owner deleted the old GitHub repository and created a new, private one
+under the same name; the rewritten `main` was pushed to it the same day and
+CI passed on its first run, the full-history scan included. A clone of the
+new repository passes `tools/fresh_clone_check.py`. The repository is set to
+commit with the noreply address, so the next commit cannot bring the
+personal one back.
+
 A mirror backup of the old history exists outside the project, is never
-pushed, and is the owner's to delete once the new repository is confirmed.
+pushed, and is the owner's to delete now that the new repository is
+confirmed.
 
 ## Consequences
 
