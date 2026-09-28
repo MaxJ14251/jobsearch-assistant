@@ -192,7 +192,9 @@ def _store(con: sqlite3.Connection, job: dict[str, Any], *, company: str, slug: 
     source_id = db.upsert_source(con, name=f"{slug}-{kind}", kind=kind,
                                  url=source_url, company_id=company_id)
 
-    job.update(salary.columns(salary.extract(job.get("description"))))
+    # The board's own pay field first, as discovery does (n22).
+    job.update(salary.columns(job.pop("pay", None)
+                              or salary.extract(job.get("description"))))
     score, reasons = score_job(job, prefs)
     warnings = []
     if score <= 0:

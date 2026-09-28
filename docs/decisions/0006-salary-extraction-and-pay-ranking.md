@@ -272,5 +272,102 @@ copies of the tracker. Every position change is explained by pay alone:
   already stored is deleted.
 - The $50k–$200k band is a US figure, consistent with ADR 0002.
 - Some job-board feeds may publish structured pay fields. Those were not
-  evaluated, and the text is read instead.
+  evaluated, and the text is read instead. (Now evaluated: see "Structured
+  pay fields" below.)
 - The share of sales pay that is OTE was not measured.
+
+## Structured pay fields (2026-09-28, n22)
+
+The last bullet above is now evaluated. Two of the three big boards return pay
+as data, but only when asked, and this project never asked. Each call now asks,
+on the same host with one more parameter:
+
+| Board | Parameter | Field | Shape |
+|---|---|---|---|
+| Ashby | `includeCompensation=true` | `compensation` | Tiers of components: `compensationType` (Salary, EquityCashValue, Bonus…), `interval` ("1 YEAR", "1 HOUR", "1 MONTH"), `currencyCode`, `minValue`, `maxValue` |
+| Greenhouse | `pay_transparency=true` | `pay_input_ranges` | `min_cents`, `max_cents`, `currency_type`, `title`; **no interval** |
+| Lever | none (always sent) | `salaryRange` | `min`, `max`, `currency`, `interval` ("per-year-salary", "per-hour-wage", "per-month-salary") |
+
+### Decisions
+
+1. **The same rules as the text.** `salary.from_ashby`, `from_greenhouse` and
+   `from_lever` return the same `Salary` as `extract`, or `None`:
+   - base pay only;
+   - a year or an hour only (a month is unknown, never multiplied);
+   - `ANNUAL_BOUNDS` and `HOURLY_BOUNDS` apply;
+   - several ranges are combined (decision 2), and dollars and a year win over
+     other currencies and an hour.
+   Greenhouse gives no interval, so the period comes from the range's title
+   ("hour" means hourly) or from its size (≥ $20k means yearly). An
+   hourly-sized figure whose title does not say "hour" is refused, exactly as
+   in text.
+2. **The board's field wins over the text.** It is the employer's declared
+   range. The text is the fallback. `salary_source` records which one was
+   used (`field` or `text`). `rescore` re-reads text figures but never
+   overwrites a field figure with a text guess.
+3. **Currency is stored and compared only with itself.** `salary_currency`
+   holds it and `salary_text` shows it ("CAD 35–38/hr"). The floor, the pay
+   ranking and the dashboard's analytics treat a non-USD figure as unknown:
+   neutral, never rejected, and never averaged into dollar figures.
+4. **No backfill command.** `discover` updates stored postings as it
+   re-fetches them, so a single run filled the tracker.
+
+### Measured (open postings, one discover run)
+
+| Source | Before | After | From field | From text |
+|---|---|---|---|---|
+| greenhouse | 78% of 787 | 78% of 790 | 220 | 398 |
+| ashby | 19% of 463 | **97%** of 574 | 474 | 86 |
+| lever | 0% of 59 | **27%** of 60 | 16 | 0 |
+| themuse | 70% of 80 | 70% of 80 | — | 56 |
+| workday | 83% of 79 | 83% of 80 | — | 67 |
+| rss | 45% of 22 | 47% of 23 | — | 11 |
+| custom | 19% of 21 | 19% of 21 | — | 4 |
+| **all** | **56%** (844 of 1,512) | **81%** (1,332 of 1,629) | 710 | 622 |
+
+- Dashboard cards with pay rose from 729 of 1,336 to 1,206 of 1,452.
+- **No posting lost pay.** Of the 878 that had a figure before, 30 changed:
+  29 are now read from the field, and 1 (SpaceX) changed its own posting.
+- Stored field periods: 684 year, 26 hour. Stored currencies: 1,329 USD and
+  3 CAD. (Most non-USD postings are filtered out as outside the US before
+  pay is read.)
+- Across every configured board, including postings that were filtered out:
+  - 2 Ashby postings and 1 Lever posting gave a monthly interval (refused);
+  - 4 Ashby postings carried a non-base component with figures (ignored);
+  - 159 Greenhouse ranges had a non-base title such as OTE (skipped);
+  - 108 Greenhouse fields were refused: 94 were hourly-sized with no "hour"
+    in the title (Rocket Lab, Vast), and 14 were placeholder figures such as
+    $1–$2.
+
+**Error rate.** 30 field figures (14 Ashby, 12 Greenhouse, 4 Lever) were
+compared with the posting page in a browser: **30 agree, 0 disagree.** Where a
+posting has both a field and a figure in its text (227 postings), they are
+identical or within 5% in 200. The 27 that differ:
+
+- **23 Rocket Lab: the field is right and the text parser was wrong.** The
+  text reads "Total Compensation (base and equity) $X–$Y … Base Salary
+  $A–$B", and the parser combined both ranges, stretching the maximum to
+  include equity. This is a text-parser gap against decision 1's equity
+  veto. It is masked now that these postings read the field, and it is
+  harmless to the floor, which only errs toward keeping a job. It is recorded
+  here rather than fixed.
+- **3 OpenAI: the company's field and prose disagree.** The field is the
+  figure OpenAI's own page shows at the top (checked in a browser); the prose
+  further down gives another range. The field wins, per decision 2.
+- **1 Vast: the field names one level, the prose two.** The field gives only
+  the senior level's range. The maximum, which the floor uses, is the same.
+
+### Refused on purpose (step e)
+
+Of the 33 Greenhouse postings with a dollar figure but no stored pay:
+
+- 3 are Anthropic weekly stipends, correctly refused.
+- 1 is a CoreWeave typo ("$143,00"), correctly refused.
+- 29 are Vast and Rocket Lab ranges such as "Pay Range: California
+  $28–$46 USD". They are refused because an hourly-sized figure must say
+  "hour" (decision 1).
+- 31 open SpaceX postings have the same shape ("Level 1: $26.00 – $32.00").
+
+These roughly 60 postings are probably hourly. Accepting hourly figures by
+size alone would loosen a refusal this ADR made on purpose, so that is left to
+the owner. It was not changed here.

@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     salary_currency   TEXT DEFAULT 'USD',
     salary_period     TEXT CHECK (salary_period IN ('year','hour')),
     salary_text       TEXT,                        -- the words it was read from
+    salary_source     TEXT,                        -- 'field' (the board's pay data, n22) or 'text'
     url               TEXT NOT NULL,
     description       TEXT,                        -- full JD text, used by tailoring + prep
     description_hash  TEXT,                        -- detect edits to a reposted JD
@@ -371,7 +372,8 @@ SELECT r.id            AS job_id,
        -- pay as the posting states it, for the dashboard's area analytics
        r.salary_min,
        r.salary_max,
-       r.salary_period
+       r.salary_period,
+       r.salary_currency
   FROM ranked r
   JOIN companies c ON c.id = r.company_id
  WHERE r.rn = 1

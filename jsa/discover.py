@@ -146,7 +146,10 @@ def discover(
                         con, name=employer, slug=_slug(employer))
                 seen.append(job["external_id"])
                 # Pay is read before scoring, because scoring ranks on it.
-                job.update(salary.columns(salary.extract(job.get("description"))))
+                # The board's own pay field when it has one (n22), which is
+                # the employer's declared range; the description otherwise.
+                pay = job.pop("pay", None) or salary.extract(job.get("description"))
+                job.update(salary.columns(pay))
                 score, reasons = _score(job, prefs)
                 if score < min_score:
                     report.rejected += 1
@@ -193,11 +196,15 @@ def rescore(con, prefs: Preferences) -> RescoreReport:
     """
     report = RescoreReport()
     rows = con.execute(
-        "SELECT id, title, description, location, remote, match_score "
-        "FROM jobs WHERE archived_at IS NULL").fetchall()
+        "SELECT id, title, description, location, remote, match_score, "
+        "salary_min, salary_max, salary_period, salary_text, salary_currency, "
+        "salary_source FROM jobs WHERE archived_at IS NULL").fetchall()
     for row in rows:
         job = dict(row)
-        job.update(salary.columns(salary.extract(job.get("description"))))
+        # A figure from the board's own pay data is not re-read from the
+        # text: the text never had it (n22), and a re-read would erase it.
+        if job.get("salary_source") != "field":
+            job.update(salary.columns(salary.extract(job.get("description"))))
         score, reasons = _score(job, prefs)
         report.jobs += 1
         report.with_pay += int(job["salary_min"] is not None)
@@ -206,9 +213,11 @@ def rescore(con, prefs: Preferences) -> RescoreReport:
         con.execute(
             "UPDATE jobs SET salary_min = :salary_min, salary_max = :salary_max, "
             "salary_period = :salary_period, salary_text = :salary_text, "
+            "salary_currency = :salary_currency, salary_source = :salary_source, "
             "match_score = :score, match_reasons = :reasons WHERE id = :id",
-            {**{k: job[k] for k in ("salary_min", "salary_max",
-                                    "salary_period", "salary_text")},
+            {**{k: job.get(k) for k in ("salary_min", "salary_max", "salary_period",
+                                        "salary_text", "salary_currency",
+                                        "salary_source")},
              "score": score, "reasons": json.dumps(reasons), "id": row["id"]})
     return report
 

@@ -22,6 +22,7 @@ from typing import Any, Callable
 
 import httpx
 
+from . import salary
 from .config import POLITE_DELAY_S, REQUEST_TIMEOUT, user_agent
 
 _TAG_RE = re.compile(r"<[^>]+>")
@@ -122,7 +123,7 @@ def _fail(exc: Exception) -> FetchResult:
 def greenhouse_url(entry: dict[str, Any]) -> str:
     return (
         f"https://boards-api.greenhouse.io/v1/boards/{entry['board']}"
-        f"/jobs?content=true"
+        f"/jobs?content=true&pay_transparency=true"
     )
 
 
@@ -149,6 +150,8 @@ def fetch_greenhouse(entry: dict[str, Any]) -> FetchResult:
                 "description": desc,
                 "description_hash": content_hash(desc),
                 "posted_at": item.get("updated_at"),
+                # The board's own pay data, when it publishes one (n22).
+                "pay": salary.from_greenhouse(item.get("pay_input_ranges")),
             }
         )
     return FetchResult(True, jobs, "ok")
@@ -207,6 +210,7 @@ def fetch_lever(entry: dict[str, Any]) -> FetchResult:
                 "description": desc,
                 "description_hash": content_hash(desc),
                 "posted_at": item.get("createdAt"),
+                "pay": salary.from_lever(item.get("salaryRange")),
             }
         )
     return FetchResult(True, jobs, "ok")
@@ -216,7 +220,8 @@ def fetch_lever(entry: dict[str, Any]) -> FetchResult:
 
 
 def ashby_url(entry: dict[str, Any]) -> str:
-    return f"https://api.ashbyhq.com/posting-api/job-board/{entry['board']}"
+    return (f"https://api.ashbyhq.com/posting-api/job-board/{entry['board']}"
+            "?includeCompensation=true")
 
 
 def fetch_ashby(entry: dict[str, Any]) -> FetchResult:
@@ -242,6 +247,7 @@ def fetch_ashby(entry: dict[str, Any]) -> FetchResult:
                 "description": desc,
                 "description_hash": content_hash(desc),
                 "posted_at": item.get("publishedAt"),
+                "pay": salary.from_ashby(item.get("compensation")),
             }
         )
     return FetchResult(True, jobs, "ok")

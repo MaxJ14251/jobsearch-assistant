@@ -417,6 +417,8 @@ def upsert_job(con: sqlite3.Connection, job: dict[str, Any]) -> tuple[int, bool]
         "salary_max": job.get("salary_max"),
         "salary_period": job.get("salary_period"),
         "salary_text": job.get("salary_text"),
+        "salary_currency": job.get("salary_currency"),
+        "salary_source": job.get("salary_source"),
         "url": job["url"],
         "description": job.get("description"),
         "description_hash": job.get("description_hash"),

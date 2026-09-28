@@ -74,6 +74,8 @@ class Salary:
     maximum: int
     period: str            # "year" or "hour"
     text: str              # the words it was read from, for a human to check
+    currency: str = "USD"
+    source: str = "text"   # "text": read from the description; "field": the board's own pay data
 
     def annual_minimum(self) -> int:
         return self.minimum * HOURS_PER_YEAR if self.period == "hour" else self.minimum
@@ -233,20 +235,152 @@ def extract(text: str | None) -> Salary | None:
     )
 
 
+# --- Pay the boards publish as data (n22) ------------------------------------
+# Ashby, Greenhouse and Lever return pay as structured fields when asked, and
+# put it nowhere in the description text: measured 2026-09-28, 358 of 463
+# Ashby postings said "salary" or "compensation" with no figure beside it.
+# A field is the employer's declared range, so it wins over reading the text.
+# The rules are the text parser's: base pay only, a year or an hour, plausible
+# for its period, several ranges combined.
+
+# Components and range titles that are not base pay. Matched on a whole word.
+_NOT_BASE = re.compile(
+    r"\b(equity|stock|bonus|commission|ote|on-target|sign[- ]?on|quota|"
+    r"variable|incentive|relocation)\b", re.I)
+
+
+def _plausible(low: int, high: int, period: str) -> bool:
+    lo, hi = ANNUAL_BOUNDS if period == "year" else HOURLY_BOUNDS
+    return lo <= low <= high <= hi
+
+
+def _money(low: int, high: int, period: str, currency: str) -> str:
+    unit = "/yr" if period == "year" else "/hr"
+    if currency == "USD":
+        fig = f"${low:,}" if low == high else f"${low:,}-${high:,}"
+    else:
+        fig = f"{low:,}" if low == high else f"{low:,}-{high:,}"
+        fig += f" {currency}"
+    return fig + unit
+
+
+def _combine(parts: list[tuple[int, int, str, str]], board: str) -> Salary | None:
+    """(low, high, period, currency) ranges -> one Salary, or None.
+
+    USD ranges win over others (the floor and the ranking compare dollars);
+    annual over hourly, as in the text parser; then the lowest minimum and the
+    highest maximum (ADR 0006 decision 2).
+    """
+    parts = [p for p in parts if p[2] in ("year", "hour") and _plausible(*p[:3])]
+    if not parts:
+        return None
+    usd = [p for p in parts if p[3] == "USD"]
+    parts = usd or [p for p in parts if p[3] == parts[0][3]]
+    parts = [p for p in parts if p[2] == "year"] or parts
+    low, high = min(p[0] for p in parts), max(p[1] for p in parts)
+    period, currency = parts[0][2], parts[0][3]
+    text = f"{board} pay field: {_money(low, high, period, currency)}"
+    distinct = {(p[0], p[1]) for p in parts}
+    if len(distinct) > 1:
+        text += f" ({len(distinct)} ranges combined)"
+    return Salary(low, high, period, text, currency, "field")
+
+
+def _pair(low, high) -> tuple[int, int] | None:
+    low = low if low is not None else high
+    high = high if high is not None else low
+    if low is None:
+        return None
+    return int(round(float(low))), int(round(float(high)))
+
+
+def from_ashby(compensation: dict | None) -> Salary | None:
+    """Ashby's `compensation` (posting API, includeCompensation=true).
+
+    Salary components only: EquityCashValue, Bonus and Commission sit in the
+    same list. Interval is "1 YEAR" or "1 HOUR"; anything else is left unknown.
+    """
+    if not compensation:
+        return None
+    components = [c for tier in compensation.get("compensationTiers") or []
+                  for c in tier.get("components") or []]
+    components = components or compensation.get("summaryComponents") or []
+    parts = []
+    for c in components:
+        if c.get("compensationType") != "Salary":
+            continue
+        period = {"1 YEAR": "year", "1 HOUR": "hour"}.get(
+            str(c.get("interval") or "").upper())
+        pair = _pair(c.get("minValue"), c.get("maxValue"))
+        if period and pair:
+            parts.append((*pair, period, str(c.get("currencyCode") or "USD").upper()))
+    return _combine(parts, "Ashby")
+
+
+def from_greenhouse(ranges: list | None) -> Salary | None:
+    """Greenhouse's `pay_input_ranges` (job board API, pay_transparency=true).
+
+    In cents, and with no interval field: the period is in the range's own
+    title ("Hourly Pay Range (CA Only)") or, failing that, in the size of the
+    figure -- and an hourly-sized figure that does not say "hour" is refused,
+    exactly as ADR 0006 refuses it in text.
+    """
+    parts = []
+    for r in ranges or []:
+        title = str(r.get("title") or "")
+        if _NOT_BASE.search(title):
+            continue
+        lo, hi = r.get("min_cents"), r.get("max_cents")
+        pair = _pair(lo / 100 if lo is not None else None,
+                     hi / 100 if hi is not None else None)
+        if not pair:
+            continue
+        if re.search(r"\bhour", title, re.I):
+            period = "hour"
+        elif pair[1] >= ANNUAL_BOUNDS[0]:
+            period = "year"
+        else:
+            continue
+        parts.append((*pair, period, str(r.get("currency_type") or "USD").upper()))
+    return _combine(parts, "Greenhouse")
+
+
+def from_lever(salary_range: dict | None) -> Salary | None:
+    """Lever's `salaryRange` {min, max, currency, interval}."""
+    if not salary_range:
+        return None
+    period = {"per-year-salary": "year", "per-hour-wage": "hour"}.get(
+        str(salary_range.get("interval") or ""))
+    pair = _pair(salary_range.get("min"), salary_range.get("max"))
+    if not period or not pair:
+        return None
+    return _combine([(*pair, period, str(salary_range.get("currency") or "USD").upper())],
+                    "Lever")
+
+
 def columns(salary: Salary | None) -> dict[str, object]:
     """The jobs-table columns for a result. None clears them all."""
     if salary is None:
-        return {"salary_min": None, "salary_max": None,
-                "salary_period": None, "salary_text": None}
+        return {"salary_min": None, "salary_max": None, "salary_period": None,
+                "salary_text": None, "salary_currency": None, "salary_source": None}
     return {"salary_min": salary.minimum, "salary_max": salary.maximum,
-            "salary_period": salary.period, "salary_text": salary.text}
+            "salary_period": salary.period, "salary_text": salary.text,
+            "salary_currency": salary.currency, "salary_source": salary.source}
 
 
 def from_row(row) -> Salary | None:
-    """Rebuild from stored columns (a dict or sqlite3.Row)."""
+    """Stored pay, for COMPARING: the floor and the pay ranking.
+
+    Only dollars compare with dollars. A figure in another currency is
+    stored and shown, and is unknown here -- which the floor never rejects
+    (ADR 0001 decision 4) and the ranking does not reward.
+    """
     get = row.get if hasattr(row, "get") else (lambda k: row[k] if k in row.keys() else None)
     low, high = get("salary_min"), get("salary_max")
     if low is None or high is None:
         return None
+    currency = (get("salary_currency") or "USD").upper()
+    if currency != "USD":
+        return None
     return Salary(int(low), int(high), get("salary_period") or "year",
-                  get("salary_text") or "")
+                  get("salary_text") or "", currency, get("salary_source") or "text")

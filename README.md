@@ -224,8 +224,11 @@ including what it pays. `--near <region>` restricts to commuting range of a regi
 you define under `job_search_preferences.regions`; `--per-company` (default 3)
 stops one large board from filling the page — SpaceX alone posts 2,373 reqs.
 
-**How pay counts.** About half of postings state pay; `jsa/salary.py` reads it
-from the text (ADR 0006). Higher pay ranks higher for everyone, on the *bottom*
+**How pay counts.** Most postings state pay. Where the job board publishes it
+as data (Ashby, Greenhouse, Lever), that figure is used; otherwise
+`jsa/salary.py` reads it from the text (ADR 0006). Only dollars are compared
+with dollars: pay in another currency is stored and shown, and otherwise
+treated as unstated. Higher pay ranks higher for everyone, on the *bottom*
 of the stated range, and moves a score by at most ±0.05 — enough to order
 similar roles, never enough to lift a poor fit over a good one. A posting that
 states no pay scores exactly as if it paid the middle of the band, so saying
@@ -236,7 +239,8 @@ never rejected.
 ```bash
 .venv/Scripts/python -m jsa rescore
 ```
-Re-reads pay and re-scores every stored listing without polling any feed. Run it
+Re-reads pay from the stored text (a figure from the board's own pay data is
+kept as it is) and re-scores every stored listing without polling any feed. Run it
 after changing your profile's preferences.
 
 ```bash
@@ -796,7 +800,9 @@ Worth knowing before you rely on this.
   253 postings that state pay was missed (a typo in the posting), and a random
   hand-check found no wrong figure after two list-handling fixes. Equity, bonus
   and "competitive" are ignored. A posting with several levels or cities is
-  stored as one combined range; its text is kept so you can check it.
+  stored as one combined range; its text is kept so you can check it. Where the
+  board publishes pay as data, that is used instead: 30 of 30 such figures
+  matched the posting page when checked by hand.
 - **One user per checkout.** The profile and tracker are single-tenant, and the
   database is SQLite on local disk.
 - **Free API tiers log prompts.** Identity never reaches the model, but job

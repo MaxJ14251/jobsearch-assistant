@@ -1611,6 +1611,10 @@ def _annual(row: dict[str, Any]) -> tuple[int | None, int | None]:
     low, high = row.get("salary_min"), row.get("salary_max")
     if low is None and high is None:
         return None, None
+    # Dollars compare with dollars; a figure in another currency is not
+    # averaged into a USD median (n22).
+    if (row.get("salary_currency") or "USD").upper() != "USD":
+        return None, None
     low = low if low is not None else high
     high = high if high is not None else low
     if row.get("salary_period") == "hour":
@@ -1629,7 +1633,7 @@ def _pipeline_rows(con: sqlite3.Connection, where: list[str],
         "       m.discovered_at, 1 AS variant_count, NULL AS dedup_key, "
         "       m.degree_required, m.clearance_required, m.years_required, "
         "       m.tech_stack, m.enrichment_note, m.enriched_at, "
-        "       m.salary_min, m.salary_max, m.salary_period, "
+        "       m.salary_min, m.salary_max, m.salary_period, m.salary_currency, "
         "       a.status AS stage "
         "  FROM applications a JOIN jobs m ON m.id = a.job_id "
         "  LEFT JOIN companies c ON c.id = m.company_id "

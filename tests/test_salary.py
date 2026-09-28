@@ -375,8 +375,8 @@ def _live_rows():
         con.row_factory = sqlite3.Row
         try:
             return con.execute(
-                "SELECT id, description, salary_min, salary_max, salary_period "
-                "FROM jobs WHERE archived_at IS NULL").fetchall()
+                "SELECT id, description, salary_min, salary_max, salary_period, "
+                "salary_source FROM jobs WHERE archived_at IS NULL").fetchall()
         finally:
             con.close()
     except sqlite3.Error:
@@ -407,8 +407,12 @@ class TestSalaryStaysExtracted(unittest.TestCase):
             "stopped extracting salary.")
 
     def test_stored_pay_matches_what_the_text_says(self):
+        """A figure from the board's own pay field (n22) is not the text's to
+        match; the text is only the fallback for those."""
         mismatched = []
         for r in LIVE:
+            if r["salary_source"] == "field":
+                continue
             s = extract(r["description"])
             got = (r["salary_min"], r["salary_max"], r["salary_period"])
             want = (s.minimum, s.maximum, s.period) if s else (None, None, None)
