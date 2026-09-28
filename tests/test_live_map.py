@@ -185,5 +185,22 @@ class TestThePage(unittest.TestCase):
         self.assertTrue(all(c["pay"] == [90000, 120000] for c in new))
 
 
+class TestServeUpgradesFirst(unittest.TestCase):
+    """A view is frozen against the columns that existed when it was made.
+    `jsa serve` only read the tracker, so it never rebuilt one, and the
+    dashboard queried a v_new_matches without the pay columns: every card
+    came back with no pay. Serving upgrades before the first page."""
+
+    def test_upgrade_runs_before_the_server_starts(self):
+        from unittest import mock
+
+        order = []
+        with mock.patch.object(db, "upgrade", lambda *a, **k: order.append("upgrade") or []), \
+                mock.patch("uvicorn.run", lambda *a, **k: order.append("run")), \
+                mock.patch.object(web, "create_app", lambda *a, **k: None):
+            web.serve()
+        self.assertEqual(order, ["upgrade", "run"])
+
+
 if __name__ == "__main__":
     unittest.main()

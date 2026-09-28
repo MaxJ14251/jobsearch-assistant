@@ -2263,5 +2263,11 @@ def serve(host: str = HOST, port: int = PORT) -> None:
             f"WARNING: binding to {host!r} because {ALLOW_PUBLIC_BIND_ENV}=1. "
             "Anything that can reach this port can read your job search."
         )
+    # db.upgrade runs from the commands that WRITE, and this one mostly
+    # reads, so a view changed since the last discovery run used to be
+    # served as it was: n21's pay columns came back empty on the author's
+    # tracker, and the page said 1 of 63 cards stated pay when 844 of 1,512
+    # open postings do. Upgrade once, here, before the first page.
+    db.upgrade()
     print(f"review dashboard: http://{host}:{port}  (ctrl-c to stop)")
     uvicorn.run(create_app(), host=host, port=port, log_level="warning")
