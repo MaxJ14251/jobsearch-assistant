@@ -161,6 +161,29 @@ def lever_url(entry: dict[str, Any]) -> str:
     return f"https://api.lever.co/v0/postings/{entry['board']}?mode=json"
 
 
+def lever_text(item: dict[str, Any]) -> str:
+    """A Lever posting's text, in the order its hosted page shows it.
+
+    `descriptionPlain` is only the top of the page (it already contains the
+    opening). The requirement and responsibility lists sit in `lists`, and pay
+    and benefits in `additional`. Storing the description alone dropped a
+    median 3,400 characters per posting, which is where the degree, years and
+    clearance lines live. Measured 2026-09-28 over 1,450 postings on the five
+    verified Lever boards: 99% carry `lists`, 98% `additional`.
+    """
+    desc = item.get("descriptionPlain") or strip_html(item.get("description"))
+    extra = []
+    for block in item.get("lists") or []:
+        heading = strip_html(block.get("text"))
+        items = strip_html(block.get("content"))
+        extra.append("\n".join(p for p in (heading, items) if p))
+    extra.append(item.get("additionalPlain") or strip_html(item.get("additional")))
+    extra = [p.strip() for p in extra if p and p.strip()]
+    if not extra:
+        return desc  # byte-identical to what was stored before, same hash
+    return "\n\n".join(p for p in (desc.strip(), *extra) if p)
+
+
 def fetch_lever(entry: dict[str, Any]) -> FetchResult:
     try:
         data = _get_json(lever_url(entry))
@@ -170,7 +193,7 @@ def fetch_lever(entry: dict[str, Any]) -> FetchResult:
     jobs = []
     for item in data or []:
         cats = item.get("categories") or {}
-        desc = item.get("descriptionPlain") or strip_html(item.get("description"))
+        desc = lever_text(item)
         location = cats.get("location") or ""
         jobs.append(
             {
