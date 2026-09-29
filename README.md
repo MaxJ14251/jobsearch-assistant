@@ -479,7 +479,7 @@ match to a resume you can upload yourself:
   **area analytics** cover what the list shows: pay (only for postings that
   state it, and it says how many do), the skills asked for, who is hiring,
   and the spread of commute times. Under it all is a real map: coast, lakes,
-  built-up areas, county lines and freeways. It is drawn from public Census
+  built-up areas, county lines, freeways and the names of the bigger cities. It is drawn from public Census
   data that ships with the tool, and placed by the same calculation as the
   markers, so a marker in a town sits on that town. Past the zoom at which
   that data is accurate (about a tenth of a mile), the map fades out and says
@@ -905,8 +905,9 @@ degree" and changes neither whether a job appears nor its score.
 with the tool — 32,109 towns, 33,791 ZIP codes and a 1:20,000,000 state
 outline, no geocoding service and no map tiles, so your home ZIP never leaves
 your machine. The ground under the live map ships too: US Census Bureau
-boundaries, urban areas and primary roads at 1:500,000, and Natural Earth
-lakes, in three levels of detail (7.5 MB in all). Every file is public domain
+boundaries, urban areas and primary roads at 1:500,000, Census lake shores
+for close zooms, and Natural Earth lakes and city names, in three levels of
+detail (8.3 MB in all). Every file is public domain
 and can be rebuilt from its sources with `python tools/build_map_data.py`,
 which prints the count and SHA-256 of each so what ships can be checked rather
 than trusted. A town within `radius_miles`

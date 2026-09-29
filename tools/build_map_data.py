@@ -30,7 +30,10 @@ Earth is dedicated to the public domain by its makers.
   1:500k, 2020 urban areas
   1:500k, 2024 TIGER primary
   roads, Natural Earth 10m
-  lakes                      -> data/us_basemap_{coarse,medium,fine}.json.gz
+  lakes and populated places,
+  2024 TIGER area water for
+  the counties those lakes
+  touch                      -> data/us_basemap_{coarse,medium,fine}.json.gz
                                 (the ground under the live map, n23, ADR 0019)
 """
 
@@ -81,6 +84,50 @@ BASEMAP_URLS = {
 }
 PLACE_BOUNDS_URL = GENZ.format(2023, "place_500k")
 
+# Lakes at the fine tier. Natural Earth's are 1:10,000,000, honest only to
+# the medium tier, so up close the SAME lakes are drawn from the Census's
+# own water areas, which are county by county: 3,235 files, 1.1 GB for the
+# country. Only the counties that overlap a Natural Earth lake are fetched,
+# and only the Census lakes and reservoirs that lie in one are kept, so a
+# lake sharpens as you zoom in rather than appearing or vanishing.
+AREAWATER_URL = ("https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/"
+                 "tl_2024_{}_areawater.zip")
+LAKE_MTFCC = {"H2030", "H2040"}         # lake or pond; reservoir
+LAKE_MATCH_MILES = 0.5                  # Natural Earth's shore is this far off
+# A pond beside a lake is not the lake. Measured: without this, 8,518 lake
+# outlines (1.1 MB) came back, mostly ponds near a shore.
+LAKE_MIN_SQ_MI = 0.25
+# A piece named like a matched lake counts as that lake within this reach.
+LAKE_SAME_NAME_MILES = 10.0
+NOT_LAKE_MTFCC = {"H2053", "H2081"}     # ocean or sea; glacier
+RIVER_MTFCC = {"H3010", "H3020"}        # parts of a lake filed as stream or canal
+
+# City names on the map, from Natural Earth's populated places (public
+# domain), which carry a population where the Census Gazetteer does not
+# (ADR 0015 refused labels for that reason). Only the name, state and
+# population ship; the page puts each name on the Gazetteer point of the
+# same town, so a name and that town's pin cannot disagree.
+CITIES_URL = ("https://naciscdn.org/naturalearth/10m/cultural/"
+              "ne_10m_populated_places_simple.zip")
+CITY_MIN_POP = {"coarse": 500_000, "medium": 150_000, "fine": 50_000}
+STATE_CODES = {
+    "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR",
+    "California": "CA", "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE",
+    "District of Columbia": "DC", "Florida": "FL", "Georgia": "GA",
+    "Hawaii": "HI", "Idaho": "ID", "Illinois": "IL", "Indiana": "IN",
+    "Iowa": "IA", "Kansas": "KS", "Kentucky": "KY", "Louisiana": "LA",
+    "Maine": "ME", "Maryland": "MD", "Massachusetts": "MA", "Michigan": "MI",
+    "Minnesota": "MN", "Mississippi": "MS", "Missouri": "MO", "Montana": "MT",
+    "Nebraska": "NE", "Nevada": "NV", "New Hampshire": "NH", "New Jersey": "NJ",
+    "New Mexico": "NM", "New York": "NY", "North Carolina": "NC",
+    "North Dakota": "ND", "Ohio": "OH", "Oklahoma": "OK", "Oregon": "OR",
+    "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC",
+    "South Dakota": "SD", "Tennessee": "TN", "Texas": "TX", "Utah": "UT",
+    "Vermont": "VT", "Virginia": "VA", "Washington": "WA",
+    "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY",
+    "Puerto Rico": "PR",
+}
+
 MILES_PER_DEGREE = 69.05          # of latitude; the tolerances below are in it
 
 # One tier per band of zoom, named by the largest scale (pixels per mile) it
@@ -98,7 +145,7 @@ TIERS = {
     "medium": {"ppm": 4.0, "q": 2000,
                "layers": ("land", "lake", "urban", "road")},
     "fine": {"ppm": 20.0, "q": 10000,
-             "layers": ("land", "county", "urban", "road")},
+             "layers": ("land", "county", "urban", "lake", "road")},
 }
 COARSE_ROADS = {"I"}              # RTTYP: interstates
 
@@ -364,14 +411,20 @@ def point_on_land(rings) -> tuple[float, float]:
         a += cross
         cx += (x1 + x2) * cross
         cy += (y1 + y2) * cross
+    if a == 0:                        # a sliver with no area: any vertex will do
+        return ring[0]
     cx, cy = cx / (3 * a), cy / (3 * a)
     if _inside(ring, cx, cy):
         return cx, cy
-    xs = sorted((xb - xa) * (cy - ya) / (yb - ya) + xa
-                for (xa, ya), (xb, yb) in zip(ring, ring[1:])
-                if (ya > cy) != (yb > cy))
-    left, right = max(zip(xs[0::2], xs[1::2]), key=lambda p: p[1] - p[0])
-    return (left + right) / 2, cy
+    ys = [p[1] for p in ring]
+    for y in (cy, (min(ys) + max(ys)) / 2):
+        xs = sorted((xb - xa) * (y - ya) / (yb - ya) + xa
+                    for (xa, ya), (xb, yb) in zip(ring, ring[1:])
+                    if (ya > y) != (yb > y))
+        if len(xs) >= 2:
+            left, right = max(zip(xs[0::2], xs[1::2]), key=lambda p: p[1] - p[0])
+            return (left + right) / 2, y
+    return ring[0]
 
 
 def place_bounds(archive: bytes) -> dict[str, list]:
@@ -426,7 +479,7 @@ def basemap_sources(fetcher) -> dict[str, list]:
     kinds = _dbf_column(_only_member(roads_zip, ".dbf"), "RTTYP")
     boxes = [(min(p[0] for p in r), min(p[1] for p in r),
               max(p[0] for p in r), max(p[1] for p in r), r) for r in land]
-    lakes = []
+    lake_shapes = []
     for name in ("lakes", "lakes_na"):
         for shape in parts(name)[1]:
             if not shape:
@@ -437,7 +490,9 @@ def basemap_sources(fetcher) -> dict[str, list]:
             # one would show two coastlines a mile apart.
             x, y = point_on_land(shape)
             if -170 < x < -64 and 17 < y < 72 and _land_at(boxes, x, y):
-                lakes += shape
+                lake_shapes.append(shape)
+    county_zip = fetcher(BASEMAP_URLS["county"])
+    county_ids = _dbf_column(_only_member(county_zip, ".dbf"), "GEOID")
     return {
         "land": land,
         "county": [ring for shape in counties for ring in shape],
@@ -445,8 +500,127 @@ def basemap_sources(fetcher) -> dict[str, list]:
         "road": [part for shape in roads for part in shape],
         "road_i": [part for shape, kind in zip(roads, kinds)
                    if kind in COARSE_ROADS for part in shape],
-        "lake": lakes,
+        "lake": [ring for shape in lake_shapes for ring in shape],
+        "lake_fine": fine_lakes(lake_shapes, zip(county_ids, counties), fetcher),
+        "cities": cities(fetcher(CITIES_URL)),
     }
+
+
+def _box(rings, pad: float = 0.0):
+    xs = [p[0] for ring in rings for p in ring]
+    ys = [p[1] for ring in rings for p in ring]
+    return min(xs) - pad, min(ys) - pad, max(xs) + pad, max(ys) + pad
+
+
+def _meet(a, b) -> bool:
+    return not (a[2] < b[0] or a[0] > b[2] or a[3] < b[1] or a[1] > b[3])
+
+
+def fine_lakes(lake_shapes, counties, fetcher) -> list:
+    """The Census's own outline of every Natural Earth lake: its lakes and
+    reservoirs whose interior lies in, or within LAKE_MATCH_MILES of, one.
+
+    Only the counties a lake actually reaches are fetched: a county is
+    wanted when one of the lake's vertices falls inside it or one of its
+    vertices falls inside the lake (bounding boxes alone asked for 714
+    counties, 336 MB)."""
+    pad = LAKE_MATCH_MILES / MILES_PER_DEGREE
+    lakes = [(_box(shape, pad), shape) for shape in lake_shapes]
+    wanted = []
+    for geoid, shape in counties:
+        if not shape:
+            continue
+        box = _box(shape)
+        near = [lake for lake in lakes if _meet(box, lake[0])]
+        if any(_touches(shape, lake) for _, lake in near):
+            wanted.append(geoid)
+    # Two passes. First, pieces that lie in a Natural Earth lake (within its
+    # error). Then every other piece nearby that the Census gives the SAME
+    # NAME as one already matched: it splits a lake into many pieces, some
+    # outside Natural Earth's older, high-water outline and some filed as a
+    # stream or canal -- the Great Salt Lake came back in holes without it.
+    reach = LAKE_SAME_NAME_MILES / MILES_PER_DEGREE
+    near_boxes = [(_box(shape, reach), shape) for shape in lake_shapes]
+    candidates = []
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        archives = pool.map(lambda g: fetcher(AREAWATER_URL.format(g)), wanted)
+        for archive in archives:
+            dbf = _only_member(archive, ".dbf")
+            kinds = _dbf_column(dbf, "MTFCC")
+            names = _dbf_column(dbf, "FULLNAME")
+            for kind, name, shape in zip(kinds, names,
+                                         _shp_polygons(_only_member(archive, ".shp"))):
+                if not shape or kind in NOT_LAKE_MTFCC:
+                    continue
+                box = _box(shape)
+                if any(_meet(box, nbox) for nbox, _ in near_boxes):
+                    candidates.append((kind, name, box, shape))
+    kept, matched = [], set()
+    for index, (kind, name, box, shape) in enumerate(candidates):
+        if kind not in LAKE_MTFCC:
+            continue
+        near = [lake for lbox, lake in lakes if _meet(box, lbox)]
+        if not near:
+            continue
+        x, y = point_on_land(shape)
+        square_miles = (max(_area(r) for r in shape) * MILES_PER_DEGREE ** 2
+                        * math.cos(math.radians(y)))
+        if square_miles < LAKE_MIN_SQ_MI:
+            continue
+        if any(_miles_outside(lake, x, y) <= LAKE_MATCH_MILES for lake in near):
+            kept += shape
+            matched.add(index)
+    # Grow each matched lake through its own pieces: a piece joins when it
+    # has the same name as a kept piece AND lies within a mile of it. A name
+    # alone is not enough -- "Mud Lk" is a hundred different lakes.
+    gap = 1.0 / MILES_PER_DEGREE
+    grown = True
+    while grown:
+        grown = False
+        for index, (kind, name, box, shape) in enumerate(candidates):
+            if index in matched or not name or kind not in LAKE_MTFCC | RIVER_MTFCC:
+                continue
+            wide = (box[0] - gap, box[1] - gap, box[2] + gap, box[3] + gap)
+            if any(candidates[m][1] == name and _meet(wide, candidates[m][2])
+                   for m in matched):
+                kept += shape
+                matched.add(index)
+                grown = True
+    print(f"  lakes   {len(wanted)} counties fetched, {len(kept)} rings kept")
+    return kept
+
+
+def _touches(a, b) -> bool:
+    """Whether two shapes (lists of rings) share ground: a vertex of either
+    inside the other. Every vertex, not a sample: a sample of 40 missed the
+    county holding the west arm of the Great Salt Lake, and the lake was cut
+    off at the county line."""
+    for mine, other in ((a, b), (b, a)):
+        box = _box(other)
+        for ring in mine:
+            for x, y in ring:
+                if (box[0] <= x <= box[2] and box[1] <= y <= box[3]
+                        and sum(_inside(r, x, y) for r in other) % 2):
+                    return True
+    return False
+
+
+def cities(archive: bytes) -> list[tuple[str, str, int]]:
+    """(name, state code, metro population) for the US's places of 50,000
+    people or more, biggest first."""
+    dbf = _only_member(archive, ".dbf")
+    names = _dbf_column(dbf, "nameascii")   # the reader is Latin-1; these are ASCII
+    states = _dbf_column(dbf, "adm1name")
+    countries = _dbf_column(dbf, "adm0_a3")
+    pops = _dbf_column(dbf, "pop_max")
+    out = []
+    for name, state, country, pop in zip(names, states, countries, pops):
+        code = STATE_CODES.get(state)
+        people = int(float(pop or 0))
+        if country == "USA" and code and people >= min(CITY_MIN_POP.values()):
+            out.append((name, code, people))
+    return sorted(out, key=lambda c: (-c[2], c[0]))
 
 
 def _land_at(boxes, x: float, y: float) -> bool:
@@ -459,11 +633,14 @@ def build_basemap_tier(name: str, raw: dict[str, list]) -> dict:
     tolerance = 0.5 / tier["ppm"] / MILES_PER_DEGREE
     layers = {}
     for layer in tier["layers"]:
-        source = "road_i" if (layer == "road" and name == "coarse") else layer
+        source = {("road", "coarse"): "road_i",
+                  ("lake", "fine"): "lake_fine"}.get((layer, name), layer)
         layers[layer] = _features(raw[source], tolerance, tier["q"],
                                   closed=layer != "road")
     return {"tier": name, "ppm": tier["ppm"], "q": tier["q"],
-            "tolerance_deg": round(tolerance, 7), "layers": layers}
+            "tolerance_deg": round(tolerance, 7), "layers": layers,
+            "cities": [list(c) for c in raw.get("cities", ())
+                       if c[2] >= CITY_MIN_POP[name]]}
 
 
 def write_gz(path: Path, payload: bytes) -> str:

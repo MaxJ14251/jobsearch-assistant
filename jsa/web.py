@@ -115,6 +115,9 @@ BASE = """<!doctype html>
   .town{font-size:10px;fill:var(--ink-2);text-anchor:middle;paint-order:stroke;
     stroke:var(--surface);stroke-width:2.5px}
   .town.left{text-anchor:start}
+  .city{font-size:9.5px;fill:var(--mute);text-anchor:middle;letter-spacing:.06em;
+    text-transform:uppercase;paint-order:stroke;stroke:var(--map-land);stroke-width:3px;
+    pointer-events:none}
   .bar{fill:var(--ink-2)}
   /* n21: the Matches page as map + list + analytics. Without the script it
      is the page above: the server's map, the server's list. */
@@ -644,14 +647,14 @@ MATCHES = """{% extends "base" %}{% block body %}
   function bmBuild(d) {
     var paths = {};
     BM_LAYERS.forEach(function (name) { if (d.layers[name]) { paths[name] = new Path2D(d.layers[name]); } });
-    return {paths: paths, tier: d.tier, reach: d.reach, at: d.at};
+    return {paths: paths, tier: d.tier, reach: d.reach, at: d.at, cities: d.cities || []};
   }
   function bmEnsure(tier) {
     var ch = bm.chunks[tier];
     if ((ch && bmCovers(ch)) || bm.pending[tier]) { return; }
     var at = BM.reach[tier] === null ? [0, 0] : [view.cx, view.cy];
     bm.pending[tier] = true;
-    var q = new URLSearchParams({home: BM.home, x: at[0].toFixed(1), y: at[1].toFixed(1)});
+    var q = new URLSearchParams({home: BM.home, x: at[0].toFixed(1), y: at[1].toFixed(1), v: BM.v});
     fetch('/basemap/' + tier + '?' + q.toString(), {credentials: 'same-origin'})
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) { bm.pending[tier] = false; if (d) { bm.chunks[tier] = bmBuild(d); redraw(); } })
@@ -720,10 +723,9 @@ MATCHES = """{% extends "base" %}{% block body %}
       paint.setLineDash([4 * px, 3 * px]); paint.stroke(p.county); paint.setLineDash([]);
     }
     if (p.land) { paint.strokeStyle = edge; paint.lineWidth = 0.8 * px; paint.stroke(p.land); }
-    if (p.lake) {
-      paint.fillStyle = bmColor('water'); paint.fill(p.lake);
-      paint.strokeStyle = edge; paint.lineWidth = 0.5 * px; paint.stroke(p.lake);
-    }
+    /* Lakes are filled, not outlined: the Census splits a lake at every
+       county line, and an outline would draw each seam across the water. */
+    if (p.lake) { paint.fillStyle = bmColor('water'); paint.fill(p.lake); }
     if (p.road) { paint.strokeStyle = bmColor('road'); paint.lineWidth = 1.1 * px; paint.stroke(p.road); }
   }
   function bmDraw(S) {
@@ -926,6 +928,28 @@ MATCHES = """{% extends "base" %}{% block body %}
       var tl = sv('text', {x: c.x + r + 4, y: c.y + 4, 'class': 'town left'}, labelsG);
       tl.textContent = best;
     });
+
+    /* City names from the ground, after the jobs' own names: a job's label
+       always wins the space, and no name sits on a marker or on home. Each
+       name is on the same Census town point a pin for that town uses.
+       Biggest places first; none once the ground has faded out. */
+    var shownGround = bm.at && bm.at.ch;
+    if (shownGround && S <= 2 * BM.ppm.fine) {
+      var blocked = taken.concat(clusters.map(function (c) {
+        var r = c.m.length > 1 ? 14 : 9;
+        return [c.x - r, c.y - r, c.x + r, c.y + r];
+      }), [[H[0] - 12, H[1] - 12, H[0] + 12, H[1] + 12]]);
+      var named = 0;
+      shownGround.cities.forEach(function (ct) {
+        if (named >= 40) { return; }
+        var q = apply(M, ct[1], ct[2]), half = ct[0].length * 3.4 + 3;
+        if (q[0] < half || q[1] < 10 || q[0] > w - half || q[1] > h - 10) { return; }
+        var bx = [q[0] - half, q[1] - 8, q[0] + half, q[1] + 5];
+        if (blocked.some(function (t) { return bx[0] < t[2] && bx[2] > t[0] && bx[1] < t[3] && bx[3] > t[1]; })) { return; }
+        blocked.push(bx); named++;
+        sv('text', {x: q[0].toFixed(1), y: (q[1] + 3).toFixed(1), 'class': 'city'}, labelsG).textContent = ct[0];
+      });
+    }
 
     /* The card under the pointer, and the chosen one: every copy of it. */
     [[state.sel, 2, null], [state.hov, 1.25, '2 3']].forEach(function (s) {
@@ -2119,7 +2143,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                     # Where the page fetches its ground from, and how far
                     # each tier may be zoomed. None: no data, a flat map.
                     "basemap": ({"home": home, "ppm": basemap.PPM,
-                                 "reach": basemap.REACH}
+                                 "reach": basemap.REACH, "v": basemap.version()}
                                 if basemap.available() else None),
                     "remote": remote_n, "unplaced": unplaced_n,
                     "cards": _card_data(rows)}
@@ -2142,7 +2166,8 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                             "home": home_text}.items() if v}))
 
     @app.get("/basemap/{tier}")
-    def basemap_tier(tier: str, home: str = "", x: float = 0.0, y: float = 0.0):
+    def basemap_tier(tier: str, home: str = "", x: float = 0.0, y: float = 0.0,
+                     v: str = ""):   # v: only makes the URL change with the data
         """The ground under the live map around (x, y) miles from the centre
         (n23). Same origin, same Host check as every other route: the only
         place map data comes from is this machine."""

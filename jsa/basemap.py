@@ -57,6 +57,13 @@ def available() -> bool:
     return all(path(t).exists() for t in TIERS)
 
 
+def version() -> str:
+    """Changes whenever a tier file does, so the page's URL for a chunk
+    does: the browser may keep a chunk for a day, never past a rebuild."""
+    stats = [path(t).stat() for t in TIERS if path(t).exists()]
+    return format(abs(hash(tuple((s.st_size, s.st_mtime_ns) for s in stats))) % 16**8, "08x")
+
+
 @lru_cache(maxsize=len(TIERS))
 def _tier(tier: str) -> dict | None:
     """The tier as shipped, or None when its file is missing."""
@@ -169,4 +176,24 @@ def _layers(origin: places.Place, tier: str, at: tuple[float, float],
         out[name] = _svg_path(features, q, project, DECIMALS[tier],
                               closed=name != "road")
     return {"tier": tier, "ppm": data["ppm"], "reach": reach,
-            "at": list(at), "layers": out}
+            "at": list(at), "layers": out,
+            "cities": _cities(data.get("cities", ()), box, project)}
+
+
+def _cities(cities, box, project) -> list:
+    """[name, x, y, population], biggest first. Each name is put on the
+    Gazetteer point of that town -- the point any pin for it uses -- so a
+    town's name and its pin cannot disagree. A name the Gazetteer does not
+    know is left out rather than placed some other way."""
+    out = []
+    for name, state, people in cities:
+        town = places.resolve(name, state)
+        if town is None:
+            continue
+        if box is not None:
+            west, south, east, north = box
+            if not (west <= town.lon <= east and south <= town.lat <= north):
+                continue
+        x, y = project(town.lat, town.lon)
+        out.append([name, round(x, 3), round(y, 3), people])
+    return out

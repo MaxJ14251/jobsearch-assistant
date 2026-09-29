@@ -28,8 +28,8 @@ breaking the first.
 ### 1. The ground ships with the tool, and all of it is public domain
 
 `tools/build_map_data.py` (the one file allowed to fetch reference data)
-downloads the sources once, simplifies them, and writes three files to
-`data/`. The page never makes a request to any other host.
+downloads the sources once (about 350 MB, cached), simplifies them, and
+writes three files to `data/`. The page never makes a request to any other host.
 
 | Layer | Source | Licence | Raw | Used for |
 |---|---|---|---|---|
@@ -37,7 +37,9 @@ downloads the sources once, simplifies them, and writes three files to
 | County lines | Census cartographic boundaries, counties, 2023, 1:500,000 | public domain | 3,235 shapes, 1,033,837 points | Fine tier only |
 | Built-up areas | Census 2020 Urban Areas (corrected), 1:500,000 | public domain | 2,644 shapes, 855,553 points | |
 | Roads | TIGER/Line 2024 primary roads (S1100: interstates, US and state freeways) | public domain | 17,522 lines, 3,584,607 points | Coarse tier: interstates only |
-| Inland lakes | Natural Earth 10m lakes and North America supplement | public domain (Natural Earth's own dedication) | 1,689 shapes in the US area, 124,286 points | Coarse and medium tiers only (see 3) |
+| Inland lakes | Natural Earth 10m lakes and North America supplement | public domain (Natural Earth's own dedication) | 1,689 shapes in the US area, 124,286 points | Coarse and medium tiers; which lakes exist, at every tier (see 3) |
+| Lake outlines, fine tier | TIGER/Line 2024 area water, only for the 593 counties a Natural Earth lake touches | public domain | 593 files, about 250 MB to download | The same lakes, drawn from the Census's own shoreline (see 3) |
+| City names | Natural Earth 10m populated places | public domain | 420 US places of 50,000 or more | Name, state and population only; the position is the Gazetteer's (see 4c) |
 | Town points | Census 2023 places, 1:500,000 | public domain | | Only to correct six town points (see "What this turned up") |
 
 OpenStreetMap was not used. Its ODbL licence would place attribution and
@@ -89,7 +91,7 @@ left out, since a speck says nothing.
 |---|---|---|---|---|---|---|
 | coarse | 0.8 px/mi | 0.625 mi | 1/500° | land, lakes, built-up, interstates | 114,622 | 338 KB |
 | medium | 4 px/mi | 0.125 mi | 1/2000° | land, lakes, built-up, primary roads | 521,349 | 1,417 KB |
-| fine | 20 px/mi | 0.025 mi | 1/10000° | land, counties, built-up, primary roads | 1,848,641 | 4,913 KB |
+| fine | 20 px/mi | 0.025 mi | 1/10000° | land, counties, built-up, lakes (Census), primary roads | 2,372,205 | 6,065 KB |
 
 The page uses the coarsest tier that is still honest at the current scale.
 While that tier loads it may show a finer one, never a coarser one, whose
@@ -103,11 +105,27 @@ the ground fades out, to nothing by 40 px/mi, and the map says **"Map
 detail ends at this zoom"**. A basemap that is subtly wrong close up would
 look authoritative, which is worse than none.
 
-Lakes are Natural Earth 1:10,000,000, so they are drawn only up to the
-medium tier. Zooming into a metro with a large inland lake loses the lake at
-the fine tier, and that trade was made on purpose. Only lakes inside the
-land are kept: the Great Lakes are already the edge of the land, and two
-shorelines a mile apart would be a lie.
+Natural Earth's lakes are 1:10,000,000, honest only up to the medium tier.
+The first version therefore had no lakes at the fine tier, and a lake
+vanished as you zoomed in. *Fixed the same day:* at the fine tier the SAME
+lakes are drawn from the Census's own water areas. Those come county by
+county, 3,235 files and 1.1 GB for the country, so only the 593 counties a
+Natural Earth lake touches are fetched. A Census piece is kept when:
+
+1. it is a lake or reservoir of at least a quarter of a square mile whose
+   interior lies within half a mile of a Natural Earth lake (Natural
+   Earth's shore is about that far off); or
+2. it has the same name as a kept piece and lies within a mile of it,
+   repeated until nothing more joins. The Census splits the Great Salt
+   Lake into more than 20 pieces. Some lie miles outside Natural Earth's
+   older, high-water outline, and some are filed as stream or canal. On
+   the first pass the lake came back cut off at a county line. A name alone
+   is not enough ("Mud Lk" is a hundred lakes), hence the mile.
+
+Lakes are filled, not outlined, because the Census splits a lake at every
+county line, and an outline would draw each seam across the water. Only
+lakes inside the land are kept at any tier: the Great Lakes are already
+the edge of the land, and two shorelines a mile apart would be a lie.
 
 ### 4. Served in pieces from this machine, painted once per settled view
 
@@ -117,7 +135,9 @@ shorelines a mile apart would be a lie.
   miles, medium to 1,300, and coarse is the whole country. The page's
   radius slider re-fetches the whole page when it settles, so putting the
   ground in the page itself would have re-sent megabytes on every settle.
-  Results are cached per origin, tier and snapped centre. The server loads
+  Results are cached per origin, tier and snapped centre. The browser may
+  keep a chunk for a day, and the URL carries a version of the data files
+  (`v`), so a rebuild is never hidden behind that cache. The server loads
   all three tiers in the background when it starts: about 3 s, then 42 MB
   held, as 4-byte arrays; as Python lists the fine tier alone was 87 MB.
 - **A canvas behind the svg**, not paths inside it. The first version
@@ -159,6 +179,23 @@ off `albers` itself.
   canvas's in-motion transform includes the turn.
 - **A north arrow** appears whenever the map is turned.
 
+### 4c. City names, on the pins' own points
+
+ADR 0015 refused labelling the largest towns because the Gazetteer has no
+population. Natural Earth's populated places do, and are public domain.
+Only the name, state and metro population ship: 93 places at the coarse
+tier (500,000 or more), 213 at medium (150,000 or more), and 420 at fine
+(50,000 or more). The server puts each name on the Gazetteer point of the
+same town, the point any pin for that town uses, so a city's name and its
+pins cannot disagree.
+
+Three Natural Earth names do not match the Gazetteer and are left off
+rather than guessed: "Barlett, TN" (Bartlett), "Wilkes Barre, PA" (the
+hyphen is missing) and "St. Charles, MD". The page draws names after the
+jobs' own labels, so a job's label always wins the space. No name sits on
+a marker or on home, bigger places come first, at most 40 names are drawn
+at once, and none are drawn once the ground has faded out.
+
 ### 5. Missing data is a flat map, not an error
 
 Without the files, the route answers 404 and the page draws exactly what it
@@ -196,9 +233,12 @@ are identical with it and without it.
 
 ## Measured
 
-- **Build:** about 35 s from a download cache. A second build is
-  byte-identical (the SHA-256 of all four files matched).
-- **Size of `data/`:** 699 KB before, 7.5 MB after (all compressed).
+- **Build:** about 35 s from a download cache, 3 min with the county water
+  files. A second build is byte-identical (the SHA-256 of all four files
+  matched).
+- **Size of `data/`:** 699 KB before, 7.5 MB after (all compressed), and
+  8.3 MB with the fine-tier lakes and city names. That is just past the
+  8 MB the goal set for asking the owner first; it was reported to them.
 - **One chunk, for three centres** (none of them the operator's):
 
 | Centre | coarse | medium | fine | cold build (medium / fine) |
@@ -248,7 +288,7 @@ are identical with it and without it.
 
 ## Consequences
 
-- `data/` grows from 699 KB to 7.5 MB, all of it public domain and
+- `data/` grows from 699 KB to 8.3 MB, all of it public domain and
   reproducible with one command.
 - The server holds about 42 MB more while it runs.
 - Six town points moved. Anyone who has already run `jsa discover` should

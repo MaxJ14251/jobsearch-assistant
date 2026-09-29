@@ -270,7 +270,8 @@ class TestThePage(unittest.TestCase):
     def test_the_page_says_where_its_ground_comes_from(self):
         data = self.live.data(self.live.page())
         if basemap.available():
-            self.assertEqual(set(data["basemap"]), {"home", "ppm", "reach"})
+            self.assertEqual(set(data["basemap"]), {"home", "ppm", "reach", "v"})
+            self.assertEqual(data["basemap"]["v"], basemap.version())
             self.assertEqual(data["basemap"]["ppm"], basemap.PPM)
         else:
             self.assertIsNone(data["basemap"])
@@ -280,7 +281,7 @@ class TestThePage(unittest.TestCase):
         r = self.client.get("/basemap/fine?x=0&y=0")
         self.assertEqual(r.status_code, 200)
         body = r.json()
-        self.assertEqual(set(body), {"tier", "ppm", "reach", "at", "layers"})
+        self.assertEqual(set(body), {"tier", "ppm", "reach", "at", "layers", "cities"})
         self.assertLessEqual(set(body["layers"]), set(basemap.LAYERS))
         self.assertNotIn("Near", r.text)            # no posting titles
 
@@ -297,6 +298,17 @@ class TestThePage(unittest.TestCase):
         text = self.live.page()
         self.assertIn("node('canvas', {'class': 'bm-canvas', 'aria-hidden': 'true'}, null)", text)
         self.assertIn("pointer-events:none", text)
+
+
+class TestTheChunkURLChangesWithTheData(FixtureData):
+    """The browser may keep a chunk for a day; a rebuild must not be hidden
+    behind that."""
+
+    def test_rewriting_a_tier_changes_the_version(self):
+        self.write({"road": []})
+        before = basemap.version()
+        self.write({"road": [], "land": []})
+        self.assertNotEqual(basemap.version(), before)
 
 
 class TestMissingData(FixtureData):
@@ -356,6 +368,80 @@ class TestTheBasemapDecidesNothing(unittest.TestCase):
         self.assertEqual(before, after)
 
 
+class TestCityNames(FixtureData):
+    """Names come from Natural Earth (it has population); positions come
+    from the Gazetteer point a pin for that town uses."""
+
+    def write_cities(self, cities):
+        for tier in basemap.TIERS:
+            payload = {"tier": tier, "ppm": basemap.PPM[tier], "q": self.Q,
+                       "tolerance_deg": 0.0, "layers": {}, "cities": cities}
+            with gzip.open(basemap.path(tier), "wt", encoding="utf-8") as fh:
+                json.dump(payload, fh)
+
+    def test_a_name_sits_on_its_towns_pin(self):
+        self.write_cities([["Nampa", "ID", 200000], ["Salt Lake City", "UT", 1000000]])
+        got = {c[0]: c for c in basemap.layers(home(), "coarse")["cities"]}
+        pins = {p["place"]: p for p in mapview.points(
+            [{"job_id": 1, "location": "Nampa, ID", "remote": "onsite"},
+             {"job_id": 2, "location": "Salt Lake City, UT", "remote": "onsite"}], home())[0]}
+        for name in ("Nampa", "Salt Lake City"):
+            with self.subTest(name=name):
+                self.assertAlmostEqual(got[name][1], pins[name]["x"], delta=0.001)
+                self.assertAlmostEqual(got[name][2], pins[name]["y"], delta=0.001)
+
+    def test_a_name_the_gazetteer_does_not_know_is_left_out(self):
+        """Natural Earth spells Bartlett, TN "Barlett". Left out, not guessed."""
+        self.write_cities([["Barlett", "TN", 60000], ["Nampa", "ID", 200000]])
+        self.assertEqual([c[0] for c in basemap.layers(home(), "coarse")["cities"]], ["Nampa"])
+
+    def test_names_outside_the_chunk_are_not_sent(self):
+        self.write_cities([["Miami", "FL", 5000000], ["Nampa", "ID", 200000]])
+        self.assertEqual([c[0] for c in basemap.layers(home(), "fine")["cities"]], ["Nampa"])
+
+    def test_each_tier_keeps_bigger_places_than_the_next(self):
+        tool = build_tool()
+        raw = {k: [] for k in ("land", "county", "urban", "lake", "lake_fine", "road", "road_i")}
+        raw["cities"] = [("Big", "CA", 2_000_000), ("Mid", "CA", 200_000), ("Small", "CA", 60_000)]
+        names = {t: [c[0] for c in tool.build_basemap_tier(t, raw)["cities"]]
+                 for t in tool.TIERS}
+        self.assertEqual(names, {"coarse": ["Big"], "medium": ["Big", "Mid"],
+                                 "fine": ["Big", "Mid", "Small"]})
+
+    @unittest.skipUnless(basemap.available(), "no shipped basemap")
+    def test_almost_every_shipped_name_resolves(self):
+        with gzip.open(ROOT / "data" / "us_basemap_fine.json.gz", "rt", encoding="utf-8") as fh:
+            cities = json.load(fh)["cities"]
+        missing = [c for c in cities if places.resolve(c[0], c[1]) is None]
+        self.assertLessEqual(len(missing), 5, missing)
+
+
+class TestFineLakes(unittest.TestCase):
+    """Up close, the same lakes from the Census's own outlines."""
+
+    def test_the_fine_tier_draws_lakes_from_their_own_source(self):
+        tool = build_tool()
+        ring = [(-116.2, 43.6), (-116.1, 43.6), (-116.1, 43.7), (-116.2, 43.6)]
+        raw = {k: [] for k in ("land", "county", "urban", "road", "road_i")}
+        raw["lake"], raw["lake_fine"], raw["cities"] = [], [ring], []
+        self.assertEqual(len(tool.build_basemap_tier("fine", raw)["layers"]["lake"]), 1)
+        self.assertEqual(tool.build_basemap_tier("medium", raw)["layers"]["lake"], [])
+
+    def test_touching_is_shared_ground(self):
+        tool = build_tool()
+        square = [[(0, 0), (2, 0), (2, 2), (0, 2), (0, 0)]]
+        inside = [[(0.5, 0.5), (1, 0.5), (1, 1), (0.5, 0.5)]]
+        apart = [[(5, 5), (6, 5), (6, 6), (5, 5)]]
+        self.assertTrue(tool._touches(square, inside))
+        self.assertFalse(tool._touches(square, apart))
+
+    def test_a_lake_is_filled_not_outlined(self):
+        """The Census splits a lake at county lines; an outline would draw
+        each seam across the water."""
+        src = (ROOT / "jsa" / "web.py").read_text("utf-8")
+        self.assertNotIn("paint.stroke(p.lake)", src)
+
+
 class TestTheTurn(unittest.TestCase):
     """Zoomed out, the live map turns to the usual map of the US. North-up
     at home tipped the country over by as much as its meridians converge."""
@@ -397,7 +483,8 @@ class TestReproducible(unittest.TestCase):
         tool = build_tool()
         ring = [(-116.2, 43.6), (-116.1, 43.6), (-116.1, 43.7), (-116.2, 43.6)]
         raw = {"land": [ring], "county": [ring], "urban": [ring], "lake": [ring],
-               "road": [ring[:2]], "road_i": [ring[:2]]}
+               "lake_fine": [ring], "road": [ring[:2]], "road_i": [ring[:2]],
+               "cities": [("Boise City", "ID", 700000)]}
         out = []
         for _ in range(2):
             path = Path(tempfile.mkdtemp())
