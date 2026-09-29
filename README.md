@@ -472,7 +472,9 @@ match to a resume you can upload yourself:
   from the server when you let go. Markers cluster when they overlap and are
   coloured by status: your saved, applied and interviewing jobs appear
   alongside new matches, with chips to show or hide each. Hovering a card
-  rings its markers; clicking one moves the map to it. Shaded bands show
+  rings its markers; clicking one moves the map to it. Clicking a numbered
+  bubble lists exactly the postings in it, even ones the radius or the
+  per-company cap had left out, until you go back to the whole list. Shaded bands show
   **estimated** commute times by car, transit, bike or on foot, and every card
   gets one too. They are straight-line distance times a typical detour at an
   average speed, not a route, and the page says so. Below the map and list,

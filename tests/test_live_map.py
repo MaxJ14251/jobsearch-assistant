@@ -178,6 +178,33 @@ class TestThePage(unittest.TestCase):
         self.assertNotIn('id="map-data"', text)
         self.assertIn('class="land"', text)
 
+    def listed(self, text):
+        return set(re.findall(r'<div class="card" data-key="([^"]+)"', text))
+
+    def test_an_opened_bubble_lists_exactly_its_cards(self):
+        """Clicking a bubble of several postings lists them: exactly those
+        cards, even one the radius would hide (Salt Lake City is far outside
+        25 miles of Boise) -- asked for by name, like "Show them anyway"."""
+        text = self.page("?radius=25&only=job:1,job:4")
+        self.assertEqual(self.listed(text), {"job:1", "job:4"})
+
+    def test_a_bubble_can_hold_your_own_applications(self):
+        self.assertEqual(self.listed(self.page("?radius=25&only=app:50,job:2")),
+                         {"app:50", "job:2"})
+
+    def test_an_unknown_key_lists_nothing_and_breaks_nothing(self):
+        self.assertEqual(self.listed(self.page("?radius=25&only=job:999")), set())
+
+    def test_without_only_the_list_is_the_radius_list(self):
+        whole = self.listed(self.page("?radius=25"))
+        self.assertNotIn("job:4", whole)
+        self.assertEqual(self.listed(self.page("?radius=25&only=")), whole)
+
+    def test_the_page_script_lists_a_bubble_rather_than_zooming(self):
+        text = self.page()
+        self.assertIn("if (n > 1) { listCluster(c); return; }", text)
+        self.assertIn("Show the whole list", text)
+
     def test_pay_reaches_the_analytics(self):
         live = self.data(self.page())
         new = [c for c in live["cards"].values() if c["status"] == "new"]

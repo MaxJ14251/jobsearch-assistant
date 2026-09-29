@@ -36,6 +36,7 @@ from jinja2 import DictLoader, Environment
 from . import approvals, db, review
 
 HOST = "127.0.0.1"          # never 0.0.0.0
+MAX_PICKED = 500            # cards one opened map bubble may ask for
 PORT = 8765
 
 DOCX_TYPE = ("application/vnd.openxmlformats-officedocument."
@@ -171,6 +172,12 @@ BASE = """<!doctype html>
   .livemap .bm-note{position:absolute;left:10px;bottom:34px;font-size:11.5px;
     color:var(--mute);background:var(--surface);padding:2px 6px;border-radius:3px}
   .livemap .mk{cursor:pointer}
+  .picked{scroll-margin-top:64px;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline;margin:0 0 10px;
+    padding:8px 12px;border:1px solid var(--rule);border-radius:4px;background:var(--surface-2);
+    font-size:13px;color:var(--ink-2)}
+  .picked b{color:var(--ink)}
+  .picked button{margin-left:auto;font:inherit;font-size:12.5px;padding:3px 10px;
+    border:1px solid var(--rule);border-radius:3px;background:var(--surface);color:var(--ink);cursor:pointer}
   .livemap .mk:focus-visible circle{stroke:var(--copper);stroke-width:3}
   .rp{position:absolute;left:10px;top:10px;width:250px;z-index:3;display:grid;gap:10px;
     background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:12px;
@@ -1016,7 +1023,7 @@ MATCHES = """{% extends "base" %}{% block body %}
       var dot = sv('circle', {r: big ? 7.5 : 5.5}, g);
       dot.style.fill = ST_COLOR[p.status]; dot.style.stroke = 'var(--surface)'; dot.style.strokeWidth = '2px';
     } else {
-      g.setAttribute('aria-label', n + ' postings here. Zoom in.');
+      g.setAttribute('aria-label', n + ' postings here. List them.');
       var r = 11 + Math.min(9, Math.log2(n) * 2.4), C = 2 * Math.PI * (r - 2), acc = 0;
       var back = sv('circle', {r: r + 1.5}, g); back.style.fill = 'var(--surface)';
       STATUSES.forEach(function (s) {
@@ -1033,11 +1040,7 @@ MATCHES = """{% extends "base" %}{% block body %}
     }
     g.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
     var open = function () {
-      if (n > 1) {
-        var at = toWorld(c.x, c.y);
-        fly({cx: at[0], cy: at[1], s: view.s * 2.4});
-        return;
-      }
+      if (n > 1) { listCluster(c); return; }
       var p = c.m[0].p, card = feedKeys()[p.key];
       if (card) { select(p.key, false); card.scrollIntoView({block: 'nearest', behavior: reduced ? 'auto' : 'smooth'}); }
       else { window.location.assign('/job/' + p.job); }
@@ -1071,7 +1074,7 @@ MATCHES = """{% extends "base" %}{% block body %}
         var k = c.m.filter(function (q) { return q.p.status === s[0]; }).length;
         return k ? k + ' ' + s[1].toLowerCase() : '';
       }).filter(Boolean).join(' · '));
-      text(tip, 'span', 'Click to zoom in.');
+      text(tip, 'span', 'Click to list them. Scroll to zoom in.');
     }
     var z = size();
     tip.style.left = Math.min(c.x + 16, z.w - 270) + 'px';
@@ -1319,29 +1322,37 @@ MATCHES = """{% extends "base" %}{% block body %}
 
   /* ---- the radius: live circle, then the server's list -------------------- */
   var timer = 0, inflight = null;
-  function requery(ms) { clearTimeout(timer); timer = setTimeout(fetchList, ms); }
-  function fetchList() {
+  function requery(ms) { clearTimeout(timer); timer = setTimeout(function () { fetchList(); }, ms); }
+  /* The list, from the server. With `pick` it is exactly the cards of one
+     opened bubble: the same page asked for by card key, so every card and
+     every rule on it is the server's, as for the radius. A picked list is a
+     moment, not a place: it is not written into the address bar, and the
+     next radius change brings the whole list back. */
+  function fetchList(pick) {
     var params = new URLSearchParams(new FormData(form));
     params.set('radius', String(R));
     params.delete('anywhere');
+    params.delete('only');
     var url = '?' + params.toString();
+    if (pick) { params.set('only', pick.keys.join(',')); }
+    var ask = '?' + params.toString();
     if (inflight) { inflight.abort(); }
     var mine = inflight = new AbortController();
     var list = document.getElementById('feed-list');
     list.setAttribute('aria-busy', 'true'); list.style.opacity = 0.55;
-    fetch(url, {signal: mine.signal, credentials: 'same-origin'})
+    fetch(ask, {signal: mine.signal, credentials: 'same-origin'})
       .then(function (r) { if (!r.ok) { throw new Error(String(r.status)); } return r.text(); })
       .then(function (html) {
         if (mine !== inflight) { return; }
         inflight = null;
         var doc = new DOMParser().parseFromString(html, 'text/html');
-        ['summary', 'feed-list'].forEach(function (id) {
+        (pick ? ['feed-list'] : ['summary', 'feed-list']).forEach(function (id) {
           var a = document.getElementById(id), b = doc.getElementById(id);
           if (a && b) { a.replaceWith(document.importNode(b, true)); }
         });
         var d = doc.getElementById('map-data');
         if (d) { live.cards = JSON.parse(d.textContent).cards; }
-        history.replaceState(null, '', url);
+        if (pick) { pickedBanner(pick); } else { history.replaceState(null, '', url); }
         bindFeed(); applyFeed(); redraw();
       })
       .catch(function (e) {
@@ -1353,6 +1364,32 @@ MATCHES = """{% extends "base" %}{% block body %}
           p.id = 'feed-stale'; l.insertBefore(p, l.firstChild);
         }
       });
+  }
+  /* A bubble with several postings, opened: list them all. */
+  function listCluster(c) {
+    var keys = [], seen = {}, where = {};
+    c.m.forEach(function (q) {
+      if (!seen[q.p.key]) { seen[q.p.key] = true; keys.push(q.p.key); }
+      where[q.p.place] = (where[q.p.place] || 0) + 1;
+    });
+    var places = Object.keys(where).sort(function (a, b) { return where[b] - where[a]; });
+    var label = places.length === 1 ? places[0]
+      : places.slice(0, 3).map(function (n) { return n + ' (' + where[n] + ')'; }).join(', ') +
+        (places.length > 3 ? ' and ' + (places.length - 3) + ' more' : '');
+    fetchList({keys: keys, postings: c.m.length, label: label});
+  }
+  function pickedBanner(pick) {
+    var list = document.getElementById('feed-list');
+    var cards = list.querySelectorAll('[data-key]').length;
+    var bar = node('div', {'class': 'picked', role: 'status'}, null);
+    text(bar, 'b', pick.postings + (pick.postings === 1 ? ' posting' : ' postings'));
+    bar.appendChild(document.createTextNode(' in ' + pick.label +
+      (cards !== pick.postings ? ', on ' + cards + (cards === 1 ? ' card' : ' cards') : '')));
+    var back = node('button', {type: 'button'}, bar);
+    back.textContent = 'Show the whole list';
+    back.addEventListener('click', function () { fetchList(); });
+    list.insertBefore(bar, list.firstChild);
+    bar.scrollIntoView({block: 'start', behavior: reduced ? 'auto' : 'smooth'});
   }
   slider.addEventListener('input', function () {
     R = +slider.value;
@@ -2052,7 +2089,8 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
     @app.get("/", response_class=HTMLResponse)
     def matches(request: Request, near: str = "", track: str = "",
                 degree: str = "", remote: str = "", limit: int = 60,
-                home: str = "", radius: str = "", anywhere: str = ""):
+                home: str = "", radius: str = "", anywhere: str = "",
+                only: str = ""):
         from . import mapview
         from .cli import load_regions, region_clause
         where, params = ["1=1"], {}
@@ -2117,9 +2155,19 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             con.close()
 
         view = mapview.build(drawn, origin, wanted)
-        rows, hidden, unplaced = _by_distance(rows, origin, wanted, copies)
-        rows = _per_company(rows, PER_COMPANY)[:limit]
-        mine, _, _ = _by_distance(mine, origin, wanted)
+        picked = {key for key in only.split(",") if key.strip()}
+        if picked and len(picked) <= MAX_PICKED:
+            # A bubble on the map, opened: exactly the cards in it, whatever
+            # the radius, the three-per-company cap or the card limit would
+            # have listed. Asked for by name, like "Show them anyway".
+            rows, hidden, unplaced = _by_distance(
+                [r for r in rows if r["key"] in picked], origin, None, copies)
+            mine, _, _ = _by_distance(
+                [r for r in mine if r.get("key") in picked], origin, None)
+        else:
+            rows, hidden, unplaced = _by_distance(rows, origin, wanted, copies)
+            rows = _per_company(rows, PER_COMPANY)[:limit]
+            mine, _, _ = _by_distance(mine, origin, wanted)
         rows = sorted(mine + rows, key=lambda r: -(r.get("match_score") or 0))
         # Remote postings pass any radius, so without this the page can say
         # "within 25 miles" over a list that is mostly remote work.
