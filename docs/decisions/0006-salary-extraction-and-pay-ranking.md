@@ -348,9 +348,14 @@ identical or within 5% in 200. The 27 that differ:
   text reads "Total Compensation (base and equity) $X–$Y … Base Salary
   $A–$B", and the parser combined both ranges, stretching the maximum to
   include equity. This is a text-parser gap against decision 1's equity
-  veto. It is masked now that these postings read the field, and it is
-  harmless to the floor, which only errs toward keeping a job. It is recorded
-  here rather than fixed.
+  veto. The field masks it for these postings, and it is harmless to the
+  floor, which only errs toward keeping a job.
+  **Fixed 2026-09-28.** A range is now refused when the label directly
+  before it says total compensation, or base and equity, stock or bonus
+  (`_TOTAL_LABEL`). "Equity" alone does not count, so "eligible for
+  equity. The base salary is …" still reads the base, and OTE is still
+  stored as stated. Re-run over every posting in the tracker, this changed
+  25 postings, all Rocket Lab, each to its base range. None lost pay.
 - **3 OpenAI: the company's field and prose disagree.** The field is the
   figure OpenAI's own page shows at the top (checked in a browser); the prose
   further down gives another range. The field wins, per decision 2.

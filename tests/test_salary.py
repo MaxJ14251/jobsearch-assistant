@@ -164,6 +164,36 @@ def pay(low, high=None, period="year"):
     return salary.Salary(low, high if high is not None else low, period, "Pay Range")
 
 
+class TestARangeLabelledAsMoreThanBase(unittest.TestCase):
+    """Rocket Lab states total pay and base pay as two ranges; both were
+    combined, so the maximum carried the equity (n22 finding, 23 postings)."""
+
+    ROCKET = ("Pay commensurate with skills and experience. Total Compensation "
+              "(base and equity) $93,275–$132,025 USD Base Salary "
+              "$83,200–$114,400 USD")
+
+    def test_the_total_range_is_not_base_pay(self):
+        pay = extract(self.ROCKET)
+        self.assertEqual((pay.minimum, pay.maximum), (83200, 114400))
+
+    def test_other_ways_of_saying_it(self):
+        for label in ("Total target compensation:", "Total comp", "Base + equity:",
+                      "Salary plus bonus range:", "Package including equity:"):
+            with self.subTest(label=label):
+                pay = extract(f"{label} $150,000 - $210,000. Base salary $120,000 - $160,000.")
+                self.assertEqual((pay.minimum, pay.maximum), (120000, 160000))
+
+    def test_equity_mentioned_before_a_base_range_does_not_veto_it(self):
+        pay = extract("You will be eligible for equity. The base salary range for "
+                      "this role is $130,000 - $170,000.")
+        self.assertEqual((pay.minimum, pay.maximum), (130000, 170000))
+
+    def test_ote_is_still_stored_as_stated(self):
+        """ADR 0006 decision 3: OTE is kept, and says so in salary_text."""
+        pay = extract("OTE: $180,000 - $220,000 per year.")
+        self.assertEqual((pay.minimum, pay.maximum), (180000, 220000))
+
+
 class TestPayRanking(unittest.TestCase):
     def test_e_unknown_pay_scores_exactly_the_midpoint(self):
         """Scenario e. ADR 0001 decision 4's trap, tested directly."""

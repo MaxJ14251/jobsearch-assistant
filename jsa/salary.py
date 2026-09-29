@@ -61,6 +61,21 @@ _VETO = re.compile(
 )
 VETO_WINDOW = 45
 
+# A range LABELLED as more than base pay. Rocket Lab states two ranges:
+# "Total Compensation (base and equity) $93,275–$132,025 USD Base Salary
+# $83,200–$114,400 USD", and both were combined, stretching the maximum by the
+# equity (found in n22: 23 postings). Only the label directly before the range
+# counts, and only these words: "equity" alone is not enough, because "...is
+# eligible for equity. The base salary range is $X - $Y" is common and that
+# base figure must survive. OTE is still stored as stated (decision 3).
+_TOTAL_LABEL = re.compile(
+    r"\b(total\s+(?:target\s+)?(?:compensation|comp|cash|rewards?)|"
+    r"(?:base|salary)\s*(?:and|\+|&|plus)\s*(?:equity|stock|bonus)|"
+    r"including\s+(?:equity|stock|bonus))\b[^.$]{0,25}$",
+    re.I,
+)
+LABEL_WINDOW = 70
+
 HOURLY_WINDOW = 90
 _HOURLY = re.compile(r"(per\s+hour|/\s?h(?:ou)?r\b|an\s+hour|hourly)", re.I)
 
@@ -116,6 +131,8 @@ def _candidates(text: str):
         if not (continued or _CUE.search(before) or _CUE.search(after)):
             continue
         if _VETO.search(near):
+            continue
+        if _TOTAL_LABEL.search(text[max(0, m.start() - LABEL_WINDOW):m.start()]):
             continue
         if high < low:
             continue
