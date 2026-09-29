@@ -78,6 +78,61 @@ class TestSecretScanner(unittest.TestCase):
         import tools.scan_secrets as scanner
         self.assertGreaterEqual(scanner.NAME_PART_MIN, 4)
 
+    def life_scan(self, profile: str, example: str = ""):
+        """personal_values() against a profile written to a temporary root."""
+        import tempfile
+        from unittest import mock
+
+        import tools.scan_secrets as scanner
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, root, True)
+        (root / "profile").mkdir()
+        (root / "profile" / "master_profile.yaml").write_text(profile, encoding="utf-8")
+        (root / "profile" / "master_profile.example.yaml").write_text(
+            example or "experience: []\n", encoding="utf-8")
+        self.addCleanup(lambda: (scanner.LIFE.clear(), scanner.LIFE_SHORT.clear()))
+        with mock.patch.object(scanner, "ROOT", root):
+            return scanner, scanner.personal_values()
+
+    LIFE = ("experience:\n  - company: Harrowgate Instruments\n  - company: QRZ\n"
+            "education:\n  - institution: Pellworth College\n")
+
+    def test_employers_and_schools_are_personal_details(self):
+        """Missed until 2026-09-28: a test named the operator's university in
+        a list of false claims, and every scan said clean -- the list only
+        held contact details."""
+        scanner, (never, _) = self.life_scan(self.LIFE)
+        self.assertIn("Harrowgate Instruments", never)
+        self.assertIn("Pellworth College", never)
+        found = scanner.scan_text("test_prep.py", "tests/test_prep.py",
+                                  "I graduated from Pellworth College.", never, [])
+        self.assertEqual(len(found), 1, found)
+
+    def test_a_three_letter_employer_is_a_whole_word_in_any_case(self):
+        """It reached an ADR inside a bullet id, lower-cased: b_<name>_sell."""
+        scanner, (never, _) = self.life_scan(self.LIFE)
+        hit = scanner.scan_text("0005.md", "docs/0005.md", "`b_qrz_sell` scored 1.69", never, [])
+        miss = scanner.scan_text("x.py", "x.py", "the qrzx and aqrz tokens", never, [])
+        self.assertEqual((len(hit), miss), (1, []))
+
+    def test_what_the_example_ships_is_a_stand_in(self):
+        """On a fresh clone and in CI the example IS the profile; its own
+        invented school must not fail every test file that uses it."""
+        example = "education:\n  - institution: Pellworth College\n"
+        _, (never, _) = self.life_scan(self.LIFE, example)
+        self.assertNotIn("Pellworth College", never)
+        self.assertIn("Harrowgate Instruments", never)
+
+    def test_the_example_profile_is_checked_for_a_real_employer(self):
+        """Exempt from the contact-detail scan (its placeholders match
+        themselves), but not from this: it carried the operator's employer
+        for twelve days (n15)."""
+        scanner, (never, auth) = self.life_scan(self.LIFE)
+        found = scanner.scan_text(
+            "master_profile.example.yaml", "profile/master_profile.example.yaml",
+            "company: Harrowgate Instruments\nid: b_qrz_1\n", never, auth)
+        self.assertEqual(len(found), 2, found)
+
     def test_working_tree_is_clean(self):
         """The real check, run as CI runs it."""
         result = subprocess.run(

@@ -309,7 +309,60 @@ def personal_values() -> tuple[list[str], list[str]]:
         for part in re.split(r"[^A-Za-z]+", full_name):
             if len(part) >= NAME_PART_MIN and not looks_like_a_placeholder(part):
                 authorship.append(part)
+
+    # Where the operator has worked and studied. Missed until 2026-09-28:
+    # two tests quoted the operator's university in a list of false claims,
+    # and a former employer sat in five old commits, while every scan said
+    # clean -- this list only ever held contact details. A value the example
+    # profile itself ships ("State University") is a stand-in, not a secret:
+    # on a fresh clone and in CI the example IS the profile.
+    shipped = _example_values()
+    places_of = [(entry or {}).get("company") for entry in data.get("experience") or []]
+    places_of += [(entry or {}).get("institution") for entry in data.get("education") or []]
+    LIFE.clear()
+    LIFE_SHORT.clear()
+    for value in places_of:
+        if (not isinstance(value, str) or looks_like_a_placeholder(value)
+                or value.strip().lower() in shipped):
+            continue
+        value = value.strip()
+        if len(value) >= 5:
+            never.append(value)
+            LIFE.append(value)
+        elif len(value) >= 3:
+            # A three-letter employer, as a substring, is in half the words
+            # of English. As a whole word, any case, it is the employer: it
+            # reached ADR 0005 inside a bullet id ("b_<name>_sell").
+            LIFE_SHORT.append(value)
     return never, authorship
+
+
+# The employers and school personal_values() found, kept apart because the
+# example profile is checked for these even though it is exempt from the
+# rest: its placeholders would match themselves, but the operator's own
+# employer is exactly what it carried for twelve days (n15).
+LIFE: list[str] = []
+LIFE_SHORT: list[str] = []
+
+
+def _short_hits(rel: str, text: str) -> list[str]:
+    return [f"{rel}: personal detail {value!r}" for value in LIFE_SHORT
+            if re.search(r"(?<![A-Za-z0-9])" + re.escape(value) + r"(?![A-Za-z0-9])",
+                         text, re.I)]
+
+
+def _example_values() -> set[str]:
+    """Employers and schools the example profile ships, lowercased."""
+    import yaml
+
+    path = ROOT / "profile" / "master_profile.example.yaml"
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return set()
+    values = [(e or {}).get("company") for e in data.get("experience") or []]
+    values += [(e or {}).get("institution") for e in data.get("education") or []]
+    return {v.strip().lower() for v in values if isinstance(v, str)}
 
 
 def is_project_url(text: str, index: int, value: str) -> bool:
@@ -409,12 +462,18 @@ def scan_text(name: str, rel: str, text: str,
         )
 
     if name in SKIP_PERSONAL_FILES:
-        return found        # its "personal" values are placeholders by design
+        if name == "master_profile.example.yaml":
+            lowered = text.lower()
+            found += [f"{rel}: personal detail {value[:16]!r}"
+                      for value in LIFE if value.lower() in lowered]
+            found += _short_hits(rel, text)
+        return found        # its other "personal" values are placeholders by design
 
     lowered = text.lower()
     for value in never:
         if value.lower() in lowered:
             found.append(f"{rel}: personal detail {value[:16]!r}")
+    found += _short_hits(rel, text)
     if name not in AUTHORSHIP_FILES:
         for value in authorship:
             index = lowered.find(value.lower())

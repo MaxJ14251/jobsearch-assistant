@@ -22,7 +22,7 @@ the smaller half.
   the tracker: `b2c`, `captions`, `cloud-native`, `customer-facing`,
   `ffmpeg-adjacent`, `gemini`, `media-processing`, `solution-selling`.
 - On job 421, `b_vid_goal` (ai_engineering) scored 4.85 from tags **plus 3.0
-  from the family bonus** = 7.85. `b_riv_sell` (sales) scored 1.69 with no
+  from the family bonus** = 7.85. `b_job_sell` (sales) scored 1.69 with no
   bonus. Even had `customer-facing` matched perfectly, it would reach roughly
   3.7 and still lose.
 - The family bonus came from `track`, which is binary. A Premium Support

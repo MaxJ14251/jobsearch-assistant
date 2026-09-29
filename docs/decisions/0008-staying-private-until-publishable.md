@@ -1,7 +1,9 @@
 # ADR 0008 — Staying private until anyone can use it
 
 Status: accepted. The history rewrite it deferred was performed on
-2026-09-28; see "The rewrite, performed" below. Still private.
+2026-09-28; see "The rewrite, performed" below. Still private, and not yet
+publishable: the same day's readiness check found more in the history (see
+"Not done").
 Date: 2026-09-19
 Decided by: the repository owner, after the n8 pre-publishing history audit.
 
@@ -88,32 +90,52 @@ what a newcomer has not filled in yet. Location scoring works for all fifty
 states, not just the author's. The README's first hour was walked by a
 simulated newcomer in Columbus, Ohio, which found two real bugs.
 
-**Not done, and known.**
+**Where the old "not done" list stands (readiness check, 2026-09-28).**
+Several items on the list this section used to carry had been settled
+elsewhere, and one was wrong the day it was written:
 
-- `config/companies.yaml` is the author's three markets — LA, San Diego, and
-  south-central PA / north Maryland. A stranger elsewhere gets the remote
-  roles and the AI-lab feeds, which is genuinely useful (the Ohio sandbox
-  stored 654 postings and its top 20 were all remote), but no local coverage.
-  A published tool should either ship a broader feed list or say plainly in
-  the first paragraph that local coverage means adding your own employers.
-- Rejection feedback is stored and never read back, so the tool does not
-  learn from what the operator turns down.
-- Postings are truncated before the model reads them. Corrected 2026-09-20,
-  because this line was wrong: `enrich.py`, the pass that extracts the
-  disqualifying facts, caps at 6,000 characters, not 4,000 — 39% of postings
-  are truncated there and only 2 to 5 lose a fact entirely. The 4,000 cap is
-  in `tailor.py` and `prep.py`: 90% truncated, and of those, 14 lose the
-  degree requirement, 9 a clearance, 10 the years, 18 the sponsorship line.
-  Smaller than stated here, and in a different place.
-- The outreach path has never been used against a real contact. Done
-  2026-09-20 and it went badly: see ADR 0010. Outreach now refuses about
-  eight times in nine, deliberately, and the README says so.
-- The LICENSE carries the author's name, which is intended, and which makes
-  the two history findings above identifying rather than anonymous.
-- The example profile still contains the author's real employment history
-  (two roles at one employer, ten bullets). A stranger copying it inherits
-  somebody else's life, which is the opposite of what the example is for.
-  This one is fixable in HEAD and should be, before publishing.
+- *Local coverage for a stranger:* the shipped feeds were the author's
+  markets. The nationwide source (ADR 0013) now asks about the reader's own
+  cities, and the README's opening says what it finds, with numbers for
+  four cities.
+- *Rejection feedback is never read back:* decided, not missing. It is a
+  record for a person and a trigger for nothing (ADR 0011).
+- *Postings truncated before the model reads them:* replaced by one budget
+  of 12,000 characters in one function (ADR 0016).
+- *Outreach never used against a real contact:* done, and it refuses about
+  eight times in nine, deliberately (ADR 0010).
+- *The example profile holds the author's employment history:* fixed in n15
+  (see "Done" above). This bullet had outlived its fix.
+- *The LICENSE carries the author's name:* intended, and decided again in
+  the rewrite (decision b below).
+
+**Not done: found by the readiness check, 2026-09-28.**
+
+- **The history carries the author's employers and school.** The scanner
+  only ever looked for contact details (name, phone, address, email), so it
+  passed:
+  - two tests naming the author's university in a list of false claims about
+    the degree (in the files since the initial release);
+  - a short employer name inside bullet ids and code comments, in old
+    versions of six files and three commit messages;
+  - the old example profile, which held the employer until n15.
+
+  The scanner now checks employers and schools from the live profile.
+  Three-letter names are matched as whole words, in any case. Values the
+  example profile itself ships are exempt, and the example profile is
+  checked for these even though it is exempt from the contact-detail scan.
+  HEAD is clean. The history scan reports 27 findings, and
+  `tests/test_history_scan.py` fails on the owner's machine (CI has no
+  real profile, so it passes there) until either the history is rewritten
+  again or the owner records the findings in `tools/history_allowlist.txt`.
+  Either is the owner's decision. Publishing before it would publish the
+  findings.
+- **The repository says where the author looks for work.** The shipped feed
+  list is built around the author's markets, the README quotes a result
+  "measured on this tracker" for a town near the author, and this ADR named
+  the author's regions outright until this edit. None of it identifies the
+  author alone, but with the name in the LICENSE it narrows things down. It
+  is the owner's call whether to generalise it before publishing.
 
 ## How the rewrite would be done
 
