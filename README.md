@@ -483,7 +483,8 @@ match to a resume you can upload yourself:
   data that ships with the tool, and placed by the same calculation as the
   markers, so a marker in a town sits on that town. Past the zoom at which
   that data is accurate (about a tenth of a mile), the map fades out and says
-  so. Nothing is loaded from any other host. See
+  so. Zoomed out to the country, the map turns to match the usual map of
+  the US, and a north arrow shows by how much; zoomed in, north is straight up. Nothing is loaded from any other host. See
   [ADR 0018](docs/decisions/0018-the-matches-page-as-a-live-map.md) and
   [ADR 0019](docs/decisions/0019-a-basemap-from-shipped-public-data.md).
 - A **Pipeline** grouped by stage, with each application's next action,

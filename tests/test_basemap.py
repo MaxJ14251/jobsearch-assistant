@@ -356,6 +356,42 @@ class TestTheBasemapDecidesNothing(unittest.TestCase):
         self.assertEqual(before, after)
 
 
+class TestTheTurn(unittest.TestCase):
+    """Zoomed out, the live map turns to the usual map of the US. North-up
+    at home tipped the country over by as much as its meridians converge."""
+
+    def test_no_turn_at_the_usual_maps_centre(self):
+        self.assertAlmostEqual(mapview.albers_turn(places.Place("", "", 39.0, -96.0)), 0.0)
+
+    def test_west_turns_clockwise_and_east_the_other_way(self):
+        """On the usual map the Pacific Northwest leans down to the east
+        (negative), New England up (positive), by n * the longitude gap."""
+        west = mapview.albers_turn(place("Portland", "OR"))
+        east = mapview.albers_turn(place("New York", "NY"))
+        self.assertLess(west, 0)
+        self.assertGreater(east, 0)
+        n = 0.5 * (math.sin(math.radians(29.5)) + math.sin(math.radians(45.5)))
+        self.assertAlmostEqual(west, n * math.radians(place("Portland", "OR").lon + 96), places=9)
+
+    def test_it_is_the_albers_maps_own_lean(self):
+        """Measured off `albers` itself: the direction of north at the
+        origin on the usual map is turned by exactly this angle."""
+        origin = place("Seattle", "WA")
+        x0, y0 = mapview.albers(origin.lat, origin.lon)
+        x1, y1 = mapview.albers(origin.lat + 0.01, origin.lon)
+        lean = math.atan2(-(x1 - x0), y1 - y0)       # counter-clockwise from up
+        self.assertAlmostEqual(lean, mapview.albers_turn(origin), delta=1e-4)
+
+    def test_the_page_is_given_it(self):
+        from tests.test_live_map import TestThePage as Live
+
+        live = Live()
+        live.setUp()
+        self.addCleanup(live.doCleanups)
+        data = live.data(live.page())
+        self.assertAlmostEqual(data["turn"], mapview.albers_turn(home()), places=6)
+
+
 class TestReproducible(unittest.TestCase):
     def test_the_same_tier_twice_is_the_same_bytes(self):
         tool = build_tool()

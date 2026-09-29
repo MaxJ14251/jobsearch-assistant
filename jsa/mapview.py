@@ -182,6 +182,21 @@ def unproject(origin: places.Place, x: float, y: float) -> tuple[float, float]:
     return math.degrees(lat), (math.degrees(lon) + 540.0) % 360.0 - 180.0
 
 
+def albers_turn(origin: places.Place) -> float:
+    """Radians the usual map of the United States is turned at `origin`.
+
+    On the Albers map everybody recognises (the one `albers` draws, centred
+    on 96 W) a meridian leans by n * (its longitude - 96 W). A map with north
+    straight up at the operator tips the rest of the country over by that
+    much, which is what "cockeyed" was. The live map turns by this angle as
+    it zooms out to the country, and back to north-up as it zooms in. A turn
+    about home moves no distance, so nothing the filter decides changes.
+    """
+    lat1, lat2 = map(math.radians, ALBERS_PARALLELS)
+    n = 0.5 * (math.sin(lat1) + math.sin(lat2))
+    return n * math.radians(origin.lon - ALBERS_ORIGIN[1])
+
+
 def albers(lat: float, lon: float) -> tuple[float, float]:
     """Albers equal-area conic, in unit-radius map coordinates (x east, y north)."""
     lat1, lat2 = map(math.radians, ALBERS_PARALLELS)

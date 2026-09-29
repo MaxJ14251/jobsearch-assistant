@@ -135,6 +135,30 @@ shorelines a mile apart would be a lie.
   same data through the same projector, cut to its own frame. It has no
   ground past 20 px/mi.
 
+### 4b. Zoomed out, the map turns to the usual map of the US
+
+*Added the same day, after the owner said the states looked "cockeyed".*
+
+The map has north straight up at the operator. Everywhere else, north
+leans by as much as the meridians converge. On the usual map of the United
+States (Albers, centred on 96° W) the middle of the country is level. From
+a home far from 96° W, the north-up map showed the whole country tipped
+over: about 16° from Portland, Oregon.
+
+The live map now turns about home by the Albers map's own lean at home,
+`mapview.albers_turn` = n × (longitude + 96°). A test measures that lean
+off `albers` itself.
+
+- **The turn fades with zoom:** the full angle below 0.6 px/mi, none above
+  3 px/mi, and a smooth blend between. Local maps, where streets and pins
+  are read, stay north-up.
+- **Nothing is re-projected.** A turn about home moves no distance, so the
+  radius circle, the rings and every `d` are exactly what they were.
+- **One matrix does it.** The pins, the rings and the ground all go through
+  one view matrix (`frame()` in the page), so they turn together. The
+  canvas's in-motion transform includes the turn.
+- **A north arrow** appears whenever the map is turned.
+
 ### 5. Missing data is a flat map, not an error
 
 Without the files, the route answers 404 and the page draws exactly what it

@@ -160,6 +160,11 @@ BASE = """<!doctype html>
   .bm-road{fill:none;stroke:var(--map-road);stroke-width:1.1px;stroke-linejoin:round}
   .livemap{isolation:isolate}
   .livemap .bm-canvas{position:absolute;z-index:-1;pointer-events:none;transform-origin:0 0}
+  .livemap .mapnorth{position:absolute;right:13px;top:158px;z-index:2;width:26px;height:26px;
+    border-radius:50%;background:var(--surface);border:1px solid var(--rule);
+    font:600 10px/26px ui-monospace,Menlo,monospace;text-align:center;color:var(--ink-2)}
+  .livemap .mapnorth::before{content:"";position:absolute;left:50%;top:-6px;margin-left:-4px;
+    border:4px solid transparent;border-top:0;border-bottom:7px solid var(--copper)}
   .livemap .bm-note{position:absolute;left:10px;bottom:34px;font-size:11.5px;
     color:var(--mute);background:var(--surface);padding:2px 6px;border-radius:3px}
   .livemap .mk{cursor:pointer}
@@ -231,6 +236,7 @@ BASE = """<!doctype html>
     figure.map .livemap svg{height:58vh;min-height:320px}
     .maplegend{display:none}
     .mapctl{top:auto;bottom:44px}
+    .livemap .mapnorth{top:10px}
   }
   textarea{min-height:220px;resize:vertical;line-height:1.45}
   /* The preview is a sheet of paper in either theme: it shows the document as
@@ -599,6 +605,9 @@ MATCHES = """{% extends "base" %}{% block body %}
     node('i', {}, row); row.appendChild(document.createTextNode(s[1]));
   });
   var foot = node('div', {'class': 'mapfoot'}, box);
+  var northEl = node('div', {'class': 'mapnorth', hidden: '', 'aria-hidden': 'true',
+                              title: 'North. Zoomed out, the map turns to match the usual map of the US.'}, box);
+  northEl.textContent = 'N';
   var bmNote = node('div', {'class': 'bm-note', hidden: ''}, box);
   bmNote.textContent = 'Map detail ends at this zoom';
 
@@ -695,12 +704,13 @@ MATCHES = """{% extends "base" %}{% block body %}
     var ch = bm.shown, S = view.s;
     paint.setTransform(1, 0, 0, 1, 0, 0);
     paint.clearRect(0, 0, canvas.width, canvas.height);
-    bm.at = {cx: view.cx, cy: view.cy, s: S, w: z.w, h: z.h, ch: ch};
+    var M = frame(view, z.w, z.h);
+    bm.at = {cx: view.cx, cy: view.cy, s: S, w: z.w, h: z.h, ch: ch, m: M};
     if (!ch) { return; }
     paint.fillStyle = bmColor('water');
     paint.fillRect(0, 0, canvas.width, canvas.height);
-    var tx = ox + z.w / 2 - view.cx * S, ty = oy + z.h / 2 + view.cy * S;
-    paint.setTransform(dpr * S, 0, 0, -dpr * S, dpr * tx, dpr * ty);
+    paint.setTransform(dpr * M[0], dpr * M[1], dpr * M[2], dpr * M[3],
+                       dpr * (M[4] + ox), dpr * (M[5] + oy));
     var px = 1 / S, p = ch.paths, edge = bmColor('edge');
     paint.lineJoin = 'round';
     if (p.land) { paint.fillStyle = bmColor('land'); paint.fill(p.land); }
@@ -727,12 +737,12 @@ MATCHES = """{% extends "base" %}{% block body %}
     }
     a = bm.at;
     if (a && a.ch) {
-      /* Map what was painted at view `a` onto the view now: an affine
-         change, exactly the one the pins just went through. */
-      var k = view.s / a.s, ox = a.w * BM_MARGIN, oy = a.h * BM_MARGIN;
-      var ex = (1 - k) * (ox + a.w / 2) + (a.cx - view.cx) * view.s;
-      var ey = (1 - k) * (oy + a.h / 2) + (view.cy - a.cy) * view.s;
-      canvas.style.transform = 'matrix(' + k + ',0,0,' + k + ',' + ex + ',' + ey + ')';
+      /* Map what was painted at view `a` onto the view now: the same
+         affine change the pins just went through, turn included. */
+      var ox = a.w * BM_MARGIN, oy = a.h * BM_MARGIN;
+      var t = compose([1, 0, 0, 1, ox, oy], compose(frame(view, a.w, a.h),
+                      compose(invert(a.m), [1, 0, 0, 1, -ox, -oy])));
+      canvas.style.transform = 'matrix(' + t.join(',') + ')';
     }
     ground.style.fill = (a && a.ch) ? 'transparent' : 'var(--surface)';
     /* Past the finest tier's measured accuracy the ground fades out rather
@@ -750,11 +760,51 @@ MATCHES = """{% extends "base" %}{% block body %}
   var view = {cx: 0, cy: 0, s: 1};
   function size() { return {w: svg.clientWidth || box.clientWidth || 600, h: svg.clientHeight || 420}; }
   function panelWidth() { return window.innerWidth > 760 ? panel.offsetWidth + 20 : 0; }
+
+  /* The turn. North is straight up at home, where pins and streets are
+     read. Zoomed out towards the whole country, the map turns to the
+     orientation of the usual map of the United States (Albers, centred on
+     96 W), because north-up at home tips the rest of the country over by as
+     much as its meridians converge. Turning about home changes no distance:
+     the circle, the rings and every d stay exactly what they were. */
+  var TURN = live.turn || 0;
+  function turnAt(s) {
+    var lo = Math.log(0.6), hi = Math.log(3);
+    var t = Math.max(0, Math.min(1, (Math.log(s) - lo) / (hi - lo)));
+    return TURN * (1 - t * t * (3 - 2 * t));
+  }
+  /* A view as [a, b, c, d, e, f], the six numbers of an svg or css
+     matrix(): miles (x east, y north) to pixels, y flipped, turned. The
+     pins, the rings and the ground all go through this one function. */
+  function frame(v, w, h) {
+    var turn = turnAt(v.s), a = Math.cos(turn) * v.s, b = -Math.sin(turn) * v.s;
+    var c = b, d = -a;
+    return [a, b, c, d, w / 2 - (a * v.cx + c * v.cy), h / 2 - (b * v.cx + d * v.cy)];
+  }
+  function apply(m, x, y) { return [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]]; }
+  function invert(m) {
+    var det = m[0] * m[3] - m[1] * m[2];
+    var a = m[3] / det, b = -m[1] / det, c = -m[2] / det, d = m[0] / det;
+    return [a, b, c, d, -(a * m[4] + c * m[5]), -(b * m[4] + d * m[5])];
+  }
+  function compose(m, n) {          /* m after n */
+    return [m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1],
+            m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3],
+            m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5]];
+  }
+  /* Miles moved by a pixel offset at scale s (its turn included). */
+  function unshift(s, dx, dy) { return apply(invert(frame({cx: 0, cy: 0, s: s}, 0, 0)), dx, dy); }
+  function toWorld(px, py) { var z = size(); return apply(invert(frame(view, z.w, z.h)), px, py); }
+  /* The view at scale s that puts the point (x, y) at pixel (px, py). */
+  function anchor(s, x, y, px, py) {
+    var z = size(), u = unshift(s, px - z.w / 2, py - z.h / 2);
+    return {cx: x - u[0], cy: y - u[1], s: s};
+  }
   /* The view that puts (x, y) in the middle of the part of the map the
      panel does not cover. */
   function centerOn(x, y, s) {
-    var z = size(), left = panelWidth(), target = left + (z.w - left) / 2;
-    return {cx: x + (z.w / 2 - target) / s, cy: y, s: s};
+    var z = size(), left = panelWidth();
+    return anchor(s, x, y, left + (z.w - left) / 2, z.h / 2);
   }
   function fitView(r) {
     var z = size(), left = panelWidth(), room = Math.max(120, Math.min(z.w - left, z.h));
@@ -809,15 +859,17 @@ MATCHES = """{% extends "base" %}{% block body %}
   function draw() {
     var z = size(), w = z.w, h = z.h, S = view.s;
     svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
-    var tx = w / 2 - view.cx * S, ty = h / 2 + view.cy * S;
-    world.setAttribute('transform', 'matrix(' + S + ' 0 0 ' + (-S) + ' ' + tx + ' ' + ty + ')');
-    var X = function (x) { return tx + x * S; }, Y = function (y) { return ty - y * S; };
+    var M = frame(view, w, h), H = apply(M, 0, 0);
+    world.setAttribute('transform', 'matrix(' + M.join(' ') + ')');
     var color = FENCE[state.fence];
     bmDraw(S);
+    var turn = turnAt(S);
+    northEl.hidden = Math.abs(turn) < 0.01;
+    northEl.style.transform = 'rotate(' + (-turn * 180 / Math.PI).toFixed(2) + 'deg)';
 
     /* Range rings about home: in this projection a circle IS a distance. */
     clear(gridG);
-    var far = Math.hypot(Math.max(Math.abs(X(0)), Math.abs(w - X(0))), Math.max(Math.abs(Y(0)), Math.abs(h - Y(0)))) / S;
+    var far = Math.hypot(Math.max(Math.abs(H[0]), Math.abs(w - H[0])), Math.max(Math.abs(H[1]), Math.abs(h - H[1]))) / S;
     var step = [1, 2, 5, 10, 25, 50, 100, 250, 500].find(function (m) { return m * S >= 70; }) || 1000;
     for (var k = 1; k * step <= far && k <= 60; k++) {
       var g = sv('circle', {cx: 0, cy: 0, r: k * step, 'vector-effect': 'non-scaling-stroke'}, gridG);
@@ -851,7 +903,7 @@ MATCHES = """{% extends "base" %}{% block body %}
     var pts = [];
     live.points.forEach(function (p) {
       if (!state.on[p.status]) { return; }
-      var x = X(p.x), y = Y(p.y);
+      var q = apply(M, p.x, p.y), x = q[0], y = q[1];
       if (x < -30 || y < -30 || x > w + 30 || y > h + 30) { return; }
       pts.push({p: p, x: x, y: y, inside: p.d <= R});
     });
@@ -890,7 +942,7 @@ MATCHES = """{% extends "base" %}{% block body %}
     var lastY = Infinity;
     rings.forEach(function (b) {
       if (b.r >= R * 0.97 || b.r * S < 16) { return; }
-      var x = X(0), y = Y(b.r);
+      var x = H[0], y = H[1] - b.r * S;
       if (y < 0 || y > h || lastY - y < 20) { return; }
       lastY = y;
       var label = b.t >= 60 ? fmtMin(b.t) : b.t + ' min';
@@ -903,7 +955,7 @@ MATCHES = """{% extends "base" %}{% block body %}
       t.textContent = label;
     });
 
-    var ex = X(R), ey = Y(0);
+    var ex = H[0] + R * S, ey = H[1];
     if (ex > 0 && ex < w) {
       var rl = fmtMiles(R), rg = sv('g', {transform: 'translate(' + ex + ' ' + ey + ')'}, overG);
       rg.style.pointerEvents = 'none';
@@ -913,7 +965,7 @@ MATCHES = """{% extends "base" %}{% block body %}
       rt.textContent = rl;
     }
 
-    var home = sv('g', {transform: 'translate(' + X(0) + ' ' + Y(0) + ')'}, overG);
+    var home = sv('g', {transform: 'translate(' + H[0] + ' ' + H[1] + ')'}, overG);
     home.style.pointerEvents = 'none';
     var hc = sv('circle', {r: 8}, home); hc.style.fill = 'var(--surface)'; hc.style.stroke = 'var(--ink)'; hc.style.strokeWidth = '2px';
     sv('circle', {r: 2.5}, home).style.fill = 'var(--ink)';
@@ -958,8 +1010,8 @@ MATCHES = """{% extends "base" %}{% block body %}
     g.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
     var open = function () {
       if (n > 1) {
-        var z = size(), mx = view.cx + (c.x - z.w / 2) / view.s, my = view.cy - (c.y - z.h / 2) / view.s;
-        fly({cx: mx, cy: my, s: view.s * 2.4});
+        var at = toWorld(c.x, c.y);
+        fly({cx: at[0], cy: at[1], s: view.s * 2.4});
         return;
       }
       var p = c.m[0].p, card = feedKeys()[p.key];
@@ -1015,7 +1067,8 @@ MATCHES = """{% extends "base" %}{% block body %}
     if (!drag) { return; }
     var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     if (Math.abs(dx) + Math.abs(dy) > 3) { drag.moved = true; }
-    view.cx = drag.cx - dx / view.s; view.cy = drag.cy + dy / view.s;
+    var u = unshift(view.s, dx, dy);
+    view.cx = drag.cx - u[0]; view.cy = drag.cy - u[1];
     redraw();
   });
   function endDrag(e) {
@@ -1027,11 +1080,9 @@ MATCHES = """{% extends "base" %}{% block body %}
   svg.addEventListener('wheel', function (e) {
     e.preventDefault();
     cancelAnimationFrame(anim); flying = false;
-    var r = svg.getBoundingClientRect(), z = size();
-    var sx = e.clientX - r.left, sy = e.clientY - r.top;
-    var mx = view.cx + (sx - z.w / 2) / view.s, my = view.cy - (sy - z.h / 2) / view.s;
-    var s = clampS(view.s * Math.exp(-e.deltaY * 0.0016));
-    view = {s: s, cx: mx - (sx - z.w / 2) / s, cy: my + (sy - z.h / 2) / s};
+    var r = svg.getBoundingClientRect();
+    var sx = e.clientX - r.left, sy = e.clientY - r.top, at = toWorld(sx, sy);
+    view = anchor(clampS(view.s * Math.exp(-e.deltaY * 0.0016)), at[0], at[1], sx, sy);
     redraw();
   }, {passive: false});
   if (window.ResizeObserver) { new ResizeObserver(redraw).observe(box); }
@@ -2062,6 +2113,9 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             from . import basemap
             live = {"radius": wanted, "min": RADIUS_MIN, "max": RADIUS_MAX,
                     "home": str(origin), "points": pts,
+                    # Radians the usual map of the US is turned at home;
+                    # the page turns by this much when zoomed out.
+                    "turn": round(mapview.albers_turn(origin), 6),
                     # Where the page fetches its ground from, and how far
                     # each tier may be zoomed. None: no data, a flat map.
                     "basemap": ({"home": home, "ppm": basemap.PPM,
