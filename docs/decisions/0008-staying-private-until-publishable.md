@@ -249,6 +249,30 @@ backup of the history before this rewrite exists outside the project, is
 never pushed, and is the owner's to delete once the new repository is
 confirmed.
 
+## The last readiness pass (2026-09-29, goal n29)
+
+The new repository was pushed and scanned by CI: secret scan, history scan
+and the Docker check passed. On this machine, `tools/fresh_clone_check.py`
+found no leaks and no failing README step, and both scanners were clean with
+the owner's real profile.
+
+A newcomer in Minneapolis, an invented person in a state none of the
+shipped feeds covers on-site, cloned the new repository and followed "Your
+first hour" to the letter, with a model key and no job-site key. It worked
+end to end, and `jsa doctor` explained the one thing a Minnesotan will
+notice (0 local postings, 301 remote, and how to fix it). It found three
+things, fixed the same day:
+
+- `matches` printed no job numbers, while step 7 said `jsa save 421`, a
+  number from the author's tracker. Every row now shows its number, and a
+  test holds it there.
+- Discovery took 15 minutes, not "a few".
+- The README's section on what publishing exposes still described the
+  history before either rewrite. It now says what was found and done.
+
+`SECURITY.md` says how to report a problem privately and what the tool does
+and does not send.
+
 ## Consequences
 
 - No force-push and no change of visibility. The repository is still

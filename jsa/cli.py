@@ -210,7 +210,8 @@ def cmd_matches(args: argparse.Namespace) -> int:
         variants = row["variant_count"] or 1
         extra = f"  (+{variants - 1} more location{'s' if variants > 2 else ''})" if variants > 1 else ""
         tag = "  [sales track]" if row["track"] == "sales" else ""
-        print(f"\n[{score:.2f}] {row['company']} — {row['title']}{extra}{tag}")
+        # The job number is what `save`, `tailor` and `applied` take.
+        print(f"\n[{score:.2f}] #{row['job_id']} {row['company']} — {row['title']}{extra}{tag}")
         print(f"       {row['location'] or 'location not stated'} ({row['remote']})")
         print(f"       {row['url']}")
         flags = []
@@ -229,7 +230,7 @@ def cmd_matches(args: argparse.Namespace) -> int:
             print(f"       note: {row['enrichment_note']}")
         for reason in json.loads(row["match_reasons"] or "[]"):
             print(f"       · {reason}")
-    print(f"\n{len(rows)} match(es).")
+    print(f"\n{len(rows)} match(es). Save one by its number: jsa save <#>")
     return 0
 
 

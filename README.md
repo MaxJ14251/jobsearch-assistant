@@ -2,8 +2,8 @@
 
 [![tests](https://github.com/MaxJ14251/jobsearch-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/MaxJ14251/jobsearch-assistant/actions/workflows/ci.yml)
 
-Pulls job listings from 50 company career systems, filters ~6,900 postings down to a
-reviewable shortlist, extracts the disqualifying facts buried in the prose, and hands
+Pulls job listings from 50 company career systems, filters thousands of postings
+(9,725 on 2026-09-29) down to a reviewable shortlist, extracts the disqualifying facts buried in the prose, and hands
 you the final call on every application.
 
 **United States only.** Non-US locations are excluded outright, not ranked low — so
@@ -58,7 +58,7 @@ Edit `profile/master_profile.yaml` with your own history and target roles first 
 everything downstream reads from it. On macOS and Linux use `.venv/bin/python`.
 
 ```
-[0.90] T. Rowe Price — Full Stack Software Engineer, AI Lab
+[0.90] #421 T. Rowe Price — Full Stack Software Engineer, AI Lab
        New York, NY; Baltimore, MD (onsite)
        ⚑ asks for a degree  |  2+ yrs
        stack: Java, Python, JavaScript, AWS, Azure
@@ -132,7 +132,8 @@ It names every field that will stop the tool working, says what to write
 instead, and changes nothing. Exits 0 when you are ready. Run it again after
 edits.
 
-**4. Find jobs** (no API key needed; takes a few minutes):
+**4. Find jobs** (no API key needed; about 15 minutes the first time, because
+it asks each board politely, one request at a time):
 
 ```bash
 .venv/Scripts/python -m jsa discover
@@ -158,7 +159,9 @@ cp .env.example .env
 never leaves that file, and your name, address, phone and email are never sent
 to the model — a check refuses the request if they appear in a prompt.
 
-**7. Save a job and draft for it** (one model call each):
+**7. Save a job and draft for it** (one model call each). The number is the
+one `matches` prints after the score, `#421` in the example above; yours will
+differ:
 
 ```bash
 .venv/Scripts/python -m jsa save 421
@@ -182,10 +185,12 @@ message anyone — there is no code path that transmits. It will not write a
 claim your profile does not make. It does not search every employer: it polls
 the boards listed in `config/companies.yaml`, and you add your own.
 
-**Where the shipped feeds point.** `config/companies.yaml` starts with 45 tech
-employers, most of them hiring in the Bay Area, New York and Seattle. Measured
-from a profile based in Columbus, Ohio: the matches that came back were almost
-entirely remote roles, because those companies post few jobs in Ohio. If you
+**Where the shipped feeds point.** `config/companies.yaml` ships 50 employer and
+aggregator feeds (listed under [Feed coverage](#feed-coverage)). Their on-site
+jobs sit where those employers have offices, mostly California, Washington and
+Texas. Measured from a profile based in Columbus, Ohio: the matches that came
+back were almost entirely remote roles, because those companies post few jobs
+in Ohio. If you
 are not in a coastal tech hub, add local employers' boards to that file —
 `jsa verify` tells you which tokens actually work — or lean on remote.
 
@@ -733,13 +738,14 @@ tested:
 `jsa verify` and `tools/fabrication_demo.py` cover the network paths against real
 endpoints, which unit tests deliberately do not touch.
 
-## What publishing this would expose
+## What publishing this exposed, and what was done about it
 
-**This repository is private, and stays private until somebody who is not its
-author can use it with their own details** — see
-[ADR 0008](docs/decisions/0008-staying-private-until-publishable.md), which
-also lists what is still missing for that. The audit below is why that is a
-decision rather than an oversight.
+Before this repository was made public, its whole history was audited and
+then rewritten twice, on 2026-09-28 and 2026-09-29. What was found and every
+decision is in
+[ADR 0008](docs/decisions/0008-staying-private-until-publishable.md); the
+method, for anyone doing the same to their own fork, is in
+[docs/pre-publication-rewrite.md](docs/pre-publication-rewrite.md).
 
 It was audited commit by commit, because publishing publishes every commit: a file deleted in commit 12 is still
 readable in commit 11. `tools/scan_history.py` reads every blob reachable from
@@ -758,22 +764,17 @@ The branch was then deleted, and the finding left the scan's scope, which is
 the same boundary `git push` uses. `tests/test_history_scan.py` keeps all of
 that as tests, against throwaway repositories rather than this one.
 
-What the audit found across the 27 commits that existed when it ran,
-166 blob versions of 77 files:
+What the audits found, and where it stands:
 
 - **No key, tracker, profile, generated document or coverage file has ever
   been committed.** `.coveragerc` is in history; `.coverage` never was.
-- **Sixteen versions of this README named a town and a postal code**, and
-  described the feed coverage in the first person. The current file does not.
-  The earlier commits still do, and only rewriting all 28 commits would change
-  that. It is recorded in `tools/history_allowlist.txt` rather than hidden.
-
-Neither of the last two is being rewritten now. A rewrite changes every commit
-SHA, and its real cost is other people's clones — of which there are none while
-this is private. That makes deferring the decision to the moment before
-publishing the cheap option and the reversible one.
-- **Every commit is signed with a personal email address**, as every git commit
-  everywhere is. The scan prints it as a NOTE on every run.
+- **Personal details in old versions of files** (a home town and postal code
+  in the README, contact-detail fragments in two old tests and one commit
+  message, and later the author's school, a former employer and the towns of
+  the author's own job search). Removed from every commit by the two
+  rewrites. `tools/history_allowlist.txt` is empty: nothing is excused.
+- **Commits signed with a personal email address.** Every commit now carries
+  a GitHub noreply address.
 - No workflow uses `pull_request_target`, references an Actions secret, or
   stores a token.
 
