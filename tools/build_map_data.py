@@ -110,6 +110,11 @@ RIVER_MTFCC = {"H3010", "H3020"}        # parts of a lake filed as stream or can
 CITIES_URL = ("https://naciscdn.org/naturalearth/10m/cultural/"
               "ne_10m_populated_places_simple.zip")
 CITY_MIN_POP = {"coarse": 500_000, "medium": 150_000, "fine": 50_000}
+# Natural Earth spellings that differ from the Census's own (n26). Not
+# here: "St. Charles, MD", which the 2024 Gazetteer has no place for at all,
+# so there is no point to put its name on -- it stays off the map rather
+# than borrow a neighbour's.
+CITY_ALIASES = {("Barlett", "TN"): "Bartlett", ("Wilkes Barre", "PA"): "Wilkes-Barre"}
 STATE_CODES = {
     "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR",
     "California": "CA", "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE",
@@ -619,7 +624,7 @@ def cities(archive: bytes) -> list[tuple[str, str, int]]:
         code = STATE_CODES.get(state)
         people = int(float(pop or 0))
         if country == "USA" and code and people >= min(CITY_MIN_POP.values()):
-            out.append((name, code, people))
+            out.append((CITY_ALIASES.get((name, code), name), code, people))
     return sorted(out, key=lambda c: (-c[2], c[0]))
 
 

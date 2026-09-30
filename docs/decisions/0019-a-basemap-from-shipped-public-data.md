@@ -146,10 +146,23 @@ the edge of the land, and two shorelines a mile apart would be a lie.
   a canvas, with the pins' transform shifted by a margin. While the view
   moves, the canvas is only moved and scaled with a CSS transform, the same
   affine change the pins go through. It is repainted when the view settles.
+- **Painted in a worker** (n26). Repainting a whole tier takes 25 to 100
+  ms, and on the page's own thread that was a hitch each time the map
+  stopped. A web worker paints on an OffscreenCanvas and hands back the
+  finished picture. The page puts it up with `transferFromImageBitmap`,
+  which takes about 0.1 ms, and until then keeps showing the old picture,
+  moved with the view. Only the newest request is painted; a picture that
+  went stale in flight is discarded. The worker runs the page's own
+  `paintGround()`, from its source, so the two cannot draw differently. A
+  browser without OffscreenCanvas, or a worker that fails, falls back to
+  painting on the page as before.
 - The canvas is `aria-hidden`, takes no pointer events, and adds no tab
   stop. Its colours are theme tokens (`--map-water`, `--map-land`,
-  `--map-urban`, `--map-road`, `--map-edge`), redefined for dark mode, and
-  it repaints when the colour scheme changes. The radius fence, commute
+  `--map-urban`, `--map-road`, `--map-edge`), redefined for dark mode.
+  Water against land is at least 1.3:1 in both themes (n26: 1.38 light and
+  1.33 dark, from 1.23 and 1.12; a test holds it), and roads stay under
+  3:1 so the pins remain the loudest thing on the map. The canvas
+  repaints when the colour scheme changes. The radius fence, commute
   bands and status colours stay the loudest things on the map.
 - **The no-JavaScript map** (`mapview.local`) draws the same layers from the
   same data through the same projector, cut to its own frame. It has no
@@ -189,9 +202,11 @@ tier (500,000 or more), 213 at medium (150,000 or more), and 420 at fine
 same town, the point any pin for that town uses, so a city's name and its
 pins cannot disagree.
 
-Three Natural Earth names do not match the Gazetteer and are left off
-rather than guessed: "Barlett, TN" (Bartlett), "Wilkes Barre, PA" (the
-hyphen is missing) and "St. Charles, MD". The page draws names after the
+Two Natural Earth names are misspelt and are aliased in the build tool
+(`CITY_ALIASES`, n26): "Barlett, TN" is Bartlett and "Wilkes Barre, PA" is
+Wilkes-Barre. One, "St. Charles, MD", has no place in the 2024 Gazetteer
+at all. It is left off rather than put on a neighbour's point, so 419 of
+420 names are drawn. The page draws names after the
 jobs' own labels, so a job's label always wins the space. No name sits on
 a marker or on home, bigger places come first, at most 40 names are drawn
 at once, and none are drawn once the ground has faded out.
@@ -266,11 +281,24 @@ are identical with it and without it.
   and Chicago on Lake Michigan, New York on its harbour with Long Island
   beside it. The first two Seattle views predate the canvas; the rest are
   of the version shipped.
-- **Not measured: frame rate.** The in-app browser reported the page hidden
-  while it was driven, and throttled its animation frames and timers, so
-  frame timings there mean nothing. The canvas design exists so that a pan
-  costs one CSS transform per frame, whatever the data. The owner should
-  confirm that it feels smooth.
+- **Frame cost (n26, 2026-09-29), with `?debug=frames`.** Frame *gaps*
+  cannot be measured in the in-app browser: it throttles a pane it
+  considers hidden, and one gap came out at 1,006 ms with the page doing
+  1 ms of work. So what was measured is the work the page itself does.
+  These are New York (the heaviest chunks) at 1,200 x 850, with the paint
+  timed until the pixels exist (`getImageData` forces that):
+
+  | | coarse | medium | fine |
+  |---|---|---|---|
+  | page work per frame while panning or zooming | 1.4-1.5 ms | 1.3-2.1 ms | 0.9-2.1 ms |
+  | one repaint when the view settles, on the page (before) | 24-26 ms | 49-91 ms | 41-70 ms |
+  | the same repaint in the worker (after) | 29 ms | 60-98 ms | 52-79 ms |
+  | page work to put the worker's picture up | 0.1 ms | 0.1-0.2 ms | 0-0.1 ms |
+
+  The repaint was the only thing over the 50 ms line. It hitched the map
+  every time the view stopped, so it moved off the page's thread (4d). No
+  frame the page is responsible for now costs more than about 2 ms. The
+  owner is still best placed to say how it feels in a normal window.
 
 ## Rejected alternatives
 

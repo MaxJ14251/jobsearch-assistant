@@ -409,11 +409,19 @@ class TestCityNames(FixtureData):
                                  "fine": ["Big", "Mid", "Small"]})
 
     @unittest.skipUnless(basemap.available(), "no shipped basemap")
-    def test_almost_every_shipped_name_resolves(self):
+    def test_every_shipped_name_resolves_but_one(self):
+        """St. Charles, MD has no place in the 2024 Gazetteer, so no point
+        to stand on; every other name does (n26 aliased the two misspelt)."""
         with gzip.open(ROOT / "data" / "us_basemap_fine.json.gz", "rt", encoding="utf-8") as fh:
             cities = json.load(fh)["cities"]
-        missing = [c for c in cities if places.resolve(c[0], c[1]) is None]
-        self.assertLessEqual(len(missing), 5, missing)
+        missing = [f"{c[0]}, {c[1]}" for c in cities if places.resolve(c[0], c[1]) is None]
+        self.assertLessEqual(set(missing), {"St. Charles, MD"})
+
+    def test_the_aliases_name_real_towns(self):
+        tool = build_tool()
+        for (_, state), name in tool.CITY_ALIASES.items():
+            with self.subTest(name=name):
+                self.assertIsNotNone(places.resolve(name, state))
 
 
 class TestFineLakes(unittest.TestCase):
@@ -440,6 +448,58 @@ class TestFineLakes(unittest.TestCase):
         each seam across the water."""
         src = (ROOT / "jsa" / "web.py").read_text("utf-8")
         self.assertNotIn("paint.stroke(p.lake)", src)
+
+
+class TestPaintingOffThePagesThread(unittest.TestCase):
+    """n26: a whole tier takes 25-100 ms to paint. It happens in a worker,
+    from the page's own painting routine, with the page as the fallback."""
+
+    SRC = (ROOT / "jsa" / "web.py").read_text("utf-8")
+
+    def test_one_routine_for_page_and_worker(self):
+        self.assertIn("paintGround.toString() + '\\\\n' + PAINTER", self.SRC)
+        self.assertIn("paintGround(paint, ch.paths, msg)", self.SRC)
+        self.assertIn('paintGround(g, p, m);', self.SRC)
+
+    def test_a_failed_worker_falls_back_to_the_page(self):
+        self.assertIn("painter.onerror = function () { bmLocal(); };", self.SRC)
+        self.assertIn("if (!painter) { paint = canvas.getContext('2d'); }", self.SRC)
+
+    def test_only_the_newest_picture_is_put_up(self):
+        self.assertIn("if (!job || m.seq !== job.seq)", self.SRC)
+
+    def test_the_frame_log_is_off_unless_asked_for(self):
+        self.assertIn("get('debug') === 'frames'", self.SRC)
+
+
+class TestTheGroundReadsInBothThemes(unittest.TestCase):
+    """n26: water against land was 1.12:1 in dark mode -- a lake barely
+    showed. At least 1.3:1 in both themes, and the ground stays quieter than
+    the pins (roads, its loudest line, under 3:1)."""
+
+    @staticmethod
+    def contrast(a, b):
+        def lum(h):
+            c = [int(h[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+            c = [x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
+            return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+        hi, lo = sorted((lum(a), lum(b)), reverse=True)
+        return (hi + 0.05) / (lo + 0.05)
+
+    def themes(self):
+        light, dark = re.findall(r"--map-water:(#\w{6});--map-land:(#\w{6});--map-urban:(#\w{6});"
+                                 r"\s*--map-road:(#\w{6});--map-edge:(#\w{6})", web.BASE)
+        return {"light": light, "dark": dark}
+
+    def test_water_stands_off_land(self):
+        for name, (water, land, *_rest) in self.themes().items():
+            with self.subTest(theme=name):
+                self.assertGreaterEqual(self.contrast(water, land), 1.3)
+
+    def test_the_ground_stays_quiet(self):
+        for name, (_water, land, _urban, road, _edge) in self.themes().items():
+            with self.subTest(theme=name):
+                self.assertLess(self.contrast(road, land), 3.0)
 
 
 class TestTheTurn(unittest.TestCase):

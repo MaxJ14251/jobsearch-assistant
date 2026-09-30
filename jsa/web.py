@@ -55,8 +55,9 @@ BASE = """<!doctype html>
     --clay:#A8412F;--clay-soft:#F5DFDA;
     --blue:#2F6BC4;--violet:#7A4DC4;
     /* The ground under the live map (n23): context, so quieter than
-       anything drawn on it. */
-    --map-water:#D5E1E6;--map-land:#F7F6F1;--map-urban:#ECE6DA;
+       anything drawn on it. Water against land is at least 1.3:1 in both
+       themes (n26: 1.38 light, 1.33 dark; it was 1.23 and 1.12). */
+    --map-water:#C5D6DE;--map-land:#F7F6F1;--map-urban:#ECE6DA;
     --map-road:#D8B98C;--map-edge:#BCC5C0;
   }
   @media (prefers-color-scheme:dark){:root{
@@ -64,8 +65,8 @@ BASE = """<!doctype html>
     --ink-2:#C0C7C2;--mute:#8B958F;--rule:#2C3532;--copper:#D98A4F;
     --sage:#6DAF96;--sage-soft:#1B2A25;--clay:#D2705B;--clay-soft:#2E1B17;
     --blue:#6FA3EE;--violet:#AE8BEB;
-    --map-water:#0D1518;--map-land:#1A201E;--map-urban:#252B28;
-    --map-road:#5E5140;--map-edge:#34403B;}}
+    --map-water:#0A1114;--map-land:#252C29;--map-urban:#303834;
+    --map-road:#6C5D49;--map-edge:#404C47;}}
   *{box-sizing:border-box}
   [hidden]{display:none!important}
   body{margin:0;background:var(--paper);color:var(--ink);line-height:1.55;
@@ -634,11 +635,87 @@ MATCHES = """{% extends "base" %}{% block body %}
   var BM_TIERS = ['coarse', 'medium', 'fine'];
   var BM_LAYERS = ['land', 'urban', 'county', 'lake', 'road'];
   var BM_MARGIN = 0.5;          /* painted beyond each edge, for panning into */
-  var canvas = null, paint = null;
+  var canvas = null, paint = null, painter = null, chunkSeq = 0, paintSeq = 0, asked = '';
+  /* The one painting routine. The page runs it where it must, and the
+     worker runs it from this very source, so the two cannot differ. */
+  function paintGround(g, p, m) {
+    var c = m.colors, px = m.px;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, m.w, m.h);
+    g.fillStyle = c.water; g.fillRect(0, 0, m.w, m.h);
+    g.setTransform(m.t[0], m.t[1], m.t[2], m.t[3], m.t[4], m.t[5]);
+    g.lineJoin = 'round';
+    if (p.land) { g.fillStyle = c.land; g.fill(p.land); }
+    if (p.urban) { g.fillStyle = c.urban; g.fill(p.urban); }
+    if (p.county) {
+      g.strokeStyle = c.edge; g.lineWidth = 0.5 * px;
+      g.setLineDash([4 * px, 3 * px]); g.stroke(p.county); g.setLineDash([]);
+    }
+    if (p.land) { g.strokeStyle = c.edge; g.lineWidth = 0.8 * px; g.stroke(p.land); }
+    /* Lakes are filled, not outlined: the Census splits a lake at every
+       county line, and an outline would draw each seam across the water. */
+    if (p.lake) { g.fillStyle = c.water; g.fill(p.lake); }
+    if (p.road) { g.strokeStyle = c.road; g.lineWidth = 1.1 * px; g.stroke(p.road); }
+  }
+  /* Painting a whole tier takes 25 to 90 ms (n26, measured). On the page's
+     own thread that is a hitch every time the map settles, so a worker
+     paints on an OffscreenCanvas and hands the finished picture back whole.
+     Until it arrives the old picture stays up, moved like everything else.
+     Only the newest request is painted. A browser that cannot do this
+     paints here instead, as before. */
+  var PAINTER = [
+    'var chunks = {};',
+    'onmessage = function (e) {',
+    '  var m = e.data, p, k;',
+    '  if (m.type === "chunk") {',
+    '    p = {}; for (k in m.layers) { p[k] = new Path2D(m.layers[k]); }',
+    '    chunks[m.id] = p; return;',
+    '  }',
+    '  if (m.type === "drop") { delete chunks[m.id]; return; }',
+    '  p = chunks[m.id];',
+    '  if (!p) { postMessage({seq: m.seq, bitmap: null}); return; }',
+    '  var t0 = performance.now(), c = new OffscreenCanvas(m.w, m.h), g = c.getContext("2d");',
+    '  paintGround(g, p, m);',
+    '  if (m.debug) { g.getImageData(0, 0, 1, 1); }',
+    '  var bitmap = c.transferToImageBitmap();',
+    '  postMessage({seq: m.seq, bitmap: bitmap, ms: performance.now() - t0}, [bitmap]);',
+    '};'
+  ].join('\\n');
+  function localPaths(layers) {
+    var paths = {};
+    BM_LAYERS.forEach(function (name) { if (layers[name]) { paths[name] = new Path2D(layers[name]); } });
+    return paths;
+  }
   if (BM) {
     canvas = node('canvas', {'class': 'bm-canvas', 'aria-hidden': 'true'}, null);
     box.insertBefore(canvas, box.firstChild);
-    paint = canvas.getContext('2d');
+    try {
+      if (window.Worker && window.OffscreenCanvas && window.Blob && window.URL) {
+        painter = new Worker(URL.createObjectURL(new Blob(
+          [paintGround.toString() + '\\n' + PAINTER], {type: 'text/javascript'})));
+        painter.onmessage = bmPainted;
+        painter.onerror = function () { bmLocal(); };
+        paint = canvas.getContext('bitmaprenderer');
+        if (!paint) { throw new Error('no bitmaprenderer'); }
+      }
+    } catch (e) {
+      if (painter) { painter.terminate(); }
+      painter = null;
+    }
+    if (!painter) { paint = canvas.getContext('2d'); }
+  }
+  /* The worker failed (an older browser without Path2D in workers): paint
+     here from now on, on a fresh canvas, from the chunks already fetched. */
+  function bmLocal() {
+    if (!painter) { return; }
+    painter.terminate(); painter = null;
+    var fresh = node('canvas', {'class': 'bm-canvas', 'aria-hidden': 'true'}, null);
+    canvas.replaceWith(fresh); canvas = fresh; paint = canvas.getContext('2d');
+    BM_TIERS.forEach(function (t) {
+      var ch = bm.chunks[t];
+      if (ch && !ch.paths) { ch.paths = localPaths(ch.src); }
+    });
+    bm.at = null; bm.job = null; asked = ''; redraw();
   }
   /* The coarsest tier still honest at this scale. */
   function bmWant(S) {
@@ -652,9 +729,11 @@ MATCHES = """{% extends "base" %}{% block body %}
     return Math.hypot(view.cx - ch.at[0], view.cy - ch.at[1]) + half <= ch.reach;
   }
   function bmBuild(d) {
-    var paths = {};
-    BM_LAYERS.forEach(function (name) { if (d.layers[name]) { paths[name] = new Path2D(d.layers[name]); } });
-    return {paths: paths, tier: d.tier, reach: d.reach, at: d.at, cities: d.cities || []};
+    var ch = {id: ++chunkSeq, tier: d.tier, reach: d.reach, at: d.at,
+              cities: d.cities || [], src: d.layers, paths: null};
+    if (painter) { painter.postMessage({type: 'chunk', id: ch.id, layers: d.layers}); }
+    else { ch.paths = localPaths(d.layers); }
+    return ch;
   }
   function bmEnsure(tier) {
     var ch = bm.chunks[tier];
@@ -664,7 +743,14 @@ MATCHES = """{% extends "base" %}{% block body %}
     var q = new URLSearchParams({home: BM.home, x: at[0].toFixed(1), y: at[1].toFixed(1), v: BM.v});
     fetch('/basemap/' + tier + '?' + q.toString(), {credentials: 'same-origin'})
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (d) { bm.pending[tier] = false; if (d) { bm.chunks[tier] = bmBuild(d); redraw(); } })
+      .then(function (d) {
+        bm.pending[tier] = false;
+        if (!d) { return; }
+        var old = bm.chunks[tier];
+        bm.chunks[tier] = bmBuild(d);
+        if (old && painter) { painter.postMessage({type: 'drop', id: old.id}); }
+        redraw();
+      })
       .catch(function () { bm.pending[tier] = false; });
   }
   /* Work that waits for the view to stop: a fly or a drag passes through
@@ -702,38 +788,71 @@ MATCHES = """{% extends "base" %}{% block body %}
   function bmPaint() {
     if (!canvas) { return; }
     var z = size(), dpr = window.devicePixelRatio || 1;
-    var ox = z.w * BM_MARGIN, oy = z.h * BM_MARGIN;
-    var W = z.w + 2 * ox, H = z.h + 2 * oy;
-    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
-    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    var ox = z.w * BM_MARGIN, oy = z.h * BM_MARGIN, W = z.w + 2 * ox, H = z.h + 2 * oy;
+    var ch = bm.shown, M = frame(view, z.w, z.h);
+    var key = [ch ? ch.id : 0, z.w, z.h, view.cx, view.cy, view.s].join();
+    if (key === asked) { return; }            /* already asked for exactly this */
+    if (bm.job) { bm.next = true; return; }  /* one in flight: ask again when it lands */
+    asked = key;
     /* An svg has no offsetLeft; place by the boxes the browser laid out. */
     var sr = svg.getBoundingClientRect(), br = box.getBoundingClientRect();
-    canvas.style.left = (sr.left - br.left - box.clientLeft - ox) + 'px';
-    canvas.style.top = (sr.top - br.top - box.clientTop - oy) + 'px';
-    canvas.style.transform = 'none';
-    var ch = bm.shown, S = view.s;
-    paint.setTransform(1, 0, 0, 1, 0, 0);
-    paint.clearRect(0, 0, canvas.width, canvas.height);
-    var M = frame(view, z.w, z.h);
-    bm.at = {cx: view.cx, cy: view.cy, s: S, w: z.w, h: z.h, ch: ch, m: M};
-    if (!ch) { return; }
-    paint.fillStyle = bmColor('water');
-    paint.fillRect(0, 0, canvas.width, canvas.height);
-    paint.setTransform(dpr * M[0], dpr * M[1], dpr * M[2], dpr * M[3],
-                       dpr * (M[4] + ox), dpr * (M[5] + oy));
-    var px = 1 / S, p = ch.paths, edge = bmColor('edge');
-    paint.lineJoin = 'round';
-    if (p.land) { paint.fillStyle = bmColor('land'); paint.fill(p.land); }
-    if (p.urban) { paint.fillStyle = bmColor('urban'); paint.fill(p.urban); }
-    if (p.county) {
-      paint.strokeStyle = edge; paint.lineWidth = 0.5 * px;
-      paint.setLineDash([4 * px, 3 * px]); paint.stroke(p.county); paint.setLineDash([]);
+    var job = {at: {cx: view.cx, cy: view.cy, s: view.s, w: z.w, h: z.h, ch: ch, m: M},
+               W: W, H: H, left: sr.left - br.left - box.clientLeft - ox,
+               top: sr.top - br.top - box.clientTop - oy};
+    if (!ch) { bmShow(job, null); return; }
+    var msg = {w: Math.round(W * dpr), h: Math.round(H * dpr), px: 1 / view.s,
+               t: [dpr * M[0], dpr * M[1], dpr * M[2], dpr * M[3],
+                   dpr * (M[4] + ox), dpr * (M[5] + oy)],
+               colors: {water: bmColor('water'), land: bmColor('land'), urban: bmColor('urban'),
+                        road: bmColor('road'), edge: bmColor('edge')}};
+    if (painter) {
+      job.seq = msg.seq = ++paintSeq; msg.type = 'paint'; msg.id = ch.id; msg.debug = FRAMES;
+      bm.job = job;
+      painter.postMessage(msg);
+      return;
     }
-    if (p.land) { paint.strokeStyle = edge; paint.lineWidth = 0.8 * px; paint.stroke(p.land); }
-    /* Lakes are filled, not outlined: the Census splits a lake at every
-       county line, and an outline would draw each seam across the water. */
-    if (p.lake) { paint.fillStyle = bmColor('water'); paint.fill(p.lake); }
-    if (p.road) { paint.strokeStyle = bmColor('road'); paint.lineWidth = 1.1 * px; paint.stroke(p.road); }
+    var t0 = FRAMES ? performance.now() : 0;
+    bmPlace(job, msg.w, msg.h);
+    paintGround(paint, ch.paths, msg);
+    if (FRAMES) {
+      paint.getImageData(0, 0, 1, 1);         /* wait for the pixels */
+      console.info('[paint] ' + JSON.stringify({where: 'page', tier: ch.tier,
+        ms: +(performance.now() - t0).toFixed(1), px_per_mile: +view.s.toFixed(3)}));
+    }
+    bm.at = job.at;
+  }
+  function bmPlace(job, w, h) {
+    canvas.width = w; canvas.height = h;
+    canvas.style.width = job.W + 'px'; canvas.style.height = job.H + 'px';
+    canvas.style.left = job.left + 'px'; canvas.style.top = job.top + 'px';
+    canvas.style.transform = 'none';
+  }
+  /* Nothing to show: clear the picture. */
+  function bmShow(job) {
+    bmPlace(job, 1, 1);
+    if (painter) { paint.transferFromImageBitmap(null); }
+    else { paint.clearRect(0, 0, 1, 1); }
+    bm.at = job.at;
+  }
+  /* The worker's picture. Put it up, and move it to wherever the view has
+     got to since it was asked for. */
+  function bmPainted(e) {
+    var m = e.data, job = bm.job;
+    if (!job || m.seq !== job.seq) { if (m.bitmap) { m.bitmap.close(); } return; }
+    bm.job = null;
+    if (m.bitmap) {
+      var t0 = FRAMES ? performance.now() : 0;
+      bmPlace(job, m.bitmap.width, m.bitmap.height);
+      paint.transferFromImageBitmap(m.bitmap);
+      bm.at = job.at;
+      if (FRAMES) {
+        console.info('[paint] ' + JSON.stringify({where: 'worker', tier: job.at.ch.tier,
+          worker_ms: +m.ms.toFixed(1), page_ms: +(performance.now() - t0).toFixed(2),
+          px_per_mile: +job.at.s.toFixed(3)}));
+      }
+    }
+    if (bm.next) { bm.next = false; asked = ''; }
+    redraw();
   }
   function bmDraw(S) {
     if (!BM) { return; }
@@ -762,7 +881,9 @@ MATCHES = """{% extends "base" %}{% block body %}
   }
   if (BM && window.matchMedia) {
     var scheme = window.matchMedia('(prefers-color-scheme: dark)');
-    if (scheme.addEventListener) { scheme.addEventListener('change', function () { bm.at = null; redraw(); }); }
+    if (scheme.addEventListener) {
+      scheme.addEventListener('change', function () { bm.at = null; asked = ''; redraw(); });
+    }
   }
   var tip = node('div', {'class': 'tip', hidden: ''}, box);
 
@@ -821,6 +942,31 @@ MATCHES = """{% extends "base" %}{% block body %}
   }
   function clampS(s) { return Math.max(0.03, Math.min(250, s)); }
 
+  /* ?debug=frames (n26): the worst frame of each pan or zoom, written to
+     the console once the map settles. Off unless the address asks for it;
+     it writes nothing anywhere else and sends nothing. */
+  var FRAMES = new URLSearchParams(location.search).get('debug') === 'frames';
+  var frameLog = null, lastWheel = 0, motion = {n: 0, worst: 0, total: 0, timer: 0};
+  function moving() { return flying || drag || performance.now() - lastWheel < 150; }
+  function watchFrames() {
+    if (!FRAMES || frameLog) { return; }
+    frameLog = {last: performance.now(), worst: 0, n: 0, still: 0};
+    requestAnimationFrame(function tick(t) {
+      var gap = t - frameLog.last;
+      frameLog.last = t;
+      if (moving()) { frameLog.worst = Math.max(frameLog.worst, gap); frameLog.n++; frameLog.still = 0; }
+      else if (++frameLog.still > 10) {
+        console.info('[frames] ' + JSON.stringify({
+          tier: bm.shown ? bm.shown.tier : 'none', frames: frameLog.n,
+          worst_ms: Math.round(frameLog.worst), px_per_mile: +view.s.toFixed(3),
+          page: document.visibilityState}));
+        frameLog = null;
+        return;
+      }
+      requestAnimationFrame(tick);
+    });
+  }
+
   var raf = 0;
   function redraw() { if (!raf) { raf = requestAnimationFrame(function () { raf = 0; draw(); }); } }
   var anim = 0;
@@ -830,6 +976,7 @@ MATCHES = """{% extends "base" %}{% block body %}
     if (reduced) { view = to; redraw(); return; }
     var from = {cx: view.cx, cy: view.cy, s: view.s}, t0 = performance.now();
     flying = true;
+    watchFrames();
     (function step(t) {
       var k = Math.min(1, (t - t0) / 340), e = 1 - Math.pow(1 - k, 3);
       view = {cx: from.cx + (to.cx - from.cx) * e, cy: from.cy + (to.cy - from.cy) * e,
@@ -866,6 +1013,21 @@ MATCHES = """{% extends "base" %}{% block body %}
   }
 
   function draw() {
+    var t0 = FRAMES ? performance.now() : 0;
+    drawNow();
+    if (FRAMES && moving()) {
+      var spent = performance.now() - t0;
+      motion.n++; motion.worst = Math.max(motion.worst, spent); motion.total += spent;
+      clearTimeout(motion.timer);
+      motion.timer = setTimeout(function () {
+        console.info('[draw] ' + JSON.stringify({tier: bm.shown ? bm.shown.tier : 'none',
+          draws: motion.n, worst_ms: +motion.worst.toFixed(1),
+          mean_ms: +(motion.total / motion.n).toFixed(2), px_per_mile: +view.s.toFixed(3)}));
+        motion = {n: 0, worst: 0, total: 0, timer: 0};
+      }, 400);
+    }
+  }
+  function drawNow() {
     var z = size(), w = z.w, h = z.h, S = view.s;
     svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
     var M = frame(view, w, h), H = apply(M, 0, 0);
@@ -1088,6 +1250,7 @@ MATCHES = """{% extends "base" %}{% block body %}
     if (e.button !== 0) { return; }
     cancelAnimationFrame(anim); flying = false;
     drag = {x: e.clientX, y: e.clientY, cx: view.cx, cy: view.cy, moved: false};
+    watchFrames();
     svg.setPointerCapture(e.pointerId);
   });
   svg.addEventListener('pointermove', function (e) {
@@ -1107,6 +1270,8 @@ MATCHES = """{% extends "base" %}{% block body %}
   svg.addEventListener('wheel', function (e) {
     e.preventDefault();
     cancelAnimationFrame(anim); flying = false;
+    lastWheel = performance.now();
+    watchFrames();
     var r = svg.getBoundingClientRect();
     var sx = e.clientX - r.left, sy = e.clientY - r.top, at = toWorld(sx, sy);
     view = anchor(clampS(view.s * Math.exp(-e.deltaY * 0.0016)), at[0], at[1], sx, sy);
