@@ -20,10 +20,10 @@ class TestTheShippedData(unittest.TestCase):
                         "data/us_places.csv.gz and us_zips.csv.gz must ship")
 
     def test_a_zip_resolves(self):
-        home = places.from_zip("[postal code]")           # Example Town, CA
+        home = places.from_zip("43215")           # Columbus, OH
         self.assertIsNotNone(home)
-        self.assertAlmostEqual(home.lat, 34.0, delta=0.3)
-        self.assertAlmostEqual(home.lon, -118.5, delta=0.3)
+        self.assertAlmostEqual(home.lat, 39.96, delta=0.3)
+        self.assertAlmostEqual(home.lon, -83.0, delta=0.3)
 
     def test_an_unknown_zip_is_none_not_a_guess(self):
         self.assertIsNone(places.from_zip("00000"))
@@ -133,8 +133,8 @@ BIG_CITIES = [
 
 class TestDistance(unittest.TestCase):
     def test_a_known_pair(self):
-        """Example Town to Example Town is about 5 miles."""
-        a, b = places.origin("[postal code]"), places.origin("Example Town, CA")
+        """Downtown Columbus to Bexley is about 5 miles."""
+        a, b = places.origin("43215"), places.origin("Bexley, OH")
         self.assertIsNotNone(a)
         self.assertIsNotNone(b)
         self.assertLess(places.miles(a, b), 9)
@@ -178,8 +178,8 @@ class TestRealLocationStrings(unittest.TestCase):
             ["San Francisco, CA", "New York, NY"])
 
     def test_a_country_wrapper_is_stripped(self):
-        self.assertEqual(self.placed("US - Example Town, United States"),
-                         ["Example Town, CA"])
+        self.assertEqual(self.placed("US - Schaumburg, United States"),
+                         ["Schaumburg, IL"])
         self.assertEqual(self.placed("Long Beach, California, United States"),
                          ["Long Beach, CA"])
 
@@ -206,10 +206,10 @@ class TestRealLocationStrings(unittest.TestCase):
                 self.assertEqual(parsed.places, [], text)
 
     def test_remote_alongside_a_real_office(self):
-        parsed = places.parse("Example Town, CA; US Remote; Chicago, IL")
+        parsed = places.parse("Mesa, AZ; US Remote; Chicago, IL")
         self.assertTrue(parsed.remote)
         self.assertEqual([str(p) for p in parsed.places],
-                         ["Example Town, CA", "Chicago, IL"])
+                         ["Mesa, AZ", "Chicago, IL"])
 
     def test_a_street_address_is_not_a_place(self):
         """The city in front of it still is, when the city is unambiguous."""
@@ -293,9 +293,8 @@ class TestDistanceDecidesTheScore(unittest.TestCase):
     """What the map is for: ranking by how far away a job actually is.
 
     Before this, a posting scored on whether its text matched a city the
-    operator had written down by hand. Somebody in Los Angeles had to list
-    Example Town, Example Town, Example Town and every other suburb, or those jobs
-    scored zero.
+    operator had written down by hand. Somebody in a big metro had to list
+    every suburb, or those jobs scored zero.
     """
 
     def prefs(self, home="Boise, ID", radius=40, locations=None):

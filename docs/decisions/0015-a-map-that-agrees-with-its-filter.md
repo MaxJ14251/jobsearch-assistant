@@ -11,7 +11,7 @@ Matches page and answered it in numbers: *within 25 miles of Los Angeles, CA:
 23 near you, 37 remote*.
 
 Numbers answer "how many". They do not answer **"does fifty miles reach
-Example Town"**, which is the question somebody asks before they move the slider,
+the next city over"**, which is the question somebody asks before they move the slider,
 and which one picture answers.
 
 ## Decision

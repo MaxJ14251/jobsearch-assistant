@@ -10,8 +10,8 @@ and publication.
 
 `config/companies.yaml` held 54 sources, 50 verified, presented in the README
 as "three markets": LA / SoCal (16), San Diego (12), PA / Baltimore (5), plus
-AI labs and dev tools (14) and aggregators (3). The first three are the
-author's own markets. The obvious reading was that a reader elsewhere
+AI labs and dev tools (14) and aggregators (3). The first three were the
+markets the list was first built for. The obvious reading was that a reader elsewhere
 inherits a list built for somebody else, and the obvious fix was to ship more
 regions.
 
@@ -26,7 +26,7 @@ job boards instead of four.
 
 | profile | kept (≥0.35) | remote | in their state | top 20 |
 |---|---|---|---|---|
-| Los Angeles, CA (the author's) | 695 | 247 | 250 | 17 remote, 3 in state |
+| Los Angeles, CA | 695 | 247 | 250 | 17 remote, 3 in state |
 | Seattle, WA | 728 | 247 | 168 | 17 remote, 3 in state |
 | Columbus, OH | 667 | 247 | 5 | 20 remote |
 | Boise, ID | 652 | 247 | 0 | 20 remote |
@@ -107,3 +107,26 @@ what that costs and what it returns.
   does not exist.
 - If the feed list ever does grow, this file needs the measurement repeating,
   not an argument.
+
+## Re-measured by kind of employer (2026-09-29, n27)
+
+The README now groups the list by kind of employer rather than by the
+regions the list was first built around; the grouping by headquarters had
+already been shown above to say nothing about where the jobs are. One
+read-only fetch of every feed that answered (50 of them; the nationwide
+source is left out because it is asked about the reader's own cities)
+returned 9,725 postings:
+
+| kind of employer | feeds | postings | remote | WA | OH | ID | CA | TX | NY |
+|---|---|---|---|---|---|---|---|---|---|
+| AI labs & dev tools | 14 | 2,986 | 1,156 | 326 | 4 | 0 | 1,163 | 43 | 573 |
+| Aerospace, hardware & vehicles | 6 | 4,101 | 64 | 573 | 4 | 2 | 1,440 | 784 | 20 |
+| Health & life sciences | 8 | 487 | 73 | 0 | 1 | 1 | 56 | 2 | 4 |
+| Software & consumer | 17 | 1,749 | 174 | 93 | 10 | 0 | 461 | 48 | 134 |
+| Finance & industrial | 2 | 337 | 0 | 3 | 2 | 0 | 6 | 9 | 7 |
+| Remote aggregators | 3 | 65 | 52 | 0 | 0 | 0 | 0 | 0 | 0 |
+
+The finding stands: large multi-site employers carry Washington and Texas
+(573 and 784 on-site postings from aerospace, hardware and vehicles alone),
+while Ohio and Idaho get almost nothing from any group.
+

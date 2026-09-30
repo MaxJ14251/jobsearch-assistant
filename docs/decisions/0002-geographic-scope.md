@@ -39,7 +39,7 @@ none of them are started:
   differ per country and per visa class.
 - **Location matching**: `_US_RE` matches state abbreviations and US city
   patterns. `_matches_city()` requires city AND state, which is a US postal
-  concept — after "York, PA" matched "New York, NY".
+  concept — after a town named York matched "New York, NY".
 - **Feeds**: the 50 verified sources are US company boards.
 
 Doing any one of these badly is worse than not doing it. A location filter

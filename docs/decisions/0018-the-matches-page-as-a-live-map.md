@@ -85,7 +85,7 @@ The data the script reads holds every placeable posting, inside the circle
 or not, but **no titles**. `tests/test_radius` holds that a posting the radius
 hides is not on the page at all, and it caught the first version, which
 carried them. A marker that belongs to a listed card takes its title from
-the card; any other is "a posting in Example Town", and clicking it opens the
+the card; any other is "a posting in Denver", and clicking it opens the
 job page.
 
 ## Measured on the author's tracker, 2026-09-28

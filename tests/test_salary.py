@@ -146,7 +146,7 @@ def prefs(floor=None, regions=None):
         "fallback_titles": ["Account Executive"],
         "locations": ["Remote (US)", "San Diego, CA"],
         "max_years_experience": 3,
-        "regions": regions or {"sd": ["San Diego"], "pa": ["Example Town, PA"]},
+        "regions": regions or {"sd": ["San Diego"], "co": ["Boulder, CO"]},
         "compensation_floor_usd": floor if floor is not None else "no_floor",
     }, "ats_keywords": {"have": ["Python"]}})
     return p
@@ -279,7 +279,7 @@ class TestPayRanking(unittest.TestCase):
         jobs = [job(None, title=t, location=l) for t, l in [
             ("Software Engineer", "San Diego, CA"), ("Software Engineer", "Austin, TX"),
             ("Account Executive", "San Diego, CA"), ("Engineer", "Remote"),
-            ("Software Engineer II", "Example Town, PA")]]
+            ("Software Engineer II", "Boulder, CO")]]
         with mock.patch.object(scoring, "W_FIT", 1.0), \
                 mock.patch.object(scoring, "W_COMPENSATION", 0.0):
             before = [scoring.score_job(j, p)[0] for j in jobs]
@@ -321,7 +321,7 @@ class TestPayRanking(unittest.TestCase):
 class TestFloor(unittest.TestCase):
     """The operator has no floor. These exercise the path with synthetic ones."""
 
-    REGIONAL = {"default": 95_000, "pa": 70_000, "sd": 110_000}
+    REGIONAL = {"default": 95_000, "co": 70_000, "sd": 110_000}
 
     def test_below_the_floor_is_rejected_and_says_why(self):
         score, reasons = scoring.score_job(job(pay(80_000, 90_000)), prefs(95_000))
@@ -342,7 +342,7 @@ class TestFloor(unittest.TestCase):
         sd, reasons = scoring.score_job(job(pay(100_000)), p)
         self.assertEqual(sd, 0.0)
         self.assertIn("for sd", reasons[0])
-        pa, _ = scoring.score_job(job(pay(100_000), location="Example Town, PA"), p)
+        pa, _ = scoring.score_job(job(pay(100_000), location="Boulder, CO"), p)
         self.assertGreater(pa, 0)
         remote, _ = scoring.score_job(job(pay(90_000), location="Remote - US",
                                           remote="remote"), p)

@@ -8,9 +8,8 @@ Relates to: ADR 0002 (geographic scope), ADR 0009 (the shipped feed list).
 
 Location scoring was string matching. A posting scored full marks when its
 text contained a city the operator had written into `locations`, less when it
-named a state they had listed, and zero otherwise. Somebody in Los Angeles
-had to list Example Town, Example Town, Example Town and every other suburb by hand,
-or those jobs scored zero. A `regions` block existed to group those towns for
+named a state they had listed, and zero otherwise. Somebody in a big metro
+had to list every suburb by hand, or those jobs scored zero. A `regions` block existed to group those towns for
 `matches --near`, which is the same list written twice.
 
 It took three goals (n7, n9, n17) to make that work outside California, and it
@@ -55,8 +54,8 @@ Of 1,224 open postings on 2026-09-26: **91.2% are usable by a radius**
 postings naming a country, a department instead of a town, or a town too new
 for the 2024 Census file (Starbase, TX, incorporated 2025, is 25 of them).
 
-For the author's own profile the effect is immediate: Example Town, never listed
-anywhere, now scores 1.0 at 15 miles.
+The effect is immediate. For a profile at home in Columbus, Ohio, the town
+of Delaware, never listed anywhere, scores 1.0 at 21 miles.
 
 ## What happens to `regions` and `matches --near`
 

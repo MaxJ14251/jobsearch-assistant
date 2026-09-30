@@ -622,41 +622,53 @@ Playwright is deliberately absent from requirements.txt.
 
 ## Feed coverage
 
-`config/companies.yaml` holds 54 sources, 50 verified. The groups below are
-named after where each company is **headquartered**, which is not where its
-jobs are, and reading them as markets is a mistake this README used to invite.
-SpaceX sits under LA and supplies 473 Washington postings and 1,022 Texas
-ones; Shield AI sits under San Diego and supplies 170 Washington postings.
+`config/companies.yaml` holds 55 sources: 50 employer feeds and aggregators,
+the nationwide source, and four employers kept for reference with no public
+feed. They are grouped below by the kind of employer. Where a company is
+headquartered is not where its jobs are: SpaceX's own board supplies
+postings in Washington and Texas as well as California, and Shield AI's in
+Washington.
 
-What that means in practice, measured over 9,451 postings from all 50 feeds:
+Measured on 2026-09-29 over 9,725 postings from the 50 employer and
+aggregator feeds that answered. The nationwide source is left out, because it is
+asked about the reader's own cities.
 
-| group | feeds | postings | remote | WA | OH | ID | CA | TX | NY |
+| kind of employer | feeds | postings | remote | WA | OH | ID | CA | TX | NY |
 |---|---|---|---|---|---|---|---|---|---|
-| LA / SoCal | 16 | 4,144 | 169 | 527 | 3 | 1 | 1,513 | 1,022 | 109 |
-| AI labs & dev tools | 14 | 2,950 | 1,145 | 472 | 3 | 0 | 997 | 47 | 725 |
-| San Diego | 12 | 1,933 | 60 | 214 | 15 | 0 | 465 | 153 | 94 |
-| PA / Baltimore | 5 | 359 | 70 | 3 | 7 | 3 | 8 | 6 | 7 |
-| Aggregators | 3 | 65 | 55 | 0 | 0 | 0 | 0 | 0 | 0 |
+| AI labs & dev tools | 14 | 2,986 | 1,156 | 326 | 4 | 0 | 1,163 | 43 | 573 |
+| Aerospace, hardware & vehicles | 6 | 4,101 | 64 | 573 | 4 | 2 | 1,440 | 784 | 20 |
+| Health & life sciences | 8 | 487 | 73 | 0 | 1 | 1 | 56 | 2 | 4 |
+| Software & consumer | 17 | 1,749 | 174 | 93 | 10 | 0 | 461 | 48 | 134 |
+| Finance & industrial | 2 | 337 | 0 | 3 | 2 | 0 | 6 | 9 | 7 |
+| Remote aggregators | 3 | 65 | 52 | 0 | 0 | 0 | 0 | 0 | 0 |
 
-Coverage follows large multi-site employers, not the group labels. That is why
-Seattle gets 168 in-state roles nobody configured, and Columbus gets 5.
+Coverage follows large multi-site employers, not where a feed's company sits.
+That is why Washington and Texas get in-state roles nobody configured, and
+Ohio and Idaho get almost none.
 
-**The list is deliberately not grown region by region.** PA / Baltimore is
-what that costs: 45 regional employers probed by hand, one usable feed found,
-359 postings returned — 4% of the corpus, and almost nothing for anyone
-outside it, including readers in Pennsylvania. `matches --near <region>`
-filters to the commute areas your own profile names, and `matches --remote`
-covers the roles that work from anywhere. Full reasoning in
-[ADR 0009](docs/decisions/0009-what-the-shipped-feed-list-is.md).
+**The list is deliberately not grown region by region.** One regional group
+showed what that costs: 45 regional employers probed by hand, one usable
+feed found, 4% of the postings, and almost nothing for anyone outside that
+area. `matches --near <region>` filters to the commute areas your own profile
+names, and `matches --remote` covers the roles that work from anywhere. Full
+reasoning in [ADR 0009](docs/decisions/0009-what-the-shipped-feed-list-is.md).
 
-*LA / SoCal (16):* ZipRecruiter, Snap, GoodRx, System1, SpaceX, Rocket Lab, Vast, Riot
-Games, Scopely, ServiceTitan, Rivian, GoGuardian, Sidecar Health, Boulevard, Tebra,
-Match Group.
-
-*AI labs & dev tools (14):* Anthropic, OpenAI, Scale AI, Perplexity, Sierra, Cohere,
+*AI labs & dev tools:* Anthropic, OpenAI, Scale AI, Perplexity, Sierra, Cohere,
 LangChain, Replit, Baseten, Modal, Vercel, Notion, Hugging Face, CoreWeave.
 
-*Aggregators (3):* We Work Remotely, Hacker News jobs, Python.org.
+*Aerospace, hardware & vehicles:* SpaceX, Rocket Lab, Vast, Shield AI,
+Airspace, Rivian.
+
+*Health & life sciences:* Illumina, Element Biosciences, Geisinger, Highmark
+Health, Becton Dickinson, GoodRx, Sidecar Health, Tebra.
+
+*Software & consumer:* ZipRecruiter, Snap, System1, Riot Games, Scopely,
+ServiceTitan, GoGuardian, Boulevard, Match Group, Tealium, Kyriba, Mitek,
+GoFundMe, ClickUp, Gopuff, Duolingo, Petco.
+
+*Finance & industrial:* T. Rowe Price, Johnson Controls.
+
+*Remote aggregators:* We Work Remotely, Hacker News jobs, Python.org.
 
 Four of these needed work beyond a board token:
 
@@ -667,27 +679,14 @@ Four of these needed work beyond a board token:
 | Snap | custom | Public Elasticsearch-shaped API at `careers.snap.com/api/jobs`. **Carries no job description**, so keyword scoring contributes nothing and Snap's scores read low. |
 | Rivian | custom | Paginated JSON in front of iCIMS; rejects non-browser User-Agents. |
 
-### San Diego and south-central PA
-
-Added 2026-09-14.
-
-*San Diego (10):* Shield AI, Tealium, Kyriba, Mitek, Illumina, Petco, GoFundMe,
-Airspace, ClickUp, Element Biosciences. Element Biosciences has the highest SD
-density found — 13 of 16 listings at the San Diego HQ.
-
-*PA / Baltimore (5):* T. Rowe Price (Baltimore), Johnson Controls (Example Town facility),
-Highmark, Geisinger, Becton Dickinson. Gopuff and Duolingo are configured but
-flagged non-commutable from south-central PA — Philadelphia is about 2hr away
-and Pittsburgh about 3.5hr — so they count only for remote-eligible roles.
-
-**South-central PA has essentially no local tech market.** Across two rounds the
-feed list probed 45 regional employers — Utz, WellSpan, Dentsply Sirona, Harley-Davidson, Rite Aid, D&H, Penn State Health, Johns Hopkins,
-Example Town General and others. Exactly one, T. Rowe Price, exposes a usable feed, and
-it's in Baltimore. Example Town, McCormick, Under Armour, TE Connectivity and Armstrong run
-SuccessFactors, which needs a per-company ID not published on their careers pages.
-**In a market like this one, plan on remote work; the local search is not a
-volume game.** The same is true of most of the country outside a dozen metros,
-which is why `matches --remote` exists.
+**A small metro has almost no public job feeds.** Probing 45 regional
+employers in one area (health systems, manufacturers, retailers) found
+exactly one with a usable feed. Hershey, McCormick, Under Armour, TE
+Connectivity and Armstrong run SuccessFactors, which needs a per-company ID
+not published on their careers pages. Element Biosciences, by contrast, has
+13 of its 16 listings at its own headquarters. **Outside a dozen big metros,
+plan on remote work; the local search is not a volume game.** That is why
+`matches --remote` exists.
 
 ### Known gaps
 
@@ -695,10 +694,10 @@ which is why `matches --remote` exists.
 
 **Qualcomm and Dexcom** (both major San Diego employers) run Eightfold, whose API
 returns 403 to non-browser clients. Five URL shapes were tried with full browser
-headers, `Referer` and `Origin`. This is the biggest remaining hole in San Diego
-coverage and needs checking by hand.
+headers, `Referer` and `Origin`. This is the biggest remaining hole in the list
+and needs checking by hand.
 
-**Five former LA companies have left the market** and are recorded in companies.yaml so
+**Five employers moved their hiring out of Southern California** and are recorded in companies.yaml so
 they don't get re-added: Bird (now Canada-heavy), Dollar Shave Club (Durham NC), Tala
 (Mexico/India/Philippines), OpenX (Krakow/NY), Fandom (Poland/US-remote).
 
@@ -914,8 +913,9 @@ and can be rebuilt from its sources with `python tools/build_map_data.py`,
 which prints the count and SHA-256 of each so what ships can be checked rather
 than trusted. A town within `radius_miles`
 (default 40) of `home_location` scores as fully as one you listed by name, so
-you do not have to write down every suburb you would commute to: measured on
-this tracker, Example Town scores 1.0 at 15 miles without appearing in any list.
+you do not have to write down every suburb you would commute to. For a
+profile at home in Columbus, Ohio, the nearby town of Delaware scores 1.0 at
+21 miles without appearing in any list.
 Both settings are optional — unset, the origin is the first real place in
 `locations`. Further out ranks lower rather than being dropped, a city you
 named always wins whatever the mileage, and a posting whose location cannot

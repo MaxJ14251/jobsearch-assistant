@@ -2,7 +2,7 @@
 
 n18 put "within [N] miles of [here]" on the Matches page and answered it in
 numbers. Numbers answer "how many"; they do not answer "does fifty miles
-reach Example Town", which is the question somebody asks before they widen it.
+reach the next city over", which is the question somebody asks before they widen it.
 
 The property that makes this worth drawing at all is that the picture cannot
 disagree with the filter. It is not projected and then measured -- it is

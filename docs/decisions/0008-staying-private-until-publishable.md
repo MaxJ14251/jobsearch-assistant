@@ -136,6 +136,12 @@ elsewhere, and one was wrong the day it was written:
   the author's regions outright until this edit. None of it identifies the
   author alone, but with the name in the LICENSE it narrows things down. It
   is the owner's call whether to generalise it before publishing.
+  *Done in HEAD, 2026-09-29 (n27), with the owner's choice:* every employer
+  kept, and the personal framing removed. That means a postal code in the
+  employer list, commute times from one town, "local roles" wording, the
+  README's market groups and region paragraph, and the author's towns and a
+  nearby ZIP in tests (the tests that listed them now read them from the
+  live profile at run time). The history still carries all of it, for n28.
 
 ## How the rewrite would be done
 

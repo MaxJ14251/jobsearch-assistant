@@ -321,7 +321,7 @@ def in_state(location: str, state: str) -> bool:
 def _matches_city(location: str, pref: str) -> bool:
     """Is `location` in the preferred city?
 
-    A bare substring test is wrong in a way that bites: "York, PA" matches
+    A bare substring test is wrong in a way that bites: "York, NE" matches
     inside "New York, NY". So require the city as a whole word AND the state
     to appear too — the state is what actually separates York from New York.
 

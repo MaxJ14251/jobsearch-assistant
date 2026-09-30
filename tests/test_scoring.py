@@ -24,7 +24,7 @@ PREFS = Preferences(
         "Support Engineer",
         "Software Engineer",
     ],
-    locations=["Remote (US)", "Los Angeles, CA", "Example Town, CA"],
+    locations=["Remote (US)", "Los Angeles, CA", "Sacramento, CA"],
     exclude_keywords=["Senior", "Staff", "Principal", "Engineering Manager"],
     have_keywords=["Python", "LLM", "Claude", "Prompt Engineering", "Automation"],
 )
@@ -49,7 +49,7 @@ class TestNonUS(unittest.TestCase):
 
     def test_allows_us_locations(self):
         for loc in ["San Francisco, CA", "Remote - US", "New York, NY",
-                    "Example Town, California", "United States", ""]:
+                    "Sacramento, California", "United States", ""]:
             self.assertFalse(is_non_us(loc), loc)
 
     def test_two_letter_country_code_is_not_a_state(self):
@@ -252,21 +252,21 @@ class TestCityMatching(unittest.TestCase):
     def setUp(self):
         self.prefs = Preferences(
             target_titles=["Software Engineer"],
-            locations=["York, PA", "Baltimore, MD", "San Diego, CA",
+            locations=["York, NE", "Baltimore, MD", "San Diego, CA",
                        "Los Angeles, CA", "Remote (US)"],
             have_keywords=["Python"],
         )
 
-    def test_york_pa_does_not_match_new_york(self):
+    def test_york_does_not_match_new_york(self):
         from jsa.scoring import location_score
         score, reason = location_score("New York, NY", "onsite", self.prefs)
-        self.assertNotIn("York, PA", reason)
+        self.assertNotIn("York, NE", reason)
 
-    def test_york_pa_matches_actual_york(self):
+    def test_york_matches_actual_york(self):
         from jsa.scoring import location_score
-        score, reason = location_score("York, PA", "onsite", self.prefs)
+        score, reason = location_score("York, NE", "onsite", self.prefs)
         self.assertEqual(score, 1.0)
-        self.assertIn("York, PA", reason)
+        self.assertIn("York, NE", reason)
 
     def test_full_state_name_also_matches(self):
         from jsa.scoring import location_score
@@ -463,9 +463,12 @@ class TestConfigurability(unittest.TestCase):
         import inspect
         from jsa import cli
         src = inspect.getsource(cli)
-        # The old hardcoded REGIONS dict must be gone.
-        self.assertNotIn("Example Town", src)
-        self.assertNotIn("Example Town", src)
+        # The old hardcoded REGIONS dict must be gone: no town from the
+        # operator's own profile may appear in the code.
+        from tests.test_anywhere import operator_places
+        towns, _ = operator_places()
+        for town in towns:
+            self.assertNotIn(town, src)
 
     def test_region_clause_escapes_quotes(self):
         from jsa.cli import region_clause

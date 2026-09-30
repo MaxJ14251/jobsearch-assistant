@@ -9,7 +9,7 @@ whose own profile said "San Francisco, CA". The same score as a job in another
 state, for a job in their own city.
 
 The cause was a rule that was right for a different problem. `_matches_city`
-required the posting to name the state as well as the city, because "York, PA"
+required the posting to name the state as well as the city, because "York, NE"
 otherwise matches inside "New York, NY". That is a real hazard, but only when
 the posting names a state. When it names none, there is no ambiguity to
 resolve, and demanding one throws the posting away.
@@ -50,7 +50,7 @@ class TestTheAmbiguityItWasGuardingAgainst(unittest.TestCase):
     """The relaxation must not reopen the bug the rule was written for."""
 
     def test_york_pa_does_not_match_new_york_ny(self):
-        self.assertFalse(_matches_city("new york, ny", "York, PA"))
+        self.assertFalse(_matches_city("new york, ny", "York, NE"))
 
     def test_a_stated_state_still_has_to_agree(self):
         score, why = location_score("San Francisco, CA", "",

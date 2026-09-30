@@ -15,6 +15,39 @@ from jsa.scoring import location_score, score_job
 EXAMPLE = "profile/master_profile.example.yaml"
 
 
+def operator_places() -> tuple[set[str], set[str]]:
+    """(town and postal-code strings, region names) from the LIVE profile.
+
+    Read at run time, never written down: these tests used to list the
+    author's own towns and ZIP code as a forbidden list, which is checking
+    for a leak by writing the leak (ADR 0008). Skips on a fresh clone, and
+    when the profile IS the example (as in CI), where the comparison would
+    prove nothing.
+    """
+    from jsa.config import ROOT
+
+    live, example = ROOT / "profile" / "master_profile.yaml", ROOT / EXAMPLE
+    if not live.exists():
+        raise unittest.SkipTest("no live profile on this machine")
+    text = live.read_text(encoding="utf-8")
+    if text == example.read_text(encoding="utf-8"):
+        raise unittest.SkipTest("the live profile is the example")
+    data = yaml.safe_load(text) or {}
+    prefs = data.get("job_search_preferences") or {}
+    location = (data.get("identity") or {}).get("location") or {}
+    raw = list(prefs.get("locations") or [])
+    raw += [town for towns in (prefs.get("regions") or {}).values() for town in towns or []]
+    raw += [prefs.get("home_location"), location.get("city"), location.get("postal_code")]
+    towns = set()
+    for value in raw:
+        if not isinstance(value, str) or "remote" in value.lower():
+            continue
+        head = value.split(",")[0].strip()
+        if len(head) >= 4:
+            towns.add(head)
+    return towns, set((prefs.get("regions") or {}).keys())
+
+
 def texan() -> Preferences:
     return Preferences.from_profile({"job_search_preferences": {
         "target_titles": ["Software Engineer"],
@@ -100,16 +133,15 @@ class TestTheExampleProfileBelongsToNobody(unittest.TestCase):
         cls.data = yaml.safe_load(cls.text)
 
     def test_no_real_place_from_the_authors_search(self):
-        for place in ("Example Town", "Example Town", "Example Town", "Example Town",
-                      "Example Town", "Example Town", "Example Town", "Example Town",
-                      "Example Town", "Example Town", "Example Town", "[postal code]"):
-            self.assertNotIn(place, self.text, f"{place} is the author's")
+        towns, _ = operator_places()
+        self.assertTrue(towns, "the live profile names no place to check against")
+        for place in towns:
+            self.assertNotIn(place, self.text, "a place from the live profile")
 
     def test_regions_are_not_named_after_the_authors_regions(self):
+        _, names = operator_places()
         regions = self.data["job_search_preferences"]["regions"]
-        self.assertNotIn("la", regions)
-        self.assertNotIn("sd", regions)
-        self.assertNotIn("pa", regions)
+        self.assertFalse(names & set(regions), "a region name from the live profile")
 
     def test_it_still_shows_how_the_fields_work(self):
         prefs = self.data["job_search_preferences"]

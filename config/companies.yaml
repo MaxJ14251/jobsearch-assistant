@@ -41,7 +41,7 @@ sources:
 
 
   # ==========================================================================
-  # LA / SoCal — local roles, where a coffee chat is actually possible
+  # Southern California employers
   # ==========================================================================
 
   - company: ZipRecruiter
@@ -327,8 +327,8 @@ sources:
     enabled: false
     verified: false
 
-  # Probed on 2026-09-09 and found to have left the LA market — kept here so
-  # they don't get re-added by mistake:
+  # Probed on 2026-09-09 and found to have left Southern California — kept
+  # here so they don't get re-added by mistake:
   #   Bird              greenhouse/bird            now Canada-heavy
   #   Dollar Shave Club greenhouse/dollarshaveclub now Durham, NC
   #   Tala              lever/tala                 now Mexico / India / Philippines
@@ -336,7 +336,7 @@ sources:
   #   Fandom            greenhouse/fandom          now Poland / US-remote
 
   # ==========================================================================
-  # San Diego
+  # San Diego employers
   # ==========================================================================
 
   - company: Shield AI
@@ -418,7 +418,7 @@ sources:
     verified: true          # 17 listings, 2 Carlsbad
 
   # ==========================================================================
-  # South-central PA / Baltimore  (around Example Town [postal code])
+  # Pennsylvania and Maryland employers
   # ==========================================================================
 
   - company: Johnson Controls
@@ -429,11 +429,9 @@ sources:
     site: JCI
     search: engineer        # ~2,600 reqs globally — narrow server-side
     careers_url: https://www.johnsoncontrols.com/careers
-    hq: Cork / Example Town PA operations
+    hq: Cork, Ireland
     priority: 3
-    verified: true
-    # Relevant here because of the Example Town, PA facility — and because building
-    # safety systems are close to the operator's own field background.
+    verified: true          # multi-site; narrowed to engineering roles
 
   - company: T. Rowe Price
     slug: t-rowe-price
@@ -444,7 +442,7 @@ sources:
     careers_url: https://www.troweprice.com/corporate/us/en/careers.html
     hq: Baltimore, MD
     priority: 3
-    verified: true          # 137 listings — Baltimore is ~1hr from Example Town
+    verified: true          # 137 listings
 
   - company: Gopuff
     slug: gopuff
@@ -452,8 +450,7 @@ sources:
     board: gopuff
     hq: Philadelphia, PA
     priority: 4
-    verified: true          # 781 listings — Philly is NOT commutable from
-                            # Example Town (~2hr); kept for remote-eligible roles
+    verified: true          # 781 listings, mostly on-site in Philadelphia
 
   - company: Duolingo
     slug: duolingo
@@ -461,15 +458,13 @@ sources:
     board: duolingo
     hq: Pittsburgh, PA
     priority: 4
-    verified: true          # 80 listings — Pittsburgh is ~3.5hr from Example Town;
-                            # kept for remote-eligible roles only
+    verified: true          # 80 listings
 
   # ---- Probed 2026-09-14, no public feed ----------------------------------
   # San Diego: Qualcomm and Dexcom run Eightfold, whose API returns 403 to
   # non-browser clients. Intuit, ServiceNow, Teradata, Seismic, Brain Corp,
   # Classy and Measurabl are client-rendered with no detectable board.
-  # PA: Utz (Example Town), WellSpan (Example Town), Rite Aid, D&H, Dentsply Sirona and
-  # Harley-Davidson (Example Town) all had no reachable feed.
+  # PA: six regional employers, Utz among them, had no reachable feed.
   - company: Qualcomm
     slug: qualcomm
     kind: manual
@@ -529,7 +524,7 @@ sources:
     careers_url: https://jobs.geisinger.org/
     hq: Danville, PA
     priority: 4
-    verified: true          # ~1.5hr from Example Town; mostly healthcare roles
+    verified: true          # mostly healthcare roles
 
   - company: Becton Dickinson
     slug: becton-dickinson
@@ -547,7 +542,7 @@ sources:
   # Qualcomm and Dexcom (both major San Diego employers) run Eightfold. Its
   # API returns 403 to every non-browser client — five URL shapes tried on
   # 2026-09-14 with full browser headers, Referer and Origin. This is the
-  # largest remaining hole in San Diego coverage. Check these by hand.
+  # largest remaining hole in this list. Check these by hand.
   - company: Dexcom
     slug: dexcom
     kind: manual
@@ -558,9 +553,7 @@ sources:
     verified: false
 
   # Probed with no result on 2026-09-14 (two rounds, 45 regional employers):
-  #   PA/MD — WellSpan, Utz (Example Town), Dentsply Sirona, Harley-Davidson,
-  #   Rite Aid, D&H, Penn State Health, Weis, Johns Hopkins, Stanley B&D,
-  #   Example Town General, Capital BlueCross, Penn Medicine, Erie Insurance.
+  #   PA/MD — 14 regional health systems, manufacturers and retailers.
   #   Hershey, McCormick, Under Armour, TE Connectivity and Armstrong run
   #   SuccessFactors, which needs a per-company ID not exposed on the page.
   #   SD — Intuit, ServiceNow, Teradata, Seismic, Brain Corp, Tealium(done),

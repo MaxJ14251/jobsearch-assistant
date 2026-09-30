@@ -75,7 +75,7 @@ FIRST_WORD = (("st.", "saint"), ("st", "saint"), ("ste.", "sainte"),
 REMOTE = re.compile(
     r"\b(remote|flexible|anywhere|work from home|wfh|virtual|telecommute)\b", re.I)
 
-# Country noise around the real text: "US - Example Town, United States".
+# Country noise around the real text: "US - Schaumburg, United States".
 COUNTRY = re.compile(
     r"^(us|usa|u\.s\.|u\.s\.a\.|united states( of america)?)\s*[-–—,]\s*|"
     r"\s*[-–—,]\s*(usa|u\.s\.a\.|united states( of america)?)$", re.I)
@@ -269,7 +269,7 @@ def _one(part: str) -> Place | None:
                 found = resolve(re.split(r"\s*,\s*", bit)[-1].strip(), state)
                 if found:
                     return found
-    # "Example Town - 1 Market St": the street address is not a
+    # "Bellevue - 110 110th Ave NE": the street address is not a
     # place, so the head is. But "England - Cambridge" is two place names,
     # and taking its head put a Cambridge (UK) posting in England, Arkansas.
     # A tail only counts as an address when it reads like one.
@@ -317,7 +317,7 @@ def parse(text: str) -> Placement:
             continue
         if REMOTE.search(part):
             out.remote = True
-            # "Example Town, CA (Remote)" still names a place; "US Remote" does not.
+            # "Mesa, AZ (Remote)" still names a place; "US Remote" does not.
             stripped = REMOTE.sub("", part).strip(" ,-–—()")
             place = _one(stripped) if stripped else None
             if place and place not in out.places:

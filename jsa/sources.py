@@ -398,8 +398,8 @@ def fetch_workable(entry: dict[str, Any]) -> FetchResult:
 
 
 # --- Company-specific boards ------------------------------------------------
-# Two Example Town / SoCal employers run their own job APIs. Each is a handful
-# of lines, and both are prime local targets, so they earn a custom adapter.
+# Two employers run their own job APIs. Each is a handful of lines, and
+# both post many roles, so they earn a custom adapter.
 
 
 def fetch_snap(entry: dict[str, Any]) -> FetchResult:
