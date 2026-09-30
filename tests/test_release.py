@@ -159,6 +159,18 @@ class TestReleaseFiles(unittest.TestCase):
         for version in ("3.11", "3.12", "3.13"):
             self.assertIn(f'"{version}"', ci)
 
+    def test_ci_runners_are_pinned_and_actions_current(self):
+        """n24: ubuntu-latest moves under a green build, and actions built
+        for Node 20 stop running when GitHub removes it."""
+        import re
+        ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        runners = re.findall(r"runs-on:\s*(\S+)", ci)
+        self.assertTrue(runners)
+        self.assertNotIn("ubuntu-latest", runners)
+        for action, oldest in (("checkout", 5), ("setup-python", 6)):
+            for major in re.findall(rf"actions/{action}@v(\d+)", ci):
+                self.assertGreaterEqual(int(major), oldest, f"{action}@v{major} is Node 20")
+
     def test_ci_sets_up_a_fresh_users_world(self):
         """The suite must pass with no API key and no job data."""
         ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
