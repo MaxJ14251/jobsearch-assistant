@@ -1,10 +1,21 @@
 # Pre-publication rewrite: the runbook
 
-**Status: performed, 2026-09-28.** The history was rewritten locally, the
-scan is clean with an empty allowlist, and the repository is still private.
+**Status: performed, 2026-09-28, and again on 2026-09-29.** The history was
+rewritten locally, the scan is clean with an empty allowlist, and the
+repository is still private.
 [ADR 0008](decisions/0008-staying-private-until-publishable.md) records the
-owner's decisions and the result. This file is kept as the plan, for
+owner's decisions and the results. This file is kept as the plan, for
 whoever does this to their own fork.
+
+**What the second rewrite changed about the method.** Instead of listing
+files a rule must not touch, it never touches a line that is still in HEAD's
+version of the same file. Whatever HEAD says was already reviewed, so HEAD's
+tree comes out byte-identical without per-file exceptions, and old text that
+HEAD no longer has is fair game. It also squashed the older basemap versions
+into the current one. Two traps found in its rehearsal: a guard meant for
+"District of Columbia" that skipped any town after "of ", and a five-digit
+salary in the profile that looked like a postal code. Keep only postal codes
+that resolve to a real place near the profile's towns.
 
 **One change from the plan below, found by rehearsing it.** Step 3's
 `--replace-text` rules file cannot tell *which file* a line is in, and three
@@ -18,7 +29,7 @@ and the project URL, `data/` and binaries never. Rehearse it the same way,
 and check the rehearsal's HEAD tree against the real one -- if they match,
 no current file was touched.
 
-*SHAs below are the rewritten ones; the originals no longer exist.*
+*SHAs below are from the second rewrite; earlier ones no longer exist.*
 
 Nothing here runs automatically. Every step is the repository owner's to take.
 
@@ -30,9 +41,9 @@ Run `python tools/scan_history.py` for the current list. As of 2026-09-26, in
 | # | What | Where |
 |---|---|---|
 | 1 | The owner's email | author and committer lines of all 39 commits |
-| 2 | A town and its postal code | 16 versions of `README.md`, through `e41ce16` |
+| 2 | A town and its postal code | 16 versions of `README.md`, through `e304969` |
 | 3 | Surname, house number and street, last four phone digits, repo handle | `tests/test_scoring.py`, from the initial release until 2026-09-24 |
-| 4 | Surname, given name, phone fragments | `tests/test_letter.py` as added in `761932f`, and that commit's *message* |
+| 4 | Surname, given name, phone fragments | `tests/test_letter.py` as added in `cd7780a`, and that commit's *message* |
 
 Items 3 and 4 are gone from HEAD. Only a rewrite removes them from history.
 

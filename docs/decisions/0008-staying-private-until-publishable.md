@@ -1,13 +1,13 @@
 # ADR 0008 — Staying private until anyone can use it
 
 Status: accepted. The history rewrite it deferred was performed on
-2026-09-28; see "The rewrite, performed" below. Still private, and not yet
-publishable: the same day's readiness check found more in the history (see
-"Not done").
+2026-09-28, and a second one on 2026-09-29 removed what the readiness check
+found after it; see "The rewrite, performed" and "The second rewrite" below.
+Still private.
 Date: 2026-09-19
 Decided by: the repository owner, after the n8 pre-publishing history audit.
 
-*SHAs below are the rewritten ones; the originals no longer exist.*
+*SHAs below are from the second rewrite; earlier ones no longer exist.*
 
 ## Context
 
@@ -24,7 +24,7 @@ It found two things that publishing would expose and that editing a file
 cannot undo, because the commits are already written:
 
 1. **Sixteen versions of README.md**, from the initial release through
-   `e41ce16`, described the feed coverage in the first person and named a
+   `e304969`, described the feed coverage in the first person and named a
    town and its postal code. HEAD no longer does. The earlier commits still
    do.
 2. **Every commit carries a contactable personal address** in its author and
@@ -44,7 +44,7 @@ exposed while the repository is private:
    handle as a "forbidden" list to assert against -- checking for a leak by
    writing the leak down. HEAD now reads those values from the profile at run
    time and skips when there is none.
-4. **tests/test_letter.py and the message of commit 761932f**, both written
+4. **tests/test_letter.py and the message of commit cd7780a**, both written
    on 2026-09-24, quote a dashboard warning that names the surname, the given
    name and phone fragments. The file was fixed the same day; the commit
    message cannot be.
@@ -124,12 +124,8 @@ elsewhere, and one was wrong the day it was written:
   Three-letter names are matched as whole words, in any case. Values the
   example profile itself ships are exempt, and the example profile is
   checked for these even though it is exempt from the contact-detail scan.
-  HEAD is clean. The history scan reports 27 findings, and
-  `tests/test_history_scan.py` fails on the owner's machine (CI has no
-  real profile, so it passes there) until either the history is rewritten
-  again or the owner records the findings in `tools/history_allowlist.txt`.
-  Either is the owner's decision. Publishing before it would publish the
-  findings.
+  HEAD was clean; the history scan reported 27 findings, since removed by
+  the second rewrite (below). Nothing was added to the allowlist.
 - **The repository says where the author looks for work.** The shipped feed
   list is built around the author's markets, the README quotes a result
   "measured on this tracker" for a town near the author, and this ADR named
@@ -141,7 +137,8 @@ elsewhere, and one was wrong the day it was written:
   employer list, commute times from one town, "local roles" wording, the
   README's market groups and region paragraph, and the author's towns and a
   nearby ZIP in tests (the tests that listed them now read them from the
-  live profile at run time). The history still carries all of it, for n28.
+  live profile at run time). *Removed from the history by the second
+  rewrite, 2026-09-29 (below).*
 
 ## How the rewrite would be done
 
@@ -203,6 +200,53 @@ personal one back.
 
 A mirror backup of the old history exists outside the project, is never
 pushed, and is the owner's to delete now that the new repository is
+confirmed.
+
+## The second rewrite, performed (2026-09-29, goal n28)
+
+The owner said "rewrite history" in the session, after a rehearsal on a
+mirror clone had passed every check below.
+
+**What it removed**, in categories (the values were read from the live
+profile in memory and never written to a file):
+
+- the school, its initials, and the short employer name the tightened
+  scanner found, replaced with the example profile's own stand-ins (State
+  University, Riverton), so old bullet ids still line up;
+- the profile's own towns, except the three big cities HEAD keeps as
+  employer facts. One town name that is also the York/New York bug is
+  rewritten only in the four files that framed the owner's markets;
+- postal codes that are the profile's own, or real ones within five miles
+  of its towns: three in all;
+- one business street address, and one sentence reworded the way n27
+  reworded it in HEAD;
+- the older copies of the basemap: every version of each tier is now the
+  current one, so the history carries three map files instead of eight.
+
+**The guard that made it safe.** A line that exists in HEAD's version of the
+same file is never touched. n27 had already judged every HEAD line, so the
+rewrite only reaches text that no longer exists, and HEAD's tree comes out
+byte-identical by construction. It did: the same tree hash before and after,
+in the rehearsal and in the real repository. The first rewrite needed
+per-file exceptions to get the same guarantee; this one gets it from HEAD.
+
+**Result, verified:** 71 commits rewritten (plus the one-commit CI trial
+branch, set aside as a patch and re-applied); 103 file versions, 738 lines
+and 9 commit messages changed. `tools/scan_history.py` with the owner's
+real profile and an empty allowlist: clean. An audit of every old line for
+the profile's towns, postal codes, school and employer: nothing left. The
+full suite passes, `tests/test_history_scan.py` included. The packed
+history went from about 25 MB to 10 MB.
+
+**What stays, on purpose.** Region-level wording in old versions ("LA /
+SoCal", "south-central PA"), at the same level ADR 0002 and ADR 0009 still
+use in HEAD. Old commits whose tests used the removed towns may no longer
+pass when checked out; the history is a record, not a set of builds.
+
+As after the first rewrite, the old commits leave GitHub only when the
+owner deletes the repository and pushes this history to a new one. A mirror
+backup of the history before this rewrite exists outside the project, is
+never pushed, and is the owner's to delete once the new repository is
 confirmed.
 
 ## Consequences
