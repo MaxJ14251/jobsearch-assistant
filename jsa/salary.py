@@ -79,6 +79,23 @@ LABEL_WINDOW = 70
 HOURLY_WINDOW = 90
 _HOURLY = re.compile(r"(per\s+hour|/\s?h(?:ou)?r\b|an\s+hour|hourly)", re.I)
 
+# Other evidence an hourly-sized figure is hourly, when the posting never
+# says "hour" (n25; the owner's decision, 2026-09-29). Measured on the
+# tracker: 69 open postings -- SpaceX's "Level 1: $23.00 - $27.00", Vast's
+# "Pay Range: California $38.36-$54.45 USD" -- were refused for that alone.
+# - Cents written out: salaries are not quoted to the cent.
+# - Wording that says THIS ROLE is paid by the hour: "a non-exempt position",
+#   "eligible for overtime pay", a shift differential. Not "non-exempt" or
+#   "overtime" anywhere: Vast's benefits paragraph ("vacation for non-exempt
+#   staff") and "willingness to work overtime" appear in its salaried
+#   postings too -- 39 and 18 of 1,311 with annual pay. These phrasings
+#   appear in none of them.
+# Size alone is still not enough.
+_CENTS = re.compile(r"\$\s?\d{1,3}\.\d{2}\b")
+_HOURLY_WORK = re.compile(
+    r"\bnon-?exempt\s+(?:\w+\s+)?(?:position|role|job)\b"
+    r"|\beligible\s+for\s+overtime\b|\bshift\s+differential|\bper\s+shift\b", re.I)
+
 ANNUAL_BOUNDS = (20_000, 1_000_000)
 HOURLY_BOUNDS = (10, 500)
 
@@ -114,6 +131,7 @@ def _amount(digits: str, k: str | None) -> int:
 
 def _candidates(text: str):
     last_accepted_end = -10**9
+    hourly_work = bool(_HOURLY_WORK.search(text))
     for m in _RANGE.finditer(text):
         # A list of ranges ("... for Maryland $84,500 - $144,000 for D.C.
         # $96,500 - $164,000 ...") carries its pay wording only at the top. A
@@ -144,7 +162,8 @@ def _candidates(text: str):
             period = "year"
         elif HOURLY_BOUNDS[0] <= low and high <= HOURLY_BOUNDS[1]:
             if not (_HOURLY.search(after) or _HOURLY.search(
-                    text[max(0, m.start() - HOURLY_WINDOW):m.start()])):
+                    text[max(0, m.start() - HOURLY_WINDOW):m.start()])
+                    or _CENTS.search(m.group(0)) or hourly_work):
                 continue
             period = "hour"
         else:
@@ -183,6 +202,7 @@ SINGLE_VETO_AFTER = 12
 
 def _singles(text: str, taken: list[tuple[int, int]]):
     last_end, last_period = -10**9, None
+    hourly_work = bool(_HOURLY_WORK.search(text))
     for m in _SINGLE.finditer(text):
         if any(a <= m.start() < b for a, b in taken):
             continue
@@ -207,7 +227,8 @@ def _singles(text: str, taken: list[tuple[int, int]]):
         elif HOURLY_BOUNDS[0] <= value <= HOURLY_BOUNDS[1]:
             hourly_nearby = (_HOURLY.search(after) or _HOURLY.search(
                 text[max(0, m.start() - HOURLY_WINDOW):m.start()]))
-            if not (hourly_nearby or (continued and last_period == "hour")):
+            if not (hourly_nearby or (continued and last_period == "hour")
+                    or _CENTS.search(m.group(0)) or hourly_work):
                 continue
             period = "hour"
         else:

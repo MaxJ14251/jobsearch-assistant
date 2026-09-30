@@ -376,3 +376,55 @@ Of the 33 Greenhouse postings with a dollar figure but no stored pay:
 These roughly 60 postings are probably hourly. Accepting hourly figures by
 size alone would loosen a refusal this ADR made on purpose, so that is left to
 the owner. It was not changed here.
+
+## Hourly figures that never say "hour" (2026-09-29, n25)
+
+The refusal above, left to the owner, came back to them with numbers:
+69 open postings were refused only because an hourly-sized range never
+said "hour". They were 35 SpaceX, 27 Vast, 3 Illumina, 2 Rocket Lab and
+one each from Manpower and Flexport. Every figure fell between $15 and
+$80.
+
+**The owner's decision:** accept such a range when there is evidence it is
+hourly beyond its size. Either:
+
+- **it is written to the cent** (`$23.00`), because salaries are not quoted
+  to the cent; or
+- **the posting says the role is paid hourly**: "a non-exempt position",
+  "eligible for overtime pay", or a shift differential.
+
+Size alone is still not enough. The same rule applies to single figures.
+
+**The wording had to be narrower than first proposed.** The first version
+counted "non-exempt" or "overtime" anywhere in the posting. Measured
+against the 1,311 open postings with annual pay:
+
+- "non-exempt" appears in 39 of them, because Vast's benefits paragraph
+  offers "vacation for non-exempt staff" in every posting;
+- "willingness to work overtime" appears in 18 salaried Vast postings.
+
+Neither says anything about the role in front of you. The phrasings kept
+appear in none of the salaried postings.
+
+**Measured, re-reading every posting in the tracker:**
+
+- 62 gained hourly pay: 31 SpaceX, 26 Vast, 3 Illumina, 1 Manpower and
+  1 Flexport. 51 were accepted on cents and 11 on "non-exempt position".
+- 1 existing figure changed, correctly. ServiceTitan's Zone 2
+  ("$19.61 USD - $29.42 USD") had been dropped because "hourly" was too far
+  above it; the combined range is now $20–$31 an hour.
+- 0 postings lost pay, and no annual figure changed.
+- 7 stay refused, as unknown pay, which is neutral and never rejected:
+  - 4 with no second signal ("Level 1: $33 - $39", "Base Pay Range
+    (CA Only) $22-$27 USD");
+  - 3 that had only boilerplate (a fixed-term recruiter at Vast, two SpaceX
+    welder postings).
+- **Hand check:** all 11 wording-only postings plus 19 accepted on cents,
+  30 in all. Every one is an hourly-type role (technicians, inspectors,
+  coordinators, drivers, security officers). Agree: 30, disagree: 0.
+
+**Where it applies.** The board-field path (`from_greenhouse`) is
+unchanged: a pay field has no text to read wording from. When it refuses
+an hourly-sized field, discovery falls back to the text, which now
+applies this rule. Stored figures update on the next `jsa rescore` or
+`jsa discover`.

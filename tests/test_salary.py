@@ -194,6 +194,47 @@ class TestARangeLabelledAsMoreThanBase(unittest.TestCase):
         self.assertEqual((pay.minimum, pay.maximum), (180000, 220000))
 
 
+class TestHourlyWithoutTheWordHour(unittest.TestCase):
+    """n25 (owner's decision 2026-09-29): an hourly-sized range that never
+    says "hour" is hourly when it is written to the cent, or the posting
+    says the ROLE is paid hourly. Size alone still is not enough."""
+
+    def test_cents_written_out(self):
+        pay = extract("COMPENSATION AND BENEFITS: Pay Range: Level 1: $23.00 - $27.00 "
+                      "Level 2: $26.00 - $33.00")
+        self.assertEqual((pay.minimum, pay.maximum, pay.period), (23, 33, "hour"))
+
+    def test_a_non_exempt_position(self):
+        pay = extract("This will be a full-time, non-exempt position located in Long "
+                      "Beach. Pay Range: California $26–$36 USD")
+        self.assertEqual((pay.minimum, pay.maximum, pay.period), (26, 36, "hour"))
+
+    def test_eligible_for_overtime_or_a_shift_differential(self):
+        for words in ("This job is eligible for overtime pay.",
+                      "A shift differential applies to nights."):
+            with self.subTest(words=words):
+                pay = extract(f"{words} Pay range: $24 - $30")
+                self.assertEqual(pay.period, "hour")
+
+    def test_benefits_boilerplate_is_not_evidence(self):
+        """Vast's benefits paragraph is in its salaried postings too."""
+        for words in ("up to 10+ days of vacation for non-exempt staff",
+                      "willingness to work overtime, or weekends"):
+            with self.subTest(words=words):
+                self.assertIsNone(extract(f"Benefits: {words}. Pay Range: California $55–$70 USD"))
+
+    def test_size_alone_is_still_refused(self):
+        self.assertIsNone(extract("Pay Range: Level 1: $33 - $39 Level 2: $37 - $44"))
+
+    def test_a_zone_list_to_the_cent_is_read_whole(self):
+        """ServiceTitan: "hourly" sat too far above Zone 2 for it to count."""
+        pay = extract("the good faith hourly rate estimate for this role is\n\nZone 1: "
+                      "$21.01 USD - $31.49 USD Applicable for: CA, CT, DC, MD, MA, NJ, NY, "
+                      "VA, and WA\n\nZone 2: $19.61 USD - $29.42 USD Applicable for: All "
+                      "other US locations.")
+        self.assertEqual((pay.minimum, pay.maximum), (20, 31))
+
+
 class TestPayRanking(unittest.TestCase):
     def test_e_unknown_pay_scores_exactly_the_midpoint(self):
         """Scenario e. ADR 0001 decision 4's trap, tested directly."""
