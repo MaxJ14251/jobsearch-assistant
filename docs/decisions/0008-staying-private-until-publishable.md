@@ -1,9 +1,9 @@
 # ADR 0008 — Staying private until anyone can use it
 
-Status: accepted. The history rewrite it deferred was performed on
-2026-09-28, and a second one on 2026-09-29 removed what the readiness check
-found after it; see "The rewrite, performed" and "The second rewrite" below.
-Still private.
+Status: **superseded by publication, 2026-09-29.** The owner made the
+repository public after the two history rewrites (2026-09-28 and
+2026-09-29) and the last readiness pass; see "Published" at the end. Kept as
+the record of what was checked and why.
 Date: 2026-09-19
 Decided by: the repository owner, after the n8 pre-publishing history audit.
 
@@ -282,3 +282,20 @@ and does not send.
 - Before the first push to the new repository, turn on GitHub's "Keep my
   email address private" and "Block command line pushes that expose my
   email", so the clean history cannot be re-contaminated.
+
+## Published (2026-09-29)
+
+The owner switched the repository to public. Checked the same day:
+
+- An anonymous clone of the public URL (no stored credentials) passes
+  `tools/fresh_clone_check.py`: no personal data, no failing README step.
+  In that clone, with the owner's real profile copied in and removed
+  after, `tools/scan_history.py` and `tools/scan_secrets.py` are clean.
+- CI passed on `main` on the new repository: tests on Python 3.11, 3.12
+  and 3.13, the Docker check, and both scans.
+- Turned on with the owner's go-ahead and read back from the API: private
+  vulnerability reporting (the channel SECURITY.md names), and secret
+  scanning with push protection. No open secret-scanning alerts at the time
+  of writing.
+- Branch protection on `main` was offered and declined for now; direct
+  pushes and the rule against force-pushing stay a practice, not a setting.
