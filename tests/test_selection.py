@@ -243,6 +243,61 @@ class TestWorkHistoryIsNeverEmpty(unittest.TestCase):
         self.assertTrue(all(b.origin == "project" for b in chosen))
 
 
+class TestProjectsAreNeverEmpty(unittest.TestCase):
+    """The Shield AI and Kyber drafts had no PROJECTS section.
+
+    Both were forward-deployed roles, where field and customer-facing jobs
+    outscored every project; the operator rejected both with "No projects
+    section". The mirror of the work-history rule above.
+    """
+
+    PROFILE = {
+        "experience": [
+            {"id": "exp_field", "company": "Acme", "family": "technical_field",
+             "start": "2021-01", "end": "2023-11", "bullets": [
+                 {"id": f"b_f{i}", "text": f"Deployed hardware on site {i}.",
+                  "tags": ["deployment", "customer"], "strength": 1}
+                 for i in range(6)]},
+        ],
+        "projects": [
+            {"id": "p_weak", "name": "Weak", "family": "ai_engineering", "bullets": [
+                {"id": "b_p_weak", "text": "Wrote a script.", "tags": [], "strength": 3}]},
+            {"id": "p_best", "name": "Best", "family": "ai_engineering", "bullets": [
+                {"id": "b_p_best", "text": "Deployed a model.", "tags": ["deployment"],
+                 "strength": 1}]},
+        ],
+    }
+    JD = "Forward deployed: deployment at customer sites, customer support."
+
+    def ids(self, **kw):
+        return [b.id for b in select_bullets(
+            self.PROFILE, self.JD, "engineering",
+            title="Forward Deployed Engineer", **kw)]
+
+    def test_a_project_is_kept_when_jobs_outscore_them(self):
+        chosen = self.ids(keep_project=False)
+        self.assertFalse(any(i.startswith("b_p") for i in chosen),
+                         "fixture no longer reproduces the defect")
+        self.assertIn("b_p_best", self.ids())
+
+    def test_its_best_bullet_is_the_one_kept(self):
+        self.assertNotIn("b_p_weak", self.ids())
+
+    def test_the_limit_still_holds(self):
+        chosen = self.ids(limit=6)
+        self.assertEqual(len(chosen), 6)
+        self.assertEqual(chosen[-1], "b_p_best")
+
+    def test_nothing_changes_when_a_project_was_chosen(self):
+        other = TestWorkHistoryIsNeverEmpty()
+        self.assertEqual(other.ids(), other.ids(keep_project=False))
+
+    def test_a_profile_without_projects_is_unaffected(self):
+        profile = {"experience": self.PROFILE["experience"]}
+        chosen = select_bullets(profile, self.JD, "engineering")
+        self.assertTrue(all(b.origin == "experience" for b in chosen))
+
+
 class TestSectionOrder(unittest.TestCase):
     """Experience once led unconditionally, whatever was actually selected."""
 

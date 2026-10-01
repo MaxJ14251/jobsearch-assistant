@@ -691,7 +691,7 @@ def tag_report(profile: dict[str, Any], weights: dict[str, float],
 def select_bullets(
     profile: dict[str, Any], description: str, track: str, limit: int = 6,
     weights: dict[str, float] | None = None, title: str = "",
-    keep_work_history: bool = True,
+    keep_work_history: bool = True, keep_project: bool = True,
 ) -> list[SourceBullet]:
     """Rank profile bullets against the posting. Deterministic, no model call.
 
@@ -753,6 +753,16 @@ def select_bullets(
                     "is not one of that entry's bullets")
         if own:
             keep = keep[:limit - 1] + [own[0]]
+
+    # The mirror case: when the jobs outscore every project, the resume had no
+    # PROJECTS section at all. The operator rejected the Shield AI and Kyber
+    # forward-deployed drafts for exactly that ("No projects section"), so keep
+    # the best-scoring project bullet the same way. The two rules never both
+    # fire: a pick with no experience is all projects, and vice versa.
+    if keep_project and not any(row[4].origin == "project" for row in keep):
+        projects = [row for row in scored if row[4].origin == "project"]
+        if projects:
+            keep = keep[:limit - 1] + [projects[0]]
     return [row[4] for row in keep]
 
 

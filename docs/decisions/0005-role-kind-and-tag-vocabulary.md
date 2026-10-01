@@ -211,6 +211,18 @@ single incidental tag ("ownership") chose the sales-cycle bullet over the
 promotion bullet, which reads well on any resume. The operator knows which
 bullet travels; a named id that is not one of the entry's bullets is refused.
 
+### 10. Every resume keeps a project
+
+Added 2026-09-30, the mirror of 9. On two forward-deployed roles (Shield AI,
+Kyber) the field and customer-facing jobs outscored every project, so the
+drafts had no PROJECTS section, and the operator rejected both with "No
+projects section". `select_bullets` now also keeps the best-scoring project
+bullet when no project was chosen, displacing the weakest pick if the resume
+is full (`keep_project`; outreach opts out). The two rules never both fire: a
+pick with no experience is all projects, and the reverse. Checked against the
+author's nine drafted jobs: those two each gain one project bullet, and the
+other seven select exactly what they did before.
+
 ## Consequences
 
 - Support roles now select customer-facing and field experience.
