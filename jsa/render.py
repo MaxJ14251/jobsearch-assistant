@@ -27,7 +27,7 @@ from docx.shared import Pt
 
 from . import db
 from .config import OUTPUT_DIR
-from .tailor import TailoredDraft, collect_bullets
+from .tailor import TailoredDraft, collect_bullets, public_repo
 
 BODY_PT = 10.5
 NAME_PT = 18
@@ -163,9 +163,9 @@ def render_resume(
             r.font.size = Pt(BODY_PT)
             # The project's public link, as plain text: a reader can type it,
             # and an ATS reads it, without a hyperlink field either has to parse.
-            repo = proj.get("repo")
-            if isinstance(repo, str) and repo.strip().startswith(("http://", "https://")):
-                link = line.add_run(" — " + repo.strip().split("://", 1)[1].rstrip("/"))
+            repo = public_repo(proj)
+            if repo:
+                link = line.add_run(" — " + repo.split("://", 1)[1].rstrip("/"))
                 link.font.size = Pt(BODY_PT)
             line.paragraph_format.space_after = Pt(1)
             for t in texts:

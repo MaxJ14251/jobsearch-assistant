@@ -268,6 +268,23 @@ class TestJobPageSandbox(SandboxCase):
         self.assertEqual(pending["decision"], "pending", "tailoring decided something")
         self.assertEqual(self.client.get(f"/document/{doc['id']}").status_code, 200)
 
+    def test_a_thin_posting_warns_in_the_banner(self):
+        """`jsa tailor` printed it; the page used to drop it (ADR 0005 s.11)."""
+        from tests.test_tailor_cmd import fake_completion, some_bullet_ids
+        con = self.box.connect()
+        con.execute("UPDATE jobs SET description = ? WHERE id = 2",
+                    ("Article URL: https://example.com/j\n\nPoints: 0",))
+        con.commit()
+        con.close()
+        self.post("/job/2/save")
+        with mock.patch("jsa.tailor.llm.complete_json",
+                        return_value=fake_completion(some_bullet_ids(tailor_profile()))), \
+             mock.patch("jsa.render.OUTPUT_DIR", self.box.out):
+            r = self.post("/job/2/tailor", kind="resume")
+        page = self.client.get(r.headers["location"]).text
+        self.assertIn("waiting in the review queue", page)
+        self.assertIn("Warning: this posting has no description", page)
+
     def test_tailor_without_a_saved_application_explains(self):
         r = self.post("/job/2/tailor", kind="resume")
         page = self.client.get(r.headers["location"]).text

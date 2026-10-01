@@ -223,6 +223,36 @@ pick with no experience is all projects, and the reverse. Checked against the
 author's nine drafted jobs: those two each gain one project bullet, and the
 other seven select exactly what they did before.
 
+### 11. Ties prefer a released project with a public repo
+
+Added 2026-09-30. The Kyber redraft kept a project, as 10 intends, but the
+wrong one: the in-development game data tool instead of the released, public
+job-search app. 10 was not the cause. Kyber's stored posting is a Hacker
+News stub (two links and a score, 0 words of prose), so every bullet scored
+on its family bonus alone, every project bullet tied, strength tied, and the
+tie fell to the id: `b_game_apis` sorts before `b_jsa_*`.
+
+Ties now break on score, then family, then **how finished the project is**
+(released before not, a public repo before none, with the same `repo` test
+the resume uses to print the link), then strength, then id. Experience
+bullets are unaffected. The owner chose this over a new profile field.
+
+It is consulted only on an exact tie of score and family, so it never
+outranks evidence in a posting. Measured on all 1,626 open postings before
+and after: 370 changed their picks and every one was an exact tie (an
+in-development game bullet giving way to a tied job-search-app bullet); 157
+more changed only order. Of the nine jobs with a drafted document, only
+Kyber changed. Like 9 and 10, it chooses among the operator's own bullets and
+adds no claim.
+
+**A posting with no text now says so.** 53 of the 1,626 open postings have
+under 40 words of prose (16 Snap listings with none, 4 Hacker News stubs, 33
+Gopuff one-liners); the next one up has 96 words and is a real description.
+Drafting against one under `posting.THIN_WORDS` (60) still runs, because the
+operator decides, but `jsa tailor` prints a warning and the dashboard shows
+it, with the fix: paste the full posting with `jsa add --paste` and draft
+that job. Interview prep and outreach read postings too and do not warn yet.
+
 ## Consequences
 
 - Support roles now select customer-facing and field experience.

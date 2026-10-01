@@ -43,6 +43,9 @@ class DraftOutcome:
     # What the model was not shown of the posting, in words, or "" when it
     # read all of it. Computed here because this is where the posting is.
     description_note: str = ""
+    # A warning when the posting has too little text to choose bullets from;
+    # the draft is still made (ADR 0005 section 11).
+    thin_note: str = ""
     note: str = ""
     letter_problems: list[str] = field(default_factory=list)
     # Approvals the tool closed because this version replaced them, and what
@@ -148,6 +151,7 @@ def draft_document(
         revert_reasons=dict(draft.revert_reasons),
         description_chars=len(job.get("description") or ""),
         description_note=posting.note(posting.visible(job.get("description"))),
+        thin_note=posting.thin(job.get("description")),
         note=note, letter_problems=letter_problems,
         superseded=superseded,
         prior_feedback=approvals.prior_feedback(

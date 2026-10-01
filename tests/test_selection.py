@@ -298,6 +298,62 @@ class TestProjectsAreNeverEmpty(unittest.TestCase):
         self.assertTrue(all(b.origin == "experience" for b in chosen))
 
 
+class TestTiesPreferAFinishedProject(unittest.TestCase):
+    """On an exact tie, a released project with a public repo comes first.
+
+    Kyber's posting had no text, every project bullet tied on its family
+    bonus, and the alphabet picked an in-development tool ("b_game_...")
+    over the released, public app ("b_jsa_..."). ADR 0005 section 11.
+    """
+
+    def profile(self, dev_tags=(), field_family="sales"):
+        def project(pid, status, repo, tags=()):
+            return {"id": pid, "name": pid, "status": status, "repo": repo,
+                    "family": "ai_engineering",
+                    "bullets": [{"id": f"b_{pid}", "text": f"Built {pid}.",
+                                 "tags": list(tags), "strength": 1}]}
+        return {
+            "experience": [{"id": "exp", "company": "Co", "title": "Rep",
+                            "family": field_family, "current": True,
+                            "bullets": [{"id": "b_field", "text": "Sold things.",
+                                         "tags": ["sales"], "strength": 1}]}],
+            "projects": [
+                # Alphabetical order is the WORST order here, on purpose.
+                project("a_dev", "in_development", None, dev_tags),
+                project("m_rel", "released", None),
+                project("z_rel", "released", "https://github.com/example/z"),
+            ],
+        }
+
+    def project_order(self, profile, description=""):
+        chosen = select_bullets(profile, description, "engineering",
+                                title="Software Engineer", limit=6)
+        return [b.id for b in chosen if b.origin == "project"]
+
+    def test_released_with_a_repo_beats_in_development_whatever_the_ids(self):
+        self.assertEqual(self.project_order(self.profile()),
+                         ["b_z_rel", "b_m_rel", "b_a_dev"])
+
+    def test_real_evidence_still_wins(self):
+        """Maturity only breaks ties; it never outranks the posting."""
+        profile = self.profile(dev_tags=["robotics"])
+        order = self.project_order(profile, "We build robotics software.")
+        self.assertEqual(order[0], "b_a_dev")
+
+    def test_family_still_decides_before_maturity(self):
+        """An engineering role favours ai_engineering: the sales job stays last."""
+        chosen = select_bullets(self.profile(), "", "engineering",
+                                title="Software Engineer", limit=6)
+        self.assertEqual(chosen[-1].id, "b_field")
+
+    def test_the_project_fallback_keeps_the_finished_one(self):
+        """The keep-project rule picks from the same order."""
+        profile = self.profile(field_family="sales")
+        chosen = select_bullets(profile, "sales sales", "sales",
+                                title="Account Executive", limit=2)
+        self.assertIn("b_z_rel", [b.id for b in chosen])
+
+
 class TestSectionOrder(unittest.TestCase):
     """Experience once led unconditionally, whatever was actually selected."""
 

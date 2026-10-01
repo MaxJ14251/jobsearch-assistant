@@ -2494,6 +2494,11 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                          "your own words.")
         if result.gaps:
             parts.append("Gaps: " + ", ".join(result.gaps) + ".")
+        # Both were printed by `jsa tailor` and dropped here.
+        if result.description_note:
+            parts.append("Note: the " + result.description_note + ".")
+        if result.thin_note:
+            parts.append("Warning: " + result.thin_note)
         return back_to_job(job_id, " ".join(parts), False)
 
     @app.get("/document/{document_id}")

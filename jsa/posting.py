@@ -70,6 +70,48 @@ OUTREACH_CHARS = 2000
 
 _BREAK = re.compile(r"\n\s*\n")
 
+# Below this many words of prose, a posting says too little to choose bullets
+# from, and a draft against it is a guess (ADR 0005 section 11).
+#
+# MEASURED 2026-09-30 over the 1,626 open postings in the author's tracker,
+# counting words after removing markup, URLs and the "Points:" / "# Comments:"
+# lines of a Hacker News stub. The shortest 53 have 0-31 words: 16 Snap
+# listings with no description at all, 4 Hacker News stubs (two links and a
+# score), and 33 Gopuff one-liners. The next posting up has 96 words and is a
+# real description. 60 sits in that gap: it flags all 53 and nothing else.
+THIN_WORDS = 60
+
+_TAGS = re.compile(r"<[^>]+>")
+_URLS = re.compile(r"https?://\S+|www\.\S+")
+_STUB_LINES = re.compile(
+    r"^\s*(?:#\s*comments|points|article url|comments url)\s*:.*$",
+    re.IGNORECASE | re.MULTILINE)
+_WORDS = re.compile(r"[A-Za-z][A-Za-z'’-]*")
+
+
+def prose_words(description: str | None) -> int:
+    """Words of actual description, not links, markup or a board's metadata."""
+    from html import unescape
+
+    text = unescape(_TAGS.sub(" ", description or ""))
+    text = _STUB_LINES.sub(" ", _URLS.sub(" ", text))
+    return len(_WORDS.findall(text))
+
+
+def thin(description: str | None) -> str:
+    """A warning when the posting is too short to draft against, else "".
+
+    Drafting still runs: the operator decides. But bullet choice on a posting
+    with no text falls to tie-breaks, and nothing used to say so.
+    """
+    count = prose_words(description)
+    if count >= THIN_WORDS:
+        return ""
+    what = "no description" if count == 0 else f"only {count} words of description"
+    return (f"this posting has {what}, so the bullet choice is a guess. Paste "
+            "the full posting with `jsa add --paste --title ... --link <url>` "
+            "and draft that job instead.")
+
 
 @dataclass(frozen=True)
 class Window:

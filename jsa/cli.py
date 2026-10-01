@@ -405,6 +405,8 @@ def cmd_tailor(args: argparse.Namespace) -> int:
     # postings rather than 92% of them, which is what makes it worth reading.
     if result.description_note:
         print(f"note: {result.description_note}", file=sys.stderr)
+    if result.thin_note:
+        print(f"warning: {result.thin_note}", file=sys.stderr)
     print(f"wrote {result.path}")
     print(f"  document {result.document_id} v{result.version}  model {result.model}")
     # Printed so a misclassified title is visible on every run. ADR 0005.

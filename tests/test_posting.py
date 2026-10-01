@@ -150,6 +150,35 @@ class TestWhatTheOperatorIsTold(unittest.TestCase):
         self.assertLessEqual(len(window.resumes), 60)
 
 
+class TestAThinPostingIsSaidOutLoud(unittest.TestCase):
+    """A draft on a posting with no text picks bullets by tie-break alone."""
+
+    # The shape of a Hacker News stub, as stored: two links and a score.
+    HN_STUB = ("Article URL: https://www.ycombinator.com/companies/x/jobs/abc\n\n"
+               "Comments URL: https://news.ycombinator.com/item?id=1\n\n"
+               "Points: 0\n\n# Comments: 0")
+
+    def test_a_hacker_news_stub_has_no_words_and_warns(self):
+        self.assertEqual(posting.prose_words(self.HN_STUB), 0)
+        self.assertIn("no description", posting.thin(self.HN_STUB))
+
+    def test_empty_and_missing_warn(self):
+        for text in ("", None, "<p></p>"):
+            self.assertIn("no description", posting.thin(text))
+
+    def test_a_one_line_posting_warns_with_its_count(self):
+        said = posting.thin("Operate the register and stock shelves daily.")
+        self.assertIn("only 7 words", said)
+        self.assertIn("jsa add --paste", said)
+
+    def test_a_real_posting_does_not(self):
+        self.assertEqual(posting.thin(long_posting(3000)), "")
+
+    def test_markup_and_links_are_not_counted_as_prose(self):
+        text = "<p>" + " ".join(["https://example.com/x"] * 100) + "</p>"
+        self.assertEqual(posting.prose_words(text), 0)
+
+
 class TestOutreachHasItsOwnBudgetThroughTheSameDoor(unittest.TestCase):
     def test_it_is_smaller_on_purpose(self):
         self.assertLess(posting.OUTREACH_CHARS, posting.MAX_DESCRIPTION_CHARS)

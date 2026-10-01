@@ -133,6 +133,18 @@ def _entry_key(entry: dict[str, Any], *fields: str) -> str:
     return " :: ".join(p for p in parts if p)
 
 
+def public_repo(project: dict[str, Any]) -> str:
+    """The project's public link, or "" when it has none.
+
+    One test for both the resume (which prints it) and the ranking (which
+    prefers a project that has one on a tie), so the two cannot disagree.
+    """
+    repo = project.get("repo")
+    if isinstance(repo, str) and repo.strip().startswith(("http://", "https://")):
+        return repo.strip()
+    return ""
+
+
 def collect_bullets(profile: dict[str, Any]) -> dict[str, SourceBullet]:
     """Every reusable bullet in the profile, keyed by id."""
     out: dict[str, SourceBullet] = {}
@@ -705,7 +717,15 @@ def select_bullets(
     blob = (description or "").lower()
     bonus = ROLE_FAMILY_BONUS[role_kind(title, track)]
     weights = weights or {}
-    scored: list[tuple[float, float, int, str, SourceBullet]] = []
+    # How finished each project is, as a tiebreaker: (not released, no public
+    # repo), so a released project with a link sorts first. Keyed the way
+    # collect_bullets sets SourceBullet.parent. Experience is (False, False).
+    maturity = {
+        _entry_key(proj, "name", "title"):
+            (proj.get("status") != "released", not public_repo(proj))
+        for proj in profile.get("projects") or []
+    }
+    scored: list[tuple[float, float, tuple[bool, bool], int, str, SourceBullet]] = []
     for bullet in collect_bullets(profile).values():
         hit_value = sum(tag_value(tag, blob, weights) for tag in bullet.tags)
         # Strength is deliberately NOT in the score. As (4 - strength) it added
@@ -716,10 +736,15 @@ def select_bullets(
         score = hit_value * 2.0 + family
         # Ties used to break on id, so "b_inst_codes" beat "b_vid_goal" purely
         # on the alphabet. Break on what the tie is actually about: how much the
-        # role favours this kind of work, then how strong the bullet is. The id
-        # remains last, only so the order is deterministic.
-        scored.append((score, -family, bullet.strength, bullet.id, bullet))
-    scored.sort(key=lambda row: (-row[0], row[1], row[2], row[3]))
+        # role favours this kind of work, then how finished the project is (a
+        # released one with a public repo first: on Kyber's empty posting the
+        # alphabet picked an in-development tool over the released app), then
+        # how strong the bullet is. The id remains last, only so the order is
+        # deterministic. ADR 0005 section 11.
+        ready = (maturity.get(bullet.parent, (False, False))
+                 if bullet.origin == "project" else (False, False))
+        scored.append((score, -family, ready, bullet.strength, bullet.id, bullet))
+    scored.sort(key=lambda row: (-row[0], *row[1:5]))
 
     if not scored:
         return []
@@ -740,13 +765,13 @@ def select_bullets(
     # for an AI role over the promotion bullet that reads well anywhere.
     recent = most_recent_job(profile)
     if (keep_work_history and recent is not None
-            and not any(row[4].origin == "experience" for row in keep)):
+            and not any(row[-1].origin == "experience" for row in keep)):
         parent = recent.get("id") or recent.get("company", "")
         own = [row for row in scored
-               if row[4].origin == "experience" and row[4].parent == parent]
+               if row[-1].origin == "experience" and row[-1].parent == parent]
         named = recent.get("work_history_bullet")
         if named:
-            own = [row for row in own if row[4].id == named]
+            own = [row for row in own if row[-1].id == named]
             if not own:
                 raise ValueError(
                     f"work_history_bullet {named!r} on experience {parent!r} "
@@ -759,11 +784,11 @@ def select_bullets(
     # forward-deployed drafts for exactly that ("No projects section"), so keep
     # the best-scoring project bullet the same way. The two rules never both
     # fire: a pick with no experience is all projects, and vice versa.
-    if keep_project and not any(row[4].origin == "project" for row in keep):
-        projects = [row for row in scored if row[4].origin == "project"]
+    if keep_project and not any(row[-1].origin == "project" for row in keep):
+        projects = [row for row in scored if row[-1].origin == "project"]
         if projects:
             keep = keep[:limit - 1] + [projects[0]]
-    return [row[4] for row in keep]
+    return [row[-1] for row in keep]
 
 
 def most_recent_job(profile: dict[str, Any]) -> dict[str, Any] | None:

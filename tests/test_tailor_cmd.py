@@ -396,6 +396,38 @@ class TestLongPostingsAreNotSilentlyTruncated(TailorCase):
                          prep.MAX_DESCRIPTION_CHARS)
 
 
+class TestAThinPostingWarnsButStillDrafts(TailorCase):
+    """Kyber's posting was two links and a score. The draft is still made --
+    the operator decides -- but it says the bullet choice is a guess."""
+
+    def run_tailor(self, description):
+        from contextlib import redirect_stderr
+        from jsa.cli import cmd_tailor
+
+        con = self.con()
+        con.execute("UPDATE jobs SET description = ? WHERE id = 1", (description,))
+        approvals.save_application(con, 1)
+        con.commit()
+        con.close()
+        err = io.StringIO()
+        with redirect_stderr(err), \
+             mock.patch("jsa.tailor.llm.complete_json",
+                        return_value=fake_completion(some_bullet_ids(PROFILE))), \
+             mock.patch("jsa.cli.load_profile", return_value=PROFILE), \
+             mock.patch("jsa.render.OUTPUT_DIR", self.tmp / "output"):
+            code = quiet(cmd_tailor, Namespace(job_id=1, kind="resume", force=False))
+        return code, err.getvalue()
+
+    def test_a_stub_warns_and_the_draft_is_made(self):
+        code, said = self.run_tailor("Article URL: https://example.com/j\n\nPoints: 0")
+        self.assertEqual(code, 0)
+        self.assertIn("warning: this posting has no description", said)
+
+    def test_a_real_posting_does_not_warn(self):
+        _code, said = self.run_tailor(" ".join(["Python customer work"] * 40))
+        self.assertNotIn("warning:", said)
+
+
 class TestOutputStaysUntracked(unittest.TestCase):
     def test_no_generated_document_is_tracked(self):
         """Checked against git, not against .gitignore.
