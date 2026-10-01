@@ -818,12 +818,12 @@ Worth knowing before you rely on this.
   descriptions and your experience bullets do. Read your provider's terms.
 - **Verified on Windows against Python 3.11.9, 3.12.10 and 3.13.15** — the full
   suite and the fresh-clone check pass on all three. Linux and macOS are
-  unverified locally; the CI workflow runs the same commands on ubuntu-latest,
-  and the badge above shows whether that is currently passing.
+  unverified locally; the CI workflow runs the same commands on Ubuntu 26.04
+  (pinned), and the badge above shows whether that is currently passing.
 - **The Docker image is built and checked in CI, not on the development
   machine** (Docker Desktop cannot run there: WSL returns
   `REGDB_E_CLASSNOTREG`). The `docker` job runs `tools/docker_check.sh` on
-  GitHub's ubuntu-latest runner on every push to `main` and `ci/**`, and
+  GitHub's Ubuntu 26.04 runner on every push to `main` and `ci/**`, and
   verifies:
   - no personal file reaches any image layer (decoy `.env`, profile, `*.db`,
     documents and logs are planted before the build and searched for);

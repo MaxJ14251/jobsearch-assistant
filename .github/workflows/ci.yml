@@ -6,14 +6,15 @@ on:
     branches: [main, master, "ci/**"]
   pull_request:
 
-# Runners are pinned (2026-09-29, n24). ubuntu-latest moves to Ubuntu 26.04
-# from 2026-10-19, and a moving label means a green build can turn red with
-# no commit behind it. Move the pin after a run on ubuntu-26.04 has passed
-# (the trial ran on the ci/ubuntu-26 branch; see the commit that moves it).
+# Runners are pinned (2026-09-29, n24): a moving label like ubuntu-latest
+# means a green build can turn red with no commit behind it. Moved from
+# 24.04 to 26.04 on 2026-09-30, ahead of ubuntu-latest moving on 2026-10-19,
+# after every job passed on 26.04 on the ci/ubuntu-26 branch (run
+# 36798983933). Move it the same way: trial on a ci/** branch first.
 # Actions are at their current majors, which run on Node 24.
 jobs:
   test:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -50,7 +51,7 @@ jobs:
           coverage xml
 
   no-secrets:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -62,7 +63,7 @@ jobs:
         run: python tools/scan_secrets.py
 
   no-secrets-in-history:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
         with:
@@ -84,7 +85,7 @@ jobs:
   # with no API key, the public-bind guard both ways, and a tracker that
   # survives a restart. Builds only; nothing is pushed to a registry.
   docker:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - name: Build the image and prove what the README says about it
