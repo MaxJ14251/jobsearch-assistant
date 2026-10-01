@@ -66,3 +66,13 @@ overwrites it.**
 - Snap's empty listings and Gopuff's one-liners can be filled the same way.
   No source change is planned for them.
 - Interview prep and outreach read the filled text like any other.
+
+## Location, added the same day
+
+The first real fill showed the gap: Kyber's stub was stored as remote with
+no location, the fill left both alone, and the score said "remote is
+acceptable" for a job that is on-site in New York. A fill now takes the
+location too (`jsa fill <#> --location`, or the field above the paste box,
+pre-filled with what the stub has) and works out remote, hybrid or on-site
+from it, as discovery does. Without one, the stub's is kept. Kyber's score
+went from 0.89, on the stub's "remote", to 0.66 on its real location.

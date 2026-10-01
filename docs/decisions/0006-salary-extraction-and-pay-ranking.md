@@ -428,3 +428,16 @@ unchanged: a pay field has no text to read wording from. When it refuses
 an hourly-sized field, discovery falls back to the text, which now
 applies this rule. Stored figures update on the next `jsa rescore` or
 `jsa discover`.
+
+## A startup board's compensation line (2026-09-30)
+
+Y Combinator's job pages state pay as "$110K - $150K • 0.05% - 0.15% • New
+York, NY, US": no pay word near the range, so the cue rule refused it, and
+Kyber's pasted posting (job 1087, ADR 0020) showed no pay. A range is now
+also accepted when an **equity percentage range** follows it directly. A
+funding round or revenue figure is not followed by one, and the funding veto
+still applies ("raised $110M - $150M • 5% - 10% growth" is refused).
+
+Measured on all 1,750 postings in the tracker, before and after: exactly one
+changed, Kyber, from none to $110,000-$150,000 a year. A bare range with no
+cue is still refused.

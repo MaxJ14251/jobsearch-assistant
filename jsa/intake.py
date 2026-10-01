@@ -293,7 +293,7 @@ def add_pasted(con: sqlite3.Connection, *, company: str, title: str, text: str,
 
 
 def fill(con: sqlite3.Connection, job_id: int, text: str,
-         prefs: Preferences) -> Added:
+         prefs: Preferences, location: str | None = None) -> Added:
     """Paste the real posting into a job whose feed carried a stub.
 
     A Hacker News item is two links and a score; its posting lives on a page
@@ -302,6 +302,11 @@ def fill(con: sqlite3.Connection, job_id: int, text: str,
     the text into the SAME job: its number, application and drafts stay; pay,
     score and track are re-read from the text; enrichment is cleared so it
     reads it again; and discovery never overwrites it (db.upsert_job).
+
+    `location`, when given, replaces the stub's too, and remote/on-site is
+    worked out from it the way discovery does. A Hacker News stub is stored
+    as remote with no location; Kyber's real posting is on-site in New York,
+    and the score said "remote is acceptable" until this existed.
     """
     row = con.execute(
         "SELECT j.*, c.name AS company FROM jobs j "
@@ -318,6 +323,9 @@ def fill(con: sqlite3.Connection, job_id: int, text: str,
 
     job = dict(row)
     job["description"] = text
+    if location is not None and location.strip():
+        job["location"] = location.strip()
+        job["remote"] = sources.classify_remote(job["location"], text)
     # A board's own pay field still outranks prose (ADR 0006, n22).
     if row["salary_source"] != "field":
         job.update(salary.columns(salary.extract(text)))
@@ -328,11 +336,11 @@ def fill(con: sqlite3.Connection, job_id: int, text: str,
         "description_origin = 'pasted', salary_min = ?, salary_max = ?, "
         "salary_period = ?, salary_text = ?, salary_currency = ?, "
         "salary_source = ?, match_score = ?, match_reasons = ?, track = ?, "
-        "enriched_at = NULL WHERE id = ?",
+        "location = ?, remote = ?, enriched_at = NULL WHERE id = ?",
         (text, sources.content_hash(text), job.get("salary_min"),
          job.get("salary_max"), job.get("salary_period"), job.get("salary_text"),
          job.get("salary_currency"), job.get("salary_source"), score,
-         json.dumps(reasons), track, job_id))
+         json.dumps(reasons), track, job["location"], job["remote"], job_id))
 
     app = con.execute("SELECT id, status FROM applications WHERE job_id = ?",
                       (job_id,)).fetchone()

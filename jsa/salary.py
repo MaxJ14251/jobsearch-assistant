@@ -53,6 +53,13 @@ _CUE = re.compile(
 CUE_WINDOW = 250
 LIST_GAP = 120
 
+# A startup board's compensation line names no pay word: Y Combinator's reads
+# "$110K - $150K • 0.05% - 0.15% • New York, NY, US". The equity range right
+# after the salary range is the cue. A funding round or revenue figure is not
+# followed by a percentage range. Found on Kyber (job 1087, 2026-09-30).
+_EQUITY_AFTER = re.compile(
+    r"^\s*[•·|,]?\s*\d+(?:\.\d+)?\s?%\s*(?:-|–|—|to)\s*\d+(?:\.\d+)?\s?%")
+
 # Wording that says it is not. Checked close to the range only.
 _VETO = re.compile(
     r"\b(raised|raise|series|funding|valuation|revenue|arr|stipend|stipends|"
@@ -146,7 +153,8 @@ def _candidates(text: str):
         before = text[max(0, m.start() - CUE_WINDOW):m.start()]
         near = text[max(0, m.start() - VETO_WINDOW):min(len(text), m.end() + VETO_WINDOW)]
         after = text[m.end():m.end() + 40]
-        if not (continued or _CUE.search(before) or _CUE.search(after)):
+        if not (continued or _CUE.search(before) or _CUE.search(after)
+                or _EQUITY_AFTER.search(after)):
             continue
         if _VETO.search(near):
             continue

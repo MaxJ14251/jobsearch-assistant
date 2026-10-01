@@ -235,6 +235,32 @@ class TestHourlyWithoutTheWordHour(unittest.TestCase):
         self.assertEqual((pay.minimum, pay.maximum), (20, 31))
 
 
+class TestAStartupBoardsCompensationLine(unittest.TestCase):
+    """Y Combinator: "$110K - $150K • 0.05% - 0.15% • New York, NY, US".
+
+    No pay word anywhere near it. The equity range right after is the cue.
+    Found on Kyber (job 1087); measured on all 1,750 postings, it was the
+    only one whose pay changed.
+    """
+
+    def test_the_line_as_pasted_and_as_spaced(self):
+        for text in ("$110K - $150K•0.05% - 0.15%•New York, NY, US",
+                     "$110K - $150K • 0.05% - 0.15% • New York, NY, US"):
+            with self.subTest(text=text):
+                pay = extract(text)
+                self.assertEqual((pay.minimum, pay.maximum, pay.period),
+                                 (110000, 150000, "year"))
+
+    def test_a_bare_range_still_needs_a_cue(self):
+        self.assertIsNone(extract("$110K - $150K"))
+
+    def test_a_funding_round_is_still_refused(self):
+        self.assertIsNone(extract("We raised $110M - $150M • 5% - 10% growth"))
+
+    def test_a_percentage_that_is_not_a_range_is_not_a_cue(self):
+        self.assertIsNone(extract("$110K - $150K • 20% of the team is remote"))
+
+
 class TestPayRanking(unittest.TestCase):
     def test_e_unknown_pay_scores_exactly_the_midpoint(self):
         """Scenario e. ADR 0001 decision 4's trap, tested directly."""

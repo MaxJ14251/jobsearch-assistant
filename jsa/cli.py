@@ -755,7 +755,7 @@ def cmd_fill(args: argparse.Namespace) -> int:
             print("Paste the posting, then press Ctrl+Z and Enter "
                   "(Ctrl+D on macOS/Linux):", file=sys.stderr)
             text = sys.stdin.read()
-        added = intake.fill(con, args.job_id, text, prefs)
+        added = intake.fill(con, args.job_id, text, prefs, location=args.location)
         con.commit()
         if not args.no_enrich:
             added.enriched = intake.enrich(con, added.job_id)
@@ -1196,6 +1196,9 @@ def main(argv: list[str] | None = None) -> int:
         "fill", help="paste the real posting into a job that only has a stub")
     p_fill.add_argument("job_id", type=int)
     p_fill.add_argument("--file", help="read the text from a file")
+    p_fill.add_argument("--location",
+                        help="where the job is, e.g. 'Austin, TX' or 'Remote (US)'; "
+                             "replaces the stub's")
     p_fill.add_argument("--no-enrich", action="store_true",
                         help="skip the model call that reads degree/clearance/years")
     p_fill.set_defaults(func=cmd_fill)

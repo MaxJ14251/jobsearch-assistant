@@ -107,6 +107,21 @@ class TestFillInPlace(FillCase):
         self.assertEqual((row["salary_min"], row["salary_max"], row["salary_source"]),
                          (90000, 95000, "field"))
 
+    def test_a_location_replaces_the_stubs_and_decides_remote(self):
+        """Kyber's stub was stored remote with no location; it is on-site in NYC."""
+        self.assertEqual(self.job()["remote"], "remote")
+        onsite = REAL.replace("Remote (US).", "In our office.")
+        added = intake.fill(self.con, self.job_id, onsite, prefs(),
+                            location="New York, NY, US")
+        row = self.job()
+        self.assertEqual((row["location"], row["remote"]), ("New York, NY, US", "onsite"))
+        self.assertFalse(any("remote is acceptable" in r for r in added.reasons))
+
+    def test_without_a_location_the_stubs_is_kept(self):
+        intake.fill(self.con, self.job_id, REAL, prefs())
+        self.assertEqual((self.job()["location"], self.job()["remote"]),
+                         ("Remote (US)", "remote"))
+
     def test_a_short_paste_is_refused(self):
         with self.assertRaises(IntakeError):
             intake.fill(self.con, self.job_id, "Forward Deployed Engineer, remote.", prefs())
@@ -135,7 +150,7 @@ class TestTheCommand(FillCase):
                  "target_titles": ["Forward Deployed Engineer"],
                  "locations": ["Remote (US)"], "compensation_floor_usd": "no_floor"}}), \
              redirect_stdout(out):
-            code = cli.cmd_fill(Namespace(job_id=self.job_id, file=str(text_file),
+            code = cli.cmd_fill(Namespace(job_id=self.job_id, file=str(text_file), location=None,
                                           no_enrich=True))
         self.assertEqual(code, 0)
         upgrade.assert_called_once()

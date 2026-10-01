@@ -1658,6 +1658,8 @@ JOB = """{% extends "base" %}{% block body %}
 <p class="note bad">{{ thin[:1]|upper }}{{ thin[1:] }}</p>
 <form class="stack" method="post" action="/job/{{ job.id }}/fill" onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Saving…'">
   <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="fill-location">Where the job is, as the posting says it (the stub's is often wrong)
+    <input type="text" name="location" id="fill-location" value="{{ job.location or '' }}" placeholder="Austin, TX, or Remote (US)"></label>
   <label for="fill-text">Paste the full posting from the link above, requirements included
     <textarea name="text" id="fill-text" required minlength="{{ min_chars }}"></textarea></label>
   <button type="submit">Use this text for this job</button>
@@ -2594,7 +2596,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         return back_to_job(added.job_id, " ".join(parts), False)
 
     @app.post("/job/{job_id}/fill")
-    def fill_posting(job_id: int, text: str = Form(...)):
+    def fill_posting(job_id: int, text: str = Form(...), location: str = Form("")):
         """Paste the real posting into a stub, in place (ADR 0020)."""
         from . import intake
         from .config import Preferences
@@ -2608,7 +2610,8 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                                  (job_id,)).fetchone()
             if before is None:
                 return not_found("job")
-            filled = intake.fill(con, job_id, text, Preferences.from_profile(prof))
+            filled = intake.fill(con, job_id, text, Preferences.from_profile(prof),
+                                 location=location)
             con.commit()
             filled.enriched = intake.enrich(con, job_id)
             con.commit()
