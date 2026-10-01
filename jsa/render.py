@@ -161,6 +161,12 @@ def render_resume(
             r = line.add_run(label)
             r.bold = True
             r.font.size = Pt(BODY_PT)
+            # The project's public link, as plain text: a reader can type it,
+            # and an ATS reads it, without a hyperlink field either has to parse.
+            repo = proj.get("repo")
+            if isinstance(repo, str) and repo.strip().startswith(("http://", "https://")):
+                link = line.add_run(" — " + repo.strip().split("://", 1)[1].rstrip("/"))
+                link.font.size = Pt(BODY_PT)
             line.paragraph_format.space_after = Pt(1)
             for t in texts:
                 _body(doc, t, bullet=True)

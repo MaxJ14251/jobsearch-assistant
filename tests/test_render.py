@@ -139,6 +139,29 @@ class TestAtsReadability(unittest.TestCase):
         self.assertIn(PROFILE["identity"]["full_name"], text)
 
 
+class TestProjectLink(unittest.TestCase):
+    """A project's public repo reaches the page, as text an ATS can read."""
+
+    def render_with(self, repo):
+        import copy
+        profile = copy.deepcopy(PROFILE)
+        for project in profile.get("projects") or []:
+            project["repo"] = repo
+        path = Path(tempfile.mkdtemp()) / "resume.docx"
+        return extract_text(render_resume(sample_draft(), profile, JOB, path))
+
+    def test_a_public_repo_is_printed_without_its_scheme(self):
+        text = self.render_with("https://github.com/example/demo-project/")
+        self.assertIn("github.com/example/demo-project", text)
+        self.assertNotIn("https://", text)
+
+    def test_no_repo_prints_nothing(self):
+        for repo in (None, "", "TODO"):
+            text = self.render_with(repo)
+            self.assertNotIn("None", text)
+            self.assertNotIn("TODO", text)
+
+
 class TestProvenance(unittest.TestCase):
     """A bullet_ids array nobody can resolve is decorative, not provenance."""
 
