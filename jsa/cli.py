@@ -683,6 +683,9 @@ def cmd_add(args: argparse.Namespace) -> int:
     except ConfigError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+    # Writes a job row, so bring an older tracker up to the schema first,
+    # as discovery does (description_origin, ADR 0020).
+    db.upgrade()
     con = db.connect()
     try:
         if args.url:
@@ -724,6 +727,59 @@ def cmd_add(args: argparse.Namespace) -> int:
     else:
         print(f"next:  jsa save {added.job_id}   then   jsa tailor {added.job_id}")
         print(f"       or open it on the dashboard: /job/{added.job_id}")
+    return 0
+
+
+def cmd_fill(args: argparse.Namespace) -> int:
+    """Paste the real posting into a job whose feed carried a stub (ADR 0020).
+
+    The job keeps its number, application and drafts. Sends nothing.
+    """
+    from . import intake
+
+    try:
+        prefs = Preferences.from_profile(load_profile())
+    except ConfigError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    # Writes a job row, so bring an older tracker up to the schema first,
+    # as discovery does (description_origin, ADR 0020).
+    db.upgrade()
+    con = db.connect()
+    try:
+        before = con.execute("SELECT match_score FROM jobs WHERE id = ?",
+                             (args.job_id,)).fetchone()
+        if args.file:
+            text = Path(args.file).read_text(encoding="utf-8")
+        else:
+            print("Paste the posting, then press Ctrl+Z and Enter "
+                  "(Ctrl+D on macOS/Linux):", file=sys.stderr)
+            text = sys.stdin.read()
+        added = intake.fill(con, args.job_id, text, prefs)
+        con.commit()
+        if not args.no_enrich:
+            added.enriched = intake.enrich(con, added.job_id)
+            con.commit()
+    except (intake.IntakeError, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        con.close()
+
+    old = (before["match_score"] or 0.0) if before else 0.0
+    print(f"filled: job {added.job_id} -- {added.title} at {added.company}")
+    print(f"  score {old:.2f} -> {added.score:.2f}")
+    for reason in added.reasons[:4]:
+        print(f"    · {reason}")
+    if added.enriched:
+        print(f"  {added.enriched}")
+    for warning in added.warnings:
+        print(f"  note: {warning}")
+    print("  discovery will not overwrite this text.")
+    if added.status:
+        print(f"next:  jsa tailor {added.job_id} --force   (a new draft against the full posting)")
+    else:
+        print(f"next:  jsa save {added.job_id}   then   jsa tailor {added.job_id}")
     return 0
 
 
@@ -1135,6 +1191,14 @@ def main(argv: list[str] | None = None) -> int:
     p_add.add_argument("--no-enrich", action="store_true",
                        help="skip the model call that reads degree/clearance/years")
     p_add.set_defaults(func=cmd_add)
+
+    p_fill = sub.add_parser(
+        "fill", help="paste the real posting into a job that only has a stub")
+    p_fill.add_argument("job_id", type=int)
+    p_fill.add_argument("--file", help="read the text from a file")
+    p_fill.add_argument("--no-enrich", action="store_true",
+                        help="skip the model call that reads degree/clearance/years")
+    p_fill.set_defaults(func=cmd_fill)
 
     p_save = sub.add_parser("save", help="track a match as an application")
     p_save.add_argument("job_id", type=int)

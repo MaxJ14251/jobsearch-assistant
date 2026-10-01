@@ -151,7 +151,7 @@ def draft_document(
         revert_reasons=dict(draft.revert_reasons),
         description_chars=len(job.get("description") or ""),
         description_note=posting.note(posting.visible(job.get("description"))),
-        thin_note=posting.thin(job.get("description")),
+        thin_note=posting.thin(job.get("description"), job_id),
         note=note, letter_problems=letter_problems,
         superseded=superseded,
         prior_feedback=approvals.prior_feedback(

@@ -395,7 +395,8 @@ def find_duplicate(con: sqlite3.Connection, job: dict[str, Any]) -> int | None:
 def upsert_job(con: sqlite3.Connection, job: dict[str, Any]) -> tuple[int, bool]:
     """Insert or update a listing. Returns (job_id, is_new)."""
     existing = con.execute(
-        "SELECT id, description_hash FROM jobs WHERE source_id IS ? AND external_id IS ?",
+        "SELECT id, description_hash, description_origin FROM jobs "
+        "WHERE source_id IS ? AND external_id IS ?",
         (job.get("source_id"), job.get("external_id")),
     ).fetchone()
     if existing is None and find_duplicate(con, job) is not None:
@@ -428,6 +429,14 @@ def upsert_job(con: sqlite3.Connection, job: dict[str, Any]) -> tuple[int, bool]
         "dedup_key": job.get("dedup_key"),
         "track": job.get("track") or "engineering",
     }
+
+    if existing and existing["description_origin"] == "pasted":
+        # The operator pasted the real posting over a stub (`jsa fill`). The
+        # feed's version is the stub, so it must not overwrite it, nor the pay,
+        # score and track read from it. The listing is still live, though.
+        con.execute("UPDATE jobs SET closed_at = NULL WHERE id = ?",
+                    (existing["id"],))
+        return int(existing["id"]), False
 
     if existing:
         cols = ", ".join(f"{k} = :{k}" for k in payload)

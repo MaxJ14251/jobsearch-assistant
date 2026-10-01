@@ -444,7 +444,8 @@ class TestForgedRequests(SandboxCase):
         self.assertEqual(self.decision(approval_id), "pending")
 
     def test_every_post_route_requires_the_token(self):
-        for url in ("/approve", "/reject", "/job/2/save", "/job/1/tailor"):
+        for url in ("/approve", "/reject", "/job/2/save", "/job/1/tailor",
+                    "/job/1/fill"):
             with self.subTest(url=url):
                 r = self.client.post(url, data={"approval_id": 1, "feedback": "x"})
                 self.assertEqual(r.status_code, 403)

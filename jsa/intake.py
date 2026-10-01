@@ -18,11 +18,17 @@ Two routes, and the line between them is deliberate:
 
 Whatever the score, the job is stored: the operator chose it. A posting the
 filters would have dropped is kept with a warning saying why.
+
+A third route, `fill`, pastes the real text into a job whose feed carried
+only a stub (a Hacker News link, an empty Snap listing), keeping its number,
+application and drafts. Discovery never overwrites it. See
+docs/decisions/0020-postings-the-tool-may-not-read.md.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import sqlite3
 from dataclasses import dataclass, field
@@ -284,6 +290,66 @@ def add_pasted(con: sqlite3.Connection, *, company: str, title: str, text: str,
     }
     return _store(con, job, company=company, slug=_slug(company), kind="manual",
                   source_url=url or "pasted by hand", prefs=prefs)
+
+
+def fill(con: sqlite3.Connection, job_id: int, text: str,
+         prefs: Preferences) -> Added:
+    """Paste the real posting into a job whose feed carried a stub.
+
+    A Hacker News item is two links and a score; its posting lives on a page
+    this tool may not read (ADR 0020). `add_pasted` would make a second job and
+    leave the application, the drafts and their history on the stub. This puts
+    the text into the SAME job: its number, application and drafts stay; pay,
+    score and track are re-read from the text; enrichment is cleared so it
+    reads it again; and discovery never overwrites it (db.upsert_job).
+    """
+    row = con.execute(
+        "SELECT j.*, c.name AS company FROM jobs j "
+        "JOIN companies c ON c.id = j.company_id WHERE j.id = ?",
+        (job_id,)).fetchone()
+    if row is None:
+        raise IntakeError(f"There is no job {job_id}. `jsa matches` shows the numbers.")
+    text = (text or "").strip()
+    if len(text) < MIN_PASTED_CHARS:
+        raise IntakeError(
+            f"That is {len(text)} characters. Paste the whole posting (at least "
+            f"{MIN_PASTED_CHARS}), including the requirements: drafting tailors "
+            "to it, and the checks read it for degree and clearance requirements.")
+
+    job = dict(row)
+    job["description"] = text
+    # A board's own pay field still outranks prose (ADR 0006, n22).
+    if row["salary_source"] != "field":
+        job.update(salary.columns(salary.extract(text)))
+    score, reasons = score_job(job, prefs)
+    track = job_track(row["title"], prefs)
+    con.execute(
+        "UPDATE jobs SET description = ?, description_hash = ?, "
+        "description_origin = 'pasted', salary_min = ?, salary_max = ?, "
+        "salary_period = ?, salary_text = ?, salary_currency = ?, "
+        "salary_source = ?, match_score = ?, match_reasons = ?, track = ?, "
+        "enriched_at = NULL WHERE id = ?",
+        (text, sources.content_hash(text), job.get("salary_min"),
+         job.get("salary_max"), job.get("salary_period"), job.get("salary_text"),
+         job.get("salary_currency"), job.get("salary_source"), score,
+         json.dumps(reasons), track, job_id))
+
+    app = con.execute("SELECT id, status FROM applications WHERE job_id = ?",
+                      (job_id,)).fetchone()
+    if app is not None:
+        # Not a stage change: the same stage, recorded with what happened. The
+        # operator ran this, so the event is theirs.
+        from . import approvals
+        approvals.record_event(con, int(app["id"]), app["status"], actor="human",
+                               note="posting text pasted by hand")
+    warnings = []
+    if score <= 0:
+        warnings.append(
+            "Your filters score this 0 (" + "; ".join(reasons[:2] or ["no reason given"])
+            + "). It is kept because you chose it.")
+    return Added(job_id=job_id, new=False, title=row["title"], company=row["company"],
+                 score=score, reasons=list(reasons), warnings=warnings,
+                 status=app["status"] if app else None)
 
 
 def enrich(con: sqlite3.Connection, job_id: int) -> str:

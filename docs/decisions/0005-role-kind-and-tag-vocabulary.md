@@ -251,7 +251,8 @@ Gopuff one-liners); the next one up has 96 words and is a real description.
 Drafting against one under `posting.THIN_WORDS` (60) still runs, because the
 operator decides, but `jsa tailor` prints a warning and the dashboard shows
 it, with the fix: paste the full posting with `jsa add --paste` and draft
-that job. Interview prep and outreach read postings too and do not warn yet.
+that job. (*Since ADR 0020, the same day: `jsa fill <job#>`, into the same
+job.*) Interview prep and outreach read postings too and do not warn yet.
 
 ## Consequences
 

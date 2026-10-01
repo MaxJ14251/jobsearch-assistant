@@ -169,7 +169,7 @@ class TestAThinPostingIsSaidOutLoud(unittest.TestCase):
     def test_a_one_line_posting_warns_with_its_count(self):
         said = posting.thin("Operate the register and stock shelves daily.")
         self.assertIn("only 7 words", said)
-        self.assertIn("jsa add --paste", said)
+        self.assertIn("jsa fill", said)
 
     def test_a_real_posting_does_not(self):
         self.assertEqual(posting.thin(long_posting(3000)), "")

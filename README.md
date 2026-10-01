@@ -709,6 +709,15 @@ they don't get re-added: Bird (now Canada-heavy), Dollar Shave Club (Durham NC),
 Weights & Biases was acquired by CoreWeave; its roles now post to the CoreWeave board,
 which is NJ/NY/Sunnyvale rather than LA.
 
+**Some postings arrive as a link, not a posting.** Hacker News items are two
+links and a score, Snap's API carries no description, and Gopuff's are one
+line. Drafting against one prints a warning. The pages behind Hacker News
+links are Y Combinator's or the company's own, which this tool does not read
+(YC's terms forbid scraping), so paste the real posting into the same job
+with `jsa fill <job#>` or the form on its job page. Its application and
+drafts stay, and discovery will not overwrite the text. See
+[ADR 0020](docs/decisions/0020-postings-the-tool-may-not-read.md).
+
 
 ## Test coverage
 

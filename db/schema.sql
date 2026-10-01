@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     url               TEXT NOT NULL,
     description       TEXT,                        -- full JD text, used by tailoring + prep
     description_hash  TEXT,                        -- detect edits to a reposted JD
+    description_origin TEXT,                       -- NULL from a feed; 'pasted' by the operator (ADR 0020)
     posted_at         TEXT,
     discovered_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
     closed_at         TEXT,                        -- set when the listing disappears

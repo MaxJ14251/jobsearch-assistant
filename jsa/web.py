@@ -1653,7 +1653,17 @@ JOB = """{% extends "base" %}{% block body %}
 
 <h2>Posting</h2>
 {% if job.enrichment_note %}<p class="sub">{{ job.enrichment_note }}</p>{% endif %}
-<p><a class="plain" href="{{ job.url }}" rel="noopener">Open the original posting</a></p>
+<p><a class="plain" href="{{ job.url }}" rel="noopener">Open the original posting</a>{% if job.description_origin == 'pasted' %} · <span class="meta">text pasted by you; discovery will not overwrite it</span>{% endif %}</p>
+{% if thin %}
+<p class="note bad">{{ thin[:1]|upper }}{{ thin[1:] }}</p>
+<form class="stack" method="post" action="/job/{{ job.id }}/fill" onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Saving…'">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="fill-text">Paste the full posting from the link above, requirements included
+    <textarea name="text" id="fill-text" required minlength="{{ min_chars }}"></textarea></label>
+  <button type="submit">Use this text for this job</button>
+  <p class="meta" style="margin:0">It replaces the stub in this job; its number, application and drafts stay. Pay and score are re-read from it. Nothing is fetched.</p>
+</form>
+{% endif %}
 <div class="jd">{{ job.description or 'No description captured.' }}</div>
 {% endblock %}"""
 
@@ -2442,7 +2452,10 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                     preps.append({**dict(p), "count": len(_json_list(p["questions"]))})
         finally:
             con.close()
+        from . import intake, posting
         return render("job", "matches", title=row["title"], job=dict(row),
+                      thin=posting.thin(row["description"], job_id),
+                      min_chars=intake.MIN_PASTED_CHARS,
                       stack=_json_list(row["tech_stack"]),
                       application=dict(application) if application else None,
                       documents=documents, preps=preps, msg=msg, bad=bad)
@@ -2579,6 +2592,38 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         if added.status:
             parts.append(f"You are tracking it: {added.status.replace('_', ' ')}.")
         return back_to_job(added.job_id, " ".join(parts), False)
+
+    @app.post("/job/{job_id}/fill")
+    def fill_posting(job_id: int, text: str = Form(...)):
+        """Paste the real posting into a stub, in place (ADR 0020)."""
+        from . import intake
+        from .config import Preferences
+        prof = profile()
+        if prof is None:
+            return back_to_job(job_id, "Your profile could not be loaded, so the "
+                                       "job cannot be scored.", True)
+        con = connect()
+        try:
+            before = con.execute("SELECT match_score FROM jobs WHERE id = ?",
+                                 (job_id,)).fetchone()
+            if before is None:
+                return not_found("job")
+            filled = intake.fill(con, job_id, text, Preferences.from_profile(prof))
+            con.commit()
+            filled.enriched = intake.enrich(con, job_id)
+            con.commit()
+        except intake.IntakeError as exc:
+            return back_to_job(job_id, str(exc), True)
+        finally:
+            con.close()
+        parts = ["Posting saved to this job. Score "
+                 f"{before['match_score'] or 0:.2f} -> {filled.score:.2f}."]
+        if filled.enriched:
+            parts.append(filled.enriched[0].upper() + filled.enriched[1:] + ".")
+        parts.extend(filled.warnings)
+        if filled.status:
+            parts.append("Draft a new version to use it.")
+        return back_to_job(job_id, " ".join(parts), False)
 
     @app.post("/add/link")
     def add_link(url: str = Form(...), company: str = Form("")):

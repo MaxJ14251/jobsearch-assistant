@@ -98,19 +98,21 @@ def prose_words(description: str | None) -> int:
     return len(_WORDS.findall(text))
 
 
-def thin(description: str | None) -> str:
+def thin(description: str | None, job_id: int | None = None) -> str:
     """A warning when the posting is too short to draft against, else "".
 
     Drafting still runs: the operator decides. But bullet choice on a posting
-    with no text falls to tie-breaks, and nothing used to say so.
+    with no text falls to tie-breaks, and nothing used to say so. The fix it
+    names puts the real text into the same job (`jsa fill`, ADR 0020).
     """
     count = prose_words(description)
     if count >= THIN_WORDS:
         return ""
     what = "no description" if count == 0 else f"only {count} words of description"
+    target = f"jsa fill {job_id}" if job_id is not None else "jsa fill <job#>"
     return (f"this posting has {what}, so the bullet choice is a guess. Paste "
-            "the full posting with `jsa add --paste --title ... --link <url>` "
-            "and draft that job instead.")
+            f"the full posting into this job with `{target}` (or the job "
+            "page's form), then draft again.")
 
 
 @dataclass(frozen=True)
