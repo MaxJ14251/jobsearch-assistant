@@ -54,6 +54,8 @@ class DraftOutcome:
     # and read by nothing at the moment it would have changed something.
     superseded: list[int] = field(default_factory=list)
     prior_feedback: list[tuple[int, str]] = field(default_factory=list)
+    # The resume report (ADR 0023): advice, shown and stored, never a gate.
+    coach: list[Any] = field(default_factory=list)
 
 
 def cover_body(draft, profile: dict[str, Any], job: dict[str, Any]):
@@ -76,7 +78,7 @@ def draft_document(
 ) -> DraftOutcome:
     """Commits on success. Raises DraftError otherwise."""
     letter_problems: list[str] = []
-    from . import render
+    from . import coach, render
     from .tailor import (
         FabricationError, IdentityLeakError, UndecidedPreferenceError,
         role_kind, tag_weights, vocabulary,
@@ -115,8 +117,10 @@ def draft_document(
                                  job.get("title") or "role", kind, version)
         out.parent.mkdir(parents=True, exist_ok=True)
         note = ""
+        findings = []
         if kind == "resume":
             render.render_resume(draft, profile, job, out)
+            findings = coach.review(profile, draft)
         else:
             written = cover_body(draft, profile, job)
             note = written.note
@@ -126,6 +130,7 @@ def draft_document(
         document_id = render.record(
             con, job_id=job_id, kind=kind, path=out, draft=draft,
             prompt_hash=draft.prompt_hash, note=note or None,
+            coach=[f.as_dict() for f in findings] if kind == "resume" else None,
         )
         approvals.set_document_pointer(con, application_id, kind, document_id)
         approvals.record_event(
@@ -140,7 +145,7 @@ def draft_document(
         con.commit()
     except (approvals.ApprovalError, UndecidedPreferenceError) as exc:
         raise DraftError(str(exc)) from exc
-    except (FabricationError, IdentityLeakError) as exc:
+    except (FabricationError, IdentityLeakError, render.RenderError) as exc:
         raise DraftError(str(exc), refused=True) from exc
 
     return DraftOutcome(
@@ -156,4 +161,5 @@ def draft_document(
         superseded=superseded,
         prior_feedback=approvals.prior_feedback(
             con, job_id=job_id, kind=kind, before_version=version),
+        coach=findings,
     )

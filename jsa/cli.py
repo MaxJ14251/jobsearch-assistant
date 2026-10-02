@@ -500,7 +500,30 @@ def cmd_tailor(args: argparse.Namespace) -> int:
         print("  (read as a person, not fed to the model — this tool does not "
               "tune itself on your notes)")
     print(f"  approve  jsa approve {result.approval_id}")
+    print_report(result.coach)
     return 0
+
+
+def print_report(findings) -> None:
+    """The resume report (ADR 0023): advice for the profile, never a gate."""
+    if not findings:
+        return
+    print()
+    print(f"resume report ({len(findings)}; advice for your profile, not a gate):")
+    for f in findings:
+        print(f"  - {f.line()}")
+
+
+def cmd_coach(args: argparse.Namespace) -> int:
+    """The resume report on the profile alone. Reads only."""
+    from . import coach
+
+    findings = coach.review(load_profile())
+    if findings:
+        print_report(findings)
+    else:
+        print("resume report: nothing to suggest.")
+    return 1 if (args.strict and findings) else 0
 
 
 # --- contacts and outreach ---------------------------------------------------
@@ -1312,6 +1335,12 @@ def main(argv: list[str] | None = None) -> int:
         "--force", action="store_true",
         help="draft a new version when one already exists")
     p_tail.set_defaults(func=cmd_tailor)
+
+    p_coach = sub.add_parser(
+        "coach", help="what your profile could add, for stronger resumes")
+    p_coach.add_argument("--strict", action="store_true",
+                         help="exit 1 when there is any finding")
+    p_coach.set_defaults(func=cmd_coach)
 
     p_add = sub.add_parser(
         "add", help="add one job from a link, or from pasted text")

@@ -1,10 +1,59 @@
 # Word lists for how resumes are labelled and reviewed (ADR 0023).
 #
 # Field-agnostic on purpose: nothing about one person or one profession is
-# hard-coded in the code. Add your field's terms here.
+# hard-coded in the code. Add your field's terms here. A profile can turn a
+# rule off with `coach: {disabled: [rule_id, ...]}`.
 
 # Skill-category labels are humanized from their keys ("ai_tools" ->
 # "AI Tools"). Words listed here are written in capitals instead of
 # "Ai" / "Llm". A profile's `skill_labels:` overrides any label outright.
 acronyms: [AI, LLM, API, APIs, SQL, ML, UX, UI, QA, IT, CRM, ERP, HVAC, AWS,
            GCP, ETL, BI, SaaS, B2B, CAD, EHR, RN, CPR, GIS, PLC, SCADA]
+
+# soft_skill: traits a reader can't check, listed as skills. Show them in a
+# bullet instead.
+soft_skills:
+  - communication
+  - teamwork
+  - team player
+  - leadership
+  - problem solving
+  - problem-solving
+  - time management
+  - adaptability
+  - work ethic
+  - hard-working
+  - hardworking
+  - detail-oriented
+  - attention to detail
+  - self-motivated
+  - self-directed learning
+  - fast learner
+  - quick learner
+  - critical thinking
+  - interpersonal skills
+  - compassion
+  - empathy
+  - multitasking
+
+# vague_summary: phrases that fill a summary without saying anything.
+filler_phrases:
+  - results-driven
+  - results-oriented
+  - passionate about
+  - highly motivated
+  - self-starter
+  - go-getter
+  - team player
+  - proven track record
+  - think outside the box
+  - fast-paced environment
+  - wears many hats
+  - synergy
+  - dynamic professional
+  - detail-oriented professional
+  - hard-working
+
+# in_dev_only: a bullet that opens with one of these, or with an -ing verb,
+# describes work still in progress.
+in_progress_leads: ["Goal:", "Currently", "Working on", "Planned:"]

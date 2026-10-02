@@ -1814,6 +1814,10 @@ REVIEW = """{% extends "base" %}{% block body %}
     <div class="doc" style="margin-top:8px"><p style="white-space:pre-wrap">{{ r.body }}</p></div>
   {% endif %}
 
+  {% if r.coach %}<div class="note" style="background:var(--surface-2)">
+    <strong>Resume report</strong> <span class="meta">(advice for your profile; it does not block approving)</span>
+    <ul style="margin:6px 0 0;padding-left:18px">{% for f in r.coach %}<li><strong>{{ f.id }}</strong>: {{ f.message }} <span class="meta">{{ f.where }}</span></li>{% endfor %}</ul>
+  </div>{% endif %}
   <form method="post" action="/approve" class="inline" style="margin-top:12px">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <input type="hidden" name="approval_id" value="{{ r.approval_id }}">
@@ -3026,6 +3030,11 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                         "problem": "This draft's record is missing.",
                         "servable": False, "paragraphs": [], "compare": None,
                         "job_id": None}
+                    # The resume report, as it was when this was drafted.
+                    try:
+                        item["coach"] = json.loads(d["coach_findings"] or "[]") if d else []
+                    except (ValueError, IndexError, KeyError):
+                        item["coach"] = []
                 elif r["subject_type"] == "outreach":
                     o = con.execute("SELECT draft_body FROM outreach WHERE id = ?",
                                     (r["subject_id"],)).fetchone()

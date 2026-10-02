@@ -367,6 +367,7 @@ def extract_text(path: Path) -> str:
 def record(
     con: sqlite3.Connection, *, job_id: int | None, kind: str, path: Path,
     draft: TailoredDraft, prompt_hash: str, note: str | None = None,
+    coach: list[dict[str, str]] | None = None,
 ) -> int:
     """Insert a documents row with full provenance."""
     version = con.execute(
@@ -376,9 +377,10 @@ def record(
     cur = con.execute(
         """INSERT INTO documents
              (job_id, kind, path, format, version, bullet_ids,
-              keywords_matched, keywords_missing, model, prompt_hash, note)
+              keywords_matched, keywords_missing, model, prompt_hash, note,
+              coach_findings)
            VALUES (:job_id,:kind,:path,'docx',:version,:bullet_ids,
-                   :matched,:missing,:model,:prompt_hash,:note)""",
+                   :matched,:missing,:model,:prompt_hash,:note,:coach)""",
         {
             "job_id": job_id, "kind": kind,
             "path": str(path), "version": version,
@@ -387,6 +389,7 @@ def record(
             "missing": json.dumps(draft.keywords_missing),
             "model": draft.model, "prompt_hash": prompt_hash,
             "note": note or None,
+            "coach": json.dumps(coach) if coach is not None else None,
         },
     )
     return int(cur.lastrowid)

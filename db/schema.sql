@@ -231,6 +231,7 @@ CREATE TABLE IF NOT EXISTS documents (
     keywords_missing TEXT,                         -- JSON array
     model           TEXT,                          -- 'claude-opus-5'
     note            TEXT,                          -- how it was produced, when that is not obvious
+    coach_findings  TEXT,                          -- JSON: the resume report at draft time (ADR 0023)
     prompt_hash     TEXT,                          -- reproducibility
     generated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
     approved_at     TEXT,                          -- set only by a human action
