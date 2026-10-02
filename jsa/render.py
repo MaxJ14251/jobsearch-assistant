@@ -13,10 +13,12 @@ text comes back out.
 
 from __future__ import annotations
 
+import datetime as dt
 import hashlib
 import json
 import re
 import sqlite3
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -26,8 +28,8 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Pt
 
 from . import db
-from .config import OUTPUT_DIR
-from .tailor import TailoredDraft, collect_bullets, public_repo
+from .config import OUTPUT_DIR, load_coach
+from .tailor import TailoredDraft, collect_bullets, entry_key, public_repo
 
 BODY_PT = 10.5
 NAME_PT = 18
@@ -68,13 +70,64 @@ def _body(doc: Document, text: str, *, bullet: bool = False) -> None:
     p.paragraph_format.space_after = Pt(2)
 
 
-def _dates(start: Any, end: Any, current: bool = False) -> str:
-    def fmt(v):
-        if v is None:
-            return ""
-        s = str(v)
-        return s if re.match(r"^\d{4}(-\d{2})?$", s) else s
-    return f"{fmt(start)} – {'Present' if current else fmt(end)}".strip(" –")
+class RenderError(RuntimeError):
+    """The document would misplace a bullet. Nothing is saved."""
+
+
+# A fixed table, not strftime("%b"): that follows the OS locale, and a
+# resume's dates must not change language with the machine that drafts it.
+MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+DATE_STYLES = ("month_year", "numeric", "iso")
+
+
+def format_date(value: Any, style: str = "month_year") -> str:
+    """2022-03 -> "Mar 2022" (or "03/2022", "2022-03"); a year stays a year;
+    anything else is printed as written."""
+    if value is None or value == "":
+        return ""
+    if isinstance(value, dt.date):
+        year, month = value.year, value.month
+    else:
+        text = str(value).strip()
+        m = re.fullmatch(r"(\d{4})-(\d{1,2})(?:-\d{1,2})?", text)
+        if not m or not 1 <= int(m[2]) <= 12:
+            return text
+        year, month = int(m[1]), int(m[2])
+    if style == "numeric":
+        return f"{month:02d}/{year}"
+    if style == "iso":
+        return f"{year}-{month:02d}"
+    return f"{MONTHS[month - 1]} {year}"
+
+
+def date_style(profile: dict[str, Any]) -> str:
+    style = (profile.get("resume") or {}).get("date_style") or "month_year"
+    if style not in DATE_STYLES:
+        raise RenderError(f"resume.date_style is {style!r}; use one of "
+                          f"{', '.join(DATE_STYLES)}")
+    return style
+
+
+def _dates(start: Any, end: Any, current: bool = False,
+           style: str = "month_year") -> str:
+    a = format_date(start, style)
+    b = "Present" if current else format_date(end, style)
+    return f"{a} – {b}".strip(" –")
+
+
+def skill_label(key: str, labels: dict[str, Any], acronyms: list[str]) -> str:
+    """`skill_labels[key]` if set, else the key humanized, with the acronyms
+    from config/coach.yaml in capitals ("ai_tools" -> "AI Tools")."""
+    if labels.get(key):
+        return str(labels[key])
+    upper = {str(a).lower(): str(a) for a in acronyms}
+    return " ".join(upper.get(w.lower(), w.capitalize())
+                    for w in re.split(r"[_\s]+", str(key)) if w)
+
+
+# Skill categories the profile keeps for its owner, never for a reader.
+UNPRINTED_SKILLS = ("unverified_candidates",)
 
 
 @dataclass
@@ -105,21 +158,34 @@ def render_resume(
     crun = contact.add_run(contact_line(profile))
     crun.font.size = Pt(9)
 
-    _heading(doc, "Summary")
-    _body(doc, draft.summary)
+    style = date_style(profile)
+    if draft.summary:
+        _heading(doc, "Summary")
+        _body(doc, draft.summary)
 
+    # Bullets are grouped by the same key collect_bullets gives them
+    # (tailor.entry_key), so the two can't disagree. They did: this used
+    # `id or company` while bullets were keyed `company :: title` when an
+    # entry had no id, and the whole Experience section silently vanished.
     sources = collect_bullets(profile)
-    by_parent: dict[str, list[str]] = {}
+    by_parent: dict[str, list[tuple[str, str]]] = {}
     for b in draft.bullets:
         src = sources.get(b.source_id)
         if src:
-            by_parent.setdefault(f"{src.origin}::{src.parent}", []).append(b.text)
+            by_parent.setdefault(f"{src.origin}::{src.parent}", []).append(
+                (b.source_id, b.text))
+    placed: list[tuple[str, str]] = []   # (bullet id, entry it was written under)
+
+    def write_bullets(where: str, items: list[tuple[str, str]]) -> None:
+        for source_id, text in items:
+            _body(doc, text, bullet=True)
+            placed.append((source_id, where))
 
     def write_experience() -> None:
         written = False
         for exp in profile.get("experience") or []:
-            texts = by_parent.get(
-                f"experience::{exp.get('id') or exp.get('company')}")
+            where = f"experience::{entry_key(exp, 'company', 'title')}"
+            texts = by_parent.get(where)
             if not texts:
                 continue
             if not written:
@@ -134,20 +200,19 @@ def render_resume(
                 "  |  ".join(
                     p for p in (exp.get("location"),
                                 _dates(exp.get("start"), exp.get("end"),
-                                       exp.get("current", False))) if p
+                                       exp.get("current", False), style)) if p
                 )
             )
             m.italic = True
             m.font.size = Pt(9)
             meta.paragraph_format.space_after = Pt(1)
-            for t in texts:
-                _body(doc, t, bullet=True)
+            write_bullets(where, texts)
 
     def write_projects() -> None:
         written = False
         for proj in profile.get("projects") or []:
-            texts = by_parent.get(
-                f"project::{proj.get('id') or proj.get('name')}")
+            where = f"project::{entry_key(proj, 'name', 'title')}"
+            texts = by_parent.get(where)
             if not texts:
                 continue
             if not written:
@@ -168,8 +233,7 @@ def render_resume(
                 link = line.add_run(" — " + repo.split("://", 1)[1].rstrip("/"))
                 link.font.size = Pt(BODY_PT)
             line.paragraph_format.space_after = Pt(1)
-            for t in texts:
-                _body(doc, t, bullet=True)
+            write_bullets(where, texts)
 
     # Whichever section holds more of the selected bullets leads. Experience
     # used to lead unconditionally, so a resume for a robotics role opened with
@@ -188,13 +252,18 @@ def render_resume(
         write_experience()
         write_projects()
 
-    skills = profile.get("skills") or {}
+    # Every category, in the profile's order. Only ai_tools, technical and
+    # applied_focus used to print ("Ai Tools"), so any other field's skills
+    # were silently dropped.
+    skills = {k: v for k, v in (profile.get("skills") or {}).items()
+              if k not in UNPRINTED_SKILLS and isinstance(v, list) and v}
     if skills:
         _heading(doc, "Skills")
-        for key in ("ai_tools", "technical", "applied_focus"):
-            vals = skills.get(key)
-            if vals:
-                _body(doc, f"{key.replace('_', ' ').title()}: {', '.join(vals)}")
+        labels = profile.get("skill_labels") or {}
+        acronyms = load_coach().get("acronyms") or []
+        for key, vals in skills.items():
+            _body(doc, f"{skill_label(key, labels, acronyms)}: "
+                       f"{', '.join(str(v) for v in vals)}")
 
     certs = profile.get("certifications") or []
     if certs:
@@ -209,7 +278,7 @@ def render_resume(
         _heading(doc, "Education")
         for e in edu:
             field = e.get("field")
-            years = _dates(e.get("start"), e.get("end"))
+            years = _dates(e.get("start"), e.get("end"), style=style)
             # The credential string is reproduced verbatim. It says the degree
             # was not conferred, and nothing here may soften that.
             line = f"{e.get('institution')}"
@@ -220,9 +289,31 @@ def render_resume(
             _body(doc, line)
             _body(doc, e.get("credential", ""))
 
+    check_placement(draft, sources, placed)
     out.parent.mkdir(parents=True, exist_ok=True)
     doc.save(out)
     return out
+
+
+def check_placement(draft: TailoredDraft, sources: dict[str, Any],
+                    placed: list[tuple[str, str]]) -> None:
+    """Every drafted bullet printed exactly once, under its own entry.
+
+    ADR 0011's "a guard for it does not exist": a bullet under the wrong
+    heading is a resume claiming one job's work for another. Raises before
+    anything is saved.
+    """
+    times = Counter(source_id for source_id, _ in placed)
+    under = dict(placed)
+    for b in draft.bullets:
+        src = sources.get(b.source_id)
+        expected = f"{src.origin}::{src.parent}" if src else None
+        if times[b.source_id] != 1 or under.get(b.source_id) != expected:
+            raise RenderError(
+                f"bullet {b.source_id!r} was written {times[b.source_id]} time(s)"
+                + (f", under {under[b.source_id]!r}" if b.source_id in under else "")
+                + f"; it belongs once under {expected!r}. Nothing was saved. "
+                "Two entries with the same employer and title need an id:.")
 
 
 def render_cover_letter(

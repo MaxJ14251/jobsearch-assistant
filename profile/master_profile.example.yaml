@@ -334,7 +334,8 @@ projects:
     bullets: []                 # TODO — write these from what actually gets built
 
 # ---------------------------------------------------------------------------
-# Certifications. Printed on the resume under EDUCATION. `components` is
+# Certifications. Printed on the resume under their own CERTIFICATIONS
+# heading. `components` is
 # optional: use it when one enrolment covered several separately-assessed
 # courses, so the resume can name the enrolment rather than list seven lines.
 # ---------------------------------------------------------------------------

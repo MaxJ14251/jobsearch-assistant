@@ -325,6 +325,19 @@ def load_profile(path: Path = PROFILE_PATH) -> dict[str, Any]:
         return yaml.safe_load(fh)
 
 
+COACH_PATH = ROOT / "config" / "coach.yaml"
+
+
+def load_coach(path: Path | None = None) -> dict[str, Any]:
+    """Word lists and thresholds for labels and the resume report (ADR 0023).
+    A missing file means the built-in defaults, never a crash."""
+    path = path or COACH_PATH
+    if not path.exists():
+        return {}
+    with path.open(encoding="utf-8") as fh:
+        return yaml.safe_load(fh) or {}
+
+
 def load_sources(path: Path = COMPANIES_PATH) -> list[dict[str, Any]]:
     if not path.exists():
         raise ConfigError(f"companies config not found at {path}")

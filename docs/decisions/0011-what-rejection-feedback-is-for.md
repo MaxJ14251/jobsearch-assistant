@@ -132,3 +132,13 @@ the loop, and it is not being replaced.
   exist: nothing checks which heading a bullet is rendered under, and a future
   way to produce the same defect would not be caught. Worth knowing before
   trusting the three text guards to mean "this document is honest".
+
+## Addendum: the placement guard (2026-10-02, plan 11 part 1)
+
+"A guard for it does not exist" no longer holds. `render.check_placement`
+runs on every resume before it is saved: each drafted bullet must be written
+exactly once, under the entry its `SourceBullet.parent` names. Otherwise
+`RenderError`, and no file is written. The renderer and `collect_bullets`
+now share one key (`tailor.entry_key`). The renderer had used `id or
+company`, so a profile without `id:` lost its whole Experience section, and
+the work-history fallback in `select_bullets` had the same mismatch.

@@ -1,0 +1,10 @@
+# Word lists for how resumes are labelled and reviewed (ADR 0023).
+#
+# Field-agnostic on purpose: nothing about one person or one profession is
+# hard-coded in the code. Add your field's terms here.
+
+# Skill-category labels are humanized from their keys ("ai_tools" ->
+# "AI Tools"). Words listed here are written in capitals instead of
+# "Ai" / "Llm". A profile's `skill_labels:` overrides any label outright.
+acronyms: [AI, LLM, API, APIs, SQL, ML, UX, UI, QA, IT, CRM, ERP, HVAC, AWS,
+           GCP, ETL, BI, SaaS, B2B, CAD, EHR, RN, CPR, GIS, PLC, SCADA]

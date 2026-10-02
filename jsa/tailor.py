@@ -119,7 +119,7 @@ class TailoredDraft:
 # --- profile access ---------------------------------------------------------
 
 
-def _entry_key(entry: dict[str, Any], *fields: str) -> str:
+def entry_key(entry: dict[str, Any], *fields: str) -> str:
     """A key that distinguishes two entries at the same employer.
 
     `id:` when the profile sets one, otherwise everything that identifies the
@@ -164,7 +164,7 @@ def collect_bullets(profile: dict[str, Any]) -> dict[str, SourceBullet]:
                 # newcomer who was promoted without changing employer hit the
                 # original bug with no warning. The fallback now carries the
                 # title, which is what distinguishes the two roles.
-                parent=_entry_key(exp, "company", "title"),
+                parent=entry_key(exp, "company", "title"),
             )
     for proj in profile.get("projects") or []:
         for b in proj.get("bullets") or []:
@@ -172,7 +172,7 @@ def collect_bullets(profile: dict[str, Any]) -> dict[str, SourceBullet]:
                 id=b["id"], text=" ".join(b["text"].split()),
                 tags=tuple(b.get("tags") or []), family=proj.get("family", ""),
                 strength=int(b.get("strength", 2)), origin="project",
-                parent=_entry_key(proj, "name", "title"),
+                parent=entry_key(proj, "name", "title"),
             )
     return out
 
@@ -480,17 +480,28 @@ def keyword_gap(
 # --- selection --------------------------------------------------------------
 
 
-def pick_summary(profile: dict[str, Any], track: str, description: str) -> dict:
-    """Choose the summary variant that fits the role."""
-    summaries = {s["family"]: s for s in profile.get("summaries") or []}
+def pick_summary(profile: dict[str, Any], track: str,
+                 description: str) -> dict | None:
+    """Choose the summary variant that fits the role.
+
+    Falls back in order: the family the posting calls for, `general`, the
+    first summary. None when the profile has no summaries; the resume then has
+    no Summary section, and `jsa doctor` reports the gap. This used to index
+    summaries["general"], a KeyError on any profile without one.
+    """
+    listed = [s for s in profile.get("summaries") or [] if isinstance(s, dict)]
+    if not listed:
+        return None
+    summaries = {s.get("family"): s for s in listed}
     blob = (description or "").lower()
+    wanted = None
     if track == "sales" or re.search(
         r"customer[- ]facing|client[- ]facing|account executive|sales", blob
     ):
-        return summaries.get("customer_facing_technical") or summaries["general"]
-    if re.search(r"\bllm\b|generative ai|agentic|prompt", blob):
-        return summaries.get("ai_engineering") or summaries["general"]
-    return summaries.get("general") or next(iter(summaries.values()))
+        wanted = "customer_facing_technical"
+    elif re.search(r"\bllm\b|generative ai|agentic|prompt", blob):
+        wanted = "ai_engineering"
+    return summaries.get(wanted) or summaries.get("general") or listed[0]
 
 
 # A tag's worth is how rare it is. Measured against the 514 postings in the
@@ -721,7 +732,7 @@ def select_bullets(
     # repo), so a released project with a link sorts first. Keyed the way
     # collect_bullets sets SourceBullet.parent. Experience is (False, False).
     maturity = {
-        _entry_key(proj, "name", "title"):
+        entry_key(proj, "name", "title"):
             (proj.get("status") != "released", not public_repo(proj))
         for proj in profile.get("projects") or []
     }
@@ -766,7 +777,7 @@ def select_bullets(
     recent = most_recent_job(profile)
     if (keep_work_history and recent is not None
             and not any(row[-1].origin == "experience" for row in keep)):
-        parent = recent.get("id") or recent.get("company", "")
+        parent = entry_key(recent, "company", "title")
         own = [row for row in scored
                if row[-1].origin == "experience" and row[-1].parent == parent]
         named = recent.get("work_history_bullet")
@@ -893,6 +904,8 @@ def tailor(
     description = job.get("description") or ""
     track = job.get("track") or "engineering"
     summary = pick_summary(profile, track, description)
+    # No summary in the profile: none is written, and none may be invented.
+    summary_text = " ".join(str(summary["text"]).split()) if summary else ""
     chosen = select_bullets(profile, description, track, weights=weights,
                             title=job.get("title") or "")
     matched, missing = keyword_gap(description, profile)
@@ -901,7 +914,7 @@ def tailor(
     prompt = PROMPT.format(
         title=job.get("title") or "the role",
         description=posting.visible(description).text,
-        summary=" ".join(summary["text"].split()),
+        summary=summary_text or "(none: return an empty string)",
         bullets=listing,
     )
     scrub_prompt(prompt, profile)          # fails closed before any network call
@@ -933,9 +946,9 @@ def tailor(
 
     draft = TailoredDraft(
         job_id=job.get("id"),
-        summary_id=summary["id"],
-        summary=" ".join(str(data.get("summary") or summary["text"]).split())
-        if isinstance(data, dict) else summary["text"],
+        summary_id=summary["id"] if summary else "",
+        summary=(" ".join(str(data.get("summary") or summary_text).split())
+                 if isinstance(data, dict) and summary else summary_text),
         bullets=bullets,
         keywords_matched=matched,
         keywords_missing=missing,
