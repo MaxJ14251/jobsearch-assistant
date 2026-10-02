@@ -10,6 +10,12 @@ uvicorn[standard]>=0.32.0
 jinja2>=3.1.4
 python-multipart>=0.0.9   # HTML form posts (approve/reject)
 
+# Tests: Starlette's test client (the dashboard tests). It imports httpx2 and
+# falls back to httpx with a deprecation warning; the app itself uses httpx.
+# Here rather than a dev file because CI, Docker and the README's test step
+# all install this one; the Docker image carries it unused.
+httpx2>=2.13
+
 # LLM: NVIDIA NIM (https://integrate.api.nvidia.com/v1) speaks the OpenAI
 # chat-completions shape, so jsa/llm.py talks to it over plain httpx — no
 # provider SDK needed. Point JSA_LLM_BASE_URL elsewhere to switch providers.

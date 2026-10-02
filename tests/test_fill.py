@@ -158,7 +158,9 @@ class TestTheCommand(FillCase):
         self.assertIn(f"filled: job {self.job_id}", said)
         self.assertIn("score 0.40 ->", said)
         self.assertIn("discovery will not overwrite", said)
-        self.assertEqual(real_connect(self.dir / "t.db").execute(
+        con = real_connect(self.dir / "t.db")
+        self.addCleanup(con.close)
+        self.assertEqual(con.execute(
             "SELECT description FROM jobs WHERE id = ?", (self.job_id,)).fetchone()[0], REAL)
 
 

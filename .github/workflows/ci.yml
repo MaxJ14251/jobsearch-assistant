@@ -42,8 +42,28 @@ jobs:
           cp profile/master_profile.example.yaml profile/master_profile.yaml
           python -m jsa init
 
+      # Two warnings are failures here (Plan 4, 2026-10-02). Python 3.13 warns
+      # about a SQLite connection garbage-collected while open; this job turns
+      # that on and fails if any appear. A grep after the run, not -W error:
+      # the warning fires in __del__, where -W error prints and does not fail.
+      # And Starlette's test client warns when it falls back from httpx2 to
+      # httpx, which a later Starlette will stop supporting.
       - name: Run tests
-        run: coverage run -m unittest discover -s tests -t .
+        shell: bash
+        run: |
+          set -o pipefail
+          if [ "${{ matrix.python-version }}" = "3.13" ]; then
+            export PYTHONWARNINGS=always::ResourceWarning PYTHONTRACEMALLOC=10
+          fi
+          coverage run -m unittest discover -s tests -t . 2>&1 | tee test-output.txt
+          if grep -q "ResourceWarning: unclosed" test-output.txt; then
+            echo "::error::A connection or file was left open (see 'Object allocated at' above)."
+            exit 1
+          fi
+          if grep -q "StarletteDeprecationWarning" test-output.txt; then
+            echo "::error::Starlette's test client fell back to httpx; is httpx2 installed?"
+            exit 1
+          fi
 
       - name: Coverage
         run: |

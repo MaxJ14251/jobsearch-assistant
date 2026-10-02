@@ -6,6 +6,7 @@ tracker when this was written, so each test names the real failure it pins.
 
 import copy
 import json
+from contextlib import closing
 import sqlite3
 import tempfile
 import unittest
@@ -417,9 +418,10 @@ class TestStorage(unittest.TestCase):
              mock.patch("jsa.discover.sources.feed_url", return_value=""), \
              mock.patch("jsa.db.connect", side_effect=lambda *a, **k: real(self.path)):
             discover.discover(min_score=0.0)
-        row = real(self.path).execute(
-            "SELECT salary_min, salary_max, salary_period, salary_text, match_reasons "
-            "FROM jobs").fetchone()
+        with closing(real(self.path)) as con:
+            row = con.execute(
+                "SELECT salary_min, salary_max, salary_period, salary_text, match_reasons "
+                "FROM jobs").fetchone()
         self.assertEqual(tuple(row)[:3], (120_000, 150_000, "year"))
         self.assertIn("$120,000", row["salary_text"])
         self.assertIn("pays $120,000–$150,000/yr (ranked on the low end)",
@@ -457,10 +459,12 @@ class TestStorage(unittest.TestCase):
         con = sqlite3.connect(old)
         con.executescript(before)
         con.close()
-        cols = {r[1] for r in sqlite3.connect(old).execute("PRAGMA table_info(jobs)")}
+        with closing(sqlite3.connect(old)) as con:
+            cols = {r[1] for r in con.execute("PRAGMA table_info(jobs)")}
         self.assertNotIn("salary_period", cols, "fixture should predate the columns")
         db.init_db(old)
-        cols = {r[1] for r in sqlite3.connect(old).execute("PRAGMA table_info(jobs)")}
+        with closing(sqlite3.connect(old)) as con:
+            cols = {r[1] for r in con.execute("PRAGMA table_info(jobs)")}
         self.assertLessEqual({"salary_period", "salary_text"}, cols)
 
 
