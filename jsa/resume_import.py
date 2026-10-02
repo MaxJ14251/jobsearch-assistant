@@ -161,20 +161,23 @@ def _pdf_line(text: str) -> str:
 
 
 def _bulletish(page_texts: list[str]) -> int:
+    # Non-empty first: "" is `in` every string, and layout mode's blank lines
+    # were counted as bullets (found re-measuring, 2026-10-02).
     return sum(1 for t in page_texts for line in t.splitlines()
-               if line.lstrip()[:1] in _PDF_BULLETS + "-*")
+               if line.strip() and line.lstrip()[0] in _PDF_BULLETS + "-*")
 
 
 def read_pdf(path: Path) -> list[str]:
     """Lines of a text PDF. Refuses a scan, an encrypted or oversized file, or
     more than MAX_PDF_PAGES pages. No OCR.
 
-    Extraction mode, measured on tests/fixtures/resumes/ (2026-10-02): pypdf's
-    "plain" and "layout" modes return the same lines on one-column pages. On
-    the two-column fixture, layout keeps both columns on one line (so bullets
-    no longer start a line) and plain interleaves them line by line; neither
-    reconstructs the columns. The mode with more lines that start with a
-    bullet wins, plain on a tie.
+    Extraction mode, measured 2026-10-02 (ADR 0022): on the test fixtures
+    (tests/pdf_fixtures.py) pypdf's "plain" and "layout" modes give the same
+    lines, and neither reconstructs two columns. On the owner's own two-page
+    PDF both start 16 lines with a bullet, but plain splits text that shares a
+    baseline (81 lines to layout's 65) and broke one certification name, which
+    the verbatim check then dropped. So layout, unless plain finds more lines
+    that start with a bullet.
     """
     path = Path(path)
     if path.stat().st_size > MAX_PDF_BYTES:
@@ -202,8 +205,8 @@ def read_pdf(path: Path) -> list[str]:
     except Exception as exc:  # noqa: BLE001 - a broken content stream
         raise ResumeReadError(f"{path.name}: its text could not be extracted "
                               f"({exc}). {DOCX_ONLY}") from exc
-    texts = (by_mode["layout"] if _bulletish(by_mode["layout"]) > _bulletish(by_mode["plain"])
-             else by_mode["plain"])
+    texts = (by_mode["plain"] if _bulletish(by_mode["plain"]) > _bulletish(by_mode["layout"])
+             else by_mode["layout"])
 
     page_lines = [[_pdf_line(raw) for raw in t.splitlines()] for t in texts]
     page_lines = [[ln for ln in lines if ln and not _PAGE_NUMBER.match(ln)]
@@ -745,10 +748,10 @@ class ImportReport:
 
 
 # Share of the bullets the model found that were not in the text word for
-# word, above which a PDF import says its layout likely lost text. Measured on
-# tests/fixtures/resumes/ (2026-10-02): the one-column and ASCII85 PDFs lose
-# 0 of 3; the two-column one loses 2 of 3 (67%). Set between the two, low
-# enough that losing one bullet in three warns.
+# word, above which a PDF import says its layout likely lost text. Measured
+# 2026-10-02 on the fixtures in tests/pdf_fixtures.py: the one-column and
+# ASCII85 PDFs lose 0 of 3; the two-column one loses 2 of 3 (67%). The owner's
+# own PDF lost 0 of 10. Set low enough that losing one bullet in three warns.
 WEAK_PDF_SHARE = 0.30
 WEAK_PDF = ("much of this PDF's text could not be matched word for word, likely "
             "its layout (columns or tables). The .docx version usually imports "

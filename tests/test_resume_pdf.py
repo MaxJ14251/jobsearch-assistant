@@ -1,7 +1,7 @@
 """PDF resumes for the import (Plan 10).
 
-The fixtures in tests/fixtures/resumes/ are fictional and built by
-tools/build_resume_fixtures.py. The model is mocked.
+The fixtures are fictional and built at test time by tests/pdf_fixtures.py
+(nothing binary is committed). The model is mocked.
 """
 
 import tempfile
@@ -15,10 +15,10 @@ from fastapi.testclient import TestClient
 from jsa import db, web
 from jsa import resume_import as ri
 from jsa.llm import Usage
-from tools.build_resume_fixtures import (BULLETS, COMPANY, CONTACT, NAME,
-                                         SCHOOL_LINE, SKILLS, TITLE)
+from tests.pdf_fixtures import (BULLETS, COMPANY, CONTACT, NAME, SCHOOL_LINE,
+                                SKILLS, TITLE, build_all)
 
-FIX = Path(__file__).resolve().parent / "fixtures" / "resumes"
+FIX = build_all(Path(tempfile.mkdtemp()) / "resumes")
 
 
 def reply():

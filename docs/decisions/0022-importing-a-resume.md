@@ -138,15 +138,20 @@ handling and the draft are unchanged.
 - **A word broken across lines** ("coordin-" / "ated") is checked against
   the text with that line break undone, both with and without the hyphen.
   This adds no text.
-- **Extraction mode**, measured: on the fictional fixtures
-  (`tests/fixtures/resumes/`, built by `tools/build_resume_fixtures.py`)
-  pypdf's plain and layout modes give the same lines for one column. On the
-  owner's own two-page PDF resume, layout mode gave 45 bullet-led lines to
-  plain's 16. Imported both ways (one model call each), both kept 10 of 10
-  bullets with none dropped; layout kept 7 of 7 certifications and plain 6,
-  one name broken across lines. The reader takes the mode with more
-  bullet-led lines, plain on a tie. No .docx of that resume exists to
-  compare with.
+- **The fixtures are built at test time** (`tests/pdf_fixtures.py`: a small
+  standard-library PDF writer, and pypdf for the encrypted one), not
+  committed. `tools/scan_history.py` treats any committed .pdf as a leaked
+  generated document, and that rule stays strict.
+- **Extraction mode**, measured: on the fixtures pypdf's plain and layout
+  modes give the same lines, and neither untangles two columns. On the
+  owner's own two-page PDF resume both start 16 lines with a bullet, but
+  plain splits text that shares a baseline (81 lines to layout's 65).
+  Imported both ways (one model call each), both kept 10 of 10 bullets with
+  none dropped; layout kept 7 of 7 certifications and plain 6, one name
+  broken across lines. So the reader uses layout, unless plain finds more
+  bullet-led lines. (A first count said 45 to 16: it counted layout's blank
+  lines as bullets, a bug fixed before this was committed.) No .docx of
+  that resume exists to compare with.
 - **Columns lose text and say so.** The two-column fixture keeps 1 of 3
   bullets (the other two are interleaved with the left column and dropped,
   never garbled). Above `WEAK_PDF_SHARE` = 30% of the model's bullets not
