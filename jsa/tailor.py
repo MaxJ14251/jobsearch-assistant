@@ -542,7 +542,7 @@ def keyword_gap(
 
 
 def pick_summary(profile: dict[str, Any], track: str,
-                 description: str) -> dict | None:
+                 description: str, title: str = "") -> dict | None:
     """Choose the summary variant that fits the role.
 
     Falls back in order: the family the posting calls for, `general`, the
@@ -553,6 +553,22 @@ def pick_summary(profile: dict[str, Any], track: str,
     listed = [s for s in profile.get("summaries") or [] if isinstance(s, dict)]
     if not listed:
         return None
+    # A profile can drive the choice itself (plan 11 part 5): optional
+    # `role_kinds` (engineering / support / sales, ADR 0005) and `keywords`
+    # on each summary. One point per keyword the posting uses, one for a
+    # matching role kind; the first summary wins a tie. Nothing set anywhere,
+    # or nothing matching: the mapping below, unchanged.
+    if any(s.get("role_kinds") or s.get("keywords") for s in listed):
+        kind = role_kind(title, track)
+        blob = (description or "").lower()
+
+        def points(s: dict) -> int:
+            hits = sum(1 for k in s.get("keywords") or []
+                       if str(k).strip() and term_pattern(str(k)).search(blob))
+            return hits + int(kind in (s.get("role_kinds") or []))
+        best = max(listed, key=points)   # max keeps the first of equals
+        if points(best) > 0:
+            return best
     summaries = {s.get("family"): s for s in listed}
     blob = (description or "").lower()
     wanted = None
@@ -972,7 +988,7 @@ def tailor(
     require_decided_preferences(profile)   # before any work, before any network
     description = job.get("description") or ""
     track = job.get("track") or "engineering"
-    summary = pick_summary(profile, track, description)
+    summary = pick_summary(profile, track, description, job.get("title") or "")
     # No summary in the profile: none is written, and none may be invented.
     summary_text = " ".join(str(summary["text"]).split()) if summary else ""
     chosen = select_bullets(profile, description, track, weights=weights,

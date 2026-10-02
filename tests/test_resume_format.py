@@ -260,3 +260,47 @@ class TestSmarterSelection(unittest.TestCase):
     def test_strength_still_outranks_a_figure(self):
         self.assertEqual(self.tied("Ran the desk.", "Ran 40 accounts.", 1, 2),
                          ["b_a", "b_b"])
+
+
+class TestSummaryAnyProfileCanDrive(unittest.TestCase):
+    """Plan 11 part 5."""
+
+    POSTINGS = [("engineering", "Support Engineer", "customer-facing support for our API"),
+                ("engineering", "AI Engineer", "LLM agents and prompt evaluation"),
+                ("sales", "Account Executive", "quota, pipeline"),
+                ("engineering", "Data Analyst", "SQL dashboards")]
+
+    def test_unset_profiles_choose_exactly_as_before(self):
+        def old(profile, track, blob):
+            import re as _re
+            s = {x["family"]: x for x in profile["summaries"]}
+            blob = blob.lower()
+            if track == "sales" or _re.search(
+                    r"customer[- ]facing|client[- ]facing|account executive|sales", blob):
+                return s.get("customer_facing_technical") or s["general"]
+            if _re.search(r"\bllm\b|generative ai|agentic|prompt", blob):
+                return s.get("ai_engineering") or s["general"]
+            return s.get("general")
+        profile = example()
+        for track, title, blob in self.POSTINGS:
+            self.assertEqual(pick_summary(profile, track, blob, title)["id"],
+                             old(profile, track, blob)["id"])
+
+    def test_keywords_choose(self):
+        profile = example()
+        profile["summaries"][0]["keywords"] = ["SQL", "dashboards"]   # sum_general
+        profile["summaries"][1]["keywords"] = ["LLM"]                 # sum_ai_eng
+        self.assertEqual(pick_summary(profile, "engineering", "SQL dashboards",
+                                      "Data Analyst")["id"], "sum_general")
+        self.assertEqual(pick_summary(profile, "engineering", "LLM agents",
+                                      "AI Engineer")["id"], "sum_ai_eng")
+
+    def test_role_kinds_choose_and_no_match_falls_back(self):
+        profile = example()
+        profile["summaries"][2]["role_kinds"] = ["support"]  # customer-facing variant
+        self.assertEqual(pick_summary(profile, "engineering", "tickets",
+                                      "Technical Support Engineer")["id"],
+                         "sum_customer_facing")
+        # Nothing matches: the old mapping decides (an LLM posting -> ai_eng).
+        self.assertEqual(pick_summary(profile, "engineering", "LLM agents",
+                                      "Software Engineer")["id"], "sum_ai_eng")
