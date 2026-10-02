@@ -66,7 +66,10 @@ RULES: list[tuple[str, str, re.Pattern[str]]] = [
          r"not (?:be )?moving forward|move forward with other candidates"
          r"|moving forward with other candidates|decided not to (?:proceed|move)"
          r"|regret to inform|position has (?:been|now been) filled"
-         r"|will not be (?:moving|proceeding)|not (?:been )?selected"
+         # "not selected" only as a statement: a receipt says "IF you are
+         # not selected for this position, keep an eye on our jobs page"
+         # (found on the first real fetch, 2026-10-02).
+         r"|will not be (?:moving|proceeding)|(?:have|has|had|were|was) not (?:been )?selected"
          r"|pursue other candidates|unable to offer you"),
         ("offer", "offer", r"pleased to offer|offer letter|extend (?:you )?an offer"),
         ("interview", "invitation",

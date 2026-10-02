@@ -154,6 +154,16 @@ class TestClassification(unittest.TestCase):
             "Application received", "Thank you for applying. If selected for an "
             "interview, a recruiter will contact you.")[0], "received")
 
+    def test_a_conditional_not_selected_is_not_a_rejection(self):
+        """Found on the first real fetch: a receipt that says what happens IF."""
+        self.assertEqual(inbox.classify(
+            "Thank you for your application", "We received your application and will "
+            "be in touch. If you are not selected for this position, keep an eye on "
+            "our jobs page.")[0], "received")
+        self.assertEqual(inbox.classify(
+            "Your application", "Unfortunately you were not selected for this role.")[0],
+            "rejection")
+
     def test_suggested_stages(self):
         self.assertEqual(inbox.suggest("rejection", "phone_screen"), "rejected")
         self.assertEqual(inbox.suggest("interview", "applied"), "phone_screen")
