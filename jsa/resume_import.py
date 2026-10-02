@@ -1,4 +1,4 @@
-"""Import a resume (.docx) into a DRAFT profile, and preview its matches.
+"""Import a resume (.docx or PDF) into a DRAFT profile, and preview its matches.
 
 Rules (docs/decisions/0022-importing-a-resume.md):
 
@@ -14,7 +14,8 @@ Rules (docs/decisions/0022-importing-a-resume.md):
   them (fail closed).
 - **Degree status is never guessed.** `credential` is always left empty for
   the user to write; the resume's own education line is shown beside it.
-- `.docx` only. PDF needs a new dependency and extraction that can fail.
+- .docx, or a PDF with a text layer (Plan 10: `read_pdf`). A PDF that
+  loses much of its text to its layout says so (`WEAK_PDF`).
 """
 
 from __future__ import annotations
@@ -132,6 +133,89 @@ def read_docx(path: Path) -> list[str]:
     for section in doc.sections:
         if not section.footer.is_linked_to_previous:
             block(section.footer)
+    return lines
+
+
+# PDF (Plan 10). pypdf is pure Python; it parses an untrusted file, so the
+# size and page count are checked before and right after opening.
+MAX_PDF_BYTES = 5_000_000
+MAX_PDF_PAGES = 10            # a resume is 1-3 pages
+MIN_PDF_WORDS = 50            # under this over all pages: a scan, no text layer
+SCAN = ("this PDF looks like a scan, with no text to read. Save your resume "
+        "as .docx, or export a text PDF from your editor.")
+# Bullet glyphs as PDF text extraction returns them: U+007F is ReportLab's
+# Helvetica bullet, U+F0B7 / U+F0A7 are Word's Symbol and Wingdings bullets.
+_PDF_BULLETS = "\x7f•●▪■‣⁃◦"
+_PAGE_NUMBER = re.compile(r"^(?:page\s+)?\d{1,2}(?:\s*(?:of|/)\s*\d{1,2})?$", re.I)
+
+
+def _pdf_line(text: str) -> str:
+    """NFKC folds ligatures (U+FB01 -> "fi"); bullets and control characters
+    go; whitespace is folded as for .docx."""
+    import unicodedata
+
+    text = unicodedata.normalize("NFKC", text)
+    text = "".join(" " if (ch in _PDF_BULLETS or unicodedata.category(ch) == "Cc")
+                   else ch for ch in text)
+    return _clean(text)
+
+
+def _bulletish(page_texts: list[str]) -> int:
+    return sum(1 for t in page_texts for line in t.splitlines()
+               if line.lstrip()[:1] in _PDF_BULLETS + "-*")
+
+
+def read_pdf(path: Path) -> list[str]:
+    """Lines of a text PDF. Refuses a scan, an encrypted or oversized file, or
+    more than MAX_PDF_PAGES pages. No OCR.
+
+    Extraction mode, measured on tests/fixtures/resumes/ (2026-10-02): pypdf's
+    "plain" and "layout" modes return the same lines on one-column pages. On
+    the two-column fixture, layout keeps both columns on one line (so bullets
+    no longer start a line) and plain interleaves them line by line; neither
+    reconstructs the columns. The mode with more lines that start with a
+    bullet wins, plain on a tie.
+    """
+    path = Path(path)
+    if path.stat().st_size > MAX_PDF_BYTES:
+        raise ResumeReadError(f"{path.name} is over {MAX_PDF_BYTES // 1_000_000} MB; "
+                              "a resume is far smaller. Is this the right file?")
+    from pypdf import PdfReader
+
+    try:
+        reader = PdfReader(str(path))
+        if reader.is_encrypted and not reader.decrypt(""):
+            raise ResumeReadError(f"{path.name} is password-protected. Remove "
+                                  "the password and try again.")
+        pages = list(reader.pages)
+    except ResumeReadError:
+        raise
+    except Exception as exc:  # pypdf raises many types on a damaged file
+        raise ResumeReadError(f"{path.name} could not be read as a PDF ({exc}). "
+                              f"{DOCX_ONLY}") from exc
+    if len(pages) > MAX_PDF_PAGES:
+        raise ResumeReadError(f"{path.name} has {len(pages)} pages; a resume is "
+                              "1-3. Is this the right file?")
+    try:
+        by_mode = {mode: [p.extract_text(extraction_mode=mode) or "" for p in pages]
+                   for mode in ("plain", "layout")}
+    except Exception as exc:  # noqa: BLE001 - a broken content stream
+        raise ResumeReadError(f"{path.name}: its text could not be extracted "
+                              f"({exc}). {DOCX_ONLY}") from exc
+    texts = (by_mode["layout"] if _bulletish(by_mode["layout"]) > _bulletish(by_mode["plain"])
+             else by_mode["plain"])
+
+    page_lines = [[_pdf_line(raw) for raw in t.splitlines()] for t in texts]
+    page_lines = [[ln for ln in lines if ln and not _PAGE_NUMBER.match(ln)]
+                  for lines in page_lines]
+    # A running header or footer: the same line on every page of several.
+    repeated = (set.intersection(*(set(lines) for lines in page_lines))
+                if len(page_lines) > 1 else set())
+    lines: list[str] = []
+    for n, page in enumerate(page_lines):
+        lines += [ln for ln in page if n == 0 or ln not in repeated]
+    if sum(len(ln.split()) for ln in lines) < MIN_PDF_WORDS:
+        raise ResumeReadError(f"{path.name}: {SCAN}")
     return lines
 
 
@@ -294,6 +378,14 @@ class Verified:
     def bullet_count(self) -> int:
         return sum(len(e["bullets"]) for e in self.experience + self.projects)
 
+    @property
+    def unmatched_share(self) -> float:
+        """Of the bullets the model found, the share not in the text verbatim."""
+        missed = sum(1 for d in self.dropped
+                     if d.where.endswith("bullet") and d.why == NOT_VERBATIM)
+        found = self.bullet_count + missed
+        return missed / found if found else 0.0
+
 
 def _str(value: Any) -> str:
     return value.strip() if isinstance(value, str) else ""
@@ -311,12 +403,20 @@ def _tags(value: Any) -> list[str]:
 def verify(extracted: dict[str, Any], resume_text: str) -> Verified:
     """Keep only what the resume says word for word. Tags, family and target
     titles are suggestions and are marked so in the draft, not checked."""
-    hay = normalize(resume_text)
+    # A PDF breaks a long word across lines with a hyphen ("coordin-" /
+    # "ated"). Two variants undo only that line break, adding no text: one
+    # rejoins the word, one keeps a real hyphen ("40-" / "person").
+    hays = (normalize(resume_text),
+            normalize(re.sub(r"(?<=[a-z])-\n(?=[a-z])", "", resume_text)),
+            normalize(re.sub(r"-\n", "-", resume_text)))
     years = set(_YEAR.findall(resume_text))
     out = Verified()
 
     def ok(text: str) -> bool:
-        return bool(text) and REDACTED not in text and normalize(text) in hay
+        if not text or REDACTED in text:
+            return False
+        needle = normalize(text)
+        return any(needle in hay for hay in hays)
 
     def keep(where: str, value: Any, label: bool = False) -> str | None:
         text = _str(value)
@@ -363,7 +463,7 @@ def verify(extracted: dict[str, Any], resume_text: str) -> Verified:
     def family(value: Any) -> str | None:
         return value if value in FAMILIES else None
 
-    mentions_present = bool(re.search(r"\b(present|current|now)\b", hay))
+    mentions_present = bool(re.search(r"\b(present|current|now)\b", hays[0]))
     for e in _items(extracted.get("experience")):
         company = keep("employer", e.get("company"), label=True)
         title = keep("job title", e.get("title"), label=True)
@@ -624,7 +724,8 @@ def preview(con: sqlite3.Connection, draft: dict[str, Any],
 
 # Extension -> the bytes such a file starts with. The dashboard checks both
 # and never trusts the browser's content type; the CLI checks them too.
-SUPPORTED: dict[str, bytes] = {".docx": b"PK\x03\x04"}
+SUPPORTED: dict[str, bytes] = {".docx": b"PK\x03\x04", ".pdf": b"%PDF-"}
+KINDS = " or ".join(sorted(SUPPORTED))
 DRAFT_NAME = "master_profile.draft.yaml"
 
 
@@ -640,6 +741,18 @@ class ImportReport:
     blocking: list[Any]          # doctor findings that block, on the draft
     matches: list[Match]
     no_preview: str = ""         # why there is no preview, when there isn't
+    warning: str = ""            # the PDF lost much of its text
+
+
+# Share of the bullets the model found that were not in the text word for
+# word, above which a PDF import says its layout likely lost text. Measured on
+# tests/fixtures/resumes/ (2026-10-02): the one-column and ASCII85 PDFs lose
+# 0 of 3; the two-column one loses 2 of 3 (67%). Set between the two, low
+# enough that losing one bullet in three warns.
+WEAK_PDF_SHARE = 0.30
+WEAK_PDF = ("much of this PDF's text could not be matched word for word, likely "
+            "its layout (columns or tables). The .docx version usually imports "
+            "more completely.")
 
 
 def check_type(path: Path) -> None:
@@ -647,7 +760,7 @@ def check_type(path: Path) -> None:
     path = Path(path)
     suffix = path.suffix.lower()
     if suffix not in SUPPORTED:
-        raise ResumeReadError(f"{path.name} is not a .docx file. {DOCX_ONLY}")
+        raise ResumeReadError(f"{path.name} is not a {KINDS} file. {DOCX_ONLY}")
     if not path.exists():
         raise ResumeReadError(f"no file at {path}")
     with path.open("rb") as fh:
@@ -659,7 +772,7 @@ def check_type(path: Path) -> None:
 
 def read(path: Path) -> list[str]:
     check_type(path)
-    return read_docx(path)
+    return read_pdf(path) if Path(path).suffix.lower() == ".pdf" else read_docx(path)
 
 
 def run(path: Path, *, out: Path, live: Path, force: bool = False,
@@ -689,6 +802,8 @@ def run(path: Path, *, out: Path, live: Path, force: bool = False,
 
     draft = yaml.safe_load(out.read_text(encoding="utf-8"))
     report = ImportReport(out, verified, doctor.run(draft, con).blocking, [])
+    if Path(path).suffix.lower() == ".pdf" and verified.unmatched_share > WEAK_PDF_SHARE:
+        report.warning = WEAK_PDF
     if con is None:
         report.no_preview = "no tracker yet: run `jsa init` and `jsa discover` first."
     else:

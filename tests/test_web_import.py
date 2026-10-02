@@ -123,7 +123,7 @@ class TestImportRoute(ImportBase):
 
     def test_another_extension_is_refused(self):
         r = self.upload(name="resume.txt")
-        self.assertIn("is not a .docx file", r.text)
+        self.assertIn("is not a .docx or .pdf file", r.text)
         self.assertFalse(self.draft.exists())
 
     def test_the_uploaded_file_is_not_kept(self):
@@ -152,7 +152,7 @@ class TestImportRoute(ImportBase):
 
     def test_the_page_offers_the_drop_zone_and_what_leaves(self):
         r = self.client.get("/import")
-        self.assertIn('type="file" id="f-resume" name="resume" accept=".docx"', r.text)
+        self.assertIn('type="file" id="f-resume" name="resume" accept=".docx,.pdf"', r.text)
         self.assertIn('enctype="multipart/form-data"', r.text)
         self.assertIn("name and contact details removed", r.text)
 

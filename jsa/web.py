@@ -1932,6 +1932,7 @@ IMPORT = """{% extends "base" %}{% block body %}
 IMPORTED = """{% extends "base" %}{% block body %}
 <h1>Your draft profile</h1>
 <p class="note good" role="status">Wrote <code>{{ draft_path }}</code>. Your real profile was not changed.</p>
+{% if warning %}<p class="note bad" role="alert">{{ warning[0]|upper }}{{ warning[1:] }}</p>{% endif %}
 <p class="sub">Imported {{ v.experience|length }} job(s), {{ v.projects|length }} project(s), {{ v.bullet_count }} bullet(s), {{ v.certifications|length }} certification(s), {{ v.education|length }} school(s) and {{ v.skills|length }} skill(s), each copied word for word from your resume.</p>
 
 {% if v.dropped %}<h2>Left out ({{ v.dropped|length }})</h2>
@@ -2870,6 +2871,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             con.close()
         return render("imported", "add", title="Your draft profile",
                       v=report.verified, blocking=report.blocking,
+                      warning=report.warning,
                       matches=report.matches, no_preview=report.no_preview,
                       draft_path=str(report.draft_path), live_path=str(live))
 

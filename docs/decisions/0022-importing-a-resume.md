@@ -119,3 +119,36 @@ can't disagree.
   drag-and-drop submitted the file; the model wrote an end date of
   "Present", which the year check reported as dropped. "Present" now means
   `current` and is not reported.
+
+## Addendum: PDF resumes (plan 10), 2026-10-02
+
+The reading step takes a PDF too (`read_pdf`); verification, identity
+handling and the draft are unchanged.
+
+- **pypdf, pinned** (6.19.0): pure Python, no system packages, so the slim
+  Docker image needs nothing new. It parses an untrusted file, so it is
+  pinned to a release with every published advisory fixed (checked against
+  OSV on 2026-10-02), and the file is refused before parsing if it is over
+  5 MB, and after opening if it is encrypted or longer than 10 pages.
+- **No OCR.** Under 50 words of text over all pages means a scan: refused,
+  with how to export a text PDF or use the .docx.
+- **Normalizing:** NFKC (so the "fi" ligature reads as "fi"), PDF bullet
+  glyphs and control characters removed, page numbers and a header or
+  footer repeated on every page dropped.
+- **A word broken across lines** ("coordin-" / "ated") is checked against
+  the text with that line break undone, both with and without the hyphen.
+  This adds no text.
+- **Extraction mode**, measured: on the fictional fixtures
+  (`tests/fixtures/resumes/`, built by `tools/build_resume_fixtures.py`)
+  pypdf's plain and layout modes give the same lines for one column. On the
+  owner's own two-page PDF resume, layout mode gave 45 bullet-led lines to
+  plain's 16. Imported both ways (one model call each), both kept 10 of 10
+  bullets with none dropped; layout kept 7 of 7 certifications and plain 6,
+  one name broken across lines. The reader takes the mode with more
+  bullet-led lines, plain on a tie. No .docx of that resume exists to
+  compare with.
+- **Columns lose text and say so.** The two-column fixture keeps 1 of 3
+  bullets (the other two are interleaved with the left column and dropped,
+  never garbled). Above `WEAK_PDF_SHARE` = 30% of the model's bullets not
+  found word for word, the report warns and suggests the .docx; the clean
+  fixtures and the owner's PDF lose 0%.

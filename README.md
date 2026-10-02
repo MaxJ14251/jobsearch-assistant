@@ -122,7 +122,7 @@ Your name and contact details, what you have actually done as short bullets,
 the titles and places you want. It is gitignored, so it stays on your machine.
 Budget most of the hour here; everything downstream is only as good as this.
 
-Or start from your resume, saved as .docx:
+Or start from your resume, as .docx or a text PDF:
 
 ```bash
 .venv/Scripts/python -m jsa import-resume my_resume.docx
@@ -132,8 +132,10 @@ It writes `profile/master_profile.draft.yaml`, never your real profile. Every
 bullet, employer and school in it is copied word for word from the resume;
 tags, target titles and families are marked `# suggested: check`, and the
 decisions only you can make (work authorization, pay floor, your degree as you
-would state it) are left as TODO. It prints what is missing and what the draft
-would match. Review it, then copy it to `profile/master_profile.yaml`. Your
+would state it) are left as TODO. A PDF is read locally; a scanned one (no text
+layer) is refused, and if its layout loses much of the text, for example two
+columns, it says so and suggests the .docx. It prints what is missing and
+what the draft would match. Review it, then copy it to `profile/master_profile.yaml`. Your
 name and contact details are removed before the resume's text goes to the
 model (one call; it needs the API key, set up in step 6).
 
@@ -483,7 +485,7 @@ Local review dashboard on http://127.0.0.1:8765. It covers the whole path from a
 match to a resume you can upload yourself:
 
 - **Import your resume** (`/import`, linked from *Add a job*, and from
-  Matches when there is no profile yet): drop a .docx on the page and get the
+  Matches when there is no profile yet): drop a .docx or PDF on the page and get the
   same draft and report as `jsa import-resume`. It writes only the draft, and
   the uploaded file is read in a temporary folder and deleted.
 - **Matches**, filtered by **"within N miles of here"** — a ZIP or a city and

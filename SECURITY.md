@@ -54,7 +54,9 @@ it:
   `jsa tailor`, `jsa prep` and `jsa outreach-draft` also send the profile's
   bullets, and refuse before any network call if your name, address, phone
   or email appears in the prompt.
-- `jsa import-resume` sends your resume's text to the model API, **with your
+- `jsa import-resume` reads the resume locally (a PDF with the pinned,
+  pure-Python `pypdf`; scans, encrypted files, over 5 MB or over 10 pages are
+  refused) and sends its text to the model API, **with your
   name, email, phone, street, ZIP, home city and links removed** locally
   first; it refuses before any network call if one is still in the prompt.
 

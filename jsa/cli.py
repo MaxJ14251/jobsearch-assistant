@@ -89,7 +89,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 
 
 def cmd_import_resume(args: argparse.Namespace) -> int:
-    """Resume (.docx) -> a DRAFT profile, plus what it would match. Never
+    """Resume (.docx or PDF) -> a DRAFT profile, plus what it would match. Never
     writes master_profile.yaml (ADR 0022)."""
     from . import config
     from . import resume_import as ri
@@ -109,6 +109,8 @@ def cmd_import_resume(args: argparse.Namespace) -> int:
 
     v = report.verified
     print(f"wrote {report.draft_path}")
+    if report.warning:
+        print(f"warning: {report.warning}", file=sys.stderr)
     print(f"  imported {len(v.experience)} job(s), "
           f"{len(v.projects)} project(s), {v.bullet_count} bullet(s), "
           f"{len(v.certifications)} certification(s), "
@@ -1173,8 +1175,8 @@ def main(argv: list[str] | None = None) -> int:
     ).set_defaults(func=cmd_doctor)
 
     p_imp = sub.add_parser(
-        "import-resume", help="turn your resume (.docx) into a draft profile")
-    p_imp.add_argument("file", help="your resume, saved as .docx")
+        "import-resume", help="turn your resume (.docx or PDF) into a draft profile")
+    p_imp.add_argument("file", help="your resume: .docx, or a PDF with a text layer")
     p_imp.add_argument("--out", help="where to write the draft "
                        "(default profile/master_profile.draft.yaml)")
     p_imp.add_argument("--force", action="store_true",
