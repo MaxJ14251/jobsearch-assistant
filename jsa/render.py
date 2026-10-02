@@ -198,7 +198,7 @@ def render_resume(
             meta = doc.add_paragraph()
             m = meta.add_run(
                 "  |  ".join(
-                    p for p in (exp.get("location"),
+                    p for p in (exp.get("location"), exp.get("company_descriptor"),
                                 _dates(exp.get("start"), exp.get("end"),
                                        exp.get("current", False), style)) if p
                 )
@@ -269,9 +269,16 @@ def render_resume(
     if certs:
         _heading(doc, "Certifications")
         for c in certs:
-            issued = c.get("issued")
-            _body(doc, f"{c.get('name')} — {c.get('issuer')}"
-                       + (f" ({issued})" if issued else ""))
+            # display_name, when set, is how the operator wants a coded name
+            # read. `description` stays off the page (too long for one line).
+            issued = format_date(c.get("issued"), style)
+            line = f"{c.get('display_name') or c.get('name')} — {c.get('issuer')}"
+            line += f" ({issued})" if issued else ""
+            parts = [str(x.get("name")) for x in c.get("components") or []
+                     if isinstance(x, dict) and x.get("name")]
+            if parts:
+                line += ": " + "; ".join(parts)
+            _body(doc, line)
 
     edu = profile.get("education") or []
     if edu:
@@ -286,8 +293,10 @@ def render_resume(
                 line += f" — {field}"
             if years:
                 line += f", {years}"
+            credential = " ".join(str(e.get("credential") or "").split())
+            if credential:
+                line += f" · {credential}"
             _body(doc, line)
-            _body(doc, e.get("credential", ""))
 
     check_placement(draft, sources, placed)
     out.parent.mkdir(parents=True, exist_ok=True)

@@ -139,6 +139,30 @@ class TestSkills(unittest.TestCase):
                          "Machine learning")
 
 
+class TestWhatTheProfileAlreadySays(unittest.TestCase):
+    """Plan 11 part 2."""
+
+    def test_the_company_descriptor_is_on_the_meta_line(self):
+        text = rendered(example())
+        self.assertIn("Commercial HVAC & Building Controls  |  Mar 2022 – Oct 2023", text)
+
+    def test_certifications_use_display_name_and_components(self):
+        profile = example()
+        profile["certifications"][0]["display_name"] = "Applied ML Certificate"
+        text = rendered(profile)
+        self.assertIn("Applied ML Certificate — Example Online Institute (2025)", text)
+        self.assertIn("Example Provider (Jun 2025): Python for Automation; "
+                      "Working with APIs; Introduction to Data Analysis", text)
+        self.assertNotIn("assessed by project", text)  # description stays off
+
+    def test_education_is_one_line_with_the_credential_verbatim(self):
+        from jsa.prep import assert_no_degree_claim
+        text = rendered(example())
+        self.assertIn("State University — Computer Science, 2018 – 2020 · "
+                      "Coursework completed (degree not conferred)", text)
+        assert_no_degree_claim(text)
+
+
 class TestSummaryNeverCrashes(unittest.TestCase):
     def test_no_general_summary_falls_back_to_the_first(self):
         profile = example()
