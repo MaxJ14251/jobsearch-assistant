@@ -49,7 +49,9 @@ _PHONE = re.compile(
 _URL = re.compile(
     r"(?:https?://)?(?:www\.)?(?:linkedin\.com|github\.com)/[^\s,|]+"
     r"|https?://[^\s,|]+", re.I)
-_ZIP = re.compile(r"(?<!\d)\d{5}(?:-\d{4})?(?!\d)")
+# Not inside a word or link: a handle such as github.com/name12345 has five
+# digits too (found on the first real run).
+_ZIP = re.compile(r"(?<![\w/.@-])\d{5}(?:-\d{4})?(?![\w/])")
 _CITY_ST = re.compile(r"\b([A-Z][A-Za-z.'-]+(?: [A-Z][A-Za-z.'-]+){0,2}), ([A-Z]{2})\b")
 _STREET = re.compile(
     r"\b\d{1,6} [A-Za-z0-9.' ]{2,40}? (?:St|Street|Ave|Avenue|Rd|Road|Blvd|"
@@ -57,6 +59,7 @@ _STREET = re.compile(
     r"Circle|Cir)\b\.?(?:,? (?:Apt|Unit|Suite|#) ?\w+)?")
 _NAME = re.compile(r"^[A-Z][A-Za-z'.-]+(?: [A-Z][A-Za-z'.-]+){1,3}$")
 _BULLET = re.compile(r"^\s*[•●▪◦‣∙·*–—-]\s+")
+_LABEL_CONTACT = re.compile(r"\s*[-|,:–—]?\s*\[contact\]")
 _YEAR = re.compile(r"(?:19|20)\d{2}")
 
 
@@ -314,8 +317,12 @@ def verify(extracted: dict[str, Any], resume_text: str) -> Verified:
     def ok(text: str) -> bool:
         return bool(text) and REDACTED not in text and normalize(text) in hay
 
-    def keep(where: str, value: Any) -> str | None:
+    def keep(where: str, value: Any, label: bool = False) -> str | None:
         text = _str(value)
+        if label:
+            # A heading such as "Project Name - <repo link>": the link was
+            # removed as contact detail, and the name alone is what counts.
+            text = _LABEL_CONTACT.sub("", text).strip(" -|,:–—")
         if not text:
             return None
         if ok(text):
@@ -346,18 +353,26 @@ def verify(extracted: dict[str, Any], resume_text: str) -> Verified:
                 out.dropped.append(Dropped(where + " bullet", text, NOT_VERBATIM))
         return kept
 
+    def lost(entry: str, items: Any, why: str) -> None:
+        for b in items if isinstance(items, list) else []:
+            text = _str(b.get("text") if isinstance(b, dict) else b)
+            if text:
+                out.dropped.append(Dropped(entry + " bullet", text, why))
+
     def family(value: Any) -> str | None:
         return value if value in FAMILIES else None
 
     mentions_present = bool(re.search(r"\b(present|current|now)\b", hay))
     for e in _items(extracted.get("experience")):
-        company = keep("employer", e.get("company"))
-        title = keep("job title", e.get("title"))
+        company = keep("employer", e.get("company"), label=True)
+        title = keep("job title", e.get("title"), label=True)
         if not company or not title:
             if company or title:
                 out.dropped.append(Dropped(
                     "job", company or title,
                     "the job's employer and title must both be in your resume"))
+            lost(company or title or "job", e.get("bullets"),
+                 "dropped with its job")
             continue
         out.experience.append({
             "company": company, "title": title,
@@ -369,18 +384,20 @@ def verify(extracted: dict[str, Any], resume_text: str) -> Verified:
             "bullets": bullets(company, e.get("bullets")),
         })
     for p in _items(extracted.get("projects")):
-        name = keep("project", p.get("name"))
+        name = keep("project", p.get("name"), label=True)
         if name:
             out.projects.append({"name": name, "family": family(p.get("family")),
                                  "bullets": bullets(name, p.get("bullets"))})
+        else:
+            lost("project", p.get("bullets"), "dropped with its project")
     for c in _items(extracted.get("certifications")):
-        name = keep("certification", c.get("name"))
+        name = keep("certification", c.get("name"), label=True)
         if name:
             out.certifications.append({
                 "name": name, "issuer": keep("issuer", c.get("issuer")),
                 "issued": date(f"{name} issued", c.get("issued"))})
     for ed in _items(extracted.get("education")):
-        school = keep("school", ed.get("institution"))
+        school = keep("school", ed.get("institution"), label=True)
         if school:
             # Any degree the model offers is ignored, never checked: the
             # credential is the person's to write (check_credentials).

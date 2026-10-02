@@ -130,6 +130,12 @@ class TestIdentity(Base):
             self.assertEqual(ident.phone, phone)
             self.assertNotIn(phone, redacted[0])
 
+    def test_digits_in_a_link_are_not_a_zip(self):
+        ident, redacted = ri.split_identity(
+            ["Pat Example", "github.com/patexample24680 | Fairview, OR"])
+        self.assertIsNone(ident.postal_code)
+        self.assertEqual(ident.links["github"], "https://github.com/patexample24680")
+
     def test_contact_block_in_the_body_works_too(self):
         path = build_resume(self.tmp / "body.docx", header=False)
         ident, _ = ri.split_identity(ri.read_docx(path))
@@ -192,6 +198,23 @@ class TestExtractAndVerify(Base):
         draft = yaml.safe_load(ri.render_draft(ri.Identity(), v, "r.docx"))
         self.assertIsNone(draft["education"][0]["credential"])
         self.assertNotIn("BS Business", ri.render_draft(ri.Identity(), v, "r.docx"))
+
+    def test_a_heading_keeps_its_name_when_its_link_was_removed(self):
+        # Found on the first real run: "Project Name - <repo link>" came back
+        # from the model as "Project Name - [contact]" and failed the check.
+        reply = {"projects": [{"name": "Northwind Supply — [contact]",
+                               "bullets": [{"text": KEPT}]}]}
+        v = ri.verify(reply, "Northwind Supply — [contact]\n" + KEPT)
+        self.assertEqual(v.projects[0]["name"], "Northwind Supply")
+        self.assertEqual(len(v.projects[0]["bullets"]), 1)
+
+    def test_a_dropped_project_lists_its_bullets_too(self):
+        reply = {"projects": [{"name": "Invented Project",
+                               "bullets": [{"text": KEPT}]}]}
+        v = ri.verify(reply, KEPT)
+        self.assertEqual(v.projects, [])
+        self.assertTrue(any(d.what == KEPT and "with its project" in d.why
+                            for d in v.dropped))
 
     def test_tags_are_normalized_suggestions(self):
         self.assertEqual(self.verified().experience[0]["bullets"][0]["tags"],

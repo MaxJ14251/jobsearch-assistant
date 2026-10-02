@@ -75,5 +75,26 @@ still block on and the top matches the draft would give.
 
 ## Measured
 
-Owner's own resume, run once with the owner present: not yet run. Counts
-only (bullets found / kept / dropped, and why), never content, go here.
+2026-10-02, the owner's resume as downloaded from the dashboard (a
+tailored resume this tool rendered, so an easier case than a hand-made one).
+Counts only.
+
+- First run: 1 job, 1 of 2 projects, 2 of 5 bullets kept; 1 item reported
+  dropped. Two bugs, both fixed and covered by tests:
+  - a project heading "Name - <repo link>" came back as "Name -
+    [contact]" (the link had been removed as contact detail) and failed the
+    check, which also took its 3 bullets;
+  - those 3 bullets were dropped **silently**: an entry that failed took its
+    bullets with it unreported. Now each is listed, "dropped with its
+    project".
+- A third bug from the same run: five digits inside the GitHub handle were
+  read as a ZIP code (the resume prints none). The ZIP pattern no longer
+  matches inside a word or link.
+- After the fixes: 1 job, 2 projects, 5 of 5 bullets, 2 certifications,
+  1 school, 13 skills; 0 dropped. Name, email, phone and both links match the
+  live profile. 4 of 5 bullets are identical to a profile bullet; the fifth
+  is the tailored resume's shortened version, copied as the resume has it.
+  One project name carries extra words from the resume's heading line;
+  the user's review is where that gets trimmed. The credential was left
+  empty, and doctor listed 4 blocking items (work authorization, pay floor,
+  no summary, the credential).

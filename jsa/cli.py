@@ -114,6 +114,7 @@ def cmd_import_resume(args: argparse.Namespace) -> int:
     print(f"wrote {out}")
     print(f"  imported {len(verified.experience)} job(s), "
           f"{len(verified.projects)} project(s), {verified.bullet_count} bullet(s), "
+          f"{len(verified.certifications)} certification(s), "
           f"{len(verified.education)} school(s), {len(verified.skills)} skill(s)")
     if verified.dropped:
         print(f"  dropped {len(verified.dropped)} item(s) the model did not "
