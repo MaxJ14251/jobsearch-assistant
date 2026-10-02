@@ -399,7 +399,7 @@ def check_secrets(report: Report) -> None:
     hooks = git("config", "core.hooksPath")
     if (hooks is not None and hooks.returncode in (0, 1)
             and (hooks.stdout or "").strip() != ".githooks"):
-        report.add(False, "The pre-commit secret scanner is not switched on",
+        report.add(False, "The pre-commit scanner is not switched on",
                    "Run `git config core.hooksPath .githooks` so every commit is "
                    "checked for keys and personal details.")
     mailbox = "set up" if inbox.settings() is not None else "not set up (optional)"
