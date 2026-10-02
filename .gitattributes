@@ -1,2 +1,6 @@
 # Shell scripts run on Linux runners and in containers.
 *.sh text eol=lf
+
+# PDFs are binary even when every byte is printable (an ASCII85 stream is):
+# a line-ending conversion would corrupt the test fixtures.
+*.pdf binary
