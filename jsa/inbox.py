@@ -156,7 +156,8 @@ def _quote(text: str) -> str:
 def candidates(con: sqlite3.Connection) -> list[dict[str, Any]]:
     """Live applications that have been sent, with the employer's name."""
     rows = con.execute(
-        "SELECT a.id, a.job_id, a.status, a.applied_at, j.title, c.name AS company "
+        "SELECT a.id, a.job_id, a.status, a.applied_at, j.title, j.company_id, "
+        "c.name AS company "
         "FROM applications a JOIN jobs j ON j.id = a.job_id "
         "JOIN companies c ON c.id = j.company_id "
         f"WHERE a.archived_at IS NULL AND a.applied_at IS NOT NULL "
@@ -165,8 +166,20 @@ def candidates(con: sqlite3.Connection) -> list[dict[str, Any]]:
     for r in rows:
         name = employer_name(r["company"], r["title"])
         if name:
-            out.append({**dict(r), "employer": name})
+            # The employer's other roles in the tracker. A reply that names one
+            # of them, and not this one, is about a different application
+            # (found on the first real fetch: a receipt for another role at an
+            # employer with one application in the tracker was matched to it).
+            others = [t for (t,) in con.execute(
+                "SELECT DISTINCT title FROM jobs WHERE company_id = ? AND id <> ?",
+                (r["company_id"], r["job_id"]))]
+            out.append({**dict(r), "employer": name, "other_titles": others})
     return out
+
+
+def _role(title: str) -> str:
+    """A job title without its requisition code: emails leave "(R5856)" out."""
+    return re.sub(r"\s*[\(\[][^)\]]*[\)\]]\s*$", "", title or "").strip()
 
 
 def employer_name(company: str, title: str) -> str | None:
@@ -317,11 +330,17 @@ def match(head: dict[str, Any], text: str,
                      or (len(squashed) >= 4 and squashed in head["domain"].replace(".", "")))
         if in_header or (is_hiring_sender(head["domain"]) and _names(text, name)):
             hits.append(app)
+    said = head["subject"] + " " + text
     if len(hits) == 1:
-        return hits[0], []
+        app = hits[0]
+        names_another = any(_names(said, _role(t)) for t in app.get("other_titles", ())
+                            if len(_norm(_role(t))) >= 8)
+        if names_another and not _names(said, _role(app["title"])):
+            return None, [app["id"]]
+        return app, []
     if not hits:
         return None, []
-    titled = [a for a in hits if _names(head["subject"] + " " + text, a["title"])]
+    titled = [a for a in hits if _names(said, _role(a["title"]))]
     if len(titled) == 1:
         return titled[0], []
     return None, [a["id"] for a in hits]
@@ -379,8 +398,9 @@ def fetch(con: sqlite3.Connection, imap: imaplib.IMAP4 | None = None) -> Report:
             if app is None and not ambiguous and not is_hiring_sender(head["domain"]):
                 continue
             text = text_of(raw_head, _fetch_part(imap, uid, TEXT_SPEC))
-            if app is None:
-                app, ambiguous = match(head, text, apps)
+            # Always again, with the text: the header found the employer, but
+            # the body may name a different role there.
+            app, ambiguous = match(head, text, apps)
             if app is None and not ambiguous:
                 continue
             report.matched += 1

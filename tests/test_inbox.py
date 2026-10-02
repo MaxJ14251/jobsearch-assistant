@@ -237,6 +237,41 @@ class TestFetch(InboxCase):
         with self.assertRaises(inbox.InboxError):
             inbox.confirm(self.con, row["id"])
 
+    def add_other_role(self):
+        cid = self.con.execute("SELECT company_id FROM jobs WHERE id = 1").fetchone()[0]
+        self.con.execute("INSERT INTO jobs (id, company_id, title, url) VALUES "
+                         "(9, ?, 'Data Platform Engineer, Learning (R5856)', 'https://x/9')", (cid,))
+        self.con.commit()
+
+    def test_a_reply_naming_another_role_at_the_employer_is_unclear(self):
+        """Found on the first real fetch: one application at an employer, and a
+        receipt for a different role there was matched to it."""
+        self.add_other_role()
+        self.run_fetch([message(
+            sender="Acme Robotics <no-reply@acmerobotics.com>",
+            subject="Thank you for your application to Acme Robotics",
+            body="We received your application for Data Platform Engineer, Learning.",
+            mid="c1")])
+        (row,) = self.replies()
+        self.assertIsNone(row["application_id"])
+        self.assertEqual(eval(row["candidates"]), [self.apps[1]])
+
+    def test_a_reply_naming_its_own_role_still_matches(self):
+        self.add_other_role()
+        self.run_fetch([message(
+            sender="Acme Robotics <no-reply@acmerobotics.com>",
+            subject="Acme Robotics: Software Engineer application",
+            body="We received your application for Software Engineer.", mid="c2")])
+        self.assertEqual(self.replies()[0]["application_id"], self.apps[1])
+
+    def test_a_reply_naming_no_role_still_matches(self):
+        self.add_other_role()
+        self.run_fetch([message(
+            sender="Acme Robotics <no-reply@acmerobotics.com>",
+            subject="Thank you for applying to Acme Robotics",
+            body="We received your application.", mid="c3")])
+        self.assertEqual(self.replies()[0]["application_id"], self.apps[1])
+
     def test_mail_from_before_the_application_is_ignored(self):
         self.run_fetch([message(sender="Acme Robotics <no-reply@acmerobotics.com>",
                                 subject="Acme Robotics newsletter", body="Hello.",
