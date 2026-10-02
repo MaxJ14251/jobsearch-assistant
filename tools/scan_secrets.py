@@ -85,6 +85,13 @@ KEY_PATTERNS = [
     ("OpenAI API key", re.compile(r"\bsk-[A-Za-z0-9]{32,}")),
     ("AWS access key", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
     ("Generic bearer token", re.compile(r"Bearer\s+[A-Za-z0-9_\-\.]{30,}")),
+    # Plan 6 (ADR 0021): the mailbox setting with a value, anywhere but .env,
+    # and a Gmail app password's shape (four groups of four lowercase letters)
+    # on a line that mentions a password. .env.example ships the key empty.
+    ("Mailbox app password in a settings line",
+     re.compile(r"JSA_IMAP_APP_PASSWORD[ \t]*=[ \t]*[^\s#]+")),
+    ("Gmail app password", re.compile(
+        r"(?i:password)[^\n]*?(?<![A-Za-z])[a-z]{4} [a-z]{4} [a-z]{4} [a-z]{4}(?![A-Za-z])")),
 ]
 
 # Generic stand-ins that carry no identity. A README showing C:\Users\you\... or

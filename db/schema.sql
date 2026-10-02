@@ -165,6 +165,25 @@ CREATE TABLE IF NOT EXISTS application_events (
 
 CREATE INDEX IF NOT EXISTS idx_events_app ON application_events(application_id, occurred_at);
 
+-- Replies found in the operator's mailbox, read-only (ADR 0021). A
+-- SUGGESTION for a person to confirm or dismiss: nothing here moves an
+-- application. No body is stored; `rule` names the phrase rule that matched,
+-- not text from the mail.
+CREATE TABLE IF NOT EXISTS inbox_replies (
+    id              INTEGER PRIMARY KEY,
+    message_id      TEXT NOT NULL UNIQUE,          -- RFC Message-ID: a re-run never duplicates
+    application_id  INTEGER REFERENCES applications(id) ON DELETE CASCADE,  -- NULL: ambiguous
+    candidates      TEXT,                          -- JSON application ids when ambiguous
+    received_at     TEXT,
+    sender_domain   TEXT,
+    subject         TEXT,
+    kind            TEXT NOT NULL CHECK (kind IN ('rejection','interview','offer','received','other')),
+    suggested_stage TEXT,
+    rule            TEXT,
+    state           TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending','confirmed','dismissed')),
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+
 -- What was actually submitted, fixed when `jsa applied` runs (ADR 0012).
 -- applications.resume_doc_id means "latest drafted" and moves on every
 -- redraft; this does not. One row per kind, written once, never updated: a

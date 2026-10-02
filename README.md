@@ -183,7 +183,17 @@ Or do the same in a browser with `jsa serve`.
 **What it will not do.** It does not submit applications, send email, or
 message anyone — there is no code path that transmits. It will not write a
 claim your profile does not make. It does not search every employer: it polls
-the boards listed in `config/companies.yaml`, and you add your own.
+the boards listed in `config/companies.yaml`, and you add your own. If you set
+it up, it reads your mailbox only when you ask, and never writes to it.
+
+**Replies from your email (optional).** With a Gmail app password in `.env`
+(see `.env.example`), `jsa inbox` or "Check email" on the dashboard's Pipeline
+page reads your mailbox read-only and finds replies to your applications:
+rejections, interview requests, offers, receipts. It suggests a stage change
+for each, and nothing moves until you confirm it (`jsa inbox confirm <id>`)
+or dismiss it. Nothing is marked read, nothing is sent, and no mail text
+goes to a model. See
+[ADR 0021](docs/decisions/0021-reading-replies-from-the-mailbox.md).
 
 **Where the shipped feeds point.** `config/companies.yaml` ships 50 employer and
 aggregator feeds (listed under [Feed coverage](#feed-coverage)). Their on-site

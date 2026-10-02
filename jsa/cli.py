@@ -888,6 +888,60 @@ def cmd_reject(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_inbox(args: argparse.Namespace) -> int:
+    """Replies to your applications, read from your mailbox read-only (ADR 0021).
+
+    Suggests stage changes; you confirm or dismiss each. Never sends, never
+    changes the mailbox, and no mail text goes to a model.
+    """
+    from . import inbox
+
+    action = getattr(args, "action", None) or "list"
+    db.upgrade()           # an older tracker has no inbox_replies table yet
+    con = db.connect()
+    try:
+        if action == "confirm":
+            job_id, previous, stage = inbox.confirm(con, args.reply_id, stage=args.stage)
+            con.commit()
+            print(f"{previous} -> {stage}: job {job_id} (confirmed by you)")
+            return 0
+        if action == "dismiss":
+            inbox.dismiss(con, args.reply_id)
+            con.commit()
+            print(f"dismissed reply {args.reply_id}")
+            return 0
+        if not args.no_fetch:
+            report = inbox.fetch(con)
+            print(f"checked {report.user}: {report.searched} message(s) looked at, "
+                  f"{report.stored} new repl(ies) about your applications"
+                  + (f", {report.ambiguous} unclear which one" if report.ambiguous else ""))
+        rows = inbox.pending(con)
+    except inbox.InboxError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    except approvals.ApprovalError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        con.close()
+    if not rows:
+        print("nothing waiting on you.")
+        return 0
+    for r in rows:
+        who = (f"{r['company']} -- {r['title']} (job {r['job_id']}, {r['status']})"
+               if r["application_id"] else "unclear which application")
+        print(f"\n[{r['id']}] {who}")
+        print(f"     {(r['received_at'] or '')[:10]}  {r['sender_domain']}  {r['subject']}")
+        if r["suggested_stage"]:
+            print(f"     looks like: {r['kind']} -> suggest {r['suggested_stage']}   "
+                  f"confirm: jsa inbox confirm {r['id']}")
+        else:
+            print(f"     looks like: {r['kind']} (nothing to change)")
+        print(f"     dismiss: jsa inbox dismiss {r['id']}")
+    print("\nNothing moves until you confirm.")
+    return 0
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     """Move an application to a later stage. Always a human saying so."""
     con = db.connect()
@@ -1235,6 +1289,19 @@ def main(argv: list[str] | None = None) -> int:
                          help="one of: " + ", ".join(approvals.STAGES))
     p_stage.add_argument("--note", help="what happened, kept in the trail")
     p_stage.set_defaults(func=cmd_status)
+
+    p_inbox = sub.add_parser(
+        "inbox", help="replies to your applications, from your mailbox (read-only)")
+    p_inbox.add_argument("--no-fetch", action="store_true",
+                         help="list what is already waiting; do not read the mailbox")
+    inbox_sub = p_inbox.add_subparsers(dest="action")
+    p_ic = inbox_sub.add_parser("confirm", help="move the application as suggested")
+    p_ic.add_argument("reply_id", type=int)
+    p_ic.add_argument("--stage", choices=list(approvals.STAGES), metavar="STAGE",
+                      help="a different stage than the one suggested")
+    p_id = inbox_sub.add_parser("dismiss", help="ignore this reply")
+    p_id.add_argument("reply_id", type=int)
+    p_inbox.set_defaults(func=cmd_inbox)
 
     p_next = sub.add_parser("next", help="set the next action for a job")
     p_next.add_argument("job_id", type=int)

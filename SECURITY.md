@@ -39,6 +39,11 @@ it:
   Workday boards take their search as a POST body). Nothing about you is in
   those requests, except that the nationwide source is asked about the
   cities in your profile. `jsa add <link>` fetches the one page you give it.
+- `jsa inbox` (only if you set it up) reads your mailbox over IMAP, read-only:
+  the folder is opened read-only, nothing is marked read, and nothing is
+  sent or changed. What it keeps is each matching reply's subject, date and
+  sender domain, locally; no mail text goes anywhere. The app password stays
+  in `.env`.
 - `jsa enrich` sends posting text to the model API configured in `.env`.
   `jsa tailor`, `jsa prep` and `jsa outreach-draft` also send the profile's
   bullets, and refuse before any network call if your name, address, phone

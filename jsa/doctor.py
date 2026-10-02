@@ -373,6 +373,39 @@ def check_basemap(report: Report) -> None:
     report.checked.append("map data")
 
 
+def check_secrets(report: Report) -> None:
+    """That .env cannot be committed, and the pre-commit scanner is on.
+
+    Asked when the mailbox setting arrived (ADR 0021): an app password sits in
+    .env, so whether that file can reach GitHub is worth checking, not
+    assuming. Says whether the mailbox is set up; never what it is set to.
+    """
+    import subprocess
+
+    from .config import ROOT
+    from . import inbox
+
+    def git(*args: str) -> subprocess.CompletedProcess | None:
+        try:
+            return subprocess.run(["git", *args], cwd=ROOT, capture_output=True,
+                                  text=True, timeout=10)
+        except (OSError, subprocess.SubprocessError):
+            return None
+
+    ignored = git("check-ignore", "-q", ".env")
+    if ignored is not None and ignored.returncode == 1:
+        report.add(True, ".env is not ignored by git",
+                   "It holds your keys. Add `.env` to .gitignore before you commit.")
+    hooks = git("config", "core.hooksPath")
+    if (hooks is not None and hooks.returncode in (0, 1)
+            and (hooks.stdout or "").strip() != ".githooks"):
+        report.add(False, "The pre-commit secret scanner is not switched on",
+                   "Run `git config core.hooksPath .githooks` so every commit is "
+                   "checked for keys and personal details.")
+    mailbox = "set up" if inbox.settings() is not None else "not set up (optional)"
+    report.checked.append(f".env ignored, commit hook, mailbox {mailbox}")
+
+
 def run(profile: dict[str, Any] | None,
         con: sqlite3.Connection | None) -> Report:
     """Every check. Reads only."""
@@ -393,4 +426,5 @@ def run(profile: dict[str, Any] | None,
     check_market(profile, con, report)
     check_basemap(report)
     check_api_key(report)
+    check_secrets(report)
     return report

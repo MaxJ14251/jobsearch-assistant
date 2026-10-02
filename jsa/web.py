@@ -1688,6 +1688,38 @@ PIPELINE = """{% extends "base" %}{% block body %}
 <h1>Pipeline</h1>
 <p class="sub">{{ total }} live application(s){% if overdue %} · <strong>{{ overdue }} overdue</strong>{% endif %} · moving a stage records that YOU said so</p>
 {% if msg %}<p class="note {{ 'bad' if bad else 'good' }}" role="status">{{ msg }}</p>{% endif %}
+<h2>Replies from your email{% if replies %} · {{ replies|length }}{% endif %}</h2>
+<form method="post" action="/inbox/fetch" class="inline" onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Checking…'">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <button class="ghost" type="submit" {{ '' if mail_ready else 'disabled' }}>Check email</button>
+  <span class="meta">{% if mail_ready %}Reads your mailbox read-only: nothing is marked read, nothing is sent, and nothing moves until you confirm.{% else %}Not set up: add a Gmail app password to .env (see .env.example).{% endif %}</span>
+</form>
+{% for r in replies %}
+<div class="card">
+  <div class="row1">
+    <span class="flag {{ 'warn' if r.kind == 'rejection' else ('ok' if r.kind in ('interview','offer') else '') }}">{{ r.kind }}</span>
+    {% if r.application_id %}<span class="title"><a class="plain" href="/job/{{ r.job_id }}">{{ r.title }}</a></span>
+    <span class="co">{{ r.company }} · now {{ r.status|replace('_',' ') }}</span>
+    {% else %}<span class="title">Unclear which application</span>{% endif %}
+  </div>
+  <div class="meta">{{ (r.received_at or '')[:10] }} · {{ r.sender_domain }} · {{ r.subject }}</div>
+  <div class="inline">
+    {% if r.application_id %}
+    <form method="post" action="/inbox/{{ r.id }}/confirm" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <select name="stage" aria-label="Stage for {{ r.title }}">
+        {% for s in stages %}<option value="{{ s }}" {{ 'selected' if s == (r.suggested_stage or r.status) }}>{{ s|replace('_',' ') }}</option>{% endfor %}
+      </select>
+      <button type="submit">Confirm</button>
+    </form>
+    {% endif %}
+    <form method="post" action="/inbox/{{ r.id }}/dismiss" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="ghost" type="submit">Dismiss</button>
+    </form>
+  </div>
+</div>
+{% else %}<p class="empty">No replies waiting on you.</p>{% endfor %}
 {% for stage, items in groups %}
 <h2>{{ stage|replace('_',' ') }} · {{ items|length }}</h2>
 {% for r in items %}
@@ -2671,6 +2703,8 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                 "  FROM applications a JOIN jobs j ON j.id = a.job_id "
                 "  LEFT JOIN companies c ON c.id = j.company_id "
                 " WHERE a.archived_at IS NULL").fetchall()]
+            from . import inbox
+            replies = [dict(r) for r in inbox.pending(con)]
         finally:
             con.close()
 
@@ -2699,7 +2733,53 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                       total=len(live), stages=list(approvals.STAGES),
                       overdue=sum(1 for r in live
                                   if r["days_out"] is not None and r["days_out"] < 0),
+                      replies=replies, mail_ready=inbox.settings() is not None,
                       msg=msg, bad=bad)
+
+    @app.post("/inbox/fetch")
+    def inbox_fetch():
+        """Read the mailbox, read-only, and store suggestions (ADR 0021)."""
+        from . import inbox
+        con = connect()
+        try:
+            report = inbox.fetch(con)
+        except inbox.InboxError as exc:
+            return back_to_pipeline(str(exc)[:1].upper() + str(exc)[1:], True)
+        except OSError as exc:
+            return back_to_pipeline(f"Could not reach the mailbox: {exc}", True)
+        finally:
+            con.close()
+        return back_to_pipeline(
+            f"Checked {report.user}: {report.searched} message(s) looked at, "
+            f"{report.stored} new repl(ies) about your applications.", False)
+
+    @app.post("/inbox/{reply_id}/confirm")
+    def inbox_confirm(reply_id: int, stage: str = Form(...)):
+        """Your confirmation moves the stage: the same call as the stage form."""
+        from . import inbox
+        con = connect()
+        try:
+            _job, previous, stage = inbox.confirm(con, reply_id, stage=stage)
+            con.commit()
+        except (inbox.InboxError, approvals.ApprovalError) as exc:
+            return back_to_pipeline(str(exc)[:1].upper() + str(exc)[1:], True)
+        finally:
+            con.close()
+        return back_to_pipeline(
+            f"Moved from {previous.replace('_', ' ')} to {stage.replace('_', ' ')}.", False)
+
+    @app.post("/inbox/{reply_id}/dismiss")
+    def inbox_dismiss(reply_id: int):
+        from . import inbox
+        con = connect()
+        try:
+            inbox.dismiss(con, reply_id)
+            con.commit()
+        except inbox.InboxError as exc:
+            return back_to_pipeline(str(exc)[:1].upper() + str(exc)[1:], True)
+        finally:
+            con.close()
+        return back_to_pipeline("Dismissed. Nothing else changed.", False)
 
     @app.post("/job/{job_id}/stage")
     def do_stage(job_id: int, stage: str = Form(...)):
