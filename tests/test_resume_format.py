@@ -195,3 +195,68 @@ class TestSummaryNeverCrashes(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSmarterSelection(unittest.TestCase):
+    """Plan 11 part 4."""
+
+    def test_skills_the_posting_mentions_come_first(self):
+        ordered = tailor.order_skills(example(), "We use SQLite and API Integration daily.")
+        self.assertEqual(ordered["technical"][:2], ["API Integration", "SQLite"])
+        self.assertEqual(ordered["ai_tools"], example()["skills"]["ai_tools"])
+        self.assertNotIn("unverified_candidates", ordered)
+
+    def test_project_stack_joins_only_when_asked_and_never_unverified(self):
+        profile = example()
+        self.assertNotIn("LLM APIs", tailor.order_skills(profile, "")["technical"])
+        profile["resume"] = {"skills_include_project_stack": True}
+        technical = tailor.order_skills(profile, "")["technical"]
+        self.assertIn("LLM APIs", technical)
+        self.assertEqual(sum(t.lower() == "python" for t in technical), 1)
+        self.assertNotIn("pandas", technical)        # in unverified_candidates
+        self.assertNotIn("FastAPI", technical)       # "FastAPI / Flask" there
+
+    def test_the_guard_refuses_an_unlisted_or_unverified_skill(self):
+        profile = example()
+        for bad in ("Kubernetes", "Docker", "Rust"):
+            draft = TailoredDraft(skills={"technical": ["Python", bad]})
+            with self.assertRaises(tailor.FabricationError):
+                tailor.check_skills(draft, profile)
+        tailor.check_skills(TailoredDraft(skills=tailor.order_skills(profile, "python")),
+                            profile)
+
+    def test_the_resume_prints_the_drafted_order(self):
+        profile = example()
+        draft = every_bullet(profile)
+        draft.skills = tailor.order_skills(profile, "SQLite shop")
+        self.assertIn("Technical: SQLite, Python", rendered(profile, draft))
+
+    def test_work_history_bullet_can_be_a_list(self):
+        profile = example()
+        recent = profile["experience"][0]
+        recent["work_history_bullet"] = ["b_riv_cycle", "b_riv_promo"]
+        picks = tailor.select_bullets(profile, "python llm evaluation", "engineering",
+                                      title="AI Engineer")
+        own = [b.id for b in picks if b.parent == "exp_riverton_sales"]
+        self.assertEqual(len(own), 1)
+        self.assertIn(own[0], recent["work_history_bullet"])
+        recent["work_history_bullet"] = ["b_riv_promo", "b_not_there"]
+        with self.assertRaises(ValueError):
+            tailor.select_bullets(profile, "python llm evaluation", "engineering",
+                                  title="AI Engineer")
+
+    def tied(self, a_text, b_text, a_strength=1, b_strength=1):
+        profile = {"experience": [{
+            "id": "e", "company": "C", "title": "T", "family": "sales",
+            "bullets": [
+                {"id": "b_a", "text": a_text, "strength": a_strength, "tags": []},
+                {"id": "b_b", "text": b_text, "strength": b_strength, "tags": []}]}]}
+        return [b.id for b in tailor.select_bullets(
+            profile, "", "sales", keep_project=False, title="Account Executive")]
+
+    def test_a_figure_breaks_an_exact_tie(self):
+        self.assertEqual(self.tied("Ran the desk.", "Ran 40 accounts."), ["b_b", "b_a"])
+
+    def test_strength_still_outranks_a_figure(self):
+        self.assertEqual(self.tied("Ran the desk.", "Ran 40 accounts.", 1, 2),
+                         ["b_a", "b_b"])

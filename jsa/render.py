@@ -29,7 +29,8 @@ from docx.shared import Pt
 
 from . import db
 from .config import OUTPUT_DIR, load_coach
-from .tailor import TailoredDraft, collect_bullets, entry_key, public_repo
+from .tailor import (UNPRINTED_SKILLS, TailoredDraft, collect_bullets, entry_key,
+                     public_repo)
 
 BODY_PT = 10.5
 NAME_PT = 18
@@ -125,9 +126,6 @@ def skill_label(key: str, labels: dict[str, Any], acronyms: list[str]) -> str:
     return " ".join(upper.get(w.lower(), w.capitalize())
                     for w in re.split(r"[_\s]+", str(key)) if w)
 
-
-# Skill categories the profile keeps for its owner, never for a reader.
-UNPRINTED_SKILLS = ("unverified_candidates",)
 
 
 @dataclass
@@ -255,8 +253,11 @@ def render_resume(
     # Every category, in the profile's order. Only ai_tools, technical and
     # applied_focus used to print ("Ai Tools"), so any other field's skills
     # were silently dropped.
-    skills = {k: v for k, v in (profile.get("skills") or {}).items()
-              if k not in UNPRINTED_SKILLS and isinstance(v, list) and v}
+    # The draft's order when it has one (tailor.order_skills: what the posting
+    # mentions first, checked by verify_draft); else the profile's.
+    skills = draft.skills or {
+        k: v for k, v in (profile.get("skills") or {}).items()
+        if k not in UNPRINTED_SKILLS and isinstance(v, list) and v}
     if skills:
         _heading(doc, "Skills")
         labels = profile.get("skill_labels") or {}

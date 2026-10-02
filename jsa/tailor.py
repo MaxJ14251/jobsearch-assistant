@@ -114,6 +114,9 @@ class TailoredDraft:
     reverted: list[str] = field(default_factory=list)
     # Why each one reverted, keyed by bullet id ("summary" for the summary).
     revert_reasons: dict[str, str] = field(default_factory=dict)
+    # Skills as the resume prints them, category -> terms, ordered for this
+    # posting (order_skills). Empty means the profile's own order.
+    skills: dict[str, list[str]] = field(default_factory=dict)
 
 
 # --- profile access ---------------------------------------------------------
@@ -175,6 +178,63 @@ def collect_bullets(profile: dict[str, Any]) -> dict[str, SourceBullet]:
                 parent=entry_key(proj, "name", "title"),
             )
     return out
+
+
+# Skill categories the profile keeps for its owner, never for a reader.
+UNPRINTED_SKILLS = ("unverified_candidates",)
+
+
+def order_skills(profile: dict[str, Any], description: str) -> dict[str, list[str]]:
+    """The profile's skills, the terms this posting mentions first within each
+    category. With `resume.skills_include_project_stack`, project `stack`
+    items join the technical category (case-insensitive dedup; never an
+    unverified or do-not-claim term). Only reorders and copies profile text;
+    verify_draft checks every term (`check_skills`)."""
+    skills = {k: [str(v) for v in vals]
+              for k, vals in (profile.get("skills") or {}).items()
+              if k not in UNPRINTED_SKILLS and isinstance(vals, list) and vals}
+    if (profile.get("resume") or {}).get("skills_include_project_stack"):
+        excluded = {s.lower() for s in _not_printable(profile)}
+        have = {v.lower() for vals in skills.values() for v in vals}
+        for proj in profile.get("projects") or []:
+            for item in proj.get("stack") or []:
+                item = str(item)
+                if item.lower() not in have and item.lower() not in excluded:
+                    skills.setdefault("technical", []).append(item)
+                    have.add(item.lower())
+    blob = (description or "").lower()
+    return {k: sorted(vals, key=lambda v: not term_pattern(v).search(blob))
+            for k, vals in skills.items()}
+
+
+def _not_printable(profile: dict[str, Any]) -> list[str]:
+    """Unverified and do-not-claim terms. An entry such as "FastAPI / Flask"
+    or "AWS / GCP / Azure (which one?)" counts for each name in it."""
+    unverified = (profile.get("skills") or {}).get("unverified_candidates") or []
+    out = []
+    for entry in list(unverified) + do_not_claim(profile):
+        entry = str(entry)
+        out.append(entry)
+        out += [p.strip() for p in re.sub(r"\(.*?\)", "", entry).split("/") if p.strip()]
+    return out
+
+
+def check_skills(draft: "TailoredDraft", profile: dict[str, Any]) -> None:
+    """Every skill on the resume is a profile skill or a project stack item,
+    and none is unverified or on the do-not-claim list."""
+    allowed = {str(v).lower() for k, vals in (profile.get("skills") or {}).items()
+               if k not in UNPRINTED_SKILLS and isinstance(vals, list) for v in vals}
+    allowed |= {str(s).lower() for p in profile.get("projects") or []
+                for s in p.get("stack") or []}
+    banned = {s.lower() for s in _not_printable(profile)}
+    for terms in draft.skills.values():
+        for term in terms:
+            if term.lower() in banned:
+                raise FabricationError(
+                    f"skill {term!r} is unverified or on aspirational_do_not_claim")
+            if term.lower() not in allowed:
+                raise FabricationError(
+                    f"skill {term!r} is not in your profile's skills or a project stack")
 
 
 def do_not_claim(profile: dict[str, Any]) -> list[str]:
@@ -447,6 +507,7 @@ def verify_draft(draft: TailoredDraft, profile: dict[str, Any]) -> TailoredDraft
     draft.bullets = kept
     draft.reverted = reverted
     draft.revert_reasons = reasons
+    check_skills(draft, profile)
 
     share, new = added_share(draft.summary, _whole_profile_stems(profile))
     if share > INVENTION_CEILING:
@@ -736,7 +797,7 @@ def select_bullets(
             (proj.get("status") != "released", not public_repo(proj))
         for proj in profile.get("projects") or []
     }
-    scored: list[tuple[float, float, tuple[bool, bool], int, str, SourceBullet]] = []
+    scored: list[tuple[float, float, tuple[bool, bool], int, bool, str, SourceBullet]] = []
     for bullet in collect_bullets(profile).values():
         hit_value = sum(tag_value(tag, blob, weights) for tag in bullet.tags)
         # Strength is deliberately NOT in the score. As (4 - strength) it added
@@ -750,12 +811,16 @@ def select_bullets(
         # role favours this kind of work, then how finished the project is (a
         # released one with a public repo first: on Kyber's empty posting the
         # alphabet picked an in-development tool over the released app), then
-        # how strong the bullet is. The id remains last, only so the order is
-        # deterministic. ADR 0005 section 11.
+        # how strong the bullet is, then whether it has a figure. The id
+        # remains last, only so the order is deterministic. ADR 0005 section 11.
         ready = (maturity.get(bullet.parent, (False, False))
                  if bullet.origin == "project" else (False, False))
-        scored.append((score, -family, ready, bullet.strength, bullet.id, bullet))
-    scored.sort(key=lambda row: (-row[0], *row[1:5]))
+        # After strength, a bullet with a figure in it: strength is the
+        # operator's own rating and outranks a heuristic (plan 11 part 4).
+        unquantified = not re.search(r"\d", bullet.text)
+        scored.append((score, -family, ready, bullet.strength, unquantified,
+                       bullet.id, bullet))
+    scored.sort(key=lambda row: (-row[0], *row[1:6]))
 
     if not scored:
         return []
@@ -782,11 +847,15 @@ def select_bullets(
                if row[-1].origin == "experience" and row[-1].parent == parent]
         named = recent.get("work_history_bullet")
         if named:
-            own = [row for row in own if row[-1].id == named]
-            if not own:
-                raise ValueError(
-                    f"work_history_bullet {named!r} on experience {parent!r} "
-                    "is not one of that entry's bullets")
+            # One id, or a list of them: the best-scoring named one is kept.
+            names = [named] if isinstance(named, str) else list(named)
+            own_ids = {row[-1].id for row in own}
+            for name in names:
+                if name not in own_ids:
+                    raise ValueError(
+                        f"work_history_bullet {name!r} on experience {parent!r} "
+                        "is not one of that entry's bullets")
+            own = [row for row in own if row[-1].id in names]
         if own:
             keep = keep[:limit - 1] + [own[0]]
 
@@ -952,6 +1021,7 @@ def tailor(
         bullets=bullets,
         keywords_matched=matched,
         keywords_missing=missing,
+        skills=order_skills(profile, description),
         model=usage.model,
         prompt_hash=hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:16],
     )
