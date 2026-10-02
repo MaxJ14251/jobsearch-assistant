@@ -220,6 +220,17 @@ class TestExtractAndVerify(Base):
         self.assertEqual(self.verified().experience[0]["bullets"][0]["tags"],
                          ["customer-facing", "support"])
 
+    def test_present_as_an_end_date_means_current(self):
+        # Found in the browser check: a real model wrote end "Present", and it
+        # was reported as a dropped date.
+        reply = model_reply()
+        reply["experience"][0].update(end="Present", current=False)
+        ident, redacted = ri.split_identity(ri.read_docx(self.resume))
+        v = ri.verify(reply, "\n".join(redacted))
+        self.assertIsNone(v.experience[0]["end"])
+        self.assertTrue(v.experience[0]["current"])
+        self.assertFalse(any(d.what == "Present" for d in v.dropped))
+
     def test_a_date_with_a_year_not_in_the_resume_is_dropped(self):
         reply = model_reply()
         reply["experience"][0]["start"] = "2016-04"

@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import parse_qs, urlencode
 
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
                                PlainTextResponse, RedirectResponse)
 from jinja2 import DictLoader, Environment
@@ -335,6 +335,9 @@ BASE = """<!doctype html>
 
 MATCHES = """{% extends "base" %}{% block body %}
 <h1>Matches</h1>
+{% if no_profile %}<p class="note bad" role="alert">No profile yet, so nothing can be scored for you.
+  <a class="plain" href="/import">Import your resume</a>, or copy
+  <code>profile/master_profile.example.yaml</code> to <code>profile/master_profile.yaml</code> and fill it in.</p>{% endif %}
 <div id="summary">
 <p class="sub">{{ total }} unreviewed · showing {{ rows|length - mine }}
   {%- if mine %} and {{ mine }} of your applications{% endif %}
@@ -1855,6 +1858,7 @@ PREVIEW = """{% extends "base" %}{% block body %}
 ADD = """{% extends "base" %}{% block body %}
 <h1>Add a job</h1>
 <p class="sub">For a posting discovery did not find. It is stored and scored like any other, and nothing becomes an application until you save it.</p>
+<p class="sub">Setting up your profile? <a class="plain" href="/import">Import your resume</a> instead.</p>
 {% if msg %}<p class="note {{ 'bad' if bad else 'good' }}" role="alert">{{ msg }}</p>{% endif %}
 
 <h2>From a link</h2>
@@ -1885,10 +1889,77 @@ ADD = """{% extends "base" %}{% block body %}
 </form>
 {% endblock %}"""
 
+IMPORT = """{% extends "base" %}{% block body %}
+<h1>Import your resume</h1>
+<p class="sub">Turns your resume into a <strong>draft</strong> profile, <code>{{ draft_name }}</code>, and shows what it would match. Your real profile is never changed: adopting the draft is a copy you make yourself.</p>
+{% if msg %}<p class="note bad" role="alert">{{ msg }}</p>{% endif %}
+<form class="stack" method="post" action="/import" enctype="multipart/form-data" id="import-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="f-resume" class="drop" id="drop">
+    <span class="drop-title">Drop your resume here, or choose a file</span>
+    <span class="meta">{{ kinds }}, up to {{ max_mb }} MB</span>
+    <input type="file" id="f-resume" name="resume" accept="{{ accept }}" required>
+  </label>
+  <label class="check" for="f-replace"><input type="checkbox" id="f-replace" name="replace" value="1"> Replace my existing draft</label>
+  <button type="submit">Import</button>
+  <p class="meta" style="margin:0">What leaves your machine: the resume's text, with your name and contact details removed first, goes to the model API set in <code>.env</code> (one call). The file itself is read in a temporary folder and deleted; it is not stored.</p>
+</form>
+<style>
+  form.stack label.drop{display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center;
+    border:2px dashed var(--rule);border-radius:8px;padding:28px 16px;text-align:center;cursor:pointer}
+  .drop.over{border-color:var(--copper);background:var(--sage-soft)}
+  .drop-title{font-weight:600}
+  .drop input{max-width:100%}
+  form.stack label.check{display:flex;gap:8px;align-items:center;font-size:13.5px}
+  form.stack label.check input{width:auto;margin:0}
+</style>
+<script>
+(function(){
+  var form=document.getElementById('import-form'), drop=document.getElementById('drop'),
+      input=document.getElementById('f-resume');
+  form.addEventListener('submit',function(){var b=form.querySelector('button');b.disabled=true;b.textContent='Reading your resume…';});
+  ['dragenter','dragover'].forEach(function(e){drop.addEventListener(e,function(ev){ev.preventDefault();drop.classList.add('over');});});
+  ['dragleave','drop'].forEach(function(e){drop.addEventListener(e,function(ev){ev.preventDefault();drop.classList.remove('over');});});
+  drop.addEventListener('drop',function(ev){
+    if(!ev.dataTransfer||!ev.dataTransfer.files.length)return;
+    input.files=ev.dataTransfer.files;
+    if(form.reportValidity()){form.requestSubmit?form.requestSubmit():form.submit();}
+  });
+})();
+</script>
+{% endblock %}"""
+
+IMPORTED = """{% extends "base" %}{% block body %}
+<h1>Your draft profile</h1>
+<p class="note good" role="status">Wrote <code>{{ draft_path }}</code>. Your real profile was not changed.</p>
+<p class="sub">Imported {{ v.experience|length }} job(s), {{ v.projects|length }} project(s), {{ v.bullet_count }} bullet(s), {{ v.certifications|length }} certification(s), {{ v.education|length }} school(s) and {{ v.skills|length }} skill(s), each copied word for word from your resume.</p>
+
+{% if v.dropped %}<h2>Left out ({{ v.dropped|length }})</h2>
+<p class="sub">Nothing is reworded into your profile. These were not found word for word in your resume; copy any you want across by hand.</p>
+<ul>{% for d in v.dropped %}<li><strong>{{ d.where }}:</strong> {{ d.what }} <span class="meta">({{ d.why }})</span></li>{% endfor %}</ul>{% endif %}
+
+{% if blocking %}<h2>Fill these in, in the draft ({{ blocking|length }})</h2>
+<ul>{% for f in blocking %}<li><strong>{{ f.what }}</strong><br><span class="meta">{{ f.fix }}</span></li>{% endfor %}</ul>{% endif %}
+
+<h2>What the draft would match</h2>
+{% if no_preview %}<p class="sub">No preview yet: {{ no_preview }}</p>
+{% else %}<p class="sub">From jobs already in your tracker, which were found using your current profile. Run <code>jsa discover</code> after adopting the draft for a full search.</p>
+{% if matches %}<ul>{% for m in matches %}<li><a class="plain" href="/job/{{ m.job_id }}">{{ m.company }}: {{ m.title }}</a> <span class="meta">{{ '%.2f'|format(m.score) }}</span></li>{% endfor %}</ul>
+{% else %}<p class="sub">Nothing in the tracker scores above 0 for this draft.</p>{% endif %}{% endif %}
+
+<h2>Next</h2>
+<ol>
+  <li>Review <code>{{ draft_path }}</code>: the TODO lines, and every line marked <code># suggested: check</code>.</li>
+  <li>Copy it over your profile:<br><code>copy "{{ draft_path }}" "{{ live_path }}"</code></li>
+  <li>Run <code>jsa doctor</code>, then <code>jsa discover</code>.</li>
+</ol>
+{% endblock %}"""
+
 env = Environment(
     loader=DictLoader({"base": BASE, "matches": MATCHES, "job": JOB,
                        "prep": PREP, "pipeline": PIPELINE, "review": REVIEW,
-                       "preview": PREVIEW, "add": ADD}),
+                       "preview": PREVIEW, "add": ADD,
+                       "import": IMPORT, "imported": IMPORTED}),
     # Always on. select_autoescape(["html"]) keys on the template NAME, and
     # these are named "base", "job"... so it was silently off, and a job
     # description from a third-party board rendered as live HTML.
@@ -2179,6 +2250,59 @@ def _json_list(value: str | None) -> list[Any]:
 # Hostnames a request may name. See the module docstring.
 ALLOWED_HOSTS = ("127.0.0.1", "localhost", "[::1]")
 
+# The only upload is a resume (ADR 0022); real ones are well under 1 MB.
+MAX_UPLOAD_BYTES = 5_000_000
+
+
+def multipart_field(body: bytes, content_type: str, name: str) -> str:
+    """One small text field from a multipart body ("" if absent or malformed).
+
+    The guard needs the token before the route runs, and FastAPI's own form
+    parsing would consume the body.
+    """
+    from python_multipart.multipart import MultipartParser, parse_options_header
+
+    _, options = parse_options_header(content_type)
+    boundary = options.get(b"boundary")
+    if not boundary:
+        return ""
+    state: dict[str, Any] = {"field": b"", "value": b"", "name": None,
+                             "data": [], "found": None}
+
+    def on_header_field(data, start, end):
+        state["field"] += data[start:end]
+
+    def on_header_value(data, start, end):
+        state["value"] += data[start:end]
+
+    def on_header_end():
+        if state["field"].lower() == b"content-disposition":
+            _, opts = parse_options_header(state["value"])
+            state["name"] = opts.get(b"name")
+        state["field"], state["value"] = b"", b""
+
+    def on_part_begin():
+        state["name"], state["data"] = None, []
+
+    def on_part_data(data, start, end):
+        if state["name"] == name.encode():
+            state["data"].append(data[start:end])
+
+    def on_part_end():
+        if state["name"] == name.encode() and state["found"] is None:
+            state["found"] = b"".join(state["data"])
+
+    try:
+        parser = MultipartParser(boundary, {
+            "on_part_begin": on_part_begin, "on_part_data": on_part_data,
+            "on_part_end": on_part_end, "on_header_field": on_header_field,
+            "on_header_value": on_header_value, "on_header_end": on_header_end})
+        parser.write(body)
+        parser.finalize()
+    except Exception:  # noqa: BLE001 - a malformed body simply has no token
+        return ""
+    return (state["found"] or b"").decode("ascii", "ignore")
+
 
 def host_allowed(host_header: str) -> bool:
     host = (host_header or "").strip().lower()
@@ -2221,10 +2345,28 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         if not host_allowed(request.headers.get("host", "")):
             return PlainTextResponse("Unrecognised host.", status_code=400)
         if request.method == "POST":
+            kind = request.headers.get("content-type", "").split(";")[0].strip().lower()
+            if kind == "multipart/form-data":
+                # An upload (the resume import). Refuse a large or unsized one
+                # BEFORE reading it: this guard holds the whole body in memory.
+                length = request.headers.get("content-length", "")
+                if not length.isdigit() or int(length) > MAX_UPLOAD_BYTES:
+                    return PlainTextResponse(
+                        "That file is too large. A resume is well under "
+                        f"{MAX_UPLOAD_BYTES // 1_000_000} MB.", status_code=413)
             # The raw body, not request.form(): parsing the form here consumes
             # it, and the route then receives nothing.
-            body = (await request.body()).decode("utf-8", "replace")
-            sent = parse_qs(body).get("csrf", [""])[0]
+            raw = await request.body()
+            if kind == "multipart/form-data":
+                if len(raw) > MAX_UPLOAD_BYTES:  # the header said otherwise
+                    return PlainTextResponse("That file is too large.",
+                                             status_code=413)
+                sent = multipart_field(raw, request.headers["content-type"], "csrf")
+            elif kind in ("application/x-www-form-urlencoded", ""):
+                sent = parse_qs(raw.decode("utf-8", "replace")).get("csrf", [""])[0]
+            else:
+                # No other format may slip past the token check.
+                sent = ""
             if not secrets.compare_digest(sent, app.state.csrf_token):
                 return PlainTextResponse(
                     "This form has expired. Reload the page and try again.",
@@ -2417,6 +2559,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                     "remote": remote_n, "unplaced": unplaced_n,
                     "cards": _card_data(rows)}
         return render("matches", "matches", rows=rows, total=total,
+                      no_profile=profile() is None,
                       mine=sum(1 for r in rows if r["status"] != "new"),
                       live=live, wide=True,
                       near=near, track=track, q=q,
@@ -2675,6 +2818,60 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         if filled.status:
             parts.append("Draft a new version to use it.")
         return back_to_job(job_id, " ".join(parts), False)
+
+    def import_page(msg: str = "") -> HTMLResponse:
+        from . import resume_import as ri
+        return render("import", "add", title="Import your resume", msg=msg,
+                      draft_name="profile/" + ri.DRAFT_NAME,
+                      accept=",".join(sorted(ri.SUPPORTED)),
+                      kinds=" or ".join(sorted(ri.SUPPORTED)),
+                      max_mb=MAX_UPLOAD_BYTES // 1_000_000)
+
+    @app.get("/import", response_class=HTMLResponse)
+    def import_form(msg: str = ""):
+        return import_page(msg)
+
+    @app.post("/import", response_class=HTMLResponse)
+    def import_resume(resume: UploadFile = File(...), replace: str = Form("")):
+        """Resume -> draft profile (ADR 0022). Never writes the live profile;
+        the upload lives only in a temporary directory for the import."""
+        import tempfile
+
+        from . import config
+        from . import llm
+        from . import resume_import as ri
+        from .config import ConfigError
+
+        name = Path(resume.filename or "").name
+        suffix = Path(name).suffix.lower()
+        if suffix not in ri.SUPPORTED:
+            return import_page(f"{name or 'That file'} is not a "
+                               f"{' or '.join(sorted(ri.SUPPORTED))} file. {ri.DOCX_ONLY}")
+        data = resume.file.read(MAX_UPLOAD_BYTES + 1)
+        if len(data) > MAX_UPLOAD_BYTES:
+            return import_page("That file is too large.")
+        if not data.startswith(ri.SUPPORTED[suffix]):
+            # Never trust the name or the browser's content type.
+            return import_page(f"{name} is named {suffix} but is not one inside. "
+                               f"{ri.DOCX_ONLY}")
+        live = config.PROFILE_PATH
+        con = connect()
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / ("resume" + suffix)
+                path.write_bytes(data)
+                report = ri.run(path, out=live.with_name(ri.DRAFT_NAME), live=live,
+                                force=bool(replace), con=con, source_name=name)
+        except (ConfigError, llm.LLMError) as exc:
+            return import_page(str(exc))
+        except Exception as exc:  # noqa: BLE001 - e.g. the identity guard
+            return import_page(f"The import stopped: {exc}")
+        finally:
+            con.close()
+        return render("imported", "add", title="Your draft profile",
+                      v=report.verified, blocking=report.blocking,
+                      matches=report.matches, no_preview=report.no_preview,
+                      draft_path=str(report.draft_path), live_path=str(live))
 
     @app.post("/add/link")
     def add_link(url: str = Form(...), company: str = Form("")):

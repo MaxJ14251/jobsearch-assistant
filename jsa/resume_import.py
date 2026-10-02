@@ -59,6 +59,7 @@ _STREET = re.compile(
     r"Circle|Cir)\b\.?(?:,? (?:Apt|Unit|Suite|#) ?\w+)?")
 _NAME = re.compile(r"^[A-Z][A-Za-z'.-]+(?: [A-Z][A-Za-z'.-]+){1,3}$")
 _BULLET = re.compile(r"^\s*[•●▪◦‣∙·*–—-]\s+")
+_ONGOING = {"present", "current", "now", "today", "ongoing"}
 _LABEL_CONTACT = re.compile(r"\s*[-|,:–—]?\s*\[contact\]")
 _YEAR = re.compile(r"(?:19|20)\d{2}")
 
@@ -332,8 +333,8 @@ def verify(extracted: dict[str, Any], resume_text: str) -> Verified:
 
     def date(where: str, value: Any) -> str | None:
         text = _str(str(value)) if value is not None else ""
-        if not text:
-            return None
+        if not text or text.lower() in _ONGOING:
+            return None  # "Present" is not a date; `current` carries it
         found = _YEAR.findall(text)
         if found and all(y in years for y in found):
             return text
@@ -379,7 +380,8 @@ def verify(extracted: dict[str, Any], resume_text: str) -> Verified:
             "location": keep("job location", e.get("location")),
             "start": date(f"{company} start", e.get("start")),
             "end": date(f"{company} end", e.get("end")),
-            "current": bool(e.get("current")) and mentions_present,
+            "current": (bool(e.get("current"))
+                        or _str(e.get("end")).lower() in _ONGOING) and mentions_present,
             "family": family(e.get("family")),
             "bullets": bullets(company, e.get("bullets")),
         })
@@ -615,3 +617,83 @@ def preview(con: sqlite3.Connection, draft: dict[str, Any],
             found.append(Match(score, row["id"], row["company"], row["title"]))
     found.sort(key=lambda m: (-m.score, m.job_id))
     return found[:limit]
+
+
+# --- one entry point for the CLI and the dashboard ----------------------------
+
+
+# Extension -> the bytes such a file starts with. The dashboard checks both
+# and never trusts the browser's content type; the CLI checks them too.
+SUPPORTED: dict[str, bytes] = {".docx": b"PK\x03\x04"}
+DRAFT_NAME = "master_profile.draft.yaml"
+
+
+class DraftRefused(ConfigError):
+    """The draft can't be written where asked (the live profile, or an
+    existing draft without force)."""
+
+
+@dataclass
+class ImportReport:
+    draft_path: Path
+    verified: Verified
+    blocking: list[Any]          # doctor findings that block, on the draft
+    matches: list[Match]
+    no_preview: str = ""         # why there is no preview, when there isn't
+
+
+def check_type(path: Path) -> None:
+    """Refuse a file whose name and first bytes don't agree on a known type."""
+    path = Path(path)
+    suffix = path.suffix.lower()
+    if suffix not in SUPPORTED:
+        raise ResumeReadError(f"{path.name} is not a .docx file. {DOCX_ONLY}")
+    if not path.exists():
+        raise ResumeReadError(f"no file at {path}")
+    with path.open("rb") as fh:
+        head = fh.read(8)
+    if not head.startswith(SUPPORTED[suffix]):
+        raise ResumeReadError(
+            f"{path.name} is named {suffix} but is not one inside. {DOCX_ONLY}")
+
+
+def read(path: Path) -> list[str]:
+    check_type(path)
+    return read_docx(path)
+
+
+def run(path: Path, *, out: Path, live: Path, force: bool = False,
+        con: sqlite3.Connection | None = None,
+        source_name: str | None = None) -> ImportReport:
+    """Resume -> draft profile -> doctor's blocking items and a preview.
+
+    Never writes `live`. Refuses before the model call, so a refusal costs
+    nothing.
+    """
+    from . import doctor
+
+    out, live = Path(out), Path(live)
+    if out.name == live.name or out.resolve() == live.resolve():
+        raise DraftRefused(f"{out} is your live profile. The import only ever "
+                           "writes a draft; copying it over is yours to do.")
+    if out.exists() and not force:
+        raise DraftRefused(f"{out} already exists. Review it, or replace the "
+                           "draft (--force, or tick 'Replace my draft').")
+
+    lines = read(path)
+    ident, redacted = split_identity(lines)
+    verified = verify(extract(redacted, ident), "\n".join(redacted))
+    write_draft(out, ident, verified, source_name or Path(path).name)
+
+    import yaml
+
+    draft = yaml.safe_load(out.read_text(encoding="utf-8"))
+    report = ImportReport(out, verified, doctor.run(draft, con).blocking, [])
+    if con is None:
+        report.no_preview = "no tracker yet: run `jsa init` and `jsa discover` first."
+    else:
+        try:
+            report.matches = preview(con, draft)
+        except ConfigError as exc:
+            report.no_preview = str(exc)
+    return report

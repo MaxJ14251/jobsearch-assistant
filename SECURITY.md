@@ -32,6 +32,12 @@ is set. It also checks the `Host` header, so a page that points its own
 domain at `127.0.0.1` is refused, and every action that changes state
 needs a per-session token that a cross-site page cannot read.
 
+**It accepts one upload: a resume** (`/import`). The token is checked
+before the route runs, an upload without a size or over 5 MB is refused
+before it is read, the file's first bytes must match its extension, and it is
+written only to a temporary folder for the import and deleted after. Any
+POST that is neither a form nor that upload is refused.
+
 **What does leave the machine**, and only when you run the command that does
 it:
 

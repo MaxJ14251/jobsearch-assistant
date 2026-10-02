@@ -98,3 +98,24 @@ Counts only.
   the user's review is where that gets trimmed. The credential was left
   empty, and doctor listed 4 blocking items (work authorization, pay floor,
   no summary, the credential).
+
+## Addendum: the dashboard (plan 9), 2026-10-02
+
+`/import` runs the same `resume_import.run()` as the command, so the two
+can't disagree.
+
+- **The token guard learned multipart.** It read the token with
+  `parse_qs`, which finds nothing in a multipart body, so every upload would
+  have been refused. For `multipart/form-data` it now refuses a missing or
+  over-5 MB `Content-Length` with 413 before reading, then reads only the
+  `csrf` part. A POST that is neither urlencoded nor multipart is refused.
+- **Type by content, not by name.** The extension and the first bytes must
+  agree (`SUPPORTED`); the browser's content type is ignored.
+- **The resume is not kept.** It is written to a temporary directory for the
+  import, and the directory goes with the request.
+- **No adopt button.** Copying the draft over the live profile stays the
+  user's act; the result page shows the copy command.
+- Browser check (fictional resume, one model call, a copy of the tracker):
+  drag-and-drop submitted the file; the model wrote an end date of
+  "Present", which the year check reported as dropped. "Present" now means
+  `current` and is not reported.

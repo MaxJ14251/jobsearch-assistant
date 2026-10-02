@@ -91,68 +91,52 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 def cmd_import_resume(args: argparse.Namespace) -> int:
     """Resume (.docx) -> a DRAFT profile, plus what it would match. Never
     writes master_profile.yaml (ADR 0022)."""
-    from . import config, doctor
+    from . import config
     from . import resume_import as ri
 
     live = config.PROFILE_PATH
-    out = Path(args.out) if args.out else live.with_name("master_profile.draft.yaml")
-    if out.name == live.name or out.resolve() == live.resolve():
-        print(f"refused: {out} is your live profile. The import only ever "
-              "writes a draft; copying it over is yours to do.", file=sys.stderr)
-        return 2
-    if out.exists() and not args.force:
-        print(f"refused: {out} already exists. Review it, or run again with "
-              "--force to replace the draft.", file=sys.stderr)
-        return 2
-
-    lines = ri.read_docx(Path(args.file))
-    ident, redacted = ri.split_identity(lines)
-    extracted = ri.extract(redacted, ident)
-    verified = ri.verify(extracted, "\n".join(redacted))
-    ri.write_draft(out, ident, verified, Path(args.file).name)
-
-    print(f"wrote {out}")
-    print(f"  imported {len(verified.experience)} job(s), "
-          f"{len(verified.projects)} project(s), {verified.bullet_count} bullet(s), "
-          f"{len(verified.certifications)} certification(s), "
-          f"{len(verified.education)} school(s), {len(verified.skills)} skill(s)")
-    if verified.dropped:
-        print(f"  dropped {len(verified.dropped)} item(s) the model did not "
-              "copy exactly (nothing is reworded into your profile):")
-        for d in verified.dropped:
-            print(f"    - {d.where}: {d.what[:70]!r} -- {d.why}")
-
-    draft = yaml.safe_load(out.read_text(encoding="utf-8"))
+    out = Path(args.out) if args.out else live.with_name(ri.DRAFT_NAME)
     con = db.connect() if DB_PATH.exists() else None
     try:
-        report = doctor.run(draft, con)
-        if report.blocking:
-            print(f"\nfill these in, in the draft ({len(report.blocking)}):")
-            for finding in report.blocking:
-                print(f"  x {finding.what}")
-                print(f"      {finding.fix}")
-        print("\nwhat the draft would match:")
-        if con is None:
-            print("  no tracker yet: run `jsa init` and `jsa discover` first.")
-        else:
-            try:
-                top = ri.preview(con, draft)
-            except ConfigError as exc:
-                print(f"  no preview yet: {exc}")
-            else:
-                print("  (from jobs already in your tracker, which were found "
-                      "using your current profile;\n   run `jsa discover` after "
-                      "adopting for a full search)")
-                for m in top:
-                    print(f"  {m.score:.2f}  #{m.job_id} {m.company} -- {m.title}")
-                if not top:
-                    print("  nothing in the tracker scores above 0 for this draft.")
+        report = ri.run(Path(args.file), out=out, live=live, force=args.force,
+                        con=con)
+    except ri.DraftRefused as exc:
+        print(f"refused: {exc}", file=sys.stderr)
+        return 2
     finally:
         if con is not None:
             con.close()
 
+    v = report.verified
+    print(f"wrote {report.draft_path}")
+    print(f"  imported {len(v.experience)} job(s), "
+          f"{len(v.projects)} project(s), {v.bullet_count} bullet(s), "
+          f"{len(v.certifications)} certification(s), "
+          f"{len(v.education)} school(s), {len(v.skills)} skill(s)")
+    if v.dropped:
+        print(f"  dropped {len(v.dropped)} item(s) the model did not "
+              "copy exactly (nothing is reworded into your profile):")
+        for d in v.dropped:
+            print(f"    - {d.where}: {d.what[:70]!r} -- {d.why}")
+    if report.blocking:
+        print(f"\nfill these in, in the draft ({len(report.blocking)}):")
+        for finding in report.blocking:
+            print(f"  x {finding.what}")
+            print(f"      {finding.fix}")
+    print("\nwhat the draft would match:")
+    if report.no_preview:
+        print(f"  no preview yet: {report.no_preview}")
+    else:
+        print("  (from jobs already in your tracker, which were found "
+              "using your current profile;\n   run `jsa discover` after "
+              "adopting for a full search)")
+        for m in report.matches:
+            print(f"  {m.score:.2f}  #{m.job_id} {m.company} -- {m.title}")
+        if not report.matches:
+            print("  nothing in the tracker scores above 0 for this draft.")
+
     print("\nnext:")
-    print(f"  1. review {out} (TODOs and `# suggested: check` lines)")
+    print(f"  1. review {report.draft_path} (TODOs and `# suggested: check` lines)")
     print(f"  2. copy it to {live}")
     print("  3. jsa doctor")
     print("  4. jsa discover")

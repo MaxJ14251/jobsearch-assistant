@@ -482,6 +482,10 @@ with it.
 Local review dashboard on http://127.0.0.1:8765. It covers the whole path from a
 match to a resume you can upload yourself:
 
+- **Import your resume** (`/import`, linked from *Add a job*, and from
+  Matches when there is no profile yet): drop a .docx on the page and get the
+  same draft and report as `jsa import-resume`. It writes only the draft, and
+  the uploaded file is read in a temporary folder and deleted.
 - **Matches**, filtered by **"within N miles of here"** — a ZIP or a city and
   a slider in miles, pre-filled from your profile, or *anywhere in the US* for
   a nationwide search. Each card shows how far away the job is. Remote roles
