@@ -132,8 +132,8 @@ It names every field that will stop the tool working, says what to write
 instead, and changes nothing. Exits 0 when you are ready. Run it again after
 edits.
 
-**4. Find jobs** (no API key needed; about 15 minutes the first time, because
-it asks each board politely, one request at a time):
+**4. Find jobs** (no API key needed; about 13 minutes, because it asks each
+board politely, one request at a time):
 
 ```bash
 .venv/Scripts/python -m jsa discover

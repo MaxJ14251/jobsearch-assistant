@@ -17,7 +17,7 @@ import hashlib
 import html
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable
 
 import httpx
@@ -92,6 +92,11 @@ class FetchResult:
     ok: bool
     jobs: list[dict[str, Any]]
     status: str  # 'ok' or a human-readable error
+    # Listings seen but not fetched in full because the title alone rejects
+    # them (Workday, Plan 3). Counted as fetched and filtered by discovery,
+    # and their ids count as seen, so a stored one is not closed as vanished.
+    skipped: int = 0
+    skipped_ids: list[str] = field(default_factory=list)
 
 
 def _client(browser_ua: bool = False) -> httpx.Client:
@@ -308,6 +313,23 @@ def fetch_workday(entry: dict[str, Any]) -> FetchResult:
                 time.sleep(POLITE_DELAY_S)
             postings = postings[:total or len(postings)]
 
+            # A posting whose TITLE alone scores 0 is a lost cause: skip its
+            # detail request. Measured 2026-09-30: 283 of 682 detail requests
+            # on the four slowest tenants. Only discovery passes prefs; verify
+            # and `jsa add` skip nothing. The cap applies after the skip, so
+            # its 200 requests go to postings that can still be kept.
+            prefs = entry.get("title_filter")
+            skipped, skipped_ids = 0, []
+            if prefs is not None:
+                from .scoring import title_rejection
+                viable = [p for p in postings
+                          if title_rejection(p.get("title") or "", prefs) is None]
+                kept_paths = {id(p) for p in viable}
+                skipped_ids = [workday_job({}, detail_base, p.get("externalPath") or "", p)
+                               ["external_id"] for p in postings if id(p) not in kept_paths]
+                skipped = len(skipped_ids)
+                postings = viable
+
             for posting in postings[:MAX_DETAIL_FETCHES]:
                 path = posting.get("externalPath") or ""
                 info: dict[str, Any] = {}
@@ -321,7 +343,7 @@ def fetch_workday(entry: dict[str, Any]) -> FetchResult:
     except Exception as exc:  # noqa: BLE001
         return _fail(exc)
 
-    return FetchResult(True, jobs, "ok")
+    return FetchResult(True, jobs, "ok", skipped=skipped, skipped_ids=skipped_ids)
 
 
 def workday_detail(client: httpx.Client, detail_base: str, path: str) -> dict[str, Any]:

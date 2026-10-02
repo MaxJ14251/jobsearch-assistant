@@ -409,7 +409,8 @@ class TestStorage(unittest.TestCase):
                    "remote": "onsite",
                    "description": FILLER + "Pay Range: $120,000 - $150,000 USD"}
         entry = {"company": "Acme", "slug": "acme", "kind": "greenhouse", "verified": True}
-        result = mock.Mock(ok=True, status="ok", jobs=[posting])
+        from jsa.sources import FetchResult
+        result = FetchResult(True, [posting], "ok")
         real = db.connect
         with mock.patch("jsa.discover.load_profile", return_value={}), \
              mock.patch("jsa.discover.Preferences.from_profile", return_value=prefs()), \

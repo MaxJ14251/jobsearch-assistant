@@ -75,6 +75,10 @@ def _with_context(entry: dict[str, Any], prefs: Preferences) -> dict[str, Any]:
     is asked about the operator's own cities, and its key belongs in .env
     rather than in a file that gets committed.
     """
+    if entry.get("kind") == "workday":
+        # Lets the fetcher skip detail requests for title-rejected postings
+        # (Plan 3). Only discovery passes it: verify probes the whole board.
+        return {**entry, "title_filter": prefs}
     if entry.get("kind") != "themuse":
         return entry
     import os
@@ -127,7 +131,11 @@ def discover(
             )
 
             result = sources.fetch(_with_context(entry, prefs))
-            report = SourceReport(company, kind, result.status, fetched=len(result.jobs))
+            # Workday skips detail requests for title-rejected postings (Plan
+            # 3); they were seen, and they are filtered, so say so.
+            report = SourceReport(company, kind, result.status,
+                                  fetched=len(result.jobs) + result.skipped,
+                                  rejected=result.skipped)
 
             if not result.ok:
                 report.status = f"FAIL {result.status}"
@@ -136,7 +144,7 @@ def discover(
                 con.commit()
                 continue
 
-            seen: list[str] = []
+            seen: list[str] = list(result.skipped_ids)
             for job in result.jobs:
                 # An aggregator names a different employer on every posting.
                 job_company_id = company_id

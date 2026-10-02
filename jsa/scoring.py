@@ -469,6 +469,25 @@ def job_region(location: str, regions: dict[str, list[str]]) -> str | None:
     return None
 
 
+def title_rejection(title: str, prefs: Preferences) -> str | None:
+    """Why the TITLE alone rejects a posting, or None.
+
+    The three hard rejects that need nothing but the title. Shared with the
+    Workday fetcher, which skips a posting's detail request when this says
+    no (Plan 3): its score would be 0 whatever the description says. A title
+    that merely matches no target role is NOT here: such postings are kept on
+    location, keywords and seniority.
+    """
+    for bad in prefs.exclude_keywords:
+        if _norm(bad) and _norm(bad) in _norm(title):
+            return f"rejected: title contains {bad!r}"
+    if _SENIOR_TITLE_RE.search(title) and not _JUNIOR_HINT_RE.search(title):
+        return f"rejected: {title!r} reads as a senior/lead title"
+    if _PEOPLE_MANAGER_RE.search(title):
+        return f"rejected: {title!r} is a people-management role"
+    return None
+
+
 def score_job(job: dict[str, Any], prefs: Preferences) -> tuple[float, list[str]]:
     """Return (score in 0..1, reasons). Score 0 means rejected.
 
@@ -480,15 +499,9 @@ def score_job(job: dict[str, Any], prefs: Preferences) -> tuple[float, list[str]
     reasons: list[str] = []
 
     # --- hard rejects --------------------------------------------------
-    for bad in prefs.exclude_keywords:
-        if _norm(bad) and _norm(bad) in _norm(title):
-            return 0.0, [f"rejected: title contains {bad!r}"]
-
-    if _SENIOR_TITLE_RE.search(title) and not _JUNIOR_HINT_RE.search(title):
-        return 0.0, [f"rejected: {title!r} reads as a senior/lead title"]
-
-    if _PEOPLE_MANAGER_RE.search(title):
-        return 0.0, [f"rejected: {title!r} is a people-management role"]
+    rejected = title_rejection(title, prefs)
+    if rejected is not None:
+        return 0.0, [rejected]
 
     ceiling = prefs.max_years_experience
     years = required_years(description)
