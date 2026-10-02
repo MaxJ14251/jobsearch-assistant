@@ -148,6 +148,10 @@ board politely, one request at a time):
 Each match shows its score with the reasons behind it — title, location,
 keywords, seniority, pay — so you can see when the tool is wrong.
 
+To find roles by name, search titles: `--search "support engineer, data analyst"`,
+or the search box on the dashboard. Commas mean "or"; each word must start a
+word in the title, so `ai` finds "AI Engineer" but not "Maintenance".
+
 **6. Add your API key.** Steps 7 and 8 call a language model; the rest never
 does. Copy the example and put your key in it:
 

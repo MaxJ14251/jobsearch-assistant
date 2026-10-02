@@ -212,6 +212,43 @@ class TestThePage(unittest.TestCase):
         self.assertTrue(all(c["pay"] == [90000, 120000] for c in new))
 
 
+    # --- the role search box (Plan 7) -----------------------------------
+
+    def test_a_search_filters_the_cards_the_map_and_your_applications_alike(self):
+        text = self.page("?radius=25&q=near")
+        live = self.data(text)
+        self.assertEqual(set(live["cards"]), {"job:1", "job:2"})
+        self.assertEqual(self.listed(text), {"job:1", "job:2"})
+        self.assertEqual({p["key"] for p in live["points"]}, {"job:1", "job:2"})
+
+    def test_your_own_applications_are_searched_too(self):
+        live = self.data(self.page("?radius=25&q=mine"))
+        self.assertEqual({c["status"] for c in live["cards"].values()},
+                         {"saved", "applied", "interview"})
+        self.assertEqual(len(live["points"]), 4)
+
+    def test_commas_mean_or_on_the_page(self):
+        self.assertEqual(self.listed(self.page("?radius=25&q=nearish,%20mine%20offer")),
+                         {"job:2", "app:53"})
+
+    def test_an_opened_bubble_keeps_the_search(self):
+        self.assertEqual(self.listed(self.page("?radius=25&q=near&only=job:1,job:4")),
+                         {"job:1"})
+
+    def test_the_box_keeps_what_you_typed_and_the_hint_offers_clear(self):
+        text = self.page("?radius=25&q=near,%20mine")
+        self.assertIn('name="q" id="f-q" value="near, mine"', text)
+        self.assertIn("Matching titles: <strong>near</strong> <em>or</em> <strong>mine</strong>",
+                      text)
+        self.assertRegex(text, r'href="\?radius=25">Clear</a>')
+        self.assertNotIn('id="q-hint"', self.page("?radius=25"))
+
+    def test_the_track_dropdown_is_gone_but_an_old_link_still_filters(self):
+        text = self.page("?radius=25")
+        self.assertNotIn('name="track"', text)
+        self.assertEqual(self.listed(self.page("?radius=25&track=sales")), set())
+
+
 class TestServeUpgradesFirst(unittest.TestCase):
     """A view is frozen against the columns that existed when it was made.
     `jsa serve` only read the tracker, so it never rebuilt one, and the

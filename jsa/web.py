@@ -361,10 +361,9 @@ MATCHES = """{% extends "base" %}{% block body %}
     <input type="checkbox" name="anywhere" id="f-anywhere" value="1"
            {{ 'checked' if not radius }}> anywhere in the US
   </label>
-  <select name="track" id="f-track" aria-label="Track"><option value="">Both tracks</option>
-    <option value="engineering" {{ 'selected' if track=='engineering' }}>Engineering</option>
-    <option value="sales" {{ 'selected' if track=='sales' }}>Sales</option>
-  </select>
+  <input type="search" name="q" id="f-q" value="{{ q }}" size="26"
+         placeholder="Search roles, e.g. support, data analyst"
+         aria-label="Search roles">
   <select name="degree" id="f-degree" aria-label="Degree"><option value="">Degree: any</option>
     <option value="no" {{ 'selected' if degree=='no' }}>Not required</option>
     <option value="yes" {{ 'selected' if degree=='yes' }}>Required</option>
@@ -374,6 +373,7 @@ MATCHES = """{% extends "base" %}{% block body %}
   </select>
   <button type="submit">Filter</button>
 </form>
+{% if q_terms %}<p class="sub" id="q-hint">Matching titles: {% for t in q_terms %}<strong>{{ t }}</strong>{% if not loop.last %} <em>or</em> {% endif %}{% endfor %} · <a class="plain" href="{{ clear_q_url }}">Clear</a></p>{% endif %}
 <div class="split{{ ' live' if live }}">
 <div class="mapcol">
 {% if map.drawn %}
@@ -2299,15 +2299,23 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
     def matches(request: Request, near: str = "", track: str = "",
                 degree: str = "", remote: str = "", limit: int = 60,
                 home: str = "", radius: str = "", anywhere: str = "",
-                only: str = ""):
+                only: str = "", q: str = ""):
         from . import mapview
         from .cli import load_regions, region_clause
         where, params = ["1=1"], {}
         if near and near in load_regions():
             where.append(f"({region_clause(load_regions(), near)})")
         if track in ("engineering", "sales"):
+            # No longer on the form (Plan 7), still honoured so old links work.
             where.append("m.track = :track")
             params["track"] = track
+        q = q.strip()
+        if q:
+            # One condition in the shared list, so the cards, the map's dots
+            # and your own applications all filter by it (ADR 0015). The
+            # function is registered on the connection below.
+            where.append("title_matches(m.title, :q) = 1")
+            params["q"] = q
         if degree == "yes":
             where.append("m.degree_required = 1")
         elif degree == "no":
@@ -2327,6 +2335,10 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             wanted = _radius(radius, anywhere)
 
         con = connect()
+        if q:
+            from .scoring import title_matches
+            con.create_function("title_matches", 2, title_matches,
+                                deterministic=True)
         try:
             # Every card, best first. The three-per-company cap is applied
             # AFTER the radius, in Python: applied first (it used to be, in
@@ -2407,7 +2419,11 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         return render("matches", "matches", rows=rows, total=total,
                       mine=sum(1 for r in rows if r["status"] != "new"),
                       live=live, wide=True,
-                      near=near, track=track,
+                      near=near, track=track, q=q,
+                      q_terms=[t.strip() for t in q.split(",") if t.strip()],
+                      clear_q_url="?" + urlencode(
+                          [(k, v) for k, v in request.query_params.multi_items()
+                           if k not in ("q", "only")]),
                       degree=degree, remote=remote,
                       home=str(origin) if (origin and wanted) else "",
                       home_text=home_text, home_problem=home_problem,
@@ -2418,7 +2434,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                       hidden=hidden, near_count=near_count, unplaced=unplaced,
                       nationwide_url="?" + urlencode(
                           {k: v for k, v in
-                           {"anywhere": "1", "near": near, "track": track,
+                           {"anywhere": "1", "near": near, "q": q,
                             "degree": degree, "remote": remote,
                             "home": home_text}.items() if v}))
 

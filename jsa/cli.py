@@ -176,6 +176,10 @@ def cmd_matches(args: argparse.Namespace) -> int:
         clauses.append("m.remote = 'remote'")
     if args.track:
         clauses.append(f"m.track = '{args.track}'")
+    search = (getattr(args, "search", None) or "").strip()
+    if search:
+        # The dashboard's search box, same rules (Plan 7).
+        clauses.append("title_matches(m.title, :q) = 1")
     where = " AND ".join(clauses) or "1=1"
 
     sql = f"""
@@ -194,9 +198,12 @@ def cmd_matches(args: argparse.Namespace) -> int:
     """
 
     con = db.connect()
+    if search:
+        from .scoring import title_matches
+        con.create_function("title_matches", 2, title_matches, deterministic=True)
     try:
         rows = con.execute(
-            sql, {"per_company": args.per_company, "limit": args.limit}
+            sql, {"per_company": args.per_company, "limit": args.limit, "q": search}
         ).fetchall()
     finally:
         con.close()
@@ -1154,6 +1161,11 @@ def main(argv: list[str] | None = None) -> int:
         "--track",
         choices=["engineering", "sales"],
         help="engineering (tier 1) or sales (tier 2, ranked below by default)",
+    )
+    p_match.add_argument(
+        "--search",
+        help='roles by title, e.g. "support engineer, data analyst": commas mean '
+             "or, each word must start a word in the title",
     )
     p_match.set_defaults(func=cmd_matches)
 

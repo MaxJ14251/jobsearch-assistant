@@ -469,6 +469,32 @@ def job_region(location: str, regions: dict[str, list[str]]) -> str | None:
     return None
 
 
+def title_matches(title: str | None, query: str | None) -> bool:
+    """Whether a job title answers a role search (Plan 7).
+
+    Commas mean "or", words mean "and": "support engineer, solutions
+    architect" matches either phrase. Each word must START a word in the
+    title, case-insensitively, in any order: "engineer" matches "Software
+    Engineering", "ai" matches "AI Engineer" but not "Maintenance", "data"
+    matches "Data Analyst" but not "Metadata". A word that starts with a
+    symbol (".net", "#") matches anywhere. An empty query matches everything.
+
+    Shared by the dashboard's search box and `jsa matches --search`, and
+    registered on the SQLite connection so the cards, the map and your own
+    applications all filter through this one function.
+    """
+    terms = [t.split() for t in (query or "").split(",") if t.strip()]
+    if not terms:
+        return True
+    text = title or ""
+
+    def word_ok(word: str) -> bool:
+        lead = r"(?<![A-Za-z0-9])" if word[0].isalnum() else ""
+        return re.search(lead + re.escape(word), text, re.I) is not None
+
+    return any(all(word_ok(w) for w in words) for words in terms)
+
+
 def title_rejection(title: str, prefs: Preferences) -> str | None:
     """Why the TITLE alone rejects a posting, or None.
 
