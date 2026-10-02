@@ -21,6 +21,12 @@ coverage.xml
 # Commit profile/master_profile.example.yaml instead.
 profile/master_profile.yaml
 
+# `jsa import-resume` writes a draft profile next to it (real contact details),
+# and profile/ is where a resume is likely to be dropped.
+profile/*.draft.yaml
+profile/*.docx
+profile/*.pdf
+
 # API keys.
 .env
 

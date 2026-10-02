@@ -122,6 +122,21 @@ Your name and contact details, what you have actually done as short bullets,
 the titles and places you want. It is gitignored, so it stays on your machine.
 Budget most of the hour here; everything downstream is only as good as this.
 
+Or start from your resume, saved as .docx:
+
+```bash
+.venv/Scripts/python -m jsa import-resume my_resume.docx
+```
+
+It writes `profile/master_profile.draft.yaml`, never your real profile. Every
+bullet, employer and school in it is copied word for word from the resume;
+tags, target titles and families are marked `# suggested: check`, and the
+decisions only you can make (work authorization, pay floor, your degree as you
+would state it) are left as TODO. It prints what is missing and what the draft
+would match. Review it, then copy it to `profile/master_profile.yaml`. Your
+name and contact details are removed before the resume's text goes to the
+model (one call; it needs the API key, set up in step 6).
+
 **3. Ask what is still missing:**
 
 ```bash

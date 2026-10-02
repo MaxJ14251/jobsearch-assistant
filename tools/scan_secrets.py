@@ -42,12 +42,13 @@ TEXT_IN_A_WRAPPER = {".gz"}
 
 # Two tiers, because "skip this file" was previously one list doing two jobs.
 #
-# NEVER_SCAN: local files that hold real values BY DESIGN. Both are gitignored
+# NEVER_SCAN: local files that hold real values BY DESIGN. All are gitignored
 # and so cannot reach a commit. Scanning them would block on the user's own key
 # every time git could not answer the ignore query.
 NEVER_SCAN = {
     ".env",
     "master_profile.yaml",
+    "master_profile.draft.yaml",
 }
 
 # SKIP_PERSONAL_FILES: committed templates. Their placeholders are the very

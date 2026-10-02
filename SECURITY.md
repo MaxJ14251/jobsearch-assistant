@@ -48,6 +48,9 @@ it:
   `jsa tailor`, `jsa prep` and `jsa outreach-draft` also send the profile's
   bullets, and refuse before any network call if your name, address, phone
   or email appears in the prompt.
+- `jsa import-resume` sends your resume's text to the model API, **with your
+  name, email, phone, street, ZIP, home city and links removed** locally
+  first; it refuses before any network call if one is still in the prompt.
 
 Your profile, tracker, `.env` and generated documents are gitignored, and
 `tools/scan_secrets.py` refuses a commit that carries them or their values.

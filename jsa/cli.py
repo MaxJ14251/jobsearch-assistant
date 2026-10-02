@@ -88,6 +88,76 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 0 if report.ok else 1
 
 
+def cmd_import_resume(args: argparse.Namespace) -> int:
+    """Resume (.docx) -> a DRAFT profile, plus what it would match. Never
+    writes master_profile.yaml (ADR 0022)."""
+    from . import config, doctor
+    from . import resume_import as ri
+
+    live = config.PROFILE_PATH
+    out = Path(args.out) if args.out else live.with_name("master_profile.draft.yaml")
+    if out.name == live.name or out.resolve() == live.resolve():
+        print(f"refused: {out} is your live profile. The import only ever "
+              "writes a draft; copying it over is yours to do.", file=sys.stderr)
+        return 2
+    if out.exists() and not args.force:
+        print(f"refused: {out} already exists. Review it, or run again with "
+              "--force to replace the draft.", file=sys.stderr)
+        return 2
+
+    lines = ri.read_docx(Path(args.file))
+    ident, redacted = ri.split_identity(lines)
+    extracted = ri.extract(redacted, ident)
+    verified = ri.verify(extracted, "\n".join(redacted))
+    ri.write_draft(out, ident, verified, Path(args.file).name)
+
+    print(f"wrote {out}")
+    print(f"  imported {len(verified.experience)} job(s), "
+          f"{len(verified.projects)} project(s), {verified.bullet_count} bullet(s), "
+          f"{len(verified.education)} school(s), {len(verified.skills)} skill(s)")
+    if verified.dropped:
+        print(f"  dropped {len(verified.dropped)} item(s) the model did not "
+              "copy exactly (nothing is reworded into your profile):")
+        for d in verified.dropped:
+            print(f"    - {d.where}: {d.what[:70]!r} -- {d.why}")
+
+    draft = yaml.safe_load(out.read_text(encoding="utf-8"))
+    con = db.connect() if DB_PATH.exists() else None
+    try:
+        report = doctor.run(draft, con)
+        if report.blocking:
+            print(f"\nfill these in, in the draft ({len(report.blocking)}):")
+            for finding in report.blocking:
+                print(f"  x {finding.what}")
+                print(f"      {finding.fix}")
+        print("\nwhat the draft would match:")
+        if con is None:
+            print("  no tracker yet: run `jsa init` and `jsa discover` first.")
+        else:
+            try:
+                top = ri.preview(con, draft)
+            except ConfigError as exc:
+                print(f"  no preview yet: {exc}")
+            else:
+                print("  (from jobs already in your tracker, which were found "
+                      "using your current profile;\n   run `jsa discover` after "
+                      "adopting for a full search)")
+                for m in top:
+                    print(f"  {m.score:.2f}  #{m.job_id} {m.company} -- {m.title}")
+                if not top:
+                    print("  nothing in the tracker scores above 0 for this draft.")
+    finally:
+        if con is not None:
+            con.close()
+
+    print("\nnext:")
+    print(f"  1. review {out} (TODOs and `# suggested: check` lines)")
+    print(f"  2. copy it to {live}")
+    print("  3. jsa doctor")
+    print("  4. jsa discover")
+    return 0
+
+
 def cmd_verify(args: argparse.Namespace) -> int:
     reports = discover.verify_sources()
     width = max(len(r.company) for r in reports)
@@ -1116,6 +1186,15 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "doctor", help="what will not work yet in your profile and tracker"
     ).set_defaults(func=cmd_doctor)
+
+    p_imp = sub.add_parser(
+        "import-resume", help="turn your resume (.docx) into a draft profile")
+    p_imp.add_argument("file", help="your resume, saved as .docx")
+    p_imp.add_argument("--out", help="where to write the draft "
+                       "(default profile/master_profile.draft.yaml)")
+    p_imp.add_argument("--force", action="store_true",
+                       help="replace an existing draft (never the live profile)")
+    p_imp.set_defaults(func=cmd_import_resume)
 
     p_verify = sub.add_parser("verify", help="probe every feed in companies.yaml")
     p_verify.add_argument(

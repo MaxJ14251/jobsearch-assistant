@@ -151,6 +151,17 @@ def main() -> int:
         # An empty tracker legitimately has nothing to show.
         steps.append(("python -m jsa matches", code))
 
+        # README step 2's alternative, with no API key yet: it must refuse
+        # with the key message (exit 2), not crash and not write a draft.
+        run([str(py), "-c", "from docx import Document; d = Document(); "
+             "d.add_paragraph('EXPERIENCE'); d.save('resume.docx')"], dest)
+        code, out = run([str(py), "-m", "jsa", "import-resume", "resume.docx"], dest)
+        clean = (code == 2 and "Traceback" not in out
+                 and not (dest / "profile" / "master_profile.draft.yaml").exists())
+        steps.append(("import-resume with no key refuses cleanly", 0 if clean else 1))
+        if not clean:
+            print(f"      {out[-300:]}")
+
         for label, rc in steps:
             print(f"   {'ok  ' if rc == 0 else 'FAIL'} {label}")
 
