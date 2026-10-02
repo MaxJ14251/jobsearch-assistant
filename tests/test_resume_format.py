@@ -304,3 +304,29 @@ class TestSummaryAnyProfileCanDrive(unittest.TestCase):
         # Nothing matches: the old mapping decides (an LLM posting -> ai_eng).
         self.assertEqual(pick_summary(profile, "engineering", "LLM agents",
                                       "Software Engineer")["id"], "sum_ai_eng")
+
+
+class TestDoctorHint(unittest.TestCase):
+    """Plan 11 part 7: unused optional fields are a hint, never a blocker."""
+
+    def test_unused_fields_are_one_advisory_line(self):
+        from jsa import doctor
+        report = doctor.Report()
+        doctor.check_resume_fields(example(), report)
+        self.assertEqual(len(report.findings), 1)
+        self.assertFalse(report.findings[0].blocking)
+        self.assertIn("resume.date_style", report.findings[0].fix)
+        self.assertNotIn("company_descriptor", report.findings[0].fix)  # example uses it
+
+    def test_a_profile_using_them_all_gets_no_hint(self):
+        from jsa import doctor
+        profile = example()
+        profile["projects"][0]["start"] = "2025-01"
+        profile["certifications"][0]["display_name"] = "Applied ML"
+        profile["skill_labels"] = {"ai_tools": "AI tools"}
+        profile["summaries"][0]["keywords"] = ["python"]
+        profile["resume"] = {"date_style": "iso", "skills_include_project_stack": False}
+        profile["coach"] = {"gap_months": 6}
+        report = doctor.Report()
+        doctor.check_resume_fields(profile, report)
+        self.assertEqual(report.findings, [])

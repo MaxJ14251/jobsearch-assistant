@@ -172,6 +172,13 @@ job_search_preferences:
 # Summary variants. The tailoring module picks the closest `family` match and
 # then lightly rewords it against the JD — it does not write one from scratch.
 # ---------------------------------------------------------------------------
+#
+# Optional, per summary: `role_kinds` (engineering / support / sales) and
+# `keywords` steer which summary a posting gets: one point per keyword the
+# posting uses, one for a matching role kind. Unset, the family mapping
+# above decides. For example:
+#     role_kinds: [support]
+#     keywords: ["customer-facing", "onboarding"]
 summaries:
   - id: sum_general
     family: general
@@ -212,6 +219,7 @@ summaries:
 experience:
   - id: exp_riverton_sales
     company: Riverton Mechanical
+    # Optional: what the employer does, printed beside the dates.
     company_descriptor: Commercial HVAC & Building Controls
     title: Account Representative
     location: null              # TODO — needed for a complete resume header
@@ -222,6 +230,7 @@ experience:
     # Optional. The bullet to show when this job appears only so the resume
     # has work history (e.g. a sales job on an engineering resume). Without it
     # the best keyword match is used. Must be one of this entry's bullets.
+    # A list also works ([b_riv_promo, b_riv_sell]): the best-scoring of them.
     work_history_bullet: b_riv_promo
     bullets:
       - id: b_riv_promo
@@ -272,6 +281,9 @@ experience:
 # `status: in_development` must be shown honestly on every tailored resume, and
 # the verifier will refuse a draft that turns "Building" into "Built".
 # ---------------------------------------------------------------------------
+#
+# Optional, per project: `start:` and `end:` (2025-01, or a year). A dated
+# project covers a gap in the resume report (`jsa coach`); undated ones don't.
 projects:
   - id: proj_ticket_triage
     name: Support Ticket Triage Assistant
@@ -339,6 +351,9 @@ projects:
 # optional: use it when one enrolment covered several separately-assessed
 # courses, so the resume can name the enrolment rather than list seven lines.
 # ---------------------------------------------------------------------------
+#
+# Optional, per certification: `display_name:` replaces a coded `name` on the
+# resume (the resume report flags names that read as codes).
 certifications:
   - id: cert_example_program
     name: Applied Machine Learning, Professional Certificate
@@ -386,6 +401,12 @@ education:
     start: 2018
     end: 2020
 
+#
+# Any category name works, and every one prints except unverified_candidates.
+# Labels come from the key ("ai_tools" -> "AI Tools"; acronyms are listed in
+# config/coach.yaml), or set them yourself:
+#     skill_labels:
+#       ai_tools: "AI tools"
 skills:
   ai_tools:
     - Prompt Engineering
@@ -468,3 +489,15 @@ gaps_and_notes:
     note: >-
       Three years of revenue-facing work is genuinely differentiating against
       other career-changers. Lead with it for any role that touches a customer.
+
+# ---------------------------------------------------------------------------
+# Optional resume and report settings. Leave them out to keep the defaults.
+#
+# resume:
+#   date_style: month_year            # Mar 2022 (default) | numeric 03/2022 | iso 2022-03
+#   skills_include_project_stack: false   # true adds project stacks to technical skills
+#
+# coach:                              # the resume report, `jsa coach` (ADR 0023)
+#   gap_months: 6                     # a longer gap with nothing in it is mentioned
+#   disabled: []                      # rule ids to turn off, e.g. [no_numbers]
+# ---------------------------------------------------------------------------

@@ -293,6 +293,23 @@ appear in `matches` so the human decides.
 Drafts an ATS-safe .docx from your profile bullets, records full provenance, and
 queues it for your approval. The job must be saved first.
 
+**The resume report.** Each draft ends with a short report on what your
+*profile* could add: a job shown with one bullet, bullets with no figures, a
+gap of more than six months with nothing in it, a project whose every bullet
+is still in progress, soft traits listed as skills, filler in the summary, a
+certification whose name reads as a code, a project's stack your skills don't
+list. It says what is missing and where to add it, never what to claim, and
+it never blocks a draft or an approval. Run it on its own with
+`jsa coach` (`--strict` exits 1 on any finding, if you want a gate); it is
+also shown on the review page beside Approve. The word lists live in
+`config/coach.yaml`. See [ADR 0023](docs/decisions/0023-the-resume-report.md).
+
+When you reject a draft, you can add a reason code beside your note
+(`jsa reject 12 --feedback "..." --reason wrong_bullets`, or the dropdown on
+the review page). You pick it; nothing classifies your feedback. After a
+`wrong_bullets` rejection, the next draft prints last time's bullets beside
+the new ones. See [ADR 0024](docs/decisions/0024-reason-codes-on-rejection.md).
+
 **Tailoring is mostly selection.** The tool picks which of your bullets fit this
 role and which section leads, based on what the role *is*: the title decides
 whether it is an engineering, support or sales role, and the command prints
@@ -946,6 +963,19 @@ does: `reject` drops it, `rank` keeps it ranked lower, `off` ignores years),
 instead).
 A degree requirement is never a filter: it is shown on the job as "asks for a
 degree" and changes neither whether a job appears nor its score.
+
+**How the resume reads.** All optional; leave them out and the resume is
+built as before. `experience[].company_descriptor` is printed beside the
+dates. `projects[].start` / `end` let a project cover a gap in the resume
+report. `certifications[].display_name` replaces a coded name, and
+`components` print after the issuer. Every `skills:` category prints (except
+`unverified_candidates`), labelled from the key ("ai_tools" becomes "AI
+Tools") unless `skill_labels:` names it. `summaries[].role_kinds` and
+`keywords` steer which summary a posting gets. `resume.date_style` is
+`month_year` (Mar 2022), `numeric` or `iso`; `resume.skills_include_project_stack`
+adds your projects' stacks to the technical skills; `coach.disabled` and
+`coach.gap_months` tune the resume report. The example profile shows each one
+as a comment, and `jsa doctor` lists the ones you aren't using.
 
 **Distance.** Postings are placed on a map from Census centroids that ship
 with the tool — 32,109 towns, 33,791 ZIP codes and a 1:20,000,000 state

@@ -222,6 +222,30 @@ def check_credentials(profile: dict[str, Any], report: Report) -> None:
     report.checked.append("education and certifications")
 
 
+def check_resume_fields(profile: dict[str, Any], report: Report) -> None:
+    """A hint, never a blocker: the optional resume fields this profile
+    doesn't use yet (plan 11). One line, so it can't drown a real finding."""
+    exp = profile.get("experience") or []
+    unused = [name for name, used in (
+        ("experience[].company_descriptor", any(e.get("company_descriptor") for e in exp)),
+        ("projects[].start / end", any(p.get("start") for p in profile.get("projects") or [])),
+        ("certifications[].display_name",
+         any(c.get("display_name") for c in profile.get("certifications") or [])),
+        ("skill_labels", bool(profile.get("skill_labels"))),
+        ("summaries[].role_kinds / keywords",
+         any(s.get("role_kinds") or s.get("keywords") for s in profile.get("summaries") or [])),
+        ("resume.date_style", "date_style" in (profile.get("resume") or {})),
+        ("resume.skills_include_project_stack",
+         "skills_include_project_stack" in (profile.get("resume") or {})),
+        ("coach.disabled / gap_months", bool(profile.get("coach"))),
+    ) if not used]
+    if unused:
+        report.add(False, f"{len(unused)} optional resume field(s) unused",
+                   "Optional; the defaults work. See the comments in "
+                   "profile/master_profile.example.yaml: " + ", ".join(unused))
+    report.checked.append("optional resume fields")
+
+
 def check_tracker(con: sqlite3.Connection | None, profile: dict[str, Any],
                   report: Report) -> None:
     if con is None:
@@ -422,6 +446,7 @@ def run(profile: dict[str, Any] | None,
     check_preferences(profile, report)
     check_evidence(profile, report)
     check_credentials(profile, report)
+    check_resume_fields(profile, report)
     check_tracker(con, profile, report)
     check_market(profile, con, report)
     check_basemap(report)
