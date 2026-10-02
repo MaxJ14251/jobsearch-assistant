@@ -252,7 +252,9 @@ Drafting against one under `posting.THIN_WORDS` (60) still runs, because the
 operator decides, but `jsa tailor` prints a warning and the dashboard shows
 it, with the fix: paste the full posting with `jsa add --paste` and draft
 that job. (*Since ADR 0020, the same day: `jsa fill <job#>`, into the same
-job.*) Interview prep and outreach read postings too and do not warn yet.
+job.*) Interview prep and outreach read postings too, and (*since 2026-10-02*) warn
+the same way in their own words: the questions, or what the message says
+about the role, are guesses. Both still run.
 
 ## Consequences
 

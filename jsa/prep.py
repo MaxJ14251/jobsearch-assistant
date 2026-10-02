@@ -79,6 +79,9 @@ class Prep:
     # Which claims were drilled: the resume that went out, or the whole profile
     # when nothing is recorded as sent. Said out loud so it is never assumed.
     drilled_from: str = ""
+    # A warning when the posting has too little text to write role-specific
+    # questions from (Plan 5). About this run only, so it is not stored.
+    thin_note: str = ""
 
 
 # A literal list cannot keep up with conjugation: "obtained my degree" was
@@ -273,7 +276,7 @@ def generate(
 
     profile = profile or load_profile()
     row = con.execute(
-        """SELECT a.id AS app_id, j.title, j.description, j.degree_required,
+        """SELECT a.id AS app_id, j.id AS job_id, j.title, j.description, j.degree_required,
                   c.name AS company, c.research_notes
              FROM applications a
              JOIN jobs j ON j.id = a.job_id
@@ -322,7 +325,9 @@ def generate(
 
     prep = Prep(application_id=application_id, round=round,
                 questions=questions, company_brief=brief, model=usage.model,
-                drilled_from=drilled_from)
+                drilled_from=drilled_from,
+                thin_note=posting.thin(row["description"], row["job_id"],
+                                       for_what="prep"))
     save(con, prep)
     return prep
 

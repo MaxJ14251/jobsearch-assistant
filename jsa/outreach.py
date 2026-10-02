@@ -178,6 +178,9 @@ class Draft:
     channel: str
     purpose: str
     body: str
+    # A warning when the job's posting has too little text to say anything
+    # true about the role (Plan 5). Only with a job; not stored.
+    thin_note: str = ""
 
     @property
     def length(self) -> int:
@@ -477,7 +480,9 @@ def draft(
         f"Send {purpose.replace('_', ' ')} to {contact['name']} "
         f"({channel.replace('_', ' ')})",
     )
-    return Draft(contact_id, job_id, channel, purpose, body)
+    thin_note = (posting_text.thin(job["description"], job_id, for_what="outreach")
+                 if job is not None else "")
+    return Draft(contact_id, job_id, channel, purpose, body, thin_note)
 
 
 def mark_sent(con: sqlite3.Connection, outreach_id: int) -> None:

@@ -517,6 +517,8 @@ def cmd_outreach_draft(args: argparse.Namespace) -> int:
         return 1
     finally:
         con.close()
+    if result.thin_note:
+        print(f"warning: {result.thin_note}", file=sys.stderr)
     print(f"outreach {outreach_id} drafted ({args.channel}, {args.purpose}, "
           f"{len(result.body)} chars)")
     print("  NOT SENT. This tool never transmits. Read it, approve it, then")
@@ -614,6 +616,8 @@ def cmd_prep(args: argparse.Namespace) -> int:
     said = posting.note(posting.visible(description))
     if said:
         print(f"note: {said}", file=sys.stderr)
+    if result.thin_note:
+        print(f"warning: {result.thin_note}", file=sys.stderr)
     print(f"prep {prep_id} for application {args.application_id} "
           f"({row['title']} at {row['company']}, {args.round})")
     print(f"  {len(result.questions)} question(s)  model {result.model}")

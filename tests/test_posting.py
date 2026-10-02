@@ -179,6 +179,40 @@ class TestAThinPostingIsSaidOutLoud(unittest.TestCase):
         self.assertEqual(posting.prose_words(text), 0)
 
 
+class TestEachUseSaysWhatTheThinPostingCosts(unittest.TestCase):
+    """Plan 5: prep and outreach warn too, each in its own words."""
+
+    STUB = "Article URL: https://example.com/j\n\nPoints: 0"
+
+    def test_the_drafting_wording_is_unchanged(self):
+        self.assertEqual(
+            posting.thin(self.STUB, 7),
+            "this posting has no description, so the bullet choice is a guess. "
+            "Paste the full posting into this job with `jsa fill 7` (or the "
+            "job page's form), then draft again.")
+        self.assertEqual(posting.thin(self.STUB, 7),
+                         posting.thin(self.STUB, 7, for_what="resume"))
+
+    def test_prep_and_outreach_name_their_own_cost_and_next_step(self):
+        prep = posting.thin(self.STUB, 7, for_what="prep")
+        self.assertIn("the role-specific questions are guesses", prep)
+        self.assertIn("then run prep again", prep)
+        outreach = posting.thin(self.STUB, 7, for_what="outreach")
+        self.assertIn("what the message says about the role is a guess", outreach)
+        self.assertIn("then draft the message again", outreach)
+        for said in (prep, outreach):
+            self.assertIn("`jsa fill 7`", said)
+            self.assertNotIn("bullet", said)
+
+    def test_an_unknown_use_raises_rather_than_falling_back(self):
+        with self.assertRaises(ValueError):
+            posting.thin(self.STUB, 7, for_what="resum")
+
+    def test_a_full_posting_is_silent_for_every_use(self):
+        for use in posting.THIN_USES:
+            self.assertEqual(posting.thin(long_posting(3000), 7, for_what=use), "")
+
+
 class TestOutreachHasItsOwnBudgetThroughTheSameDoor(unittest.TestCase):
     def test_it_is_smaller_on_purpose(self):
         self.assertLess(posting.OUTREACH_CHARS, posting.MAX_DESCRIPTION_CHARS)

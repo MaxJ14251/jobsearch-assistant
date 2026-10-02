@@ -81,6 +81,16 @@ _BREAK = re.compile(r"\n\s*\n")
 # real description. 60 sits in that gap: it flags all 53 and nothing else.
 THIN_WORDS = 60
 
+# What a thin posting costs, and what to run again, per use of the posting.
+# "resume" is the drafting wording (Plan 1); prep and outreach got theirs on
+# 2026-10-01 (Plan 5). An unknown key raises: a typo must not fall back.
+THIN_USES = {
+    "resume": ("the bullet choice is a guess", "draft again"),
+    "prep": ("the role-specific questions are guesses", "run prep again"),
+    "outreach": ("what the message says about the role is a guess",
+                 "draft the message again"),
+}
+
 _TAGS = re.compile(r"<[^>]+>")
 _URLS = re.compile(r"https?://\S+|www\.\S+")
 _STUB_LINES = re.compile(
@@ -98,21 +108,30 @@ def prose_words(description: str | None) -> int:
     return len(_WORDS.findall(text))
 
 
-def thin(description: str | None, job_id: int | None = None) -> str:
+def thin(description: str | None, job_id: int | None = None, *,
+         for_what: str = "resume") -> str:
     """A warning when the posting is too short to draft against, else "".
 
     Drafting still runs: the operator decides. But bullet choice on a posting
     with no text falls to tie-breaks, and nothing used to say so. The fix it
     names puts the real text into the same job (`jsa fill`, ADR 0020).
+
+    Three uses read a posting and warn through here, each in its own words
+    (`THIN_USES`): resume and cover-letter drafting, interview prep, and
+    outreach tied to a job.
     """
+    if for_what not in THIN_USES:
+        raise ValueError(f"unknown use {for_what!r}; expected one of "
+                         f"{', '.join(THIN_USES)}")
+    cost, again = THIN_USES[for_what]
     count = prose_words(description)
     if count >= THIN_WORDS:
         return ""
     what = "no description" if count == 0 else f"only {count} words of description"
     target = f"jsa fill {job_id}" if job_id is not None else "jsa fill <job#>"
-    return (f"this posting has {what}, so the bullet choice is a guess. Paste "
+    return (f"this posting has {what}, so {cost}. Paste "
             f"the full posting into this job with `{target}` (or the job "
-            "page's form), then draft again.")
+            f"page's form), then {again}.")
 
 
 @dataclass(frozen=True)

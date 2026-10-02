@@ -369,3 +369,64 @@ class TestScannerCoversContactData(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAThinPostingWarns(unittest.TestCase):
+    """Plan 5: outreach tied to a stub posting says so; it still drafts.
+
+    The message checks are patched out here: whether a canned reply passes
+    them depends on the profile on disk (see TestContactPrivacy), and what is
+    tested is the warning, not the checks.
+    """
+
+    STUB = "Article URL: https://example.com/j\n\nPoints: 0"
+    FULL = " ".join(["We want Python and customer support skills."] * 12)
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.dbfile = self.tmp / "t.db"
+        db.init_db(self.dbfile)
+        con = db.connect(self.dbfile)
+        con.execute("INSERT INTO companies (id,name,slug) VALUES (1,'Acme','acme')")
+        for job_id, text in ((1, self.STUB), (2, self.FULL)):
+            con.execute("INSERT INTO jobs (id,company_id,title,url,description) "
+                        "VALUES (?,1,'Support Engineer','https://acme.test/x',?)",
+                        (job_id, text))
+        self.contact_id = outreach.add_contact(con, name="Sam Okafor", company_id=1)
+        con.commit()
+        con.close()
+        real_connect = db.connect
+        for target, kwargs in (
+                ("jsa.db.connect", {"side_effect": lambda *a, **k: real_connect(self.dbfile)}),
+                ("jsa.outreach.llm.complete",
+                 {"return_value": mock.Mock(text="A short note.", model="test/model")}),
+                ("jsa.outreach.unsupported_words", {"return_value": []}),
+                ("jsa.outreach.verify_message", {"return_value": None}),
+                ("jsa.cli.load_profile", {"return_value": PROFILE})):
+            patcher = mock.patch(target, **kwargs)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def run_cmd(self, job):
+        from jsa.cli import cmd_outreach_draft
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = cmd_outreach_draft(Namespace(
+                contact=self.contact_id, channel="email", purpose="referral_ask", job=job))
+        return code, out.getvalue(), err.getvalue()
+
+    def test_a_stub_warns_and_the_message_is_still_drafted(self):
+        code, out, err = self.run_cmd(1)
+        self.assertEqual(code, 0)
+        self.assertIn("NOT SENT", out)
+        self.assertIn("warning: this posting has no description, so what the "
+                      "message says about the role is a guess", err)
+        self.assertIn("jsa fill 1", err)
+
+    def test_a_full_posting_does_not_warn(self):
+        _code, _out, err = self.run_cmd(2)
+        self.assertNotIn("warning:", err)
+
+    def test_no_job_means_no_posting_and_no_warning(self):
+        _code, _out, err = self.run_cmd(None)
+        self.assertNotIn("warning:", err)

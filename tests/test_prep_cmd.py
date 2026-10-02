@@ -225,6 +225,42 @@ class TestPrepCommand(PrepCase):
                 "every generated question must cite the line that prompts it")
 
 
+class TestAThinPostingWarns(PrepCase):
+    """Plan 5: prep on a stub posting says the questions are guesses."""
+
+    def run_prep_err(self):
+        from jsa.cli import cmd_prep
+        err = io.StringIO()
+        with mock.patch("jsa.prep.llm.complete_json", side_effect=fake_questions),              mock.patch("jsa.cli.load_profile", return_value=PROFILE),              redirect_stdout(io.StringIO()), redirect_stderr(err):
+            code = cmd_prep(Namespace(application_id=1, round="phone_screen"))
+        return code, err.getvalue()
+
+    def test_a_stub_warns_and_prep_is_still_written(self):
+        con = self.con()
+        con.execute("UPDATE jobs SET description = ? WHERE id = 1",
+                    ("Article URL: https://example.com/j\n\nPoints: 0",))
+        con.commit()
+        con.close()
+        code, err = self.run_prep_err()
+        self.assertEqual(code, 0)
+        self.assertIn("warning: this posting has no description, so the "
+                      "role-specific questions are guesses", err)
+        self.assertIn("jsa fill 1", err)
+        self.assertIn("run prep again", err)
+        con = self.con()
+        self.assertEqual(con.execute("SELECT COUNT(*) FROM interview_prep").fetchone()[0], 1)
+        con.close()
+
+    def test_a_full_posting_does_not_warn(self):
+        # JD alone is 28 words, itself under the line; three copies are not.
+        con = self.con()
+        con.execute("UPDATE jobs SET description = ? WHERE id = 1", (" ".join([JD] * 3),))
+        con.commit()
+        con.close()
+        _code, err = self.run_prep_err()
+        self.assertNotIn("warning:", err)
+
+
 class TestPromptAsksForUsableText(unittest.TestCase):
     """Found by reading the real output, not by a failing assertion.
 
