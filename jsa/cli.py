@@ -453,6 +453,7 @@ def cmd_tailor(args: argparse.Namespace) -> int:
     from .drafting import DraftError, draft_document
 
     kind = KIND_ARG[args.kind]
+    db.upgrade()           # documents.coach_findings on an older tracker
     con = db.connect()
     try:
         result = draft_document(con, args.job_id, kind, force=args.force,
@@ -476,6 +477,9 @@ def cmd_tailor(args: argparse.Namespace) -> int:
     # Printed so a misclassified title is visible on every run. ADR 0005.
     print(f"  role     {result.role}")
     print(f"  bullets  {', '.join(result.bullet_ids)}")
+    if result.last_wrong_bullets:
+        print(f"  was      {', '.join(result.last_wrong_bullets)}  "
+              f"(v{result.version - 1}, rejected as wrong bullets)")
     if result.gaps:
         print(f"  gaps     {', '.join(result.gaps)}")
     if result.note:
@@ -962,9 +966,11 @@ def cmd_approve(args: argparse.Namespace) -> int:
 
 
 def cmd_reject(args: argparse.Namespace) -> int:
+    db.upgrade()           # approvals.reason on an older tracker
     con = db.connect()
     try:
-        approvals.reject(con, args.approval_id, args.feedback)
+        approvals.reject(con, args.approval_id, args.feedback,
+                         getattr(args, "reason", None))
         con.commit()
     except approvals.ApprovalError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -1387,6 +1393,9 @@ def main(argv: list[str] | None = None) -> int:
     p_rej.add_argument(
         "--feedback", required=True,
         help="what to change; kept as the record of why")
+    p_rej.add_argument(
+        "--reason", choices=approvals.REJECT_REASONS,
+        help="optional: what kind of problem it was (you pick it; ADR 0024)")
     p_rej.set_defaults(func=cmd_reject)
 
     p_stage = sub.add_parser(

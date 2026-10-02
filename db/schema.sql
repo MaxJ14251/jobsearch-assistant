@@ -308,6 +308,7 @@ CREATE TABLE IF NOT EXISTS approvals (
     decided_by      TEXT CHECK (decided_by IN ('human','tool')),
     decided_at      TEXT,
     feedback        TEXT,                          -- why rejected / what to change
+    reason          TEXT,                          -- reviewer-picked code on a rejection (ADR 0024); validated in approvals.reject, no CHECK
     requested_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 

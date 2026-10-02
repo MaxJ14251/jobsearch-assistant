@@ -1828,6 +1828,10 @@ REVIEW = """{% extends "base" %}{% block body %}
     <input type="hidden" name="approval_id" value="{{ r.approval_id }}">
     <input type="search" name="feedback" id="feedback-{{ r.approval_id }}"
            aria-label="What should change" placeholder="What should change? (required)" style="flex:1">
+    <select name="reason" id="reason-{{ r.approval_id }}" aria-label="Kind of problem (optional)">
+      <option value="">Kind of problem (optional)</option>
+      {% for code in reject_reasons %}<option value="{{ code }}">{{ code.replace('_', ' ') }}</option>{% endfor %}
+    </select>
     <button class="ghost" type="submit">Reject</button>
   </form>
   {% if error_id == r.approval_id %}<p class="note bad" role="alert">{{ error }}</p>{% endif %}
@@ -3043,6 +3047,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         finally:
             con.close()
         return render("review", "review", title="Review", rows=rows,
+                      reject_reasons=approvals.REJECT_REASONS,
                       error=error, error_id=error_id,
                       error_in_rows=any(r["approval_id"] == error_id for r in rows))
 
@@ -3067,10 +3072,11 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         return back_to_review()
 
     @app.post("/reject")
-    def do_reject(approval_id: int = Form(...), feedback: str = Form("")):
+    def do_reject(approval_id: int = Form(...), feedback: str = Form(""),
+                  reason: str = Form("")):
         con = connect()
         try:
-            approvals.reject(con, approval_id, feedback)
+            approvals.reject(con, approval_id, feedback, reason or None)
             con.commit()
         except approvals.ApprovalError as exc:
             return back_to_review(str(exc), approval_id)

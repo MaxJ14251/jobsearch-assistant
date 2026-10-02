@@ -56,6 +56,9 @@ class DraftOutcome:
     prior_feedback: list[tuple[int, str]] = field(default_factory=list)
     # The resume report (ADR 0023): advice, shown and stored, never a gate.
     coach: list[Any] = field(default_factory=list)
+    # The previous version's bullet ids, when a reviewer rejected it as
+    # wrong_bullets (ADR 0024): shown beside the new ones, never to a model.
+    last_wrong_bullets: list[str] = field(default_factory=list)
 
 
 def cover_body(draft, profile: dict[str, Any], job: dict[str, Any]):
@@ -162,4 +165,22 @@ def draft_document(
         prior_feedback=approvals.prior_feedback(
             con, job_id=job_id, kind=kind, before_version=version),
         coach=findings,
+        last_wrong_bullets=wrong_bullets_before(con, job_id, kind, version),
     )
+
+
+def wrong_bullets_before(con: sqlite3.Connection, job_id: int, kind: str,
+                         version: int) -> list[str]:
+    """Bullet ids of version - 1, if a reviewer rejected it as wrong_bullets."""
+    import json
+
+    row = con.execute(
+        "SELECT d.bullet_ids FROM documents d JOIN approvals a "
+        "ON a.subject_type = 'document' AND a.subject_id = d.id "
+        "WHERE d.job_id = ? AND d.kind = ? AND d.version = ? "
+        "AND a.reason = 'wrong_bullets' ORDER BY a.id DESC LIMIT 1",
+        (job_id, kind, version - 1)).fetchone()
+    try:
+        return list(json.loads(row["bullet_ids"] or "[]")) if row else []
+    except ValueError:
+        return []

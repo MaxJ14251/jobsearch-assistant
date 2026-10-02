@@ -86,8 +86,17 @@ def approve(con: sqlite3.Connection, approval_id: int, note: str | None = None) 
     _decide(con, approval_id, "approved", note)
 
 
-def reject(con: sqlite3.Connection, approval_id: int, feedback: str) -> None:
-    """Record a human rejection. Feedback is required.
+# Optional codes a REVIEWER picks beside the free text (ADR 0024). Nothing
+# classifies feedback automatically (ADR 0011), and a code never reaches a
+# prompt (tests/test_feedback.py). Validated here rather than by a CHECK,
+# because changing a CHECK forces a table rebuild.
+REJECT_REASONS = ("fabrication", "wrong_bullets", "missing_section",
+                  "formatting", "weak_content", "wrong_summary")
+
+
+def reject(con: sqlite3.Connection, approval_id: int, feedback: str,
+           reject_reason: str | None = None) -> None:
+    """Record a human rejection. Feedback is required; a reason code is not.
 
     It is kept with the decision as the record of why, and `prior_feedback`
     below reads it back to whoever drafts the next version. It is shown to a
@@ -98,7 +107,14 @@ def reject(con: sqlite3.Connection, approval_id: int, feedback: str) -> None:
             "rejection requires feedback saying what to change; "
             "write a short note, then reject again"
         )
+    if reject_reason and reject_reason not in REJECT_REASONS:
+        raise ApprovalError(
+            f"unknown reason {reject_reason!r}; use one of "
+            f"{', '.join(REJECT_REASONS)}, or none")
     _decide(con, approval_id, "rejected", feedback.strip())
+    if reject_reason:
+        con.execute("UPDATE approvals SET reason = ? WHERE id = ?",
+                    (reject_reason, approval_id))
 
 
 def supersede_older(con: sqlite3.Connection, *, job_id: int, kind: str,
