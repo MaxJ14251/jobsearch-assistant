@@ -30,8 +30,10 @@ profile/*.pdf
 # API keys.
 .env
 
-# The tracker holds your real application history.
+# The tracker holds your real application history, and so do its copies
+# (`jsa backup`).
 *.db
+backups/
 *.db-wal
 *.db-shm
 

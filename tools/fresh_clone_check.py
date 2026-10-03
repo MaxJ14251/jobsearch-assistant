@@ -93,7 +93,8 @@ def main() -> int:
                          "README.md", "requirements.txt", ".gitignore"):
             ok = (dest / required).exists()
             print(f"   {'ok ' if ok else 'MISSING'} {required}")
-        for forbidden in (".env", "profile/master_profile.yaml", "jobsearch.db"):
+        for forbidden in (".env", "profile/master_profile.yaml", "jobsearch.db",
+                          "backups"):
             leaked = (dest / forbidden).exists()
             print(f"   {'LEAKED ' if leaked else 'ok     '} {forbidden} excluded")
 

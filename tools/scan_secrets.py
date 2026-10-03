@@ -29,7 +29,8 @@ AUTHORSHIP_FILES = {"LICENSE", "README.md", "CONTRIBUTING.md"}
 # also a surname in a test fixture. Four is where a name stops being generic.
 NAME_PART_MIN = 4
 
-SKIP_DIRS = {".git", ".venv", "__pycache__", "output", "documents", ".claude"}
+SKIP_DIRS = {".git", ".venv", "__pycache__", "output", "documents", ".claude",
+             "backups"}
 
 # Compressed and binary files, read as text with errors ignored, are random
 # letters -- and random letters eventually spell something. The shipped

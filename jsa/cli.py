@@ -49,6 +49,76 @@ def cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_backup(args: argparse.Namespace) -> int:
+    """A verified copy of the tracker, output/ and the profile (ADR 0025)."""
+    from . import backup
+
+    root = Path(args.to) if args.to else backup.default_root(DB_PATH)
+    if args.list:
+        copies = backup.listing(root)
+        if not copies:
+            print(f"no copies in {root}")
+        for c in copies:
+            print(f"  {c.made:%Y-%m-%d %H:%M}  {c.label:<12} "
+                  f"{c.bytes / 1_000_000:6.1f} MB  {c.path}")
+        return 0
+    if args.check:
+        check = backup.check_live(DB_PATH)
+        print(f"checked {check.submitted_checked} sent document(s) against "
+              "the hashes recorded when they were sent")
+        for problem in check.problems:
+            print(f"  x {problem}")
+        print("ok" if check.ok else "MISMATCH", "-- this command changed nothing.")
+        return 0 if check.ok else 1
+    if args.to:
+        print(f"note: the copy holds your applications, drafts and profile; "
+              f"keep {root} as private as the tracker itself.")
+    path = backup.make(root, label="manual")
+    check = backup.verify(path)
+    removed = backup.prune(root, {"manual": args.keep} if args.keep else None)
+    print(f"copied to {path}")
+    print(f"  {check.tables} tables, {check.rows} rows, {check.files} files, "
+          f"{check.submitted_checked} sent document(s) checked")
+    if not check.ok:
+        for problem in check.problems:
+            print(f"  x {problem}")
+        print("NOT verified")
+        return 1
+    print("  verified")
+    if removed:
+        print(f"  removed {len(removed)} older copie(s) beyond the ones kept")
+    return 0
+
+
+def cmd_restore(args: argparse.Namespace) -> int:
+    """Put a copy back, after copying what is there now (ADR 0025)."""
+    from . import backup
+
+    source = Path(args.backup)
+    check = backup.verify(source)
+    if not check.ok:
+        print("refused: that copy does not verify:", file=sys.stderr)
+        for problem in check.problems:
+            print(f"  x {problem}", file=sys.stderr)
+        return 1
+    what = "the tracker, output/ and your profile" if args.all else "the tracker"
+    print(f"This replaces {what} with the copy in {source}")
+    print(f"  ({check.tables} tables, {check.rows} rows). What is there now is "
+          "copied first, as a pre-restore backup.")
+    if not args.yes:
+        answer = input("Type restore to continue: ")
+        if answer.strip() != "restore":
+            print("nothing changed.")
+            return 1
+    try:
+        safety = backup.restore(source, db_path=DB_PATH, everything=args.all)
+    except backup.BackupError as exc:
+        print(f"refused: {exc}", file=sys.stderr)
+        return 1
+    print(f"restored. The state before this is in {safety}")
+    return 0
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     """Report what will not work yet. Reads only; changes nothing."""
     from . import doctor
@@ -1202,6 +1272,22 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "doctor", help="what will not work yet in your profile and tracker"
     ).set_defaults(func=cmd_doctor)
+
+    p_back = sub.add_parser(
+        "backup", help="a verified copy of the tracker, drafts and profile")
+    p_back.add_argument("--to", help="another folder (default: backups/ beside the tracker)")
+    p_back.add_argument("--keep", type=int, help="manual copies to keep (default 10)")
+    p_back.add_argument("--list", action="store_true", help="list the copies")
+    p_back.add_argument("--check", action="store_true",
+                        help="check the sent documents against their recorded hashes")
+    p_back.set_defaults(func=cmd_backup)
+
+    p_rest = sub.add_parser("restore", help="put a backup back (copies the current state first)")
+    p_rest.add_argument("backup", help="the copy's folder, from `jsa backup --list`")
+    p_rest.add_argument("--all", action="store_true",
+                        help="also restore output/ and the profile")
+    p_rest.add_argument("--yes", action="store_true", help="skip the typed confirmation")
+    p_rest.set_defaults(func=cmd_restore)
 
     p_imp = sub.add_parser(
         "import-resume", help="turn your resume (.docx or PDF) into a draft profile")

@@ -227,6 +227,35 @@ are not in a coastal tech hub, add local employers' boards to that file —
 
 ## Usage
 
+### Backups
+
+The tracker is the only record of your applications, so copy it:
+
+```bash
+.venv/Scripts/python -m jsa backup            # a verified, dated copy in backups/
+.venv/Scripts/python -m jsa backup --list
+.venv/Scripts/python -m jsa backup --check    # are the files you sent still unchanged?
+```
+
+A copy holds the tracker (taken with SQLite's online backup, so it is safe
+while the dashboard runs), `output/` and your profile, with a manifest of
+row counts and file hashes; `.env` is never copied. The newest 10 manual
+copies are kept. `--to DIR` writes somewhere else, such as another disk;
+the copy is as private as the tracker. A copy is also taken automatically
+just before an upgrade rebuilds a table, and if it can't be made the
+upgrade doesn't run. `jsa doctor` mentions a copy older than a week.
+
+To go back to a copy, stop the dashboard, then:
+
+```bash
+.venv/Scripts/python -m jsa restore backups/2026-10-02_153000-manual        # the tracker only
+.venv/Scripts/python -m jsa restore backups/2026-10-02_153000-manual --all  # and output/, profile
+```
+
+It verifies the copy, asks you to type `restore`, and copies the current
+state first (a `pre-restore` copy). See
+[ADR 0025](docs/decisions/0025-backing-up-the-tracker.md).
+
 ```bash
 .venv/Scripts/python -m jsa doctor
 ```

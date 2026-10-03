@@ -260,6 +260,15 @@ def check_tracker(con: sqlite3.Connection | None, profile: dict[str, Any],
                    "Run `jsa discover`. It needs no API key.")
     report.checked.append(f"the tracker ({jobs} posting(s))")
 
+    from . import backup
+    age = backup.newest_age_days()
+    if age is None:
+        report.add(False, "The tracker has never been backed up",
+                   "Run `jsa backup`: it is the only record of your applications.")
+    elif age > backup.BACKUP_STALE_DAYS:
+        report.add(False, f"The newest backup is {age:.0f} days old",
+                   "Run `jsa backup`.")
+
     if jobs >= MIN_POSTINGS_FOR_TAGS:
         from .tailor import is_dead, tag_weights, vocabulary
 

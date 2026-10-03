@@ -13,6 +13,7 @@
 **/.env
 **/master_profile.yaml
 **/*.db
+**/backups/
 **/*.db-wal
 **/*.db-shm
 **/*.log

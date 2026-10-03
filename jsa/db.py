@@ -65,6 +65,9 @@ def upgrade(path: Path = DB_PATH, schema: Path = SCHEMA_PATH) -> list[str]:
     first, so the upgrade happens where the need arises rather than in a
     command people run once and forget.
     """
+    path = Path(path)
+    if path.exists():
+        snapshot_before_rebuild(path)
     con = connect(path)
     try:
         con.executescript(schema.read_text(encoding="utf-8"))
@@ -76,6 +79,52 @@ def upgrade(path: Path = DB_PATH, schema: Path = SCHEMA_PATH) -> list[str]:
     finally:
         con.close()
     return applied
+
+
+def rebuilds_pending(con: sqlite3.Connection) -> list[str]:
+    """The whole-table rebuilds migrate() would run on this tracker. Reads only."""
+    pending = []
+    if _approvals_stale(con):
+        pending.append("approvals")
+    if _sources_stale(con):
+        pending.append("sources")
+    pending += _dangling_tables(con)
+    return pending
+
+
+def snapshot_before_rebuild(path: Path) -> Path | None:
+    """Copy the tracker before a migration rebuilds a table (ADR 0025).
+
+    Those rebuilds' own docstrings record past damage to the author's
+    tracker. If the copy can't be made, the upgrade does not run: a rebuild
+    without a copy is the failure this exists to prevent.
+    """
+    import sys
+
+    from . import backup
+    from .config import ConfigError
+
+    con = connect(path)
+    try:
+        pending = rebuilds_pending(con)
+    finally:
+        con.close()
+    if not pending:
+        return None
+    real = Path(path).resolve() == Path(DB_PATH).resolve()
+    try:
+        copy = backup.make(backup.default_root(path), label="pre-upgrade",
+                           db_path=path,
+                           output_dir=backup.OUTPUT_DIR if real else None,
+                           profile_path=backup.PROFILE_PATH if real else None)
+        backup.prune(backup.default_root(path))
+    except Exception as exc:
+        raise ConfigError(
+            f"the tracker needs a rebuild ({', '.join(pending)}), and the copy "
+            f"that must come first failed: {exc}. Nothing was changed.") from exc
+    print(f"backed up the tracker before rebuilding {', '.join(pending)}: {copy}",
+          file=sys.stderr)
+    return copy
 
 
 def rekey(con: sqlite3.Connection) -> int:
@@ -164,6 +213,42 @@ def migrate(con: sqlite3.Connection, schema: Path = SCHEMA_PATH) -> list[str]:
     return applied
 
 
+def _approvals_stale(con: sqlite3.Connection) -> str:
+    """"unique", "check", or "" when approvals needs no rebuild."""
+    row = con.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='approvals'"
+    ).fetchone()
+    if not row:
+        return ""
+    sql = (row["sql"] or "")
+    if "requested_at)" in sql.replace(" ", ""):
+        return "unique"
+    # A CHECK constraint cannot be altered either, and an old database would
+    # otherwise reject 'superseded' with a confusing constraint error.
+    return "check" if "superseded" not in sql else ""
+
+
+def _sources_stale(con: sqlite3.Connection) -> bool:
+    row = con.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='sources'"
+    ).fetchone()
+    return bool(row) and "themuse" not in (row["sql"] or "")
+
+
+def _dangling_tables(con: sqlite3.Connection) -> list[str]:
+    """Tables whose REFERENCES name a table that is gone."""
+    live = {r["name"] for r in con.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'")}
+    broken = []
+    for row in con.execute(
+            "SELECT name, sql FROM sqlite_master WHERE type='table'").fetchall():
+        for target in re.findall(r'REFERENCES\s+"?([A-Za-z_][A-Za-z_0-9]*)"?',
+                                 row["sql"] or ""):
+            if target not in live and row["name"] not in broken:
+                broken.append(row["name"])
+    return broken
+
+
 def _rebuild_approvals_if_stale(con: sqlite3.Connection, schema_sql: str) -> list[str]:
     """Drop a table-level UNIQUE that ALTER TABLE cannot remove.
 
@@ -172,19 +257,20 @@ def _rebuild_approvals_if_stale(con: sqlite3.Connection, schema_sql: str) -> lis
     redraft within the same second failed — the exact reject-then-re-render
     path. SQLite cannot drop a table constraint, so the table is rebuilt.
     """
-    row = con.execute(
-        "SELECT sql FROM sqlite_master WHERE type='table' AND name='approvals'"
-    ).fetchone()
-    if not row:
+    stale = _approvals_stale(con)
+    if not stale:
         return []
-    sql = (row["sql"] or "")
-    stale_unique = "requested_at)" in sql.replace(" ", "")
-    # A CHECK constraint cannot be altered either, and an old database would
-    # otherwise reject 'superseded' with a confusing constraint error.
-    missing_superseded = "superseded" not in sql
-    if not (stale_unique or missing_superseded):
+    reason = ("dropped stale UNIQUE" if stale == "unique"
+              else "widened decision CHECK")
+    import re as _re
+
+    match = _re.search(
+        r"CREATE TABLE IF NOT EXISTS\s+approvals\s*\(.*?\n\);", schema_sql, _re.S
+    )
+    if not match:
+        # Without the new definition there is nothing to copy into: dropping
+        # the old table here would lose every approval.
         return []
-    reason = "dropped stale UNIQUE" if stale_unique else "widened decision CHECK"
 
     cols = [r["name"] for r in con.execute("PRAGMA table_info(approvals)")]
     con.executescript(
@@ -196,20 +282,14 @@ def _rebuild_approvals_if_stale(con: sqlite3.Connection, schema_sql: str) -> lis
         "PRAGMA legacy_alter_table=ON;"
         "ALTER TABLE approvals RENAME TO approvals_old;"
     )
-    import re as _re
-
-    match = _re.search(
-        r"CREATE TABLE IF NOT EXISTS\s+approvals\s*\(.*?\n\);", schema_sql, _re.S
+    con.executescript(match.group(0))
+    shared = ", ".join(
+        c for c in cols
+        if c in {r["name"] for r in con.execute("PRAGMA table_info(approvals)")}
     )
-    if match:
-        con.executescript(match.group(0))
-        shared = ", ".join(
-            c for c in cols
-            if c in {r["name"] for r in con.execute("PRAGMA table_info(approvals)")}
-        )
-        con.execute(
-            f"INSERT INTO approvals ({shared}) SELECT {shared} FROM approvals_old"
-        )
+    con.execute(
+        f"INSERT INTO approvals ({shared}) SELECT {shared} FROM approvals_old"
+    )
     con.executescript("DROP TABLE approvals_old;"
                       "PRAGMA legacy_alter_table=OFF; PRAGMA foreign_keys=ON;")
     return [f"approvals(rebuilt: {reason})"]
@@ -226,15 +306,7 @@ def _repair_dangling_references(con: sqlite3.Connection, schema_sql: str) -> lis
     """
     import re as _re
 
-    live = {r["name"] for r in con.execute(
-        "SELECT name FROM sqlite_master WHERE type='table'")}
-    broken = []
-    for row in con.execute(
-            "SELECT name, sql FROM sqlite_master WHERE type='table'").fetchall():
-        for target in _re.findall(r'REFERENCES\s+"?([A-Za-z_][A-Za-z_0-9]*)"?',
-                                  row["sql"] or ""):
-            if target not in live and row["name"] not in broken:
-                broken.append(row["name"])
+    broken = _dangling_tables(con)
     if not broken:
         return []
 
@@ -267,10 +339,7 @@ def _rebuild_sources_if_stale(con: sqlite3.Connection, schema_sql: str) -> list[
     constraint error on the first discovery run, which reads as a bug in the
     feed rather than an out-of-date table.
     """
-    row = con.execute(
-        "SELECT sql FROM sqlite_master WHERE type='table' AND name='sources'"
-    ).fetchone()
-    if not row or "themuse" in (row["sql"] or ""):
+    if not _sources_stale(con):
         return []
 
     import re as _re

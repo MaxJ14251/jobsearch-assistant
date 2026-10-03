@@ -42,6 +42,7 @@ DECOYS=(
   "output/decoy/resume.docx"
   "documents/decoy.txt"
   "jsa/decoy.log"
+  "backups/2026-01-01_000000-manual/decoy.txt"
 )
 for f in "${DECOYS[@]}"; do
   # Never overwrite a real file: run this in a clean checkout.
@@ -55,7 +56,7 @@ cleanup() {
   for f in "${DECOYS[@]}"; do
     if [ -f "$f" ] && grep -q "$MARK" "$f" 2>/dev/null; then rm -f "$f"; fi
   done
-  rmdir output/decoy output documents 2>/dev/null || true
+  rmdir output/decoy output documents backups/2026-01-01_000000-manual backups 2>/dev/null || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT

@@ -60,5 +60,10 @@ it:
   name, email, phone, street, ZIP, home city and links removed** locally
   first; it refuses before any network call if one is still in the prompt.
 
+**Backups** (`jsa backup`) hold the tracker, `output/` and your profile, so
+they are as personal as the tracker. They go to `backups/` beside it
+(gitignored, kept out of Docker images, skipped by the scanner) or to a
+folder you name. `.env` is never copied, and nothing is uploaded.
+
 Your profile, tracker, `.env` and generated documents are gitignored, and
 `tools/scan_secrets.py` refuses a commit that carries them or their values.
