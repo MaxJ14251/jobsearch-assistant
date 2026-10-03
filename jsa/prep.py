@@ -58,6 +58,26 @@ DEGREE_DENY = [
 ]
 
 
+# The stages an inbox reply or a person can move an application into that
+# are also prep rounds. At these, the tool SUGGESTS prep; it never runs it
+# and never sets a next action (ADR 0021: the tool suggests, you confirm).
+INTERVIEW_ROUNDS = ("phone_screen", "technical", "onsite")
+
+
+def suggestion(con: sqlite3.Connection, application_id: int, stage: str) -> str | None:
+    """What to say when an application reaches `stage`. Reads only."""
+    if stage not in INTERVIEW_ROUNDS:
+        return None
+    row = con.execute(
+        "SELECT id FROM interview_prep WHERE application_id = ? AND round = ? "
+        "AND archived_at IS NULL ORDER BY id DESC LIMIT 1",
+        (application_id, stage)).fetchone()
+    if row is not None:
+        return f"Prep for this round exists: `jsa prep-show {row['id']}`"
+    return (f"Interview stage: draft prep with "
+            f"`jsa prep {application_id} --round {stage}`")
+
+
 class DegreeClaimError(RuntimeError):
     """Generated prep implied a credential that was never awarded."""
 

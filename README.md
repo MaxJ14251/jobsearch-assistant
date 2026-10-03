@@ -440,6 +440,14 @@ and checked against a deny-list, verb-family patterns, and a negation window —
 are first person, so they read as words you can say rather than a briefing about
 you. Running again appends; prior prep is never overwritten.
 
+When you move an application to *phone screen*, *technical* or *onsite*
+(with `jsa status`, the stage form, or by confirming an email reply), the tool
+says so and names the command: `jsa prep 12 --round phone_screen`, or the
+prep you already have for that round. It runs nothing and sets no next action.
+On the dashboard the job page then shows a **Draft interview prep** button
+with the round picked; pressing it is the request, one model call, like
+Tailor.
+
 ```bash
 .venv/Scripts/python -m jsa tags
 ```

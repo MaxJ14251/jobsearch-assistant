@@ -73,6 +73,9 @@ COUNTS here (never subjects, senders or text).
 - `jsa outcomes` (plan 13) counts a reply linked to an application, other
   than an automatic receipt or a dismissed one, as "heard back". It reads;
   it changes nothing.
+- A confirmed interview reply (plan 14) suggests interview prep for that
+  round and runs nothing: no prep is drafted and no next action is set
+  until the person asks.
 
 ## Rejected
 

@@ -435,8 +435,17 @@ def pending(con: sqlite3.Connection) -> list[sqlite3.Row]:
         "WHERE r.state = 'pending' ORDER BY r.application_id, r.received_at").fetchall()
 
 
-def confirm(con: sqlite3.Connection, reply_id: int, stage: str | None = None) -> tuple[int, str, str]:
-    """Move the application, as the person confirming. Returns (job, previous, stage)."""
+@dataclass
+class Confirmed:
+    job_id: int
+    previous: str
+    stage: str
+    application_id: int
+    kind: str
+
+
+def confirm(con: sqlite3.Connection, reply_id: int, stage: str | None = None) -> Confirmed:
+    """Move the application, as the person confirming."""
     row = con.execute(
         "SELECT r.*, a.job_id FROM inbox_replies r "
         "LEFT JOIN applications a ON a.id = r.application_id WHERE r.id = ?",
@@ -456,7 +465,7 @@ def confirm(con: sqlite3.Connection, reply_id: int, stage: str | None = None) ->
     _app, previous = approvals.set_stage(
         con, row["job_id"], stage, note=f"from an email of {day}: {row['subject']}")
     con.execute("UPDATE inbox_replies SET state = 'confirmed' WHERE id = ?", (reply_id,))
-    return row["job_id"], previous, stage
+    return Confirmed(row["job_id"], previous, stage, row["application_id"], row["kind"])
 
 
 def dismiss(con: sqlite3.Connection, reply_id: int) -> None:

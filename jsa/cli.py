@@ -1064,9 +1064,13 @@ def cmd_inbox(args: argparse.Namespace) -> int:
     con = db.connect()
     try:
         if action == "confirm":
-            job_id, previous, stage = inbox.confirm(con, args.reply_id, stage=args.stage)
+            from . import prep
+            done = inbox.confirm(con, args.reply_id, stage=args.stage)
             con.commit()
-            print(f"{previous} -> {stage}: job {job_id} (confirmed by you)")
+            print(f"{done.previous} -> {done.stage}: job {done.job_id} (confirmed by you)")
+            hint = prep.suggestion(con, done.application_id, done.stage)
+            if hint:
+                print(f"  {hint}")
             return 0
         if action == "dismiss":
             inbox.dismiss(con, args.reply_id)
@@ -1108,17 +1112,21 @@ def cmd_inbox(args: argparse.Namespace) -> int:
 def cmd_status(args: argparse.Namespace) -> int:
     """Move an application to a later stage. Always a human saying so."""
     con = db.connect()
+    from . import prep
     try:
         application_id, previous = approvals.set_stage(
             con, args.job_id, args.stage, note=args.note)
         con.commit()
         line = _job_line(con, args.job_id)
+        hint = prep.suggestion(con, application_id, args.stage)
     except approvals.ApprovalError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     finally:
         con.close()
     print(f"{previous} -> {args.stage}: application {application_id} -- {line}")
+    if hint:
+        print(f"  {hint}")
     if args.stage in approvals.CLOSED:
         print("  it leaves the live pipeline; its history stays.")
     return 0

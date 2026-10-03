@@ -34,6 +34,7 @@ from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
 from jinja2 import DictLoader, Environment
 
 from . import approvals, db, review
+from .prep import INTERVIEW_ROUNDS
 
 HOST = "127.0.0.1"          # never 0.0.0.0
 MAX_PICKED = 500            # cards one opened map bubble may ask for
@@ -1653,6 +1654,17 @@ JOB = """{% extends "base" %}{% block body %}
   <span class="title"><a class="plain" href="/prep/{{ p.id }}">{{ (p.round or 'general')|replace('_',' ')|capitalize }}</a></span>
   <span class="co">{{ p.count }} question(s) · {{ p.generated_at|localdate }}</span></div></div>
 {% else %}<p class="empty">No interview prep yet.{% if application %} Run <code>jsa prep {{ application.id }}</code> to draft one.{% endif %}</p>{% endfor %}
+{% if application and application.status in interview_rounds %}
+<form method="post" action="/job/{{ job.id }}/prep" class="inline" style="margin-top:8px"
+      onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Drafting prep…'">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <select name="round" id="prep-round" aria-label="Interview round">
+    {% for r in interview_rounds %}<option value="{{ r }}" {{ 'selected' if r == application.status }}>{{ r.replace('_', ' ') }}</option>{% endfor %}
+  </select>
+  <button type="submit">Draft interview prep</button>
+  <span class="meta">One model call; questions grounded in this posting and your profile.</span>
+</form>
+{% endif %}
 
 <h2>Posting</h2>
 {% if job.enrichment_note %}<p class="sub">{{ job.enrichment_note }}</p>{% endif %}
@@ -2666,7 +2678,8 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                       min_chars=intake.MIN_PASTED_CHARS,
                       stack=_json_list(row["tech_stack"]),
                       application=dict(application) if application else None,
-                      documents=documents, preps=preps, msg=msg, bad=bad)
+                      documents=documents, preps=preps, msg=msg, bad=bad,
+                      interview_rounds=INTERVIEW_ROUNDS)
 
     def back_to_pipeline(msg: str, bad: bool) -> RedirectResponse:
         return RedirectResponse(
@@ -2889,6 +2902,38 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                       matches=report.matches, no_preview=report.no_preview,
                       draft_path=str(report.draft_path), live_path=str(live))
 
+    @app.post("/job/{job_id}/prep")
+    def draft_prep(job_id: int, round: str = Form(...)):
+        """Pressing the button is the request (ADR 0003 decision 6), as with
+        Tailor: the same steps as `jsa prep`, one model call, nothing else."""
+        from . import prep as prep_mod
+        from .llm import LLMError
+        from .tailor import UndecidedPreferenceError, require_decided_preferences
+
+        if round not in INTERVIEW_ROUNDS:
+            return back_to_job(job_id, f"{round} is not an interview round.", True)
+        prof = profile()
+        if prof is None:
+            return back_to_job(job_id, "Your profile could not be loaded.", True)
+        con = connect()
+        try:
+            app_row = con.execute("SELECT id FROM applications WHERE job_id = ?",
+                                  (job_id,)).fetchone()
+            if app_row is None:
+                return back_to_job(job_id, "Save this job first.", True)
+            require_decided_preferences(prof)
+            prep_mod.generate(con, app_row["id"], round=round, profile=prof)
+            prep_id = con.execute(
+                "SELECT MAX(id) FROM interview_prep WHERE application_id = ?",
+                (app_row["id"],)).fetchone()[0]
+            con.commit()
+        except (prep_mod.DegreeClaimError, UndecidedPreferenceError, LLMError,
+                ValueError) as exc:
+            return back_to_job(job_id, str(exc), True)
+        finally:
+            con.close()
+        return RedirectResponse(f"/prep/{prep_id}", status_code=303)
+
     @app.post("/add/link")
     def add_link(url: str = Form(...), company: str = Form("")):
         return run_intake(lambda intake, con, prefs: intake.add_link(
@@ -2987,17 +3032,19 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
     @app.post("/inbox/{reply_id}/confirm")
     def inbox_confirm(reply_id: int, stage: str = Form(...)):
         """Your confirmation moves the stage: the same call as the stage form."""
-        from . import inbox
+        from . import inbox, prep
         con = connect()
         try:
-            _job, previous, stage = inbox.confirm(con, reply_id, stage=stage)
+            done = inbox.confirm(con, reply_id, stage=stage)
             con.commit()
+            hint = prep.suggestion(con, done.application_id, done.stage)
         except (inbox.InboxError, approvals.ApprovalError) as exc:
             return back_to_pipeline(str(exc)[:1].upper() + str(exc)[1:], True)
         finally:
             con.close()
         return back_to_pipeline(
-            f"Moved from {previous.replace('_', ' ')} to {stage.replace('_', ' ')}.", False)
+            f"Moved from {done.previous.replace('_', ' ')} to "
+            f"{done.stage.replace('_', ' ')}." + (f" {hint}." if hint else ""), False)
 
     @app.post("/inbox/{reply_id}/dismiss")
     def inbox_dismiss(reply_id: int):
@@ -3015,17 +3062,19 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
     @app.post("/job/{job_id}/stage")
     def do_stage(job_id: int, stage: str = Form(...)):
         """The same approvals call `jsa status` makes. ADR 0003 decision 5."""
+        from . import prep
         con = connect()
         try:
-            _, previous = approvals.set_stage(con, job_id, stage)
+            application_id, previous = approvals.set_stage(con, job_id, stage)
             con.commit()
+            hint = prep.suggestion(con, application_id, stage)
         except approvals.ApprovalError as exc:
             return back_to_pipeline(str(exc), True)
         finally:
             con.close()
         return back_to_pipeline(
             f"Moved from {previous.replace('_', ' ')} to "
-            f"{stage.replace('_', ' ')}.", False)
+            f"{stage.replace('_', ' ')}." + (f" {hint}." if hint else ""), False)
 
     @app.get("/review", response_class=HTMLResponse)
     def review_queue(error: str = "", error_id: int = 0):

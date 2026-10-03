@@ -309,8 +309,9 @@ class TestConfirmAndDismiss(InboxCase):
         self.reply = self.replies()[0]["id"]
 
     def test_confirming_moves_the_stage_as_the_human_with_the_email_named(self):
-        job, previous, stage = inbox.confirm(self.con, self.reply)
-        self.assertEqual((job, previous, stage), (1, "applied", "phone_screen"))
+        done = inbox.confirm(self.con, self.reply)
+        self.assertEqual((done.job_id, done.previous, done.stage, done.kind),
+                         (1, "applied", "phone_screen", "interview"))
         event = self.con.execute("SELECT actor, to_status, note FROM application_events "
                                  "ORDER BY id DESC").fetchone()
         self.assertEqual((event["actor"], event["to_status"]), ("human", "phone_screen"))
