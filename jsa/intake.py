@@ -44,6 +44,17 @@ SUPPORTED = "Greenhouse, Lever, Ashby or Workday"
 # A pasted posting shorter than this is almost certainly a title and a
 # location, and would be drafted against with nothing to tailor to.
 MIN_PASTED_CHARS = 200
+# And longer than this is not one posting. Measured 2026-10-02 on 1,750
+# stored postings: median 6,115 characters, 99th percentile 10,799, longest
+# 23,227. Over five times the longest, so no real posting is refused.
+MAX_PASTED_CHARS = 120_000
+
+
+def _too_long(text: str) -> None:
+    if len(text) > MAX_PASTED_CHARS:
+        raise IntakeError(
+            f"That's longer than any real posting ({len(text):,} characters). "
+            "Paste just the job description.")
 
 
 class IntakeError(ValueError):
@@ -271,6 +282,7 @@ def add_pasted(con: sqlite3.Connection, *, company: str, title: str, text: str,
             f"posting (at least {MIN_PASTED_CHARS}), including the requirements: "
             "drafting tailors to it, and the checks read it for degree and "
             "clearance requirements.")
+    _too_long((text or "").strip())
     url = (url or "").strip()
     if url and urlparse(url).scheme not in ("http", "https"):
         raise IntakeError("The link must start with http:// or https://")
@@ -320,6 +332,7 @@ def fill(con: sqlite3.Connection, job_id: int, text: str,
             f"That is {len(text)} characters. Paste the whole posting (at least "
             f"{MIN_PASTED_CHARS}), including the requirements: drafting tailors "
             "to it, and the checks read it for degree and clearance requirements.")
+    _too_long(text)
 
     job = dict(row)
     job["description"] = text

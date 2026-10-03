@@ -31,6 +31,9 @@ default and refuses a non-loopback address unless `JSA_ALLOW_PUBLIC_BIND=1`
 is set. It also checks the `Host` header, so a page that points its own
 domain at `127.0.0.1` is refused, and every action that changes state
 needs a per-session token that a cross-site page cannot read.
+Every form post must state its size and stay under 1 MB (an upload, 5 MB),
+checked before the body is read; a pasted posting is capped at 120,000
+characters.
 
 **It accepts one upload: a resume** (`/import`). The token is checked
 before the route runs, an upload without a size or over 5 MB is refused

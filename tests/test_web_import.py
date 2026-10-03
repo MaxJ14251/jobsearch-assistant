@@ -88,7 +88,7 @@ class TestGuard(ImportBase):
             r = self.client.post(
                 "/import", content=chunks(),
                 headers={"content-type": "multipart/form-data; boundary=x"})
-        self.assertEqual(r.status_code, 413)
+        self.assertEqual(r.status_code, 411)   # plan 15: every POST states its length
         run.assert_not_called()
 
     def test_another_content_type_is_refused(self):

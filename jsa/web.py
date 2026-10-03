@@ -1676,7 +1676,7 @@ JOB = """{% extends "base" %}{% block body %}
   <label for="fill-location">Where the job is, as the posting says it (the stub's is often wrong)
     <input type="text" name="location" id="fill-location" value="{{ job.location or '' }}" placeholder="Austin, TX, or Remote (US)"></label>
   <label for="fill-text">Paste the full posting from the link above, requirements included
-    <textarea name="text" id="fill-text" required minlength="{{ min_chars }}"></textarea></label>
+    <textarea name="text" id="fill-text" required minlength="{{ min_chars }}" maxlength="{{ max_chars }}"></textarea></label>
   <button type="submit">Use this text for this job</button>
   <p class="meta" style="margin:0">It replaces the stub in this job; its number, application and drafts stay. Pay and score are re-read from it. Nothing is fetched.</p>
 </form>
@@ -1844,7 +1844,7 @@ REVIEW = """{% extends "base" %}{% block body %}
   <form method="post" action="/reject" class="inline">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <input type="hidden" name="approval_id" value="{{ r.approval_id }}">
-    <input type="search" name="feedback" id="feedback-{{ r.approval_id }}"
+    <input type="search" name="feedback" id="feedback-{{ r.approval_id }}" maxlength="2000"
            aria-label="What should change" placeholder="What should change? (required)" style="flex:1">
     <select name="reason" id="reason-{{ r.approval_id }}" aria-label="Kind of problem (optional)">
       <option value="">Kind of problem (optional)</option>
@@ -1910,7 +1910,7 @@ ADD = """{% extends "base" %}{% block body %}
     <label for="paste-link">Where it is posted (optional)<input type="url" name="link" id="paste-link"></label>
   </div>
   <label for="paste-text">The whole posting, requirements included
-    <textarea name="text" id="paste-text" required minlength="{{ min_chars }}"></textarea></label>
+    <textarea name="text" id="paste-text" required minlength="{{ min_chars }}" maxlength="{{ max_chars }}"></textarea></label>
   <button type="submit">Add pasted posting</button>
 </form>
 {% endblock %}"""
@@ -2279,6 +2279,11 @@ ALLOWED_HOSTS = ("127.0.0.1", "localhost", "[::1]")
 
 # The only upload is a resume (ADR 0022); real ones are well under 1 MB.
 MAX_UPLOAD_BYTES = 5_000_000
+# Every other form. The largest is a pasted posting, capped at
+# intake.MAX_PASTED_CHARS (120,000 characters); URL encoding can triple
+# that. Measured 2026-10-02 on 1,750 stored postings: the longest was
+# 25,165 bytes URL-encoded, the 99th percentile 11,591.
+MAX_FORM_BYTES = 1_000_000
 
 
 def multipart_field(body: bytes, content_type: str, name: str) -> str:
@@ -2373,21 +2378,27 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             return PlainTextResponse("Unrecognised host.", status_code=400)
         if request.method == "POST":
             kind = request.headers.get("content-type", "").split(";")[0].strip().lower()
-            if kind == "multipart/form-data":
-                # An upload (the resume import). Refuse a large or unsized one
-                # BEFORE reading it: this guard holds the whole body in memory.
-                length = request.headers.get("content-length", "")
-                if not length.isdigit() or int(length) > MAX_UPLOAD_BYTES:
-                    return PlainTextResponse(
-                        "That file is too large. A resume is well under "
-                        f"{MAX_UPLOAD_BYTES // 1_000_000} MB.", status_code=413)
+            # Every POST is sized BEFORE it is read: this guard holds the
+            # whole body in memory. Browsers always send Content-Length for a
+            # form. uvicorn's HTTP parser (h11) refuses a body longer than the
+            # length it declared, so checking the header is enough; the
+            # length check after reading is a second line for other servers.
+            length = request.headers.get("content-length", "")
+            if not length.isdigit():
+                return PlainTextResponse("Length required.", status_code=411)
+            limit = MAX_UPLOAD_BYTES if kind == "multipart/form-data" else MAX_FORM_BYTES
+            if int(length) > limit:
+                return PlainTextResponse(
+                    "That file is too large. A resume is well under "
+                    f"{MAX_UPLOAD_BYTES // 1_000_000} MB."
+                    if kind == "multipart/form-data" else
+                    "That form is too large to be a real one.", status_code=413)
             # The raw body, not request.form(): parsing the form here consumes
             # it, and the route then receives nothing.
             raw = await request.body()
+            if len(raw) > limit:  # the header said otherwise
+                return PlainTextResponse("That form is too large.", status_code=413)
             if kind == "multipart/form-data":
-                if len(raw) > MAX_UPLOAD_BYTES:  # the header said otherwise
-                    return PlainTextResponse("That file is too large.",
-                                             status_code=413)
                 sent = multipart_field(raw, request.headers["content-type"], "csrf")
             elif kind in ("application/x-www-form-urlencoded", ""):
                 sent = parse_qs(raw.decode("utf-8", "replace")).get("csrf", [""])[0]
@@ -2676,6 +2687,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         return render("job", "matches", title=row["title"], job=dict(row),
                       thin=posting.thin(row["description"], job_id),
                       min_chars=intake.MIN_PASTED_CHARS,
+                      max_chars=intake.MAX_PASTED_CHARS,
                       stack=_json_list(row["tech_stack"]),
                       application=dict(application) if application else None,
                       documents=documents, preps=preps, msg=msg, bad=bad,
@@ -2779,9 +2791,9 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
 
     @app.get("/add", response_class=HTMLResponse)
     def add_form(msg: str = "", bad: int = 0):
-        from .intake import MIN_PASTED_CHARS
+        from .intake import MAX_PASTED_CHARS, MIN_PASTED_CHARS
         return render("add", "add", title="Add a job", msg=msg, bad=bad,
-                      min_chars=MIN_PASTED_CHARS)
+                      min_chars=MIN_PASTED_CHARS, max_chars=MAX_PASTED_CHARS)
 
     def back_to_add(msg: str) -> RedirectResponse:
         return RedirectResponse("/add?" + urlencode({"msg": msg, "bad": 1}),
