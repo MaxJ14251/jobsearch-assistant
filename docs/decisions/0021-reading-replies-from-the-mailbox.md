@@ -68,6 +68,12 @@ put an app password in `.env`, run one read-only fetch, have the owner mark
 every suggestion right or wrong, tune only the phrase lists, and record the
 COUNTS here (never subjects, senders or text).
 
+## Later uses
+
+- `jsa outcomes` (plan 13) counts a reply linked to an application, other
+  than an automatic receipt or a dismissed one, as "heard back". It reads;
+  it changes nothing.
+
 ## Rejected
 
 - **Automatic stage changes**, including "ghosted": the tool does not decide

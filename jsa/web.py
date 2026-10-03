@@ -1758,6 +1758,12 @@ PIPELINE = """{% extends "base" %}{% block body %}
 </div>
 {% endfor %}
 {% endif %}
+<details id="what-happened" style="margin-top:18px"><summary>What happened · {{ happened_line }}</summary>
+{% if happened %}<ul style="margin:8px 0 0;padding-left:18px">{% for o in happened %}
+  <li><a class="plain" href="/job/{{ o.job_id }}">#{{ o.job_id }} {{ o.company }}</a>: {{ o.point.replace('_', ' ') }}{% if o.closed %}, closed{% endif %}{% if o.quiet %}, quiet{% endif %}{% if o.days_since_applied is not none %} <span class="meta">· applied {{ o.days_since_applied }} day(s) ago</span>{% endif %}</li>
+{% endfor %}</ul>{% endif %}
+<p class="meta">Furthest point each application reached; an undone stage doesn't count, and an automatic receipt isn't hearing back. Counts by group: <code>jsa outcomes --by source_kind</code>. A report: nothing here changes anything.</p>
+</details>
 {% endblock %}"""
 
 REVIEW = """{% extends "base" %}{% block body %}
@@ -2926,8 +2932,9 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                 "  FROM applications a JOIN jobs j ON j.id = a.job_id "
                 "  LEFT JOIN companies c ON c.id = j.company_id "
                 " WHERE a.archived_at IS NULL").fetchall()]
-            from . import inbox
+            from . import inbox, outcomes
             replies = [dict(r) for r in inbox.pending(con)]
+            happened = outcomes.all_outcomes(con)
         finally:
             con.close()
 
@@ -2957,6 +2964,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                       overdue=sum(1 for r in live
                                   if r["days_out"] is not None and r["days_out"] < 0),
                       replies=replies, mail_ready=inbox.settings() is not None,
+                      happened=happened, happened_line=outcomes.summary(happened),
                       msg=msg, bad=bad)
 
     @app.post("/inbox/fetch")

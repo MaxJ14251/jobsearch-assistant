@@ -509,6 +509,21 @@ Closing an application (rejected, withdrawn, ghosted) takes it out of the live
 pipeline and keeps its whole history.
 
 ```bash
+.venv/Scripts/python -m jsa outcomes
+.venv/Scripts/python -m jsa outcomes --by source_kind   # or role_kind, cover_letter, redrafted, speed
+```
+What happened to each application you sent: the furthest point it reached,
+*applied*, *heard back* (a reply from the employer, a rejection, or any later
+stage; an automatic "we received your application" doesn't count),
+*interview* or *offer*, with *closed* and *quiet* (no activity for three weeks)
+beside it. A stage you undid doesn't count. `--by` gives plain counts per
+group; `source_kind` means the source that found the job first, since later
+finds aren't recorded. A group under 10 applications shows counts only, "too
+few to compare": a rate on four applications is luck. The same list is under
+"What happened" on the dashboard's Pipeline page. It recommends nothing and
+changes nothing.
+
+```bash
 .venv/Scripts/python -m jsa add https://job-boards.greenhouse.io/company/jobs/1234567
 .venv/Scripts/python -m jsa add --paste --company "Acme" --title "Support Engineer" --file posting.txt
 ```

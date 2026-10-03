@@ -1169,6 +1169,43 @@ def cmd_due(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_outcomes(args: argparse.Namespace) -> int:
+    """What happened to each application. A report; it changes nothing."""
+    from . import outcomes
+
+    con = db.connect()
+    try:
+        if args.by:
+            rows = outcomes.table(con, args.by)
+        else:
+            happened = outcomes.all_outcomes(con)
+    finally:
+        con.close()
+    if args.by:
+        if args.by == "source_kind":
+            print("(the source that found each job first; later finds aren't recorded)")
+        head = "  ".join(f"{p.replace('_', ' '):>10}" for p in outcomes.POINTS)
+        print(f"{'group':<30} {'n':>3}  {head}  closed  quiet  heard back+")
+        for r in rows:
+            counts = "  ".join(f"{r.counts[p]:>10}" for p in outcomes.POINTS)
+            rate = (f"{r.rate:.0%}" if r.rate is not None
+                    else f"too few to compare (<{outcomes.MIN_FOR_RATE})")
+            print(f"{r.group:<30} {r.n:>3}  {counts}  {r.closed:>6}  {r.quiet:>5}  {rate}")
+        if not rows:
+            print("no applications have gone out yet")
+    else:
+        for o in happened:
+            flags = (", closed" if o.closed else "") + (", quiet" if o.quiet else "")
+            since = (f"  applied {o.days_since_applied} day(s) ago"
+                     if o.days_since_applied is not None else "")
+            print(f"[{o.job_id}] {o.point.replace('_', ' ')}{flags}{since}")
+            print(f"     {o.title} at {o.company}")
+        print()
+        print(outcomes.summary(happened))
+    print("Nothing here changed anything.")
+    return 0
+
+
 # A week is the usual point to chase an application that has had no reply.
 FOLLOW_UP_DAYS = 7
 
@@ -1515,6 +1552,12 @@ def main(argv: list[str] | None = None) -> int:
     p_due.add_argument("--days", type=int, default=7,
                        help="how far ahead to look (default 7)")
     p_due.set_defaults(func=cmd_due)
+
+    p_out = sub.add_parser("outcomes", help="what happened to each application")
+    p_out.add_argument("--by", choices=["source_kind", "role_kind", "cover_letter",
+                                        "redrafted", "speed"],
+                       help="plain counts per group instead of the list")
+    p_out.set_defaults(func=cmd_outcomes)
 
     p_done = sub.add_parser("applied", help="record that YOU submitted it")
     p_done.add_argument("job_id", type=int)
