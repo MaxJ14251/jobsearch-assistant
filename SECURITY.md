@@ -57,6 +57,9 @@ it:
   `jsa tailor`, `jsa prep` and `jsa outreach-draft` also send the profile's
   bullets, and refuse before any network call if your name, address, phone
   or email appears in the prompt.
+- Turbo's background drafting (`jsa serve`, only after a right swipe)
+  sends the same posting text and profile bullets as `jsa tailor`, through
+  the same checks. It submits nothing; the drafts wait in Review.
 - `jsa import-resume` reads the resume locally (a PDF with the pinned,
   pure-Python `pypdf`; scans, encrypted files, over 5 MB or over 10 pages are
   refused) and sends its text to the model API, **with your

@@ -327,6 +327,7 @@ BASE = """<!doctype html>
 </style></head><body>
 <nav><div class="wrap">
   <a href="/" class="{{ 'on' if page=='matches' }}">Matches</a>
+  <a href="/turbo" class="{{ 'on' if page=='turbo' }}">Turbo</a>
   <a href="/pipeline" class="{{ 'on' if page=='pipeline' }}">Pipeline</a>
   <a href="/review" class="{{ 'on' if page=='review' }}">Review{% if pending_count %} ({{ pending_count }}){% endif %}</a>
   <a href="/add" class="{{ 'on' if page=='add' }}">Add a job</a>
@@ -334,7 +335,31 @@ BASE = """<!doctype html>
 <div class="wrap{{ ' wide' if wide }}">{% block body %}{% endblock %}</div>
 </body></html>"""
 
-MATCHES = """{% extends "base" %}{% block body %}
+CARD = """{% macro match_card(r) %}
+<div class="card" data-key="{{ r.key }}" data-status="{{ r.status }}">
+  <div class="row1">
+    <span class="score">{{ '%.2f'|format(r.match_score or 0) }}</span>
+    {% if r.status != 'new' %}<span class="pill" title="Your application">{{ r.stage|replace('_',' ') }}</span>{% endif %}
+    <span class="title"><a class="plain" href="/job/{{ r.job_id }}">{{ r.title }}</a></span>
+    <span class="co">{{ r.company }}</span>
+  </div>
+  <div class="meta">{{ r.location or 'location not stated' }} · {{ r.remote }}
+    {%- if r.miles is not none and r.remote != 'remote' %} · {{ r.miles }} mi away
+      {%- if r.via_copy %} (its nearest location){% endif %}{% endif %}
+    {%- if r.variant_count and r.variant_count > 1 %} · +{{ r.variant_count - 1 }} more location(s){% endif %}<span class="eta"></span></div>
+  <div class="flags">
+    {% if r.track == 'sales' %}<span class="flag">sales track</span>{% endif %}
+    {% if r.degree_required == 1 %}<span class="flag" title="Shown so you know, never used to hide or rank a job">asks for a degree</span>
+    {% elif r.degree_required == 0 %}<span class="flag ok">no degree needed</span>{% endif %}
+    {% if r.clearance_required == 1 %}<span class="flag warn">clearance</span>{% endif %}
+    {% if r.years_required is not none %}<span class="flag">{{ r.years_required }}+ yrs</span>{% endif %}
+    {% for t in r.stack %}<span class="flag">{{ t }}</span>{% endfor %}
+  </div>
+  {% if r.reasons %}<ul class="reasons">{% for x in r.reasons %}<li>{{ x }}</li>{% endfor %}</ul>{% endif %}
+</div>
+{% endmacro %}"""
+
+MATCHES = """{% extends "base" %}{% from "card" import match_card %}{% block body %}
 <h1>Matches</h1>
 {% if no_profile %}<p class="note bad" role="alert">No profile yet, so nothing can be scored for you.
   <a class="plain" href="/import">Import your resume</a>, or copy
@@ -451,27 +476,7 @@ MATCHES = """{% extends "base" %}{% block body %}
   </div>
   <div id="feed-list">
 {% for r in rows %}
-<div class="card" data-key="{{ r.key }}" data-status="{{ r.status }}">
-  <div class="row1">
-    <span class="score">{{ '%.2f'|format(r.match_score or 0) }}</span>
-    {% if r.status != 'new' %}<span class="pill" title="Your application">{{ r.stage|replace('_',' ') }}</span>{% endif %}
-    <span class="title"><a class="plain" href="/job/{{ r.job_id }}">{{ r.title }}</a></span>
-    <span class="co">{{ r.company }}</span>
-  </div>
-  <div class="meta">{{ r.location or 'location not stated' }} · {{ r.remote }}
-    {%- if r.miles is not none and r.remote != 'remote' %} · {{ r.miles }} mi away
-      {%- if r.via_copy %} (its nearest location){% endif %}{% endif %}
-    {%- if r.variant_count and r.variant_count > 1 %} · +{{ r.variant_count - 1 }} more location(s){% endif %}<span class="eta"></span></div>
-  <div class="flags">
-    {% if r.track == 'sales' %}<span class="flag">sales track</span>{% endif %}
-    {% if r.degree_required == 1 %}<span class="flag" title="Shown so you know, never used to hide or rank a job">asks for a degree</span>
-    {% elif r.degree_required == 0 %}<span class="flag ok">no degree needed</span>{% endif %}
-    {% if r.clearance_required == 1 %}<span class="flag warn">clearance</span>{% endif %}
-    {% if r.years_required is not none %}<span class="flag">{{ r.years_required }}+ yrs</span>{% endif %}
-    {% for t in r.stack %}<span class="flag">{{ t }}</span>{% endfor %}
-  </div>
-  {% if r.reasons %}<ul class="reasons">{% for x in r.reasons %}<li>{{ x }}</li>{% endfor %}</ul>{% endif %}
-</div>
+{{ match_card(r) }}
 {% else %}<p class="empty">Nothing matches those filters.</p>{% endfor %}
   </div>
 </section>
@@ -1982,11 +1987,204 @@ IMPORTED = """{% extends "base" %}{% block body %}
 </ol>
 {% endblock %}"""
 
+TURBO = """{% extends "base" %}{% from "card" import match_card %}{% block body %}
+<h1>Turbo</h1>
+<p class="sub">One match at a time, with the same filters as <a class="plain" href="/{{ back_query }}">Matches</a>.
+  <b>Pass</b> (← or drag left) takes the posting out of your matches. <b>Interested</b> (→ or drag right) saves it and drafts a resume and cover letter into <a class="plain" href="/review">Review</a>. Nothing is ever submitted: you approve the drafts and apply on the employer's site.</p>
+{% if msg %}<p class="note {{ 'bad' if bad else 'good' }}" role="status">{{ msg }}</p>{% endif %}
+{% if blocker %}<p class="note bad" role="alert">Swiping right will save only: {{ blocker }}.</p>{% endif %}
+<p class="meta" id="t-limit">{{ left_today }} of {{ limit }} drafts left today.</p>
+<div class="note" id="strip" role="status" aria-live="polite"{% if not strip %} hidden{% endif %}>{{ strip }}</div>
+
+<div id="deck">
+{% for r in rows %}
+<article class="tcard" data-job="{{ r.job_id }}" data-title="{{ r.title }}"{% if not loop.first %} hidden{% endif %}>
+  {{ match_card(r) }}
+  <div class="tact">
+    <form method="post" action="/turbo/pass">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="job_id" value="{{ r.job_id }}">
+      <input type="hidden" name="back" value="{{ back_query }}">
+      <button class="ghost" type="submit" data-act="pass">← Pass</button>
+    </form>
+    <form method="post" action="/turbo/interested">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="job_id" value="{{ r.job_id }}">
+      <input type="hidden" name="back" value="{{ back_query }}">
+      <button type="submit" data-act="interested">Interested →</button>
+    </form>
+  </div>
+  {% if r.thin %}<p><span class="flag warn">almost no posting text: Interested saves it without drafting</span></p>{% endif %}
+  <div class="excerpt">{{ r.excerpt }}</div>
+  <p class="meta"><a class="plain" href="/job/{{ r.job_id }}">Job page</a> · <a class="plain" href="{{ r.url }}" rel="noopener">The posting</a></p>
+</article>
+{% endfor %}
+<div id="t-end" class="empty"{% if rows %} hidden{% endif %}>
+  No more matches for these filters{% if more %} on this page (<a class="plain" href="/turbo{{ back_query }}">deal more</a>){% endif %}.
+  <a class="plain" href="/review">Go to Review</a>.
+</div>
+</div>
+<div id="toast" class="note" role="status" hidden><span id="toast-text"></span>
+  <button class="ghost" type="button" id="undo">Undo (Z)</button></div>
+<style>
+  #deck{max-width:720px}
+  .tcard{touch-action:pan-y;user-select:none;will-change:transform}
+  .tcard .card{margin-bottom:8px}
+  .excerpt{white-space:pre-wrap;font-size:13.5px;color:var(--ink-2);max-height:16em;overflow:hidden;
+    border-left:2px solid var(--rule);padding-left:10px;margin:8px 0}
+  .tact{display:flex;gap:10px;margin-top:10px}
+  .tact form{flex:1;display:flex}
+  .tact button{flex:1;padding:12px;font-size:15px}
+  .tcard.fly{transition:transform .25s ease-in,opacity .25s ease-in}
+  #toast{position:sticky;bottom:12px;display:flex;gap:12px;align-items:center;justify-content:space-between}
+  @media (prefers-reduced-motion: reduce){.tcard.fly{transition:none}}
+</style>
+<script>
+(function () {
+  /* Turbo, live. Without this script each button is a plain form post.
+     A swipe waits 5 seconds with an Undo before anything is sent: undo
+     inside that window writes nothing. A new swipe sends the one before it
+     at once. Nothing here can submit an application; the server can't. */
+  var token = {{ csrf|tojson }}, back = {{ back_query|tojson }};
+  var deck = document.getElementById('deck'), end = document.getElementById('t-end');
+  var toast = document.getElementById('toast'), toastText = document.getElementById('toast-text');
+  var strip = document.getElementById('strip');
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var pending = null;                        // {card, act, timer}
+  function cards() { return Array.prototype.slice.call(deck.querySelectorAll('.tcard')); }
+  function current() { return cards().filter(function (c) { return !c.hidden; })[0] || null; }
+  function body(job, act) {
+    var b = new URLSearchParams({csrf: token, job_id: job, back: back, js: '1'});
+    return b;
+  }
+  function send(p) {
+    return fetch('/turbo/' + p.act, {method: 'POST', body: body(p.card.dataset.job, p.act),
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'}})
+      .then(function (r) { return r.json(); })
+      .then(function (j) { if (j.message) { strip.hidden = false; strip.textContent = j.message; }
+                           if (j.queued) { poll(); } })
+      .catch(function () { strip.hidden = false; strip.textContent = 'That did not reach the dashboard; reload the page.'; });
+  }
+  function flush() {
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    var p = pending; pending = null; toast.hidden = true;
+    send(p);
+  }
+  function showNext(card) {
+    var list = cards(), i = list.indexOf(card), next = list[i + 1];
+    card.hidden = true; card.style.transform = ''; card.style.opacity = ''; card.classList.remove('fly');
+    if (next) { next.hidden = false; } else { end.hidden = false; }
+  }
+  function act(kind) {
+    var card = current(); if (!card) return;
+    flush();
+    var dx = kind === 'pass' ? -1 : 1;
+    function done() {
+      showNext(card);
+      pending = {card: card, act: kind, timer: setTimeout(flush, 5000)};
+      toastText.textContent = (kind === 'pass' ? 'Passed: ' : 'Interested: ') + card.dataset.title;
+      toast.hidden = false;
+    }
+    if (reduce) { done(); return; }
+    card.classList.add('fly');
+    card.style.transform = 'translateX(' + (dx * 120) + '%) rotate(' + (dx * 12) + 'deg)';
+    card.style.opacity = '0';
+    setTimeout(done, 250);
+  }
+  function undo() {
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    var card = pending.card; pending = null; toast.hidden = true;
+    var shown = current(); if (shown) shown.hidden = true;
+    end.hidden = true; card.hidden = false;
+  }
+  deck.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-act]'); if (!b) return;
+    e.preventDefault(); act(b.dataset.act);
+  });
+  document.getElementById('undo').addEventListener('click', undo);
+  document.addEventListener('keydown', function (e) {
+    var t = e.target;
+    if ((t.closest && t.closest('input, textarea, select')) || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); act('pass'); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); act('interested'); }
+    else if (e.key === 'z' || e.key === 'Z') { undo(); }
+  });
+  // Drag with a mouse or a finger.
+  var drag = null;
+  deck.addEventListener('pointerdown', function (e) {
+    var card = e.target.closest('.tcard');
+    if (!card || card.hidden || e.target.closest('a, button')) return;
+    drag = {card: card, x: e.clientX}; card.setPointerCapture(e.pointerId);
+  });
+  deck.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    var dx = e.clientX - drag.x;
+    drag.card.style.transform = reduce ? '' : 'translateX(' + dx + 'px) rotate(' + (dx / 25) + 'deg)';
+  });
+  function release(e) {
+    if (!drag) return;
+    var dx = e.clientX - drag.x, card = drag.card; drag = null;
+    if (Math.abs(dx) > 100) { act(dx < 0 ? 'pass' : 'interested'); }
+    else { card.style.transform = ''; }
+  }
+  deck.addEventListener('pointerup', release);
+  deck.addEventListener('pointercancel', release);
+  // Leaving the page sends the last swipe rather than losing it.
+  window.addEventListener('pagehide', function () {
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    navigator.sendBeacon('/turbo/' + pending.act, body(pending.card.dataset.job, pending.act));
+    pending = null;
+  });
+  // Drafting progress.
+  var polling = null;
+  function render(s) {
+    var parts = [];
+    var busy = s.queued + s.running;
+    if (busy) parts.push('Drafting: ' + s.running + ' running, ' + s.queued + ' waiting');
+    if (s.done_today) parts.push(s.done_today + ' drafted today');
+    if (s.pending_review) parts.push(s.pending_review + ' waiting in Review');
+    strip.innerHTML = '';
+    strip.append(document.createTextNode(parts.join(' · ')));
+    if (s.failed.length) {
+      strip.append(document.createTextNode(' · ' + s.failed.length + ' failed: '));
+      s.failed.forEach(function (f, i) {
+        var a = document.createElement('a'); a.className = 'plain'; a.href = '/job/' + f.job_id;
+        a.textContent = f.company + ' (' + f.kind.replace('_', ' ') + ')'; a.title = f.error || '';
+        if (i) strip.append(document.createTextNode(', '));
+        strip.append(a);
+      });
+    }
+    if (s.queued) {
+      var c = document.createElement('button'); c.className = 'ghost'; c.type = 'button';
+      c.textContent = 'Cancel waiting drafts'; c.style.marginLeft = '10px';
+      c.addEventListener('click', function () {
+        fetch('/turbo/cancel', {method: 'POST', body: new URLSearchParams({csrf: token, js: '1'}),
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'}}).then(poll);
+      });
+      strip.append(c);
+    }
+    strip.hidden = !parts.length && !s.failed.length;
+    return busy;
+  }
+  function poll() {
+    fetch('/turbo/status').then(function (r) { return r.json(); }).then(function (s) {
+      var busy = render(s);
+      clearTimeout(polling);
+      if (busy) polling = setTimeout(poll, 5000);
+    });
+  }
+  poll();
+})();
+</script>
+{% endblock %}"""
+
 env = Environment(
-    loader=DictLoader({"base": BASE, "matches": MATCHES, "job": JOB,
+    loader=DictLoader({"base": BASE, "card": CARD, "matches": MATCHES, "job": JOB,
                        "prep": PREP, "pipeline": PIPELINE, "review": REVIEW,
                        "preview": PREVIEW, "add": ADD,
-                       "import": IMPORT, "imported": IMPORTED}),
+                       "import": IMPORT, "imported": IMPORTED,
+                       "turbo": TURBO}),
     # Always on. select_autoescape(["html"]) keys on the template NAME, and
     # these are named "base", "job"... so it was silently off, and a job
     # description from a third-party board rendered as live HTML.
@@ -2279,10 +2477,11 @@ ALLOWED_HOSTS = ("127.0.0.1", "localhost", "[::1]")
 
 # The same rule v_new_matches applies, for the map's own query (ADR 0015:
 # the map agrees with its filter): a group of copies is gone once any copy
-# has an application.
+# has an application or was passed.
 NOT_TAKEN = ("COALESCE(m.dedup_key, 'job:' || m.id) NOT IN ("
              "SELECT COALESCE(t.dedup_key, 'job:' || t.id) FROM jobs t "
-             "WHERE EXISTS (SELECT 1 FROM applications a WHERE a.job_id = t.id))")
+             "WHERE t.passed_at IS NOT NULL "
+             "OR EXISTS (SELECT 1 FROM applications a WHERE a.job_id = t.id))")
 
 # The only upload is a resume (ADR 0022); real ones are well under 1 MB.
 MAX_UPLOAD_BYTES = 5_000_000
@@ -2362,6 +2561,9 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
     configured tracker, output/ and profile."""
     app = FastAPI(title="Job Search Review")
     app.state.csrf_token = secrets.token_urlsafe(32)
+    from .turbo import Worker
+    # Started by serve(); tests drive it with drain().
+    app.state.worker = Worker(db_path, profile_loader)
 
     def connect() -> sqlite3.Connection:
         return db.connect(db_path) if db_path is not None else db.connect()
@@ -2482,12 +2684,10 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             info["paragraphs"], _json_list(row["bullet_ids"]), prof)
         return info
 
-    @app.get("/", response_class=HTMLResponse)
-    def matches(request: Request, near: str = "", track: str = "",
-                degree: str = "", remote: str = "", limit: int = 60,
-                home: str = "", radius: str = "", anywhere: str = "",
-                only: str = "", q: str = ""):
-        from . import mapview
+    def match_filters(near: str, track: str, q: str, degree: str,
+                      remote: str) -> tuple[list[str], dict[str, Any]]:
+        """The SQL conditions behind the filter form. Matches and Turbo use
+        the same ones, so the deck and the list agree."""
         from .cli import load_regions, region_clause
         where, params = ["1=1"], {}
         if near and near in load_regions():
@@ -2500,7 +2700,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         if q:
             # One condition in the shared list, so the cards, the map's dots
             # and your own applications all filter by it (ADR 0015). The
-            # function is registered on the connection below.
+            # function is registered by match_connect.
             where.append("title_matches(m.title, :q) = 1")
             params["q"] = q
         if degree == "yes":
@@ -2509,36 +2709,66 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             where.append("(m.degree_required = 0 OR m.degree_required IS NULL)")
         if remote == "remote":
             where.append("m.remote = 'remote'")
+        return where, params
 
+    def match_place(bare: bool, home: str, radius: str, anywhere: str):
+        """(origin, home_text, home_problem, wanted radius, profile radius)."""
         origin, home_text, home_problem = _origin(home, profile())
         prefs_radius = _profile_radius(profile())
-        # A bare visit to "/" is not a request for the whole country: it is
+        # A bare visit is not a request for the whole country: it is
         # somebody opening their own dashboard, and their profile already
         # says how far they would go. Any query string is obeyed literally,
         # so every link on the page keeps meaning what it says.
-        if not request.query_params and origin is not None:
+        if bare and origin is not None:
             wanted = prefs_radius
         else:
             wanted = _radius(radius, anywhere)
+        return origin, home_text, home_problem, wanted, prefs_radius
 
+    def match_connect(q: str) -> sqlite3.Connection:
         con = connect()
         if q:
             from .scoring import title_matches
             con.create_function("title_matches", 2, title_matches,
                                 deterministic=True)
+        return con
+
+    def new_rows(con: sqlite3.Connection, where: list[str],
+                 params: dict[str, Any]) -> list[dict[str, Any]]:
+        """Every new card for these filters, best first, before the radius."""
+        listed = ("SELECT m.* FROM v_new_matches m WHERE "
+                  f"{' AND '.join(where)} ORDER BY m.match_score DESC")
+        rows = [_decode(r) for r in con.execute(listed, params).fetchall()]
+        for row in rows:
+            row["status"] = "new"
+            row["key"] = row.get("dedup_key") or f"job:{row['job_id']}"
+        return rows
+
+    def match_deck(rows, copies, origin, wanted):
+        """The radius, then the three-per-company cap: what Matches lists and
+        Turbo deals, in the same order. Returns (rows, hidden, unplaced).
+
+        The cap is applied AFTER the radius: applied first (it used to be, in
+        SQL), a company's three slots went to its best cards anywhere, the
+        radius then hid them, and the one near you had already been capped
+        out. Measured in n20 at 40 miles: Austin showed 2 nearby cards and
+        now shows 6, Seattle 10 and now 15."""
+        rows, hidden, unplaced = _by_distance(rows, origin, wanted, copies)
+        return _per_company(rows, PER_COMPANY), hidden, unplaced
+
+    @app.get("/", response_class=HTMLResponse)
+    def matches(request: Request, near: str = "", track: str = "",
+                degree: str = "", remote: str = "", limit: int = 60,
+                home: str = "", radius: str = "", anywhere: str = "",
+                only: str = "", q: str = ""):
+        from . import mapview
+        q = q.strip()
+        where, params = match_filters(near, track, q, degree, remote)
+        origin, home_text, home_problem, wanted, prefs_radius = match_place(
+            not request.query_params, home, radius, anywhere)
+        con = match_connect(q)
         try:
-            # Every card, best first. The three-per-company cap is applied
-            # AFTER the radius, in Python: applied first (it used to be, in
-            # this SQL), a company's three slots went to its best cards
-            # anywhere, the radius then hid them, and the one near you had
-            # already been capped out. Measured in n20 at 40 miles: Austin
-            # showed 2 nearby cards and now shows 6, Seattle 10 and now 15.
-            listed = ("SELECT m.* FROM v_new_matches m WHERE "
-                      f"{' AND '.join(where)} ORDER BY m.match_score DESC")
-            rows = [_decode(r) for r in con.execute(listed, params).fetchall()]
-            for row in rows:
-                row["status"] = "new"
-                row["key"] = row.get("dedup_key") or f"job:{row['job_id']}"
+            rows = new_rows(con, where, params)
             total = con.execute("SELECT COUNT(*) FROM v_new_matches").fetchone()[0]
             # The map draws every posting that survived the other filters,
             # uncapped and unlimited: it is a picture of where the work is,
@@ -2572,8 +2802,8 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             mine, _, _ = _by_distance(
                 [r for r in mine if r.get("key") in picked], origin, None)
         else:
-            rows, hidden, unplaced = _by_distance(rows, origin, wanted, copies)
-            rows = _per_company(rows, PER_COMPANY)[:limit]
+            rows, hidden, unplaced = match_deck(rows, copies, origin, wanted)
+            rows = rows[:limit]
             mine, _, _ = _by_distance(mine, origin, wanted)
         rows = sorted(mine + rows, key=lambda r: -(r.get("match_score") or 0))
         # Remote postings pass any radius, so without this the page can say
@@ -2624,6 +2854,134 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                            {"anywhere": "1", "near": near, "q": q,
                             "degree": degree, "remote": remote,
                             "home": home_text}.items() if v}))
+
+    # --- Turbo (plan 16, ADR 0026): decide interest; never submit ----------
+
+    TURBO_DECK = 100     # cards dealt per page; reloading deals the next ones
+
+    def turbo_strip(con) -> str:
+        from . import turbo
+        s = turbo.status(con)
+        parts = []
+        if s["queued"] + s["running"]:
+            parts.append(f"Drafting: {s['running']} running, {s['queued']} waiting")
+        if s["done_today"]:
+            parts.append(f"{s['done_today']} drafted today")
+        if s["pending_review"]:
+            parts.append(f"{s['pending_review']} waiting in Review")
+        if s["failed"]:
+            parts.append(f"{len(s['failed'])} failed")
+        return " · ".join(parts)
+
+    @app.get("/turbo", response_class=HTMLResponse)
+    def turbo_page(request: Request, near: str = "", track: str = "",
+                   degree: str = "", remote: str = "", home: str = "",
+                   radius: str = "", anywhere: str = "", q: str = "",
+                   msg: str = "", bad: int = 0):
+        from . import posting, turbo
+        q = q.strip()
+        where, params = match_filters(near, track, q, degree, remote)
+        kept = [(k, v) for k, v in request.query_params.multi_items()
+                if k not in ("msg", "bad")]
+        origin, _, _, wanted, _ = match_place(not kept, home, radius, anywhere)
+        prof = profile()
+        con = match_connect(q)
+        try:
+            rows = new_rows(con, where, params)
+            rows, _, _ = match_deck(rows, _copies(con, rows), origin, wanted)
+            more = len(rows) > TURBO_DECK
+            rows = rows[:TURBO_DECK]
+            texts = {r["id"]: r["description"] for r in con.execute(
+                "SELECT id, description FROM jobs WHERE id IN (%s)"
+                % ",".join("?" * len(rows)), [r["job_id"] for r in rows])} if rows else {}
+            limit = turbo.daily_limit(prof)
+            left = max(0, limit - turbo.queued_today(con))
+            strip = turbo_strip(con)
+        finally:
+            con.close()
+        for r in rows:
+            text = texts.get(r["job_id"]) or ""
+            r["excerpt"] = posting.visible(text).text[:1200] if text else ""
+            r["thin"] = bool(posting.thin(text, r["job_id"]))
+        back = urlencode(kept)
+        return render("turbo", "turbo", title="Turbo", rows=rows, more=more,
+                      back_query=f"?{back}" if back else "", msg=msg, bad=bad,
+                      blocker=turbo.drafting_blocker(prof), limit=limit,
+                      left_today=left, strip=strip)
+
+    def turbo_reply(js: str, back: str, message: str, bad: bool, **extra):
+        """JSON for the page's script; a redirect when JavaScript is off."""
+        if js:
+            return JSONResponse({"ok": not bad, "message": message, **extra})
+        query = back.lstrip("?")
+        joiner = "&" if query else ""
+        return RedirectResponse(
+            f"/turbo?{query}{joiner}{urlencode({'msg': message, 'bad': int(bad)})}",
+            status_code=303)
+
+    @app.post("/turbo/pass")
+    def turbo_pass(job_id: int = Form(...), back: str = Form(""), js: str = Form("")):
+        from . import turbo
+        con = connect()
+        try:
+            turbo.pass_job(con, job_id)
+            con.commit()
+        except ValueError as exc:
+            return turbo_reply(js, back, str(exc), True)
+        finally:
+            con.close()
+        return turbo_reply(js, back, f"Passed. Undo with `jsa unpass {job_id}`.", False)
+
+    @app.post("/turbo/unpass")
+    def turbo_unpass(job_id: int = Form(...), back: str = Form(""), js: str = Form("")):
+        from . import turbo
+        con = connect()
+        try:
+            turbo.unpass(con, job_id)
+            con.commit()
+        except ValueError as exc:
+            return turbo_reply(js, back, str(exc), True)
+        finally:
+            con.close()
+        return turbo_reply(js, back, "Back in your matches.", False)
+
+    @app.post("/turbo/interested")
+    def turbo_interested(job_id: int = Form(...), back: str = Form(""),
+                         js: str = Form("")):
+        """Saves the job (your act) and, within the day's limit, queues its
+        drafts. Submits nothing: there is no code path that could."""
+        from . import turbo
+        con = connect()
+        try:
+            result = turbo.interested(con, job_id, profile())
+            con.commit()
+        except (ValueError, approvals.ApprovalError) as exc:
+            return turbo_reply(js, back, str(exc), True)
+        finally:
+            con.close()
+        if result.queued:
+            app.state.worker.wake()
+        return turbo_reply(js, back, result.message, False, queued=result.queued)
+
+    @app.post("/turbo/cancel")
+    def turbo_cancel(back: str = Form(""), js: str = Form("")):
+        from . import turbo
+        con = connect()
+        try:
+            n = turbo.cancel_waiting(con)
+            con.commit()
+        finally:
+            con.close()
+        return turbo_reply(js, back, f"Cancelled {n} waiting draft(s).", False)
+
+    @app.get("/turbo/status")
+    def turbo_status():
+        from . import turbo
+        con = connect()
+        try:
+            return JSONResponse(turbo.status(con))
+        finally:
+            con.close()
 
     @app.get("/basemap/{tier}")
     def basemap_tier(tier: str, home: str = "", x: float = 0.0, y: float = 0.0,
@@ -2724,6 +3082,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
     @app.post("/job/{job_id}/tailor")
     def do_tailor(job_id: int, kind: str = Form("resume")):
         from .drafting import DraftError, draft_document
+        from .llm import LLMError
         if kind not in ("resume", "cover_letter"):
             return back_to_job(job_id, f"Unknown document kind {kind!r}.", True)
         prof = profile()
@@ -2737,6 +3096,9 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         except DraftError as exc:
             prefix = "Refused by a safety check: " if exc.refused else ""
             return back_to_job(job_id, prefix + str(exc), True)
+        except LLMError as exc:
+            # A failed model call was a 500 here (plan 16).
+            return back_to_job(job_id, f"The model call failed: {exc}", True)
         finally:
             con.close()
         parts = [f"Drafted {kind.replace('_', ' ')} v{result.version}. "
@@ -3203,4 +3565,6 @@ def serve(host: str = HOST, port: int = PORT) -> None:
 
     from . import basemap
     threading.Thread(target=basemap.warm, name="basemap-warm", daemon=True).start()
-    uvicorn.run(create_app(), host=host, port=port, log_level="warning")
+    app = create_app()
+    app.state.worker.start()               # Turbo's drafting queue (plan 16)
+    uvicorn.run(app, host=host, port=port, log_level="warning")

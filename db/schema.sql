@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     posted_at         TEXT,
     discovered_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
     closed_at         TEXT,                        -- set when the listing disappears
+    passed_at         TEXT,                        -- a Pass in Turbo (plan 16): its group leaves the matches; cleared by unpass
     -- Scoring produced by the discovery filter; explains itself in match_reasons.
     match_score       REAL,                        -- 0.0-1.0
     match_reasons     TEXT,                        -- JSON array of strings
@@ -277,6 +278,23 @@ CREATE INDEX IF NOT EXISTS idx_outreach_status ON outreach(status);
 -- ---------------------------------------------------------------------------
 -- Interview prep (build step 6).
 -- ---------------------------------------------------------------------------
+-- Drafts a right swipe in Turbo asked for (plan 16, ADR 0026). One worker
+-- in `jsa serve` drafts them one at a time through drafting.draft_document,
+-- the same path as `jsa tailor`. Nothing here submits anything.
+CREATE TABLE IF NOT EXISTS draft_queue (
+    id              INTEGER PRIMARY KEY,
+    job_id          INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+    kind            TEXT NOT NULL CHECK (kind IN ('resume','cover_letter')),
+    state           TEXT NOT NULL DEFAULT 'queued'
+                      CHECK (state IN ('queued','running','done','failed','cancelled')),
+    error           TEXT,                          -- one line: why it failed, or a note
+    queued_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    started_at      TEXT,
+    finished_at     TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_draft_queue_state ON draft_queue(state, id);
+
 CREATE TABLE IF NOT EXISTS interview_prep (
     id              INTEGER PRIMARY KEY,
     application_id  INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
@@ -355,12 +373,13 @@ END;
 -- is treated as unique to itself.
 CREATE VIEW IF NOT EXISTS v_new_matches AS
 -- A group of copies of one posting (dedup_key) leaves the list as a WHOLE
--- once any copy has an application. Filtering copy by copy, saving the best
--- copy brought the next one back as a "new" card (plan 16).
+-- once any copy has an application or was passed. Filtering copy by copy,
+-- saving the best copy brought the next one back as a "new" card (plan 16).
 WITH taken AS (
     SELECT DISTINCT COALESCE(t.dedup_key, 'job:' || t.id) AS grp
       FROM jobs t
-     WHERE EXISTS (SELECT 1 FROM applications a WHERE a.job_id = t.id)
+     WHERE t.passed_at IS NOT NULL
+        OR EXISTS (SELECT 1 FROM applications a WHERE a.job_id = t.id)
 ),
 open_jobs AS (
     SELECT j.*,

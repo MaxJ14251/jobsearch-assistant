@@ -119,6 +119,42 @@ def cmd_restore(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_pass(args: argparse.Namespace) -> int:
+    """Turbo's left swipe from the command line: the posting leaves the
+    matches, with every copy of it. Undo with `jsa unpass`."""
+    from . import turbo
+
+    con = db.connect()
+    try:
+        n = (turbo.unpass if args.undo else turbo.pass_job)(con, args.job_id)
+        con.commit()
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        con.close()
+    if args.undo:
+        print(f"job {args.job_id} is back in the matches ({n} cop(ies))")
+    else:
+        print(f"passed job {args.job_id} ({n} cop(ies)); undo: jsa unpass {args.job_id}")
+    return 0
+
+
+def cmd_passed(args: argparse.Namespace) -> int:
+    from . import turbo
+
+    con = db.connect()
+    try:
+        rows = turbo.passed(con, args.limit)
+    finally:
+        con.close()
+    if not rows:
+        print("nothing passed")
+    for r in rows:
+        print(f"[{r['job_id']}] {db.local_time(r['passed_at'])}  {r['title']} at {r['company']}")
+    return 0
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     """Report what will not work yet. Reads only; changes nothing."""
     from . import doctor
@@ -1317,6 +1353,16 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "doctor", help="what will not work yet in your profile and tracker"
     ).set_defaults(func=cmd_doctor)
+
+    p_pass = sub.add_parser("pass", help="not interested: the posting leaves the matches")
+    p_pass.add_argument("job_id", type=int)
+    p_pass.set_defaults(func=cmd_pass, undo=False)
+    p_unpass = sub.add_parser("unpass", help="undo a pass")
+    p_unpass.add_argument("job_id", type=int)
+    p_unpass.set_defaults(func=cmd_pass, undo=True)
+    p_passed = sub.add_parser("passed", help="postings you passed, newest first")
+    p_passed.add_argument("--limit", type=int, default=50)
+    p_passed.set_defaults(func=cmd_passed)
 
     p_back = sub.add_parser(
         "backup", help="a verified copy of the tracker, drafts and profile")

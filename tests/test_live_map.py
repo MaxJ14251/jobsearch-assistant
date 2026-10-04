@@ -259,11 +259,14 @@ class TestServeUpgradesFirst(unittest.TestCase):
         from unittest import mock
 
         order = []
+        app = mock.Mock()
+        app.state.worker.start = lambda: order.append("worker")
         with mock.patch.object(db, "upgrade", lambda *a, **k: order.append("upgrade") or []), \
                 mock.patch("uvicorn.run", lambda *a, **k: order.append("run")), \
-                mock.patch.object(web, "create_app", lambda *a, **k: None):
+                mock.patch.object(web, "create_app", lambda *a, **k: app):
             web.serve()
-        self.assertEqual(order, ["upgrade", "run"])
+        # Turbo's drafting worker starts after the upgrade, before serving.
+        self.assertEqual(order, ["upgrade", "worker", "run"])
 
 
 if __name__ == "__main__":

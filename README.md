@@ -553,6 +553,17 @@ with it.
 Local review dashboard on http://127.0.0.1:8765. It covers the whole path from a
 match to a resume you can upload yourself:
 
+- **Turbo** (`/turbo`): one match at a time, with the same filters as
+  Matches. **Pass** (← key, drag left, or the button) takes the posting and
+  its copies out of your matches (`jsa unpass <#>` brings it back; `jsa
+  passed` lists them). **Interested** (→, drag right) saves the job and
+  drafts a resume and cover letter in the background into Review, up to 20
+  jobs a day (`turbo: {daily_jobs: N}` in the profile). Each swipe can be
+  undone for 5 seconds (Z). A posting with almost no text is saved, not
+  drafted. **Nothing is ever submitted:** you approve the drafts and apply
+  on the employer's site, then `jsa applied`. Auto-applying was asked for
+  and declined; [ADR 0026](docs/decisions/0026-turbo-decides-interest-never-submits.md)
+  says why.
 - **Import your resume** (`/import`, linked from *Add a job*, and from
   Matches when there is no profile yet): drop a .docx or PDF on the page and get the
   same draft and report as `jsa import-resume`. It writes only the draft, and
