@@ -354,13 +354,21 @@ END;
 -- row, with `variant_count` reporting how many were folded in. A NULL dedup_key
 -- is treated as unique to itself.
 CREATE VIEW IF NOT EXISTS v_new_matches AS
-WITH open_jobs AS (
+-- A group of copies of one posting (dedup_key) leaves the list as a WHOLE
+-- once any copy has an application. Filtering copy by copy, saving the best
+-- copy brought the next one back as a "new" card (plan 16).
+WITH taken AS (
+    SELECT DISTINCT COALESCE(t.dedup_key, 'job:' || t.id) AS grp
+      FROM jobs t
+     WHERE EXISTS (SELECT 1 FROM applications a WHERE a.job_id = t.id)
+),
+open_jobs AS (
     SELECT j.*,
            COALESCE(j.dedup_key, 'job:' || j.id) AS grp
       FROM jobs j
      WHERE j.archived_at IS NULL
        AND j.closed_at IS NULL
-       AND NOT EXISTS (SELECT 1 FROM applications a WHERE a.job_id = j.id)
+       AND COALESCE(j.dedup_key, 'job:' || j.id) NOT IN (SELECT grp FROM taken)
 ),
 ranked AS (
     SELECT o.*,

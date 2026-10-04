@@ -2277,6 +2277,13 @@ def _json_list(value: str | None) -> list[Any]:
 # Hostnames a request may name. See the module docstring.
 ALLOWED_HOSTS = ("127.0.0.1", "localhost", "[::1]")
 
+# The same rule v_new_matches applies, for the map's own query (ADR 0015:
+# the map agrees with its filter): a group of copies is gone once any copy
+# has an application.
+NOT_TAKEN = ("COALESCE(m.dedup_key, 'job:' || m.id) NOT IN ("
+             "SELECT COALESCE(t.dedup_key, 'job:' || t.id) FROM jobs t "
+             "WHERE EXISTS (SELECT 1 FROM applications a WHERE a.job_id = t.id))")
+
 # The only upload is a resume (ADR 0022); real ones are well under 1 MB.
 MAX_UPLOAD_BYTES = 5_000_000
 # Every other form. The largest is a pasted posting, capped at
@@ -2545,8 +2552,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                 "SELECT m.id AS job_id, m.title, m.location, m.remote, "
                 "COALESCE(m.dedup_key, 'job:' || m.id) AS key "
                 "FROM jobs m WHERE m.archived_at IS NULL "
-                "AND m.closed_at IS NULL AND NOT EXISTS "
-                "(SELECT 1 FROM applications a WHERE a.job_id = m.id) "
+                f"AND m.closed_at IS NULL AND {NOT_TAKEN} "
                 f"AND {' AND '.join(where)}", params)]
             copies = _copies(con, rows)
             # The operator's own live applications (n21): on the map in
