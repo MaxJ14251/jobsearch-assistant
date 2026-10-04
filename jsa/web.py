@@ -378,7 +378,7 @@ CARD = """{% macro match_card(r) %}
 MATCHES = """{% extends "base" %}{% from "card" import match_card %}{% block body %}
 <h1>Matches</h1>
 {% if no_profile %}<p class="note bad" role="alert">No profile yet, so nothing can be scored for you.
-  <a class="plain" href="/import">Import your resume</a>, or copy
+  <a class="plain" href="/setup">Set up in the browser</a> (import your resume, or start from the example), or copy
   <code>profile/master_profile.example.yaml</code> to <code>profile/master_profile.yaml</code> and fill it in.</p>{% endif %}
 <div id="summary">
 <p class="sub">{{ total }} unreviewed · showing {{ rows|length - mine }}
@@ -2040,11 +2040,119 @@ IMPORTED = """{% extends "base" %}{% block body %}
 {% else %}<p class="sub">Nothing in the tracker scores above 0 for this draft.</p>{% endif %}{% endif %}
 
 <h2>Next</h2>
+<p><a class="btn" href="/setup">Continue setup</a> <span class="meta">your preferences, what's missing, then your first search</span></p>
 <ol>
   <li>Review <code>{{ draft_path }}</code>: the TODO lines, and every line marked <code># suggested: check</code>.</li>
   <li>Copy it over your profile:<br><code>copy "{{ draft_path }}" "{{ live_path }}"</code></li>
   <li>Run <code>jsa doctor</code>, then <code>jsa discover</code>.</li>
 </ol>
+{% endblock %}"""
+
+SETUP = """{% extends "base" %}{% block body %}
+<h1>Set up</h1>
+<p class="sub">Four steps to your first matches. Everything here writes the <strong>draft</strong> profile, <code>profile/{{ draft_name }}</code>; your real profile is only created on a first run, and never overwritten.</p>
+{% if msg %}<p class="note {{ 'bad' if bad else 'good' }}" role="status">{{ msg }}</p>{% endif %}
+{% if not api_key %}<p class="note" role="note">No model API key yet. Matching works without one; drafting resumes needs one. Add <code>NVIDIA_API_KEY=...</code> to <code>.env</code> (see <code>.env.example</code>; a free key from build.nvidia.com). This page never asks for it.</p>{% endif %}
+
+<h2>1 · Start</h2>
+{% if draft %}<p class="sub">You have a draft. <a class="plain" href="/import">Import a resume</a> to replace it, or carry on below.</p>
+{% else %}
+<div class="inline">
+  <a class="btn" href="/import">Import your resume</a>
+  <form method="post" action="/setup/start" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="ghost" type="submit">Start from the example</button>
+  </form>
+</div>{% endif %}
+
+{% if draft %}
+<h2>2 · What you're looking for</h2>
+<form class="stack" method="post" action="/setup/preferences" id="prefs">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="two">
+    <label for="s-titles">Job titles you want, one per line
+      <textarea name="target_titles" id="s-titles" rows="4" maxlength="4000">{{ f.target_titles }}</textarea>
+      {% if errors.target_titles %}<span class="err">{{ errors.target_titles }}</span>{% endif %}</label>
+    <label for="s-fallback">Second-choice titles (ranked lower), one per line
+      <textarea name="fallback_titles" id="s-fallback" rows="4" maxlength="4000">{{ f.fallback_titles }}</textarea></label>
+  </div>
+  <div class="two">
+    <label for="s-home">Home: a ZIP or "City, ST"
+      <input type="text" name="home" id="s-home" value="{{ f.home }}" maxlength="80">
+      {% if errors.home %}<span class="err">{{ errors.home }}</span>{% endif %}</label>
+    <label for="s-radius">How far you'd commute, in miles
+      <input type="number" name="radius" id="s-radius" value="{{ f.radius }}" min="1" max="500">
+      {% if errors.radius %}<span class="err">{{ errors.radius }}</span>{% endif %}</label>
+  </div>
+  <label class="check" for="s-remote"><input type="checkbox" name="remote" id="s-remote" value="1" {{ 'checked' if f.remote }}> Remote jobs in the US are fine</label>
+  <label for="s-locs">Other cities you'd work in, one per line ("City, ST")
+    <textarea name="locations" id="s-locs" rows="2" maxlength="2000">{{ f.locations }}</textarea>
+    {% if errors.locations %}<span class="err">{{ errors.locations }}</span>{% endif %}</label>
+  <label for="s-auth">How you can work in the US, in your words (e.g. "US citizen")
+    <input type="text" name="work_authorization" id="s-auth" value="{{ f.work_authorization }}" maxlength="200"></label>
+  <div class="two">
+    {% for name, text in (("needs_visa_sponsorship", "Need visa sponsorship?"), ("willing_to_relocate", "Willing to relocate?")) %}
+    <label for="s-{{ name }}">{{ text }}
+      <select name="{{ name }}" id="s-{{ name }}">
+        {% for v, t in (("", "not decided"), ("yes", "yes"), ("no", "no")) %}<option value="{{ v }}" {{ 'selected' if f[name] == v }}>{{ t }}</option>{% endfor %}
+      </select>
+      {% if errors[name] %}<span class="err">{{ errors[name] }}</span>{% endif %}</label>
+    {% endfor %}
+  </div>
+  <div class="two">
+    <label for="s-floor">Lowest yearly pay you'd take: "no floor" or a figure
+      <input type="text" name="floor" id="s-floor" value="{{ f.floor }}" maxlength="40" placeholder="no floor">
+      {% if errors.floor %}<span class="err">{{ errors.floor }}</span>{% endif %}</label>
+    <label for="s-years">Most years of experience you can claim
+      <input type="number" name="max_years" id="s-years" value="{{ f.max_years }}" min="0" max="50">
+      {% if errors.max_years %}<span class="err">{{ errors.max_years }}</span>{% endif %}</label>
+  </div>
+  <label for="s-yf">A posting that asks for more years
+    <select name="years_filter" id="s-yf">
+      {% for v, t in (("reject", "drop it"), ("rank", "keep it, ranked lower"), ("off", "ignore years")) %}<option value="{{ v }}" {{ 'selected' if f.years_filter == v }}>{{ t }}</option>{% endfor %}
+    </select></label>
+  <label for="s-ex">Words that rule a posting out, one per line (e.g. Senior)
+    <textarea name="exclude_keywords" id="s-ex" rows="3" maxlength="2000">{{ f.exclude_keywords }}</textarea></label>
+  <button type="submit">Save to the draft</button>
+</form>
+
+<h2>3 · Still missing</h2>
+{% if blocking %}<p class="sub">These stop drafting from working. Fill them in by editing <code>profile/{{ draft_name }}</code> (bullets, summaries and your degree line are written there, in your words).</p>
+<ul>{% for x in blocking %}<li><strong>{{ x.what }}</strong><br><span class="meta">{{ x.fix }}</span></li>{% endfor %}</ul>
+{% else %}<p class="note good">Nothing is missing from the draft.</p>{% endif %}
+
+<h2>4 · Make it yours, then find jobs</h2>
+{% if can_adopt %}
+<form method="post" action="/setup/adopt" class="inline">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <button type="submit">Make this my profile</button>
+  <span class="meta">{% if live_exists %}Replaces the unedited example (a backup is kept first).{% else %}Creates profile/master_profile.yaml from the draft.{% endif %}</span>
+</form>
+{% else %}<p class="sub">You already have a profile, and it is never overwritten here. To use the draft, copy it over yourself:<br><code>copy "{{ draft_full }}" "{{ live_full }}"</code></p>{% endif %}
+{% endif %}
+
+{% if live_personal %}
+<form method="post" action="/setup/discover" class="inline" style="margin-top:10px" id="disc-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <button type="submit" {{ 'disabled' if progress.running }}>Find jobs</button>
+  <span class="meta" id="disc">{% if progress.running %}Searching: {{ progress.polled }} of {{ progress.total }} job boards…{% elif progress.done %}{% if progress.error %}Stopped: {{ progress.error }}{% else %}Done. <a class="plain" href="/">See your matches</a> or <a class="plain" href="/turbo">swipe through them</a>.{% endif %}{% else %}About 13 minutes the first time; it runs in the background.{% endif %}</span>
+</form>
+<script>
+(function () {
+  var line = document.getElementById('disc');
+  function poll() {
+    fetch('/setup/discover/status').then(function (r) { return r.json(); }).then(function (p) {
+      if (p.running) { line.textContent = 'Searching: ' + p.polled + ' of ' + p.total + ' job boards…'; setTimeout(poll, 5000); }
+      else if (p.done) { location.reload(); }
+    });
+  }
+  {% if progress.running %}poll();{% endif %}
+})();
+</script>
+{% endif %}
+<style>.err{color:var(--clay);font-size:12.5px}
+  form.stack label.check{display:flex;gap:8px;align-items:center;font-size:13.5px}
+  form.stack label.check input{width:auto;margin:0}</style>
 {% endblock %}"""
 
 TURBO = """{% extends "base" %}{% from "card" import match_card %}{% block body %}
@@ -2248,7 +2356,7 @@ env = Environment(
                        "prep": PREP, "pipeline": PIPELINE, "review": REVIEW,
                        "preview": PREVIEW, "add": ADD,
                        "import": IMPORT, "imported": IMPORTED,
-                       "turbo": TURBO}),
+                       "turbo": TURBO, "setup": SETUP}),
     # Always on. select_autoescape(["html"]) keys on the template NAME, and
     # these are named "base", "job"... so it was silently off, and a job
     # description from a third-party board rendered as live HTML.
@@ -2628,6 +2736,8 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
     from .turbo import Worker
     # Started by serve(); tests drive it with drain().
     app.state.worker = Worker(db_path, profile_loader)
+    from .setup import Discovery
+    app.state.discovery = Discovery()       # the setup page's first search
 
     def connect() -> sqlite3.Connection:
         return db.connect(db_path) if db_path is not None else db.connect()
@@ -3079,6 +3189,113 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         con = connect()
         try:
             return JSONResponse(turbo.status(con))
+        finally:
+            con.close()
+
+    # --- Setup (plan 20): draft only; adopt on first run only -------------
+
+    NL = "\n"   # one value per line in the setup form's text areas
+
+    def setup_form_values(draft: dict | None) -> dict[str, Any]:
+        p = (draft or {}).get("job_search_preferences") or {}
+        locs = [str(x) for x in p.get("locations") or []]
+        home = str(p.get("home_location") or "")
+        floor = p.get("compensation_floor_usd")
+        tri = {True: "yes", False: "no"}
+        return {
+            "target_titles": NL.join(map(str, p.get("target_titles") or [])),
+            "fallback_titles": NL.join(map(str, p.get("fallback_titles") or [])),
+            "home": home, "radius": p.get("radius_miles") or 40,
+            "remote": any(x.lower().startswith("remote") for x in locs),
+            "locations": NL.join(x for x in locs
+                                    if not x.lower().startswith("remote") and x != home),
+            "work_authorization": p.get("work_authorization") or "",
+            "needs_visa_sponsorship": tri.get(p.get("needs_visa_sponsorship"), ""),
+            "willing_to_relocate": tri.get(p.get("willing_to_relocate"), ""),
+            "floor": "no floor" if floor == "no_floor" else ("" if floor is None else floor),
+            "max_years": p.get("max_years_experience") or "",
+            "years_filter": p.get("years_filter") or "reject",
+            "exclude_keywords": NL.join(map(str, p.get("exclude_keywords") or [])),
+        }
+
+    def setup_page(msg: str = "", bad: int = 0, form: dict | None = None,
+                   errors: dict | None = None) -> HTMLResponse:
+        from . import config, doctor, setup
+        from .llm import LLMError, api_key
+        from .resume_import import DRAFT_NAME
+        draft = setup.load_draft()
+        try:
+            api_key()
+            has_key = True
+        except LLMError:
+            has_key = False
+        con = connect()
+        try:
+            blocking = doctor.run(draft, con).blocking if draft is not None else []
+            progress = app.state.discovery.progress(con)
+        finally:
+            con.close()
+        live = config.PROFILE_PATH
+        return render("setup", "matches", title="Set up", msg=msg, bad=bad,
+                      draft=draft is not None, draft_name=DRAFT_NAME,
+                      f=form or setup_form_values(draft), errors=errors or {},
+                      blocking=blocking, can_adopt=setup.can_adopt(),
+                      live_exists=live.exists(),
+                      live_personal=live.exists() and not setup.can_adopt(),
+                      draft_full=str(setup.draft_path()), live_full=str(live),
+                      api_key=has_key, progress=progress)
+
+    def back_to_setup(msg: str, bad: bool = False) -> RedirectResponse:
+        return RedirectResponse("/setup?" + urlencode({"msg": msg, "bad": int(bad)}),
+                                status_code=303)
+
+    @app.get("/setup", response_class=HTMLResponse)
+    def setup_get(msg: str = "", bad: int = 0):
+        return setup_page(msg, bad)
+
+    @app.post("/setup/start")
+    def setup_start():
+        from . import setup
+        setup.start_from_example()
+        return back_to_setup("Started from the example. Replace its preferences "
+                             "below, and its work history in the draft file.")
+
+    @app.post("/setup/preferences", response_class=HTMLResponse)
+    async def setup_preferences(request: Request):
+        from . import setup
+        form = {k: str(v) for k, v in (await request.form()).items() if k != "csrf"}
+        if setup.load_draft() is None:
+            return back_to_setup("Start with step 1 first.", True)
+        prefs, errors = setup.validate(form)
+        if errors:
+            values = {**form, "remote": bool(form.get("remote"))}
+            return setup_page("Nothing was saved: fix the marked fields.", 1,
+                              values, errors)
+        setup.set_preferences(setup.draft_path(), prefs)
+        return back_to_setup("Saved to the draft.")
+
+    @app.post("/setup/adopt")
+    def setup_adopt():
+        from . import setup
+        try:
+            copy = setup.adopt()
+        except (PermissionError, FileNotFoundError) as exc:
+            return back_to_setup(str(exc)[:1].upper() + str(exc)[1:] + ".", True)
+        return back_to_setup("This is now your profile."
+                             + (f" The example it replaced is backed up in {copy}."
+                                if copy else "") + " Next: find jobs.")
+
+    @app.post("/setup/discover")
+    def setup_discover():
+        if not app.state.discovery.start():
+            return back_to_setup("A search is already running.", True)
+        return back_to_setup("Searching in the background. This page shows progress.")
+
+    @app.get("/setup/discover/status")
+    def setup_discover_status():
+        con = connect()
+        try:
+            return JSONResponse(app.state.discovery.progress(con))
         finally:
             con.close()
 

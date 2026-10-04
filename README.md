@@ -122,6 +122,13 @@ Your name and contact details, what you have actually done as short bullets,
 the titles and places you want. It is gitignored, so it stays on your machine.
 Budget most of the hour here; everything downstream is only as good as this.
 
+Or skip the YAML: start the dashboard (`.venv/Scripts/python -m jsa serve`;
+it creates the tracker if there isn't one) and follow **Setup** at
+http://127.0.0.1:8765/setup. Import your resume or start from the example,
+fill in what you're looking for in a form, see what's still missing, make
+it your profile (first run only; an existing profile is never overwritten),
+and run the first search in the background.
+
 Or start from your resume, as .docx or a text PDF:
 
 ```bash

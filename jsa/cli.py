@@ -556,8 +556,9 @@ def cmd_serve(args: argparse.Namespace) -> int:
     from . import web
 
     if not DB_PATH.exists():
-        print(f"no tracker at {DB_PATH} - run `python -m jsa init` first", file=sys.stderr)
-        return 1
+        # A newcomer opens the dashboard first now (plan 20): /setup.
+        db.init_db()
+        print(f"created a new tracker at {DB_PATH}")
     web.serve(host=args.host, port=args.port)
     return 0
 

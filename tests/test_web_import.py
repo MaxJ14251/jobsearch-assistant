@@ -158,10 +158,11 @@ class TestImportRoute(ImportBase):
 
 
 class TestEntryPoints(ImportBase):
-    def test_matches_points_a_newcomer_to_import_only_without_a_profile(self):
+    def test_matches_points_a_newcomer_to_setup_only_without_a_profile(self):
+        # Plan 20: the callout leads to /setup, which starts with the import.
         no_profile = web.create_app(db_path=self.dbfile, profile_loader=lambda: None)
         with TestClient(no_profile, base_url=BASE) as c:
-            self.assertIn('href="/import"', c.get("/").text)
+            self.assertIn('href="/setup"', c.get("/").text)
         self.assertNotIn("No profile yet", self.client.get("/").text)
 
     def test_the_add_page_links_to_import(self):

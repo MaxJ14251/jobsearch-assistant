@@ -6,6 +6,7 @@ and the dashboard alike.
 """
 
 import asyncio
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,7 +15,7 @@ from unittest import mock
 from fastapi.testclient import TestClient
 
 from jsa import db, intake, web
-from jsa.config import Preferences
+from jsa.config import ROOT, Preferences
 from jsa.llm import LLMError
 
 BASE = "http://127.0.0.1:8765"
@@ -32,6 +33,15 @@ class Base(unittest.TestCase):
                     "VALUES (1,1,'Support Engineer','https://acme.test/1')")
         con.commit()
         con.close()
+        # Every route is posted below, the setup ones included: keep them off
+        # the real profile folder, and don't start a real discovery.
+        profile_dir = self.path.parent / "profile"
+        profile_dir.mkdir()
+        shutil.copy(ROOT / "profile" / "master_profile.example.yaml", profile_dir)
+        for patch in (mock.patch("jsa.config.PROFILE_PATH", profile_dir / "master_profile.yaml"),
+                      mock.patch("jsa.setup.Discovery.start", return_value=True)):
+            patch.start()
+            self.addCleanup(patch.stop)
         self.app = web.create_app(db_path=self.path, output_dir=self.path.parent / "out",
                                   profile_loader=lambda: PREFS_PROFILE)
         self.client = TestClient(self.app, base_url=BASE)
@@ -100,6 +110,9 @@ class TestTheGuard(Base):
             "/daily/seen": {"run_id": 1, "back": "/"},
             "/job/1/answers": {},
             "/learning/reset": {"back": "/turbo"},
+            "/setup/start": {}, "/setup/preferences": {"target_titles": "Engineer"},
+            "/setup/adopt": {},
+            "/setup/discover": {},
         }
         routes = {r.path.replace("{job_id}", "1").replace("{reply_id}", "1")
                   for r in self.app.routes if "POST" in getattr(r, "methods", set())}

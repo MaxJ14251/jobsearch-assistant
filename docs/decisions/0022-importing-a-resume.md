@@ -157,3 +157,14 @@ handling and the draft are unchanged.
   never garbled). Above `WEAK_PDF_SHARE` = 30% of the model's bullets not
   found word for word, the report warns and suggests the .docx; the clean
   fixtures and the owner's PDF lose 0%.
+
+## Note, 2026-10-03 (plan 20): first-run adopt
+
+The setup page (`/setup`) writes only the draft, like the import. On a first
+run, when `profile/master_profile.yaml` doesn't exist yet or is still
+byte-identical to the shipped example, it offers **Make this my profile**:
+the draft is copied over atomically, and in the example case a backup is
+taken first. A profile that differs from the example is never overwritten,
+and the page shows the copy command instead, as before (a test guards
+this). Editing a personal profile's preferences in the browser is not
+offered; that stays an edit to the file.
