@@ -24,10 +24,12 @@ from typing import Any
 
 from .config import DB_PATH, OUTPUT_DIR, PROFILE_PATH, ConfigError
 
-LABELS = ("manual", "pre-upgrade", "pre-restore")
+LABELS = ("manual", "pre-upgrade", "pre-restore", "daily")
 # Copies kept per label by prune(): manual ones are asked for, the others are
 # taken automatically and only need to cover the last few risky moments.
-KEEP = {"manual": 10, "pre-upgrade": 3, "pre-restore": 3}
+KEEP = {"manual": 10, "pre-upgrade": 3, "pre-restore": 3,
+        # `jsa daily` (plan 18): a week of them, counted apart from manual ones.
+        "daily": 7}
 # Only folders this tool made: a date, a time and one of its labels.
 _NAME = re.compile(r"^(\d{4}-\d{2}-\d{2}_\d{6})-(%s)(?:-\d+)?$" % "|".join(LABELS))
 DB_NAME = "jobsearch.db"

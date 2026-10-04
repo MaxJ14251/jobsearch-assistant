@@ -38,8 +38,14 @@ def local_date(stamp: str | None):
     return when.astimezone().date() if when else None
 
 
+# How long a connection waits for another writer before "database is locked".
+# Brief overlaps (a dashboard save during discovery's commit) wait instead of
+# failing.
+BUSY_TIMEOUT_S = 10
+
+
 def connect(path: Path = DB_PATH) -> sqlite3.Connection:
-    con = sqlite3.connect(path)
+    con = sqlite3.connect(path, timeout=BUSY_TIMEOUT_S)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
     return con

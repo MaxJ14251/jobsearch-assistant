@@ -292,6 +292,8 @@ BASE = """<!doctype html>
     overflow-wrap:anywhere}
   .note.bad{background:var(--clay-soft);color:var(--clay)}
   .note.good{background:var(--sage-soft);color:var(--sage)}
+  .note.daily{display:flex;gap:12px;align-items:center;justify-content:space-between;
+    flex-wrap:wrap;background:var(--surface-2);color:var(--ink)}
   .inline{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
   .ids{font:12px ui-monospace,Menlo,monospace;color:var(--mute);overflow-wrap:anywhere}
   details{margin-top:8px}
@@ -332,7 +334,21 @@ BASE = """<!doctype html>
   <a href="/review" class="{{ 'on' if page=='review' }}">Review{% if pending_count %} ({{ pending_count }}){% endif %}</a>
   <a href="/add" class="{{ 'on' if page=='add' }}">Add a job</a>
 </div></nav>
-<div class="wrap{{ ' wide' if wide }}">{% block body %}{% endblock %}</div>
+<div class="wrap{{ ' wide' if wide }}">{% if daily %}
+<div class="note daily" id="daily-banner" role="status">
+  <span>Since your last daily run ({{ daily.started_at|localtime }}):
+    <a class="plain" href="/">{{ daily.s.new_matches }} new match(es)</a> ·
+    <a class="plain" href="/pipeline">{{ daily.s.replies }} repl(ies) to confirm</a> ·
+    <a class="plain" href="/pipeline">{{ daily.s.due }} follow-up(s) due</a> ·
+    <a class="plain" href="/review">{{ daily.s.review }} draft(s) waiting in Review</a>
+    {%- if not daily.ok %} · <strong>failed: {{ daily.s.failed|join(', ') }}</strong> (see logs/){% endif %}
+    {%- if daily.s.top %}<br><span class="meta">Newest best: {% for t in daily.s.top %}<a class="plain" href="/job/{{ t.job_id }}">{{ t.company }}, {{ t.title }}</a>{{ ' · ' if not loop.last }}{% endfor %}</span>{% endif %}</span>
+  <form method="post" action="/daily/seen" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="run_id" value="{{ daily.id }}">
+    <input type="hidden" name="back" value="{{ page_path }}">
+    <button class="ghost" type="submit">Got it</button>
+  </form>
+</div>{% endif %}{% block body %}{% endblock %}</div>
 </body></html>"""
 
 CARD = """{% macro match_card(r) %}
@@ -2620,10 +2636,25 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                     status_code=403)
         return await call_next(request)
 
+    def daily_banner(con) -> dict[str, Any] | None:
+        """The latest `jsa daily` run nobody has dismissed yet (plan 18)."""
+        from . import daily
+        try:
+            row = daily.latest(con, unseen=True)
+        except sqlite3.OperationalError:      # an older tracker: no table yet
+            return None
+        if row is None:
+            return None
+        return {"id": row["id"], "started_at": row["started_at"], "ok": bool(row["ok"]),
+                "s": json.loads(row["summary_json"] or "{}")}
+
     def render(name: str, page: str, **ctx) -> HTMLResponse:
         con = connect()
         try:
             ctx.setdefault("pending_count", _pending_count(con))
+            if page in ("matches", "pipeline") and name != "preview":
+                ctx.setdefault("daily", daily_banner(con))
+                ctx.setdefault("page_path", "/" if page == "matches" else "/pipeline")
         finally:
             con.close()
         title = ctx.pop("title", page.title())
@@ -2982,6 +3013,19 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             return JSONResponse(turbo.status(con))
         finally:
             con.close()
+
+    @app.post("/daily/seen")
+    def daily_seen(run_id: int = Form(...), back: str = Form("/")):
+        """"Got it" on the daily banner. Hides runs up to this one."""
+        con = connect()
+        try:
+            con.execute("UPDATE daily_runs SET seen_at = ? WHERE id <= ? "
+                        "AND seen_at IS NULL", (db.utcnow(), run_id))
+            con.commit()
+        finally:
+            con.close()
+        return RedirectResponse(back if back in ("/", "/pipeline") else "/",
+                                status_code=303)
 
     @app.get("/basemap/{tier}")
     def basemap_tier(tier: str, home: str = "", x: float = 0.0, y: float = 0.0,

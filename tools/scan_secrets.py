@@ -30,7 +30,7 @@ AUTHORSHIP_FILES = {"LICENSE", "README.md", "CONTRIBUTING.md"}
 NAME_PART_MIN = 4
 
 SKIP_DIRS = {".git", ".venv", "__pycache__", "output", "documents", ".claude",
-             "backups"}
+             "backups", "logs"}
 
 # Compressed and binary files, read as text with errors ignored, are random
 # letters -- and random letters eventually spell something. The shipped

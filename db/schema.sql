@@ -295,6 +295,18 @@ CREATE TABLE IF NOT EXISTS draft_queue (
 
 CREATE INDEX IF NOT EXISTS idx_draft_queue_state ON draft_queue(state, id);
 
+-- One row per `jsa daily` run (plan 18, ADR 0028). The owner schedules the
+-- command; the tool never creates a schedule.
+CREATE TABLE IF NOT EXISTS daily_runs (
+    id              INTEGER PRIMARY KEY,
+    started_at      TEXT NOT NULL,
+    finished_at     TEXT,
+    ok              INTEGER NOT NULL DEFAULT 0 CHECK (ok IN (0,1)),
+    steps_json      TEXT,                          -- [{name, state, detail}]
+    summary_json    TEXT,                          -- what is new since the run before
+    seen_at         TEXT                           -- the dashboard banner's "Got it"
+);
+
 CREATE TABLE IF NOT EXISTS interview_prep (
     id              INTEGER PRIMARY KEY,
     application_id  INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,

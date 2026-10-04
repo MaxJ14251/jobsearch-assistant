@@ -269,6 +269,26 @@ def check_tracker(con: sqlite3.Connection | None, profile: dict[str, Any],
         report.add(False, f"The newest backup is {age:.0f} days old",
                    "Run `jsa backup`.")
 
+    # `jsa daily` (plan 18): only once one has ever run.
+    import json as _json
+    from datetime import datetime, timezone
+
+    from . import daily, db
+    try:
+        run = daily.latest(con)
+    except sqlite3.OperationalError:
+        run = None
+    if run is not None and run["finished_at"] and not run["ok"]:
+        failed = [s["name"] for s in _json.loads(run["steps_json"] or "[]")
+                  if s.get("state") == "failed"]
+        report.add(False, f"The last daily run failed: {', '.join(failed) or 'a step'}",
+                   "See logs/ beside the tracker, then run `jsa daily` again.")
+    elif run is not None:
+        started = db.local_date(run["started_at"])
+        if started and (datetime.now(timezone.utc).date() - started).days > daily.STALE_DAYS:
+            report.add(False, f"The last daily run was on {started}",
+                       "Run `jsa daily`, or check the task you scheduled for it.")
+
     if jobs >= MIN_POSTINGS_FOR_TAGS:
         from .tailor import is_dead, tag_weights, vocabulary
 

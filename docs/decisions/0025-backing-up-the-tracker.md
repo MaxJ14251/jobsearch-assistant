@@ -50,3 +50,7 @@ their recorded hashes, read-only. Nothing did that before.
 
 Scheduled backups, encrypting copies, uploading them anywhere, and backing
 up `.env`.
+
+## Note, 2026-10-03
+
+The owner may schedule `jsa daily` (ADR 0028), which takes a `daily` copy (7 kept). The tool itself still never creates or runs a schedule.

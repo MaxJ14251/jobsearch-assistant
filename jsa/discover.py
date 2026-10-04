@@ -129,6 +129,10 @@ def discover(
                 url=url,
                 company_id=company_id,
             )
+            # Commit before the network: a feed can take minutes, and an open
+            # write transaction meanwhile locks out the dashboard's saves and
+            # passes and Turbo's drafter ("database is locked"; plan 18).
+            con.commit()
 
             result = sources.fetch(_with_context(entry, prefs))
             # Workday skips detail requests for title-rejected postings (Plan

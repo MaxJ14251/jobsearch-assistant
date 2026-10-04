@@ -227,6 +227,29 @@ are not in a coastal tech hub, add local employers' boards to that file —
 
 ## Usage
 
+### Every day: `jsa daily`
+
+```bash
+.venv/Scripts/python -m jsa daily
+```
+
+One run of the routine work: a verified backup, discovery, then the inbox
+check (if you set it up). A failed step doesn't stop the next, and the
+command exits 1 if any failed. It ends with what's new since the last run
+(new matches with the best five, replies to confirm, follow-ups due, drafts
+waiting in Review), the dashboard shows the same as a banner until you click
+"Got it", and a UTF-8 log goes to `logs/` beside the tracker.
+
+To have it run every morning, print the command and run it yourself; the
+tool never schedules anything:
+
+```bash
+.venv/Scripts/python -m jsa daily --schedule-help --at 07:00
+```
+
+On Windows that prints a `schtasks /Create ...` line for Task Scheduler. See
+[ADR 0028](docs/decisions/0028-a-daily-run-the-owner-schedules.md).
+
 ### Backups
 
 The tracker is the only record of your applications, so copy it:

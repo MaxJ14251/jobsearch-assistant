@@ -87,3 +87,7 @@ COUNTS here (never subjects, senders or text).
 - **A model to classify mail**: it would send the operator's mail to a
   third party for a job a phrase list does.
 - **Running on a schedule**: it runs when the owner asks.
+
+## Note, 2026-10-03
+
+The owner may schedule `jsa daily` (ADR 0028), which runs this among its steps. The tool itself still never creates or runs a schedule.

@@ -155,6 +155,26 @@ def cmd_passed(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_daily(args: argparse.Namespace) -> int:
+    """Backup, discovery and the inbox in one run (ADR 0028). Exit 1 if any
+    step failed, so a scheduler can show it."""
+    from . import daily
+
+    if args.schedule_help:
+        print(daily.schedule_help(args.at))
+        return 0
+    skip = tuple(s.strip() for s in (args.skip or "").split(",") if s.strip())
+    unknown = [s for s in skip if s not in daily.STEPS]
+    if unknown:
+        print(f"error: --skip takes {', '.join(daily.STEPS)}; not {', '.join(unknown)}",
+              file=sys.stderr)
+        return 2
+    result = daily.run(skip)
+    print(daily.report(result))
+    print(f"log: {daily.logs_dir()}")
+    return 0 if result.ok else 1
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     """Report what will not work yet. Reads only; changes nothing."""
     from . import doctor
@@ -1125,6 +1145,11 @@ def cmd_inbox(args: argparse.Namespace) -> int:
     except approvals.ApprovalError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+    except OSError as exc:
+        # A network error was a traceback here (plan 18); imaplib raises
+        # OSError subclasses (timeouts, refused, DNS).
+        print(f"error: Couldn't reach the mail server: {exc}", file=sys.stderr)
+        return 1
     finally:
         con.close()
     if not rows:
@@ -1353,6 +1378,14 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "doctor", help="what will not work yet in your profile and tracker"
     ).set_defaults(func=cmd_doctor)
+
+    p_daily = sub.add_parser(
+        "daily", help="backup, discovery and the inbox in one run, and what's new")
+    p_daily.add_argument("--skip", help="comma-separated: backup, discover, inbox")
+    p_daily.add_argument("--schedule-help", action="store_true",
+                         help="print the command to schedule it yourself; runs nothing")
+    p_daily.add_argument("--at", default="07:00", help="time for --schedule-help (HH:MM)")
+    p_daily.set_defaults(func=cmd_daily)
 
     p_pass = sub.add_parser("pass", help="not interested: the posting leaves the matches")
     p_pass.add_argument("job_id", type=int)
