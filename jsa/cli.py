@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -209,6 +210,40 @@ def cmd_answers(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_learned(args: argparse.Namespace) -> int:
+    """What your swipes have taught the ranking (ADR 0029). Reads only,
+    unless --reset."""
+    from . import learning
+
+    db.upgrade()           # settings on an older tracker
+    con = db.connect()
+    try:
+        if args.reset:
+            learning.reset(con)
+            con.commit()
+            print("Learning reset: swipes before now are ignored. Nothing was deleted.")
+            return 0
+        model = learning.build(con)
+    finally:
+        con.close()
+    if not learning.enabled(_profile_or_none()):
+        print("Learning from swipes is off (ranking.learn_from_swipes: false).")
+    print(f"{model.signals} swipe(s): {model.saves} saved, {model.passes} passed.")
+    if not model.active:
+        print(f"Learning starts after {learning.MIN_SIGNALS} swipes "
+              f"({model.signals} so far). Nothing is nudged yet.")
+        return 0
+    rows = sorted(((model.contribution(f), f) for f in model.counts),
+                  key=lambda t: -abs(t[0]))
+    for c, f in rows:
+        if c:
+            s, p = model.counts[f]
+            print(f"  {c:+.3f}  {learning.label(f)}: {s} saved, {p} passed")
+    print(f"Each match moves by at most {learning.MAX_NUDGE:.2f}. "
+          "Stored scores never change. Reset: jsa learned --reset")
+    return 0
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     """Report what will not work yet. Reads only; changes nothing."""
     from . import doctor
@@ -383,6 +418,13 @@ def cmd_rescore(args: argparse.Namespace) -> int:
     return 0
 
 
+def _profile_or_none():
+    try:
+        return load_profile()
+    except ConfigError:
+        return None
+
+
 def cmd_matches(args: argparse.Namespace) -> int:
     # One large board (SpaceX posts 2,300 reqs) otherwise fills the whole page
     # and buries every other company. Cap per company, then take the top N.
@@ -411,7 +453,6 @@ def cmd_matches(args: argparse.Namespace) -> int:
         SELECT * FROM capped
          WHERE company_rank <= :per_company
          ORDER BY match_score DESC
-         LIMIT :limit
     """
 
     con = db.connect()
@@ -419,9 +460,15 @@ def cmd_matches(args: argparse.Namespace) -> int:
         from .scoring import title_matches
         con.create_function("title_matches", 2, title_matches, deterministic=True)
     try:
-        rows = con.execute(
-            sql, {"per_company": args.per_company, "limit": args.limit, "q": search}
-        ).fetchall()
+        rows = [dict(r) for r in con.execute(
+            sql, {"per_company": args.per_company, "q": search}).fetchall()]
+        # The same nudge as the dashboard (plan 19); a no-op when off or
+        # under the threshold. The limit comes after it.
+        from . import learning
+        try:
+            rows = learning.rank(con, rows, _profile_or_none())[:args.limit]
+        except sqlite3.OperationalError:
+            rows = rows[:args.limit]
     finally:
         con.close()
 
@@ -453,6 +500,8 @@ def cmd_matches(args: argparse.Namespace) -> int:
         if row["enrichment_note"]:
             print(f"       note: {row['enrichment_note']}")
         for reason in json.loads(row["match_reasons"] or "[]"):
+            print(f"       · {reason}")
+        for reason in row.get("reasons") or []:          # learned (plan 19)
             print(f"       · {reason}")
     print(f"\n{len(rows)} match(es). Save one by its number: jsa save <#>")
     return 0
@@ -1412,6 +1461,11 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "doctor", help="what will not work yet in your profile and tracker"
     ).set_defaults(func=cmd_doctor)
+
+    p_learn = sub.add_parser("learned", help="what your swipes have taught the ranking")
+    p_learn.add_argument("--reset", action="store_true",
+                         help="ignore every swipe so far (nothing is deleted)")
+    p_learn.set_defaults(func=cmd_learned)
 
     p_ans = sub.add_parser("answers", help="copy-ready answers for a saved job's form")
     p_ans.add_argument("job_id", type=int)

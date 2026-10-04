@@ -323,6 +323,12 @@ CREATE TABLE IF NOT EXISTS application_answers (
     archived_at     TEXT
 );
 
+-- Small settings the dashboard changes (plan 19): learning_reset_at.
+CREATE TABLE IF NOT EXISTS settings (
+    key             TEXT PRIMARY KEY,
+    value           TEXT
+);
+
 CREATE TABLE IF NOT EXISTS interview_prep (
     id              INTEGER PRIMARY KEY,
     application_id  INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,

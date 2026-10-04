@@ -2053,7 +2053,11 @@ TURBO = """{% extends "base" %}{% from "card" import match_card %}{% block body 
   <b>Pass</b> (← or drag left) takes the posting out of your matches. <b>Interested</b> (→ or drag right) saves it and drafts a resume and cover letter into <a class="plain" href="/review">Review</a>. Nothing is ever submitted: you approve the drafts and apply on the employer's site.</p>
 {% if msg %}<p class="note {{ 'bad' if bad else 'good' }}" role="status">{{ msg }}</p>{% endif %}
 {% if blocker %}<p class="note bad" role="alert">Swiping right will save only: {{ blocker }}.</p>{% endif %}
-<p class="meta" id="t-limit">{{ left_today }} of {{ limit }} drafts left today.</p>
+<p class="meta" id="t-limit">{{ left_today }} of {{ limit }} drafts left today.
+  {% if learn %}· {% if not learn.enabled %}Learning from swipes is off in your profile.{% elif learn.active %}Your swipes nudge the order ({{ learn.signals }} so far).{% else %}Learning from your swipes starts after {{ learn.minimum }} ({{ learn.signals }} so far).{% endif %}
+  {% if learn.enabled and learn.signals %}<form method="post" action="/learning/reset" class="inline" style="display:inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/turbo">
+    <button class="ghost" type="submit" onclick="return confirm('Ignore every swipe so far? Nothing is deleted.')">Reset learning</button></form>{% endif %}{% endif %}</p>
 <div class="note" id="strip" role="status" aria-live="polite"{% if not strip %} hidden{% endif %}>{{ strip }}</div>
 
 <div id="deck">
@@ -2819,6 +2823,24 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             row["key"] = row.get("dedup_key") or f"job:{row['job_id']}"
         return rows
 
+    def learn_state(con, prof) -> dict[str, Any] | None:
+        from . import learning
+        try:
+            model = learning.build(con)
+        except sqlite3.OperationalError:
+            return None
+        return {"signals": model.signals, "active": model.active,
+                "enabled": learning.enabled(prof), "minimum": learning.MIN_SIGNALS}
+
+    def learned(con, rows):
+        """The swipe-learned nudge (plan 19, ADR 0029): a reorder in memory,
+        stored scores untouched; off or under the threshold, the same list."""
+        from . import learning
+        try:
+            return learning.rank(con, rows, profile())
+        except sqlite3.OperationalError:      # an older tracker
+            return rows
+
     def match_deck(rows, copies, origin, wanted):
         """The radius, then the three-per-company cap: what Matches lists and
         Turbo deals, in the same order. Returns (rows, hidden, unplaced).
@@ -2843,7 +2865,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             not request.query_params, home, radius, anywhere)
         con = match_connect(q)
         try:
-            rows = new_rows(con, where, params)
+            rows = learned(con, new_rows(con, where, params))
             total = con.execute("SELECT COUNT(*) FROM v_new_matches").fetchone()[0]
             # The map draws every posting that survived the other filters,
             # uncapped and unlimited: it is a picture of where the work is,
@@ -2880,7 +2902,8 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             rows, hidden, unplaced = match_deck(rows, copies, origin, wanted)
             rows = rows[:limit]
             mine, _, _ = _by_distance(mine, origin, wanted)
-        rows = sorted(mine + rows, key=lambda r: -(r.get("match_score") or 0))
+        rows = sorted(mine + rows,
+                      key=lambda r: -(r.get("adjusted", r.get("match_score")) or 0))
         # Remote postings pass any radius, so without this the page can say
         # "within 25 miles" over a list that is mostly remote work.
         near_count = sum(1 for r in rows
@@ -2962,7 +2985,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         prof = profile()
         con = match_connect(q)
         try:
-            rows = new_rows(con, where, params)
+            rows = learned(con, new_rows(con, where, params))
             rows, _, _ = match_deck(rows, _copies(con, rows), origin, wanted)
             more = len(rows) > TURBO_DECK
             rows = rows[:TURBO_DECK]
@@ -2972,6 +2995,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             limit = turbo.daily_limit(prof)
             left = max(0, limit - turbo.queued_today(con))
             strip = turbo_strip(con)
+            learn = learn_state(con, prof)
         finally:
             con.close()
         for r in rows:
@@ -2982,7 +3006,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         return render("turbo", "turbo", title="Turbo", rows=rows, more=more,
                       back_query=f"?{back}" if back else "", msg=msg, bad=bad,
                       blocker=turbo.drafting_blocker(prof), limit=limit,
-                      left_today=left, strip=strip)
+                      left_today=left, strip=strip, learn=learn)
 
     def turbo_reply(js: str, back: str, message: str, bad: bool, **extra):
         """JSON for the page's script; a redirect when JavaScript is off."""
@@ -3057,6 +3081,21 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             return JSONResponse(turbo.status(con))
         finally:
             con.close()
+
+    @app.post("/learning/reset")
+    def learning_reset(back: str = Form("/turbo")):
+        """Ignore every swipe so far (plan 19). Nothing is deleted."""
+        from . import learning
+        con = connect()
+        try:
+            learning.reset(con)
+            con.commit()
+        finally:
+            con.close()
+        target = back if back in ("/", "/turbo") else "/turbo"
+        return RedirectResponse(target + "?" + urlencode(
+            {"msg": "Learning reset: the order is back to your match scores "
+                    "until you swipe more.", "bad": 0}), status_code=303)
 
     @app.post("/daily/seen")
     def daily_seen(run_id: int = Form(...), back: str = Form("/")):

@@ -605,6 +605,15 @@ match to a resume you can upload yourself:
   drafted. **Nothing is ever submitted:** you approve the drafts and apply
   on the employer's site, then `jsa applied`. Auto-applying was asked for
   and declined; [ADR 0026](docs/decisions/0026-turbo-decides-interest-never-submits.md)
+- **Learning from your swipes.** After 30 swipes (passes plus saves), the
+  order of Matches, Turbo and `jsa matches` is nudged by what you have
+  favoured or passed: at most ±0.10 per match, so it reorders near-ties and
+  never lifts a weak match over a strong one. A nudged card says why ("+0.04:
+  you saved 6 of 7 'support' roles"). Stored scores never change and nothing
+  is hidden. `jsa learned` shows what it learned; "Reset learning" on Turbo or
+  `jsa learned --reset` starts over (nothing is deleted);
+  `ranking: {learn_from_swipes: false}` in your profile turns it off. See
+  [ADR 0029](docs/decisions/0029-ranking-nudged-by-your-swipes.md).
   says why.
 - **Import your resume** (`/import`, linked from *Add a job*, and from
   Matches when there is no profile yet): drop a .docx or PDF on the page and get the
