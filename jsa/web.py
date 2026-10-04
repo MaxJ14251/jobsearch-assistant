@@ -1669,6 +1669,50 @@ JOB = """{% extends "base" %}{% block body %}
 </div>
 {% else %}<p class="empty">No documents drafted for this job yet.</p>{% endfor %}
 
+{% if application %}
+<h2 id="answers">Application answers</h2>
+<p class="sub">For the employer's form: copy each one in yourself. Nothing is submitted. Facts come straight from your profile; written answers are checked against it, or built from your own sentences when a draft fails.</p>
+<div class="answers">
+{% for a in answer_facts + answer_written %}
+<div class="ans">
+  <div class="lbl">{{ a.question }}
+    {% if a.source == 'composed' %}<span class="flag">from your own sentences</span>
+    {% elif a.source == 'undecided' %}<span class="flag warn">undecided</span>
+    {% elif a.source == 'model' %}<span class="flag ok">checked</span>{% endif %}</div>
+  <p class="abody" id="ans-{{ loop.index }}">{{ a.body }}</p>
+  {% if a.note %}<p class="meta">{{ a.note }}</p>{% endif %}
+  <button class="ghost copy" type="button" data-copy="ans-{{ loop.index }}">Copy</button>
+</div>
+{% endfor %}
+</div>
+<form method="post" action="/job/{{ job.id }}/answers" class="inline" style="margin-top:8px"
+      onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Drafting answers…'">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <button type="submit">{{ 'Draft written answers again' if answer_written else 'Draft written answers' }}</button>
+  <span class="meta">One model call: why this role, a relevant project, why this company.</span>
+</form>
+<style>
+  .answers{display:grid;gap:8px}
+  .ans{border:1px solid var(--rule);border-radius:4px;padding:8px 10px}
+  .ans .abody{margin:4px 0;white-space:pre-wrap}
+</style>
+<script>
+document.querySelectorAll('button.copy').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var el = document.getElementById(b.dataset.copy), text = el.textContent.trim();
+    function select() {
+      var r = document.createRange(); r.selectNodeContents(el);
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      b.textContent = 'Selected: press Ctrl+C';
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { b.textContent = 'Copied'; }, select);
+    } else { select(); }
+  });
+});
+</script>
+{% endif %}
+
 <h2>Interview prep</h2>
 {% for p in preps %}
 <div class="card"><div class="row1">
@@ -3089,8 +3133,15 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                         "AND archived_at IS NULL ORDER BY id DESC",
                         (application["id"],)).fetchall():
                     preps.append({**dict(p), "count": len(_json_list(p["questions"]))})
+            from . import answers
+            try:
+                written = answers.stored(con, job_id) if application is not None else []
+            except sqlite3.OperationalError:      # an older tracker: no table yet
+                written = []
         finally:
             con.close()
+        facts = (answers.fact_answers(prof, dict(row))
+                 if application is not None and prof else [])
         from . import intake, posting
         return render("job", "matches", title=row["title"], job=dict(row),
                       thin=posting.thin(row["description"], job_id),
@@ -3099,7 +3150,8 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                       stack=_json_list(row["tech_stack"]),
                       application=dict(application) if application else None,
                       documents=documents, preps=preps, msg=msg, bad=bad,
-                      interview_rounds=INTERVIEW_ROUNDS)
+                      interview_rounds=INTERVIEW_ROUNDS,
+                      answer_facts=facts, answer_written=written)
 
     def back_to_pipeline(msg: str, bad: bool) -> RedirectResponse:
         return RedirectResponse(
@@ -3325,6 +3377,30 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                       warning=report.warning,
                       matches=report.matches, no_preview=report.no_preview,
                       draft_path=str(report.draft_path), live_path=str(live))
+
+    @app.post("/job/{job_id}/answers")
+    def draft_answers(job_id: int):
+        """The button is the request, as with Tailor: one model call, the
+        answers checked, a failed one built from your own sentences."""
+        from . import answers
+        from .tailor import IdentityLeakError
+        prof = profile()
+        if prof is None:
+            return back_to_job(job_id, "Your profile could not be loaded.", True)
+        con = connect()
+        try:
+            written = answers.write(con, job_id, prof)
+            con.commit()
+        except (ValueError, IdentityLeakError) as exc:
+            return back_to_job(job_id, str(exc), True)
+        finally:
+            con.close()
+        checked = sum(a.source == "model" for a in written)
+        return RedirectResponse(
+            f"/job/{job_id}?" + urlencode({
+                "msg": f"Drafted {len(written)} answers: {checked} checked, "
+                       f"{len(written) - checked} from your own sentences.",
+                "bad": 0}) + "#answers", status_code=303)
 
     @app.post("/job/{job_id}/prep")
     def draft_prep(job_id: int, round: str = Form(...)):

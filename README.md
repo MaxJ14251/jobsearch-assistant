@@ -455,13 +455,32 @@ other 2 fail honestly and tell you to run it again.
 .venv/Scripts/python -m jsa prep-show 5
 ```
 Interview questions drawn from that specific posting, each citing the line that
-prompts it, plus two drills that lead every set: the employment gap, and the
-degree. **57% of matched postings state a degree requirement and the degree was
-not conferred**, so that answer is generated from the profile's exact wording
-and checked against a deny-list, verb-family patterns, and a negation window —
-"I did not finish the degree" passes; "after I graduated" does not. Answer notes
+prompts it, plus the drills that lead every set: the degree, and the
+employment gap when your profile's dates show one. **57% of matched postings
+state a degree requirement**, so the degree answer is built from your
+profile's `credential` line, verbatim: a degree you hold is stated as you
+wrote it, and coursework stays coursework. It is checked against a
+deny-list, verb-family patterns, and a negation window — "I did not finish
+the degree" passes; "after I graduated" does not. The gap answer is built
+from your own dates and what your profile records since. Answer notes
 are first person, so they read as words you can say rather than a briefing about
 you. Running again appends; prior prep is never overwritten.
+
+```bash
+.venv/Scripts/python -m jsa answers 421 [--regenerate]
+```
+Copy-ready answers for a saved job's application form, also on the job page
+with a Copy button each. **Facts come straight from your profile**, with no
+model: work authorization (verbatim), sponsorship and relocation, work
+arrangement, your links, the education line, years of experience (summed
+from your own dates). Anything undecided says so instead of guessing. There
+is **no salary answer**: it shows the posting's range, and your floor never
+leaves the profile. **Why this role** and **a relevant project** are drafted
+from your bullets in one model call and held to the cover letter's checks;
+one that fails is built from your own sentences instead, and says so. **Why
+this company** is always built from your own sentences. Nothing is submitted
+and nothing needs approval: you copy them in. See
+[ADR 0027](docs/decisions/0027-application-answers.md).
 
 When you move an application to *phone screen*, *technical* or *onsite*
 (with `jsa status`, the stage form, or by confirming an email reply), the tool

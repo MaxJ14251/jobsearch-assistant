@@ -175,6 +175,40 @@ def cmd_daily(args: argparse.Namespace) -> int:
     return 0 if result.ok else 1
 
 
+def cmd_answers(args: argparse.Namespace) -> int:
+    """Copy-ready answers for one saved job's application form (ADR 0027).
+    Submits nothing."""
+    from . import answers
+
+    db.upgrade()           # application_answers on an older tracker
+    profile = load_profile()
+    con = db.connect()
+    try:
+        job = answers.job_row(con, args.job_id)
+        if job is None:
+            print(f"error: there is no job {args.job_id}", file=sys.stderr)
+            return 1
+        written = answers.stored(con, args.job_id)
+        if args.regenerate or not written:
+            written = answers.write(con, args.job_id, profile)
+            con.commit()
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        con.close()
+    print(f"Answers for #{args.job_id} {job['title']} at {job['company']}"
+          " (copy them into the form yourself; nothing is submitted)")
+    print()
+    for a in answers.fact_answers(profile, job) + written:
+        print(f"{a.question}  [{a.source}]")
+        print(f"  {a.body}")
+        if a.note:
+            print(f"  ({a.note})")
+        print()
+    return 0
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     """Report what will not work yet. Reads only; changes nothing."""
     from . import doctor
@@ -1378,6 +1412,12 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "doctor", help="what will not work yet in your profile and tracker"
     ).set_defaults(func=cmd_doctor)
+
+    p_ans = sub.add_parser("answers", help="copy-ready answers for a saved job's form")
+    p_ans.add_argument("job_id", type=int)
+    p_ans.add_argument("--regenerate", action="store_true",
+                       help="draft the written answers again (one model call)")
+    p_ans.set_defaults(func=cmd_answers)
 
     p_daily = sub.add_parser(
         "daily", help="backup, discovery and the inbox in one run, and what's new")

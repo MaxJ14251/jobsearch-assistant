@@ -307,6 +307,22 @@ CREATE TABLE IF NOT EXISTS daily_runs (
     seen_at         TEXT                           -- the dashboard banner's "Got it"
 );
 
+-- Written answers to application-form questions (plan 17, ADR 0027). Fact
+-- answers are read live from the profile and never stored. Append-only: a
+-- regenerate archives the previous set.
+CREATE TABLE IF NOT EXISTS application_answers (
+    id              INTEGER PRIMARY KEY,
+    application_id  INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    question_key    TEXT NOT NULL,
+    question        TEXT,
+    body            TEXT NOT NULL,
+    source          TEXT NOT NULL CHECK (source IN ('profile','model','composed')),
+    note            TEXT,
+    model           TEXT,
+    generated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    archived_at     TEXT
+);
+
 CREATE TABLE IF NOT EXISTS interview_prep (
     id              INTEGER PRIMARY KEY,
     application_id  INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,

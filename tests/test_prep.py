@@ -120,10 +120,16 @@ class TestStandardDrills(unittest.TestCase):
             assert_no_degree_claim(q.answer_notes)
             assert_no_degree_claim(q.question)
 
-    def test_gap_answer_frames_it_as_deliberate(self):
-        gap = standard_drills(PROFILE)[0].answer_notes.lower()
-        self.assertIn("november 2023", gap)
-        self.assertIn("deliberate", gap)
+    def test_the_gap_drill_reads_the_profiles_own_dates(self):
+        """It said "November 2023" whatever the profile held (plan 17)."""
+        from jsa.facts import gap_since
+        gap = gap_since(PROFILE)
+        drills = standard_drills(PROFILE)
+        if gap is None:
+            self.assertEqual(len(drills), 1)
+        else:
+            self.assertIn(gap[0], drills[0].question)
+            self.assertIn(gap[0], drills[0].answer_notes)
 
 
 class TestStorage(unittest.TestCase):

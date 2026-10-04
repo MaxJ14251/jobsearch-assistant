@@ -174,54 +174,40 @@ def assert_no_degree_claim(text: str) -> str:
 
 
 def degree_answer(profile: dict[str, Any]) -> str:
-    """The prepared answer, built from the profile rather than generated.
-
-    Deliberately not model-written: this is the highest-risk sentence in the
-    entire job search, and it should be identical every time it is delivered.
-    """
-    edu = (profile.get("education") or [{}])[0]
-    field_of_study = edu.get("field") or "my field"
-    institution = edu.get("institution") or "university"
-    start, end = edu.get("start"), edu.get("end")
-    years = f" from {start} to {end}" if start and end else ""
-    return (
-        f"I studied {field_of_study} at {institution}{years} and completed "
-        f"coursework there, though I did not finish the degree. Since then "
-        f"I've kept building in the field — the certifications in 2026 and the "
-        f"applied projects are where most of my current skill comes from. "
-        f"Where a posting asks for a degree or equivalent experience, the "
-        f"equivalent experience is what I'd point to."
-    )
+    """The prepared answer, built from the profile's credential line rather
+    than generated (jsa/facts.py). It used to say "did not finish" whatever
+    the profile said, which was wrong for anyone who had."""
+    from .facts import degree_answer as from_profile
+    return from_profile(profile)
 
 
-def gap_answer(profile: dict[str, Any]) -> str:
-    notes = {n["id"]: n["note"] for n in profile.get("gaps_and_notes") or []}
-    return (
-        "I left my last role in November 2023 and spent the time moving "
-        "deliberately into AI work rather than taking the next adjacent job. "
-        "That meant completing the certifications and, more importantly, "
-        "building real pipelines with the APIs rather than only studying them. "
-        + notes.get("gap_employment_break", "")[:0]
-    ).strip()
+def gap_answer(profile: dict[str, Any]) -> str | None:
+    """From the profile's own dates; None when there is no gap to explain."""
+    from .facts import gap_answer as from_profile
+    return from_profile(profile)
 
 
 def standard_drills(profile: dict[str, Any]) -> list[Question]:
-    """Always present, regardless of the posting."""
-    return [
-        Question(
-            question="Can you walk me through the gap since November 2023?",
+    """The degree question always; the gap question when there is a gap."""
+    from .facts import gap_since
+
+    drills = []
+    gap = gap_since(profile)
+    if gap is not None:
+        drills.append(Question(
+            question=f"Can you walk me through the gap since {gap[0]}?",
             why="Any reader of the resume will notice it; being unprepared "
                 "here reads as evasion rather than a deliberate pivot.",
-            answer_notes=gap_answer(profile),
-        ),
-        Question(
-            question="Tell me about your educational background.",
-            why="57% of matched postings state a degree requirement. This "
-                "answer must be identical every time and must never imply the "
-                "degree was conferred.",
-            answer_notes=degree_answer(profile),
-        ),
-    ]
+            answer_notes=gap_answer(profile) or "",
+        ))
+    drills.append(Question(
+        question="Tell me about your educational background.",
+        why="57% of matched postings state a degree requirement. This "
+            "answer must be identical every time and must never imply a "
+            "degree the profile doesn't state.",
+        answer_notes=degree_answer(profile),
+    ))
+    return drills
 
 
 SYSTEM = (

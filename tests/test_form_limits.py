@@ -98,6 +98,7 @@ class TestTheGuard(Base):
             "/turbo/pass": {"job_id": 1, "js": "1"}, "/turbo/unpass": {"job_id": 1, "js": "1"},
             "/turbo/interested": {"job_id": 1, "js": "1"}, "/turbo/cancel": {"js": "1"},
             "/daily/seen": {"run_id": 1, "back": "/"},
+            "/job/1/answers": {},
         }
         routes = {r.path.replace("{job_id}", "1").replace("{reply_id}", "1")
                   for r in self.app.routes if "POST" in getattr(r, "methods", set())}
