@@ -285,7 +285,8 @@ def check_tracker(con: sqlite3.Connection | None, profile: dict[str, Any],
                    "See logs/ beside the tracker, then run `jsa daily` again.")
     elif run is not None:
         started = db.local_date(run["started_at"])
-        if started and (datetime.now(timezone.utc).date() - started).days > daily.STALE_DAYS:
+        # Both local: started is the run's local date (review R-30).
+        if started and (datetime.now().date() - started).days > daily.STALE_DAYS:
             report.add(False, f"The last daily run was on {started}",
                        "Run `jsa daily`, or check the task you scheduled for it.")
 

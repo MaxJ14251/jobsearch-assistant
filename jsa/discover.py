@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import json
@@ -89,15 +90,17 @@ def _with_context(entry: dict[str, Any], prefs: Preferences) -> dict[str, Any]:
 def discover(
     min_score: float = 0.35,
     only_verified: bool = True,
+    db_path: Path | None = None,
 ) -> list[SourceReport]:
-    """Poll feeds, score listings, write keepers to the tracker."""
+    """Poll feeds, score listings, write keepers to the tracker (`db_path`,
+    or the configured one)."""
     profile = load_profile()
     prefs = Preferences.from_profile(profile)
     entries = load_sources()
     # An older tracker may predate a source kind or a column this run needs.
-    upgraded = db.upgrade()
+    upgraded = db.upgrade(db_path) if db_path else db.upgrade()
 
-    con = db.connect()
+    con = db.connect(db_path) if db_path else db.connect()
     reports: list[SourceReport] = []
     if upgraded:
         reports.append(SourceReport("(tracker)", "schema",

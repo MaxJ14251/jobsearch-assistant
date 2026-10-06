@@ -69,9 +69,9 @@ def _backup(db_path: Path) -> Step:
                                 f"{check.files} files, verified")
 
 
-def _discover() -> Step:
+def _discover(db_path: Path | None = None) -> Step:
     from . import discover
-    reports = discover.discover()
+    reports = discover.discover(db_path=db_path)
     failed = [r.company for r in reports if str(r.status).startswith("FAIL")]
     new = sum(getattr(r, "new", 0) for r in reports)
     polled = sum(1 for r in reports if r.status == "ok" or str(r.status).startswith("FAIL"))
@@ -100,7 +100,7 @@ def _run_step(name: str, db_path: Path) -> Step:
         if name == "backup":
             return _backup(db_path)
         if name == "discover":
-            return _discover()
+            return _discover(db_path)
         return _inbox(db_path)
     except Exception as exc:  # noqa: BLE001 - one failed step never stops the next
         first = (str(exc).strip().splitlines() or [type(exc).__name__])[0]

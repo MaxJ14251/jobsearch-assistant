@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import sqlite3
 import threading
+import time
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -25,6 +26,8 @@ KINDS = ("resume", "cover_letter")
 # thumb queue hundreds of paid drafts. `turbo.daily_jobs` in the profile
 # overrides it.
 TURBO_DAILY_JOBS = 20
+# Tries to record a finished draft before giving up (review R-26).
+FINISH_ATTEMPTS = 3
 
 
 def _group(con: sqlite3.Connection, job_id: int) -> str | None:
@@ -224,12 +227,14 @@ class Worker:
 
     def _loop(self) -> None:
         while True:
+            # Cleared BEFORE draining: a wake() that lands while drain() runs
+            # is then kept, not lost for up to 30 s (review R-26).
+            self._wake.clear()
             try:
                 self.drain()
             except Exception:  # noqa: BLE001 - the thread must outlive any error
                 pass
             self._wake.wait(timeout=30)
-            self._wake.clear()
 
     def drain(self) -> int:
         """Draft every queued item, one at a time. Returns how many ran."""
@@ -252,9 +257,20 @@ class Worker:
             if not claimed:
                 return True
             state, note = self._draft(con, item["job_id"], item["kind"])
-            con.execute("UPDATE draft_queue SET state = ?, error = ?, finished_at = ? "
-                        "WHERE id = ?", (state, note, db.utcnow(), item["id"]))
-            con.commit()
+            # Retried: a lost update left the item "running" until a restart,
+            # and the page polling forever (review R-26).
+            for attempt in range(FINISH_ATTEMPTS):
+                try:
+                    con.execute("UPDATE draft_queue SET state = ?, error = ?, "
+                                "finished_at = ? WHERE id = ?",
+                                (state, note, db.utcnow(), item["id"]))
+                    con.commit()
+                    break
+                except sqlite3.OperationalError:
+                    con.rollback()
+                    if attempt == FINISH_ATTEMPTS - 1:
+                        raise
+                    time.sleep(1)
             return True
         finally:
             con.close()

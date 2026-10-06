@@ -91,7 +91,7 @@ class TestTheRun(Tracker):
             order.append("backup")
             return daily.Step("backup", "ok", "verified")
 
-        def fake_discover():
+        def fake_discover(db_path=None):
             order.append("discover")
             if not discover_ok:
                 raise RuntimeError("Lever: HTTP 503")
@@ -222,3 +222,14 @@ class TestBannerAndDoctor(TestTheRun):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDiscoveryUsesTheRunsTracker(Tracker):
+    """Review R-30: `run(db_path=...)` discovered into the configured tracker."""
+
+    def test_the_path_is_passed_on(self):
+        with mock.patch("jsa.discover.discover", return_value=[]) as found, \
+             mock.patch("jsa.daily._backup", return_value=daily.Step("backup", "ok", "")), \
+             mock.patch("jsa.inbox.settings", return_value=None):
+            daily.run((), db_path=self.path)
+        self.assertEqual(found.call_args.kwargs.get("db_path"), self.path)

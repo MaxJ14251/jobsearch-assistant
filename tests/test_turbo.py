@@ -8,6 +8,7 @@ a fake.
 import ast
 import copy
 import io
+import sqlite3
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -300,3 +301,34 @@ class TestDraftingNeverMovesALaterStageBack(Tracker):
         self.assertTrue(agent_moves, "the drafts are still recorded")
         self.assertTrue(all(r[0] == r[1] == "phone_screen" for r in agent_moves),
                         [tuple(r) for r in agent_moves])
+
+
+class TestTheWorkerFinishesItsItems(Tracker):
+    """Review R-26: a lost final update left an item 'running'."""
+
+    def test_a_locked_finish_is_retried(self):
+        con = self.con()
+        turbo.interested(con, 3, PROFILE)
+        con.commit()
+        worker = self.worker()
+        real_connect = worker._connect
+        failures = [1]
+
+        class Flaky:
+            def __init__(self, inner):
+                self.inner = inner
+
+            def execute(self, sql, *args):
+                if sql.startswith("UPDATE draft_queue SET state = ?") and failures:
+                    failures.pop()
+                    raise sqlite3.OperationalError("database is locked")
+                return self.inner.execute(sql, *args)
+
+            def __getattr__(self, name):
+                return getattr(self.inner, name)
+
+        with mock.patch.object(worker, "_connect", side_effect=lambda: Flaky(real_connect())), \
+             mock.patch("jsa.turbo.time.sleep"), redirect_stderr(io.StringIO()):
+            worker.drain()
+        self.assertNotIn("running", [state for _, _, state in self.queue()])
+        self.assertEqual(failures, [])
