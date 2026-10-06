@@ -377,19 +377,21 @@ def upsert_company(
     name: str,
     slug: str,
     careers_url: str | None = None,
-    priority: int = 3,
+    priority: int | None = None,
 ) -> int:
+    """`priority` changes only when passed: an aggregator posting that names
+    an employer from companies.yaml must not reset its hand-set priority."""
     row = con.execute("SELECT id FROM companies WHERE slug = ?", (slug,)).fetchone()
     if row:
         con.execute(
-            "UPDATE companies SET name = ?, priority = ?, "
+            "UPDATE companies SET name = ?, priority = COALESCE(?, priority), "
             "careers_url = COALESCE(?, careers_url), updated_at = ? WHERE id = ?",
             (name, priority, careers_url, utcnow(), row["id"]),
         )
         return int(row["id"])
     cur = con.execute(
         "INSERT INTO companies (name, slug, careers_url, priority) VALUES (?,?,?,?)",
-        (name, slug, careers_url, priority),
+        (name, slug, careers_url, 3 if priority is None else priority),
     )
     return int(cur.lastrowid)
 
@@ -503,9 +505,11 @@ def upsert_job(con: sqlite3.Connection, job: dict[str, Any]) -> tuple[int, bool]
         "match_reasons": json.dumps(job.get("match_reasons") or []),
         "dedup_key": job.get("dedup_key"),
         "track": job.get("track") or "engineering",
+        "description_origin": job.get("description_origin"),
     }
 
-    if existing and existing["description_origin"] == "pasted":
+    if (existing and existing["description_origin"] == "pasted"
+            and job.get("description_origin") != "pasted"):
         # The operator pasted the real posting over a stub (`jsa fill`). The
         # feed's version is the stub, so it must not overwrite it, nor the pay,
         # score and track read from it. The listing is still live, though.

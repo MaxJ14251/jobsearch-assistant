@@ -189,7 +189,7 @@ def _slug(text: str) -> str:
 
 def _store(con: sqlite3.Connection, job: dict[str, Any], *, company: str, slug: str,
            kind: str, source_url: str, prefs: Preferences,
-           careers_url: str | None = None, priority: int = 3,
+           careers_url: str | None = None, priority: int | None = None,
            named: bool = True) -> Added:
     """`named` is False when `company` is only a guess from the board token:
     an existing company keeps its name rather than being renamed to a guess."""
@@ -298,6 +298,7 @@ def add_pasted(con: sqlite3.Connection, *, company: str, title: str, text: str,
         "url": url,
         "description": text,
         "description_hash": sources.content_hash(text),
+        "description_origin": "pasted",   # the operator's text: discovery keeps it
         "posted_at": None,
     }
     return _store(con, job, company=company, slug=_slug(company), kind="manual",
