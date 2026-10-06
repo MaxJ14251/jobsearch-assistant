@@ -67,7 +67,7 @@ class TestReadOnly(unittest.TestCase):
         self.assertFalse({"llm", "jsa.llm", ".llm"} & imports_of(ROOT / "jsa" / "inbox.py"))
 
     def test_only_this_module_imports_imaplib_and_none_imports_smtplib(self):
-        for path in sorted((ROOT / "jsa").glob("*.py")):
+        for path in sorted((ROOT / "jsa").rglob("*.py")):
             names = imports_of(path)
             self.assertNotIn("smtplib", names, path.name)
             if path.name != "inbox.py":

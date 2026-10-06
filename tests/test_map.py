@@ -245,8 +245,10 @@ class TestNothingHereReachesTheNetwork(unittest.TestCase):
     FORBIDDEN = {"httpx", "requests", "urllib", "socket", "http", "ftplib",
                  "smtplib"}
 
-    def imports_of(self, module: str) -> set[str]:
-        tree = ast.parse((ROOT / "jsa" / f"{module}.py").read_text("utf-8"))
+    def imports_of(self, module) -> set[str]:
+        """A module name under jsa/, or the path of any file in it."""
+        path = module if isinstance(module, Path) else ROOT / "jsa" / f"{module}.py"
+        tree = ast.parse(path.read_text("utf-8"))
         found: set[str] = set()
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
@@ -277,8 +279,8 @@ class TestNothingHereReachesTheNetwork(unittest.TestCase):
         source = (ROOT / "tools" / "build_map_data.py").read_text("utf-8")
         self.assertIn("urllib.request", source)
         # Imports, not mentions: doctor names the tool so a reader can run it.
-        for path in sorted((ROOT / "jsa").glob("*.py")):
-            names = self.imports_of(path.stem) | {
+        for path in sorted((ROOT / "jsa").rglob("*.py")):
+            names = self.imports_of(path) | {
                 n.module or "" for n in ast.walk(ast.parse(path.read_text("utf-8")))
                 if isinstance(n, ast.ImportFrom)}
             self.assertFalse({"tools", "build_map_data"} & names

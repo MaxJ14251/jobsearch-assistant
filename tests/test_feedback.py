@@ -233,7 +233,7 @@ class TestFeedbackIsNeverAnInstruction(unittest.TestCase):
         from jsa.config import ROOT
         import re
         offenders = []
-        for path in sorted((ROOT / "jsa").glob("*.py")):
+        for path in sorted((ROOT / "jsa").rglob("*.py")):
             text = path.read_text(encoding="utf-8")
             for line in text.splitlines():
                 if "feedback" not in line or line.strip().startswith("#"):

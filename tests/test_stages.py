@@ -387,13 +387,14 @@ class TestNoAgentPathMovesAnApplication(unittest.TestCase):
     def test_only_approvals_writes_human_events(self):
         import inspect
         from jsa import cli, drafting, letter, tailor, web
+        from tests.web_source import web_source
         for module in (drafting, tailor, letter, web):
-            source = inspect.getsource(module)
+            source = web_source() if module is web else inspect.getsource(module)
             self.assertNotIn("actor=\"human\"", source, module.__name__)
             self.assertNotIn("actor='human'", source, module.__name__)
         # The CLI and the dashboard reach stages only through approvals.
         self.assertIn("approvals.set_stage", inspect.getsource(cli))
-        self.assertIn("approvals.set_stage", inspect.getsource(web))
+        self.assertIn("approvals.set_stage", web_source())
 
     def test_drafting_still_records_its_event_as_the_agent(self):
         import inspect

@@ -277,7 +277,7 @@ class TestOnlyThePersonRecordsApplied(unittest.TestCase):
     def calls(self, name):
         """{file: {enclosing function, ...}} for every real call of `name`."""
         found = {}
-        for path in sorted((ROOT / "jsa").glob("*.py")):
+        for path in sorted((ROOT / "jsa").rglob("*.py")):
             tree = ast.parse(path.read_text(encoding="utf-8"))
             for node in ast.walk(tree):
                 if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):

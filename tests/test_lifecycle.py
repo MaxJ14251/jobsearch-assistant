@@ -201,7 +201,8 @@ class TestBothSurfacesEnforceHumanApproval(LifecycleCase):
         self.assertIn("approvals.reject(", source)
 
     def test_web_path_reaches_the_same_function(self):
-        source = (ROOT / "jsa" / "web.py").read_text(encoding="utf-8")
+        from tests.web_source import web_source
+        source = web_source()
         self.assertIn("approvals.approve(", source,
                       "the web route must delegate, not re-implement")
         self.assertIn("approvals.reject(", source)
@@ -214,7 +215,7 @@ class TestBothSurfacesEnforceHumanApproval(LifecycleCase):
         legitimately explains the rule in prose.
         """
         offenders = []
-        for path in sorted((ROOT / "jsa").glob("*.py")):
+        for path in sorted((ROOT / "jsa").rglob("*.py")):
             if path.name == "approvals.py":
                 continue
             code = "\n".join(

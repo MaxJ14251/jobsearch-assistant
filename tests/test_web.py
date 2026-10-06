@@ -173,16 +173,14 @@ class TestApprovalGoesThroughTheSamePath(unittest.TestCase):
     """The UI must not be a second route to a decision."""
 
     def test_web_uses_the_approvals_module(self):
-        import inspect
-        from jsa import web
-        src = inspect.getsource(web)
+        from tests.web_source import web_source
+        src = web_source()
         self.assertIn("approvals.approve", src)
         self.assertIn("approvals.reject", src)
 
     def test_web_never_writes_decided_by_itself(self):
-        import inspect
-        from jsa import web
-        self.assertNotIn("decided_by", inspect.getsource(web))
+        from tests.web_source import web_source
+        self.assertNotIn("decided_by", web_source())
 
     def test_rejection_without_feedback_is_refused(self):
         tmp = Path(tempfile.mkdtemp()) / "t.db"

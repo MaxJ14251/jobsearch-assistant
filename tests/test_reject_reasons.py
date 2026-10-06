@@ -125,7 +125,7 @@ class TestRedraftHint(unittest.TestCase):
 class TestNeverInAPrompt(unittest.TestCase):
     def test_no_module_feeds_a_reason_code_into_a_prompt(self):
         offenders = []
-        for path in sorted((ROOT / "jsa").glob("*.py")):
+        for path in sorted((ROOT / "jsa").rglob("*.py")):
             for line in path.read_text(encoding="utf-8").splitlines():
                 if line.strip().startswith("#"):
                     continue

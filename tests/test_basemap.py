@@ -24,6 +24,7 @@ from unittest import mock
 
 from jsa import basemap, doctor, mapview, places, web
 from tests.test_map import PROFILE, SPREAD, home
+from tests.web_source import web_source
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -446,7 +447,8 @@ class TestFineLakes(unittest.TestCase):
     def test_a_lake_is_filled_not_outlined(self):
         """The Census splits a lake at county lines; an outline would draw
         each seam across the water."""
-        src = (ROOT / "jsa" / "web.py").read_text("utf-8")
+        from tests.web_source import web_source
+        src = web_source()
         self.assertNotIn("paint.stroke(p.lake)", src)
 
 
@@ -454,7 +456,7 @@ class TestPaintingOffThePagesThread(unittest.TestCase):
     """n26: a whole tier takes 25-100 ms to paint. It happens in a worker,
     from the page's own painting routine, with the page as the fallback."""
 
-    SRC = (ROOT / "jsa" / "web.py").read_text("utf-8")
+    SRC = web_source()
 
     def test_one_routine_for_page_and_worker(self):
         self.assertIn("paintGround.toString() + '\\\\n' + PAINTER", self.SRC)
