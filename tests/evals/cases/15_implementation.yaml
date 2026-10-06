@@ -1,0 +1,13 @@
+title: Implementation Engineer
+track: engineering
+description: >-
+  Get new clients live on our platform. Configure carrier integrations,
+  migrate their data, train their staff, and troubleshoot problems during
+  onboarding. Customer-facing project work and SQL.
+
+expect:
+  why: Implementation is onboarding plus troubleshooting; onboarding leads.
+  role_kind: support
+  first_bullet: b_hp_onboard
+  bullets_include: [b_hp_sql]
+  bullets_exclude: [b_wl_shift, b_cr_install]

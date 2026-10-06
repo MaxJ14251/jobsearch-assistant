@@ -1,0 +1,12 @@
+title: Reporting Analyst
+track: engineering
+description: >-
+  Build weekly reports for our operations team. You will query our data
+  with SQL and present what changed. Clear writing and attention to detail.
+
+expect:
+  why: >-
+    Paired with 12, one word apart: the skill the posting names comes first,
+    so the order follows the posting and not a fixed list.
+  skills_first: {technical: [SQL]}
+  keywords_matched: [SQL]

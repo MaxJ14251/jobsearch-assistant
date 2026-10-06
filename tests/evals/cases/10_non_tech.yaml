@@ -1,0 +1,11 @@
+title: Restaurant Shift Supervisor
+track: engineering
+description: >-
+  Run a busy morning shift. Schedule staff, coordinate the team, handle
+  customer complaints with patience, and keep operations smooth from
+  opening to close. Customer service experience required.
+
+expect:
+  why: "Field-agnostic: a restaurant posting picks the restaurant job first."
+  first_bullet: b_wl_shift
+  bullets_exclude: [b_hp_quota]

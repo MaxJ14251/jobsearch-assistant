@@ -1,0 +1,33 @@
+# Filler postings for the evals' tag weights (plan 25). tag_weights needs at
+# least 20 documents, or every tag counts equally. These are short, fictional,
+# and deliberately ordinary: many say "systems", "team" and "customers", few
+# say "commissioning" or "prompt engineering", as real postings do. "systems"
+# is in 92% of them and "hardware" in 54%, near the tracker's measured 87% and
+# 47% (ADR 0005). Fixed and committed, so the weights are the same every run.
+corpus:
+  - Join our team building systems that move freight. You will work with customers and engineers to improve reliability. Company hardware provided.
+  - We are hiring a backend engineer to scale our payment systems. Python or Go, SQL, and a love of clean code.
+  - Our nursing team needs a charge nurse for the night shift. Patient care, scheduling and documentation. We run on modern systems. Company hardware provided.
+  - Warehouse associate wanted. Pick, pack and ship orders; forklift certification a plus. Work as a team. We run on modern systems.
+  - Marketing coordinator to plan events and manage social channels. Strong writing and customer focus. We run on modern systems. Company hardware provided.
+  - Build reliable data pipelines in Python and SQL for our analytics team. Experience with dashboards helps. We run on modern systems.
+  - Retail store manager. Lead a team, hit sales targets, handle customer complaints and staff scheduling. We run on modern systems. Company hardware provided.
+  - Electrician apprentice. Wire residential systems to code, read schematics, work safely on site.
+  - Help desk technician to support employees with laptops, accounts and printers. Ticketing systems experience. Company hardware provided.
+  - Product designer to shape our mobile app. Research, prototypes, and close work with engineering. We run on modern systems.
+  - Accountant for month-end close, reconciliations and audit support. Attention to detail matters. We run on modern systems. Company hardware provided.
+  - Our hardware team builds sensors for industrial systems. Embedded C, testing, and documentation.
+  - Customer service representative answering calls and emails about orders. Patience and clear communication. We run on modern systems. Company hardware provided.
+  - Frontend engineer in TypeScript and React. Build accessible interfaces with the design team. We run on modern systems.
+  - Teacher for middle school science. Lesson planning, classroom management and parent communication. We run on modern systems. Company hardware provided.
+  - Site reliability engineer to keep our systems up. Linux, monitoring, on-call rotation, automation.
+  - Sales development representative booking meetings for account executives. Outbound prospecting, quotas. We run on modern systems. Company hardware provided.
+  - Logistics coordinator scheduling carriers and tracking shipments for our customers across the region. We run on modern systems.
+  - Machine learning engineer training ranking models. Python, experimentation, and production systems. Company hardware provided.
+  - Chef de partie for a busy kitchen. Prep, line work and food safety standards. We run on modern systems.
+  - Technical writer documenting APIs for developers. Clear writing, examples, and review with engineers. We run on modern systems. Company hardware provided.
+  - HVAC installer for commercial buildings. Commissioning, troubleshooting and hands-on repair work. We run on modern systems.
+  - Office administrator managing calendars, supplies and vendor relationships for a small team. We run on modern systems. Company hardware provided.
+  - Quality analyst testing our web app before each release. Write test plans and report defects. We run on modern systems.
+  - Account manager growing relationships with existing customers. Renewals, upsell and business reviews. Company hardware provided.
+  - Research assistant collecting and cleaning survey data. Spreadsheets, statistics and careful notes.

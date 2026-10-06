@@ -1,0 +1,193 @@
+# The drafting evals' profile (plan 25). Fictional: an invented person, invented
+# employers, invented projects. It is richer than the example on purpose, so
+# selection has real choices to make: customer-facing work, field work, AI and
+# data projects (one released with a public repo, one still being built), and
+# a job outside tech. Never copy a real profile's content into this file;
+# tests/test_evals.py checks it shares nothing with a personal profile.
+
+schema_version: 1
+
+identity:
+  full_name: Morgan Eval-Fixture
+  email: morgan@example.test
+  phone: "+1 (555) 010-0000"
+  location: {city: Example City, state: CA, country: USA}
+
+links:
+  github: https://github.com/example-eval
+
+job_search_preferences:
+  target_titles: ["Support Engineer", "Solutions Engineer", "AI Engineer", "Data Analyst"]
+  fallback_titles: ["Account Executive"]
+  locations: ["Remote (US)"]
+  work_authorization: "US citizen - no sponsorship required"
+  needs_visa_sponsorship: false
+  willing_to_relocate: false
+  compensation_floor_usd: no_floor
+  max_years_experience: 4
+
+summaries:
+  - id: sum_general
+    family: general
+    text: >-
+      Builder with three years of customer-facing operations work and a growing
+      body of Python automation, who learns a new system by running it.
+  - id: sum_ai
+    family: ai_engineering
+    text: >-
+      Python developer building small language-model tools with an evaluation
+      set behind every prompt change.
+  - id: sum_customer
+    family: customer_facing_technical
+    # Without this, a support or customer-success posting that never says
+    # "customer-facing" gets the general summary (plan 11 kept that mapping
+    # unchanged for profiles that set nothing). Set here, as a person would.
+    role_kinds: [support, sales]
+    text: >-
+      Technical problem-solver from logistics support and solar field work who
+      explains systems to the people who depend on them.
+
+experience:
+  - id: exp_harbor_tam
+    company: Harbor Point Logistics
+    title: Technical Account Coordinator
+    start: 2023-04
+    current: true
+    family: sales
+    work_history_bullet: b_hp_renew
+    bullets:
+      - id: b_hp_renew
+        strength: 1
+        text: >-
+          Kept twelve warehouse accounts on contract by walking each client
+          through integration problems on weekly calls.
+        tags: [customer-facing, account-management, retention, client-communication]
+      - id: b_hp_onboard
+        strength: 1
+        text: >-
+          Onboarded new shipping clients onto the tracking portal, configuring their
+          carrier integrations and training their staff.
+        tags: [onboarding, customer-facing, integrations, training, implementation]
+      - id: b_hp_quota
+        strength: 2
+        text: >-
+          Closed expansion deals worth 18 percent of the region's new revenue in
+          the first year.
+        tags: [sales, quota, negotiation, revenue, b2b]
+
+  - id: exp_harbor_support
+    company: Harbor Point Logistics
+    title: Customer Support Specialist
+    start: 2021-08
+    end: 2023-04
+    family: technical_field
+    bullets:
+      - id: b_hp_tickets
+        strength: 1
+        text: >-
+          Resolved about forty support tickets a day on shipment tracking and
+          billing, escalating carrier faults with reproducible steps.
+        tags: [technical-support, troubleshooting, ticketing, escalation, customer-facing]
+      - id: b_hp_sql
+        strength: 2
+        text: >-
+          Wrote SQL lookups that answered common tracking questions without an
+          engineer, cutting escalations by a third.
+        tags: [sql, troubleshooting, data-analysis, automation]
+
+  - id: exp_cedar_field
+    company: Cedar Ridge Solar
+    title: Field Technician
+    start: 2020-01
+    end: 2021-07
+    family: technical_field
+    bullets:
+      - id: b_cr_install
+        strength: 1
+        text: >-
+          Installed and commissioned residential inverter systems and diagnosed
+          faults in the field with a multimeter and the vendor's software.
+        tags: [hardware, systems, commissioning, troubleshooting, hands-on]
+      - id: b_cr_safety
+        strength: 2
+        text: >-
+          Kept every install within electrical code and documented each one for
+          the county inspector.
+        tags: [compliance, documentation, safety, quality]
+
+  - id: exp_willow_cafe
+    company: Willow Lane Cafe
+    title: Shift Supervisor
+    start: 2018-06
+    end: 2019-12
+    family: general
+    bullets:
+      - id: b_wl_shift
+        strength: 2
+        text: >-
+          Ran the morning shift for a team of five, scheduling staff and handling
+          customer complaints at the counter.
+        tags: [scheduling, team-coordination, customer-service, operations]
+
+projects:
+  - id: proj_delay_dash
+    name: Shipment Delay Dashboard
+    status: released
+    repo: https://github.com/example-eval/delay-dashboard
+    stack: [Python, pandas, SQLite]
+    family: data_ml
+    bullets:
+      - id: b_dd_build
+        strength: 1
+        text: >-
+          Built and released a Python dashboard that ranks carriers by late
+          deliveries from a public shipping dataset.
+        tags: [python, data-analysis, reporting, visualization, pandas]
+      - id: b_dd_tests
+        strength: 2
+        text: >-
+          Added tests for every metric so a change to the cleaning step shows up
+          as a failing number, not a wrong chart.
+        tags: [testing, data-quality, python]
+
+  - id: proj_inbox
+    name: Inbox Reply Assistant
+    status: in_development
+    stack: [Python, LLM APIs]
+    family: ai_engineering
+    bullets:
+      - id: b_ib_design
+        strength: 1
+        text: >-
+          Designing a language-model assistant that drafts a reply to a support
+          email for a person to approve before anything is sent.
+        tags: [llm, python, prompt-engineering, automation, customer-facing]
+      - id: b_ib_eval
+        strength: 1
+        text: >-
+          Building an evaluation set of fifty past emails to score each prompt
+          change before it ships.
+        tags: [evaluation, llm, testing, prompt-engineering]
+
+certifications:
+  - id: cert_data
+    name: Data Analysis with Python
+    issuer: Example Learning Co
+    issued: 2024
+
+education:
+  - id: edu_eval
+    institution: Example Community College
+    field: Information Technology
+    credential: Coursework completed (degree not conferred)
+
+skills:
+  technical: [Python, SQL, pandas, SQLite, REST APIs]
+  ai_tools: [LLM APIs, prompt design, evaluation sets]
+  applied_focus: [technical support, onboarding, account management]
+
+ats_keywords:
+  have: [Python, SQL, pandas, onboarding, technical support, troubleshooting,
+         account management, customer success, LLM, prompt engineering]
+  # Wanted, not yet true: reported as gaps, never written.
+  aspirational_do_not_claim: [Kubernetes, Rust, Salesforce administration]

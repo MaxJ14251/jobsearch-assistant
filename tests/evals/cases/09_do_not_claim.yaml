@@ -1,0 +1,15 @@
+title: Platform Support Engineer
+track: engineering
+description: >-
+  Support customers running our platform on Kubernetes. Troubleshoot
+  deployments, write runbooks, and escalate bugs to engineering. Experience
+  with Kubernetes and Rust is required; Salesforce administration is a
+  plus. Customer-facing technical support experience needed.
+
+expect:
+  why: >-
+    Terms on the do-not-claim list are reported as gaps and never written,
+    whatever the posting asks for.
+  role_kind: support
+  never_says: [Kubernetes, Rust, Salesforce]
+  keywords_missing: [Kubernetes, Rust, Salesforce administration]

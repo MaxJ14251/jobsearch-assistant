@@ -1,0 +1,16 @@
+title: Technical Support Engineer
+track: engineering
+description: >-
+  Northgate Robotics builds space systems and real hardware: our systems
+  power warehouse robots, and our hardware ships to fifty sites. As a
+  technical support engineer you will handle ticketing for our customers,
+  troubleshoot integration faults, and escalate bugs with clear steps.
+
+expect:
+  why: >-
+    A support role at a hardware company: the blurb says "systems" and
+    "hardware" twice each, the requirements are support work, so support
+    work leads.
+  role_kind: support
+  first_bullet: b_hp_tickets
+  bullets_exclude: [b_wl_shift]

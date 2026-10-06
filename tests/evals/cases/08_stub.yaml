@@ -1,0 +1,13 @@
+title: Software Engineer
+track: engineering
+description: >-
+  Article URL: https://example.test/jobs/1 Comments URL:
+  https://news.example.test/item?id=1 Points: 0
+
+expect:
+  why: >-
+    Plan 1: with no posting text every project bullet ties, and the tie goes
+    to the released project with a public repo, not the one still in
+    development.
+  first_bullet: b_dd_build
+  coach: {present: [in_dev_only]}

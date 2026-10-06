@@ -1,0 +1,15 @@
+title: Account Executive
+track: sales
+description: >-
+  Own a territory of mid-market logistics customers. Prospect, run demos,
+  negotiate, and close new business against a quarterly quota. You will
+  manage the full sales cycle and keep accounts growing after the deal.
+  B2B sales experience required; a technical background is a plus.
+
+expect:
+  why: A sales role leads with the sales result and keeps field work out.
+  role_kind: sales
+  summary_family: customer_facing_technical
+  first_bullet: b_hp_quota
+  bullets_include: [b_hp_renew]
+  bullets_exclude: [b_cr_install, b_wl_shift]

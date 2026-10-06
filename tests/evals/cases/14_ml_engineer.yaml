@@ -1,0 +1,14 @@
+title: Machine Learning Engineer
+track: engineering
+description: >-
+  Train and evaluate models for delivery-time prediction. Python, pandas,
+  data analysis, evaluation and testing of model quality. Experience with
+  LLM-based tools is a plus.
+
+expect:
+  why: Model evaluation work leads an ML role; the LLM mention picks the AI summary.
+  role_kind: engineering
+  summary_family: ai_engineering
+  first_bullet_in: [b_ib_eval, b_dd_build]
+  bullets_include: [b_dd_tests]
+  bullets_exclude: [b_wl_shift, b_hp_quota]

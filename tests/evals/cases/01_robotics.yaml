@@ -1,0 +1,19 @@
+title: Robotics Software Engineer
+track: engineering
+description: >-
+  Northgate Robotics builds space systems and real hardware for autonomous
+  warehouse robots. You will write Python and C++ for motion planning,
+  integrate sensors, and test software on our robot fleet. Our systems team
+  works closely with hardware engineers. Experience with ROS, simulation and
+  computer vision is a plus. Python required.
+
+expect:
+  why: >-
+    The ADR 0005 robotics shape: "systems" and "hardware" are in nearly every
+    posting and come from the company's blurb here, so the solar install
+    bullet must never lead. Software projects lead an engineering role.
+  role_kind: engineering
+  first_bullet_in: [b_dd_build, b_ib_design]
+  # With tag rarity off, b_cr_install comes back on "systems" + "hardware".
+  bullets_exclude: [b_wl_shift, b_hp_quota, b_cr_install]
+  skills_first: {technical: [Python]}

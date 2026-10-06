@@ -1,0 +1,15 @@
+title: Data Analyst
+track: engineering
+description: >-
+  Turn shipping data into decisions. You will write SQL, clean data in
+  Python with pandas, build dashboards and reports for operations leaders,
+  and check data quality before anything ships. Visualization skills and
+  careful testing of metrics are important.
+
+expect:
+  why: A data role leads with the released data project and its tests.
+  role_kind: engineering
+  first_bullet: b_dd_build
+  bullets_include: [b_dd_tests]
+  bullets_exclude: [b_wl_shift, b_cr_install]
+  keywords_matched: [SQL, Python, pandas]

@@ -1,0 +1,16 @@
+title: Senior Support Engineer
+track: engineering
+description: >-
+  Lead escalations for our largest customers. Troubleshoot complex
+  integration issues, mentor the support team, and improve our ticketing
+  process. Five or more years of technical support experience. SQL
+  required.
+
+expect:
+  why: >-
+    Seniority filters discovery, not selection: a senior support posting
+    picks the same kind of evidence as any support posting.
+  role_kind: support
+  first_bullet: b_hp_tickets
+  bullets_include: [b_hp_sql]
+  keywords_matched: [SQL, technical support]

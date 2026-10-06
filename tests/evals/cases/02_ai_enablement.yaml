@@ -1,0 +1,17 @@
+title: AI Enablement Engineer
+track: engineering
+description: >-
+  Help our customers adopt large language models. You will build LLM
+  prototypes in Python, design prompts and evaluation sets, measure output
+  quality, and turn what works into internal tools. Prompt engineering and
+  evaluation experience matter more than years. You will partner with
+  customer teams to understand their workflows.
+
+expect:
+  why: The ADR 0005 AI-enablement shape stays AI-heavy, led by the LLM project.
+  role_kind: engineering
+  summary_family: ai_engineering
+  first_bullet: b_ib_design
+  bullets_include: [b_ib_eval]
+  bullets_exclude: [b_cr_install, b_wl_shift]
+  keywords_matched: [LLM, prompt engineering]

@@ -955,6 +955,13 @@ tested:
 `jsa verify` and `tools/fabrication_demo.py` cover the network paths against real
 endpoints, which unit tests deliberately do not touch.
 
+Which bullets a resume leads with is checked separately, case by case:
+`tests/evals/` runs 16 fictional postings (robotics, AI enablement, support,
+sales, data, a near-empty stub, a non-tech job, two postings one word apart...)
+through the model-free half of drafting against written expectations, in CI.
+`tools/eval_report.py` prints the scorecard; CONTRIBUTING says when an
+expectation may change.
+
 ## What publishing this exposed, and what was done about it
 
 Before this repository was made public, its whole history was audited and

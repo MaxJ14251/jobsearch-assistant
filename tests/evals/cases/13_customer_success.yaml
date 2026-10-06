@@ -1,0 +1,18 @@
+title: Customer Success Manager
+track: engineering
+description: >-
+  Keep our customers successful after they sign. Run onboarding, hold
+  regular business reviews, drive renewals and retention, and be the
+  customer's advocate inside the company. Account management experience
+  required.
+
+expect:
+  why: >-
+    Customer success is retention and onboarding; the renewal bullet leads.
+    The profile's role_kinds choose the customer-facing summary.
+  role_kind: support
+  summary_family: customer_facing_technical
+  first_bullet: b_hp_renew
+  bullets_include: [b_hp_onboard]
+  bullets_exclude: [b_wl_shift]
+  keywords_matched: [onboarding, account management]

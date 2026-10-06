@@ -1,0 +1,16 @@
+title: Solutions Engineer
+track: engineering
+description: >-
+  Partner with our sales team on technical evaluations. Run demos, answer
+  integration questions, and lead onboarding and implementation for new
+  customers. You will configure integrations, train client staff, and be
+  the customer-facing technical expert. Python and REST APIs a plus.
+
+expect:
+  why: Solutions work is customer-facing implementation; onboarding leads.
+  role_kind: support
+  summary_family: customer_facing_technical
+  first_bullet: b_hp_onboard
+  bullets_include: [b_hp_renew]
+  bullets_exclude: [b_wl_shift]
+  skills_first: {technical: [Python, REST APIs], applied_focus: [onboarding]}

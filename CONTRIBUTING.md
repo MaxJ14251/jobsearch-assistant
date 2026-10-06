@@ -64,6 +64,24 @@ The last one simulates a clone and follows the README literally. If you had to
 deviate from the README to get something working, fix the README — that's the
 bug.
 
+### Drafting evals
+
+`tests/evals/` holds a fictional profile and 16 fictional postings, each with
+written expectations: which bullets lead or never appear, which summary, the
+role kind, the skill order, the keyword gaps. `tests/test_evals.py` runs them
+in CI (no model, no network, under a second); for a readable scorecard:
+
+```bash
+.venv/Scripts/python tools/eval_report.py
+```
+
+A change to bullet selection, summaries or skill order that makes a case miss
+is a regression until shown otherwise. Change an expectation only when the old
+answer was wrong: say why in the case's `why:` line **and** in the commit
+message. Editing the answer key to make a test pass is the one thing these
+files exist to prevent. New cases are welcome; never copy a real posting or a
+real profile into them.
+
 ## Before you make a fork public
 
 Publishing a repository publishes **every commit**, not the current files. A

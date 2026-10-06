@@ -1,0 +1,19 @@
+title: Premium Support Engineer
+track: engineering
+description: >-
+  Be the technical voice of our product for premium customers. Troubleshoot
+  integration problems, reproduce issues, escalate bugs with clear steps,
+  and keep customers informed until each ticket is resolved. You will work
+  directly with customers every day and help onboard new accounts. SQL and
+  some Python help. Customer-facing support experience required.
+
+expect:
+  why: >-
+    The ADR 0005 premium-support shape: customer-facing support work leads,
+    not the AI project, though the track is engineering.
+  role_kind: support
+  summary_family: customer_facing_technical
+  first_bullet: b_hp_tickets
+  bullets_include: [b_hp_renew, b_hp_onboard]
+  bullets_exclude: [b_cr_install, b_wl_shift]
+  keywords_matched: [SQL]
