@@ -84,7 +84,9 @@ def set_preferences(path: Path, prefs: dict[str, Any]) -> None:
     path = Path(path)
     if path.resolve() == config.PROFILE_PATH.resolve():
         raise ValueError("set_preferences writes the draft, never the live profile")
-    raw = path.read_bytes().decode("utf-8")
+    # utf-8-sig: a byte-order mark hid the block, and a second one was
+    # appended at the end (review R-29).
+    raw = path.read_bytes().decode("utf-8-sig")
     lines = raw.splitlines(keepends=True)
     start = next((i for i, ln in enumerate(lines) if ln.startswith(f"{PREFS}:")), None)
     current = ((yaml.safe_load(raw) or {}).get(PREFS) or {})
@@ -186,24 +188,49 @@ def can_adopt() -> bool:
     return live.read_bytes() == example_path().read_bytes()
 
 
+_ADOPT = threading.Lock()
+
+
 def adopt() -> Path | None:
     """Create master_profile.yaml from the draft. Returns the backup taken
-    when the example was replaced. Refuses a personal profile."""
-    if not can_adopt():
-        raise PermissionError("you already have a profile; it is never overwritten here")
-    source = draft_path()
-    if not source.exists():
-        raise FileNotFoundError("there is no draft yet")
-    live = config.PROFILE_PATH
-    copy = None
-    if live.exists():                         # still the example: keep a copy first
-        from . import backup
-        copy = backup.make(label="manual") if config.DB_PATH.exists() else None
-    fd, tmp = tempfile.mkstemp(dir=live.parent, suffix=".tmp")
-    os.close(fd)
-    shutil.copyfile(source, tmp)
-    os.replace(tmp, live)                     # atomic: never a half-written profile
-    return copy
+    when the example was replaced. Refuses a personal profile.
+
+    The check is made again right before the write: the backup in between
+    takes seconds, and a profile saved meanwhile was overwritten (review
+    R-17). A new profile is created exclusively, so one that appears first
+    is never replaced."""
+    with _ADOPT:
+        if not can_adopt():
+            raise PermissionError("you already have a profile; it is never overwritten here")
+        source = draft_path()
+        if not source.exists():
+            raise FileNotFoundError("there is no draft yet")
+        live = config.PROFILE_PATH
+        copy = None
+        if live.exists():                     # still the example: keep a copy first
+            from . import backup
+            copy = backup.make(label="manual") if config.DB_PATH.exists() else None
+        data = source.read_bytes()
+        if not live.exists():
+            try:
+                with open(live, "xb") as fh:
+                    fh.write(data)
+            except FileExistsError:
+                raise PermissionError("a profile appeared while this ran; it is "
+                                      "never overwritten here") from None
+            return copy
+        fd, tmp = tempfile.mkstemp(dir=live.parent, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(data)
+            if not can_adopt():
+                raise PermissionError("your profile changed while this ran; it is "
+                                      "never overwritten here")
+            os.replace(tmp, live)             # atomic: never a half-written profile
+        finally:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+        return copy
 
 
 # --- first discovery, in the background ------------------------------------------------

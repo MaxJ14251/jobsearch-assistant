@@ -184,3 +184,48 @@ class TestDiscoveryInTheBackground(Folder):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestReviewFixes(Folder):
+    """Review R-17 (adopt re-checks before writing) and R-29."""
+
+    def test_a_profile_saved_during_the_backup_is_never_overwritten(self):
+        from jsa import backup
+        shutil.copy(self.dir / "profile" / "master_profile.example.yaml", self.live)
+        setup.start_from_example()
+        real_make = backup.make
+
+        def slow_make(*a, **k):
+            path = real_make(*a, **k)
+            self.live.write_text("identity: {full_name: Someone Real}\n", encoding="utf-8")
+            return path
+        with mock.patch("jsa.backup.make", side_effect=slow_make):
+            with self.assertRaises(PermissionError):
+                setup.adopt()
+        self.assertIn("Someone Real", self.live.read_text(encoding="utf-8"))
+        self.assertEqual([p.name for p in self.live.parent.glob("*.tmp")], [])
+
+    def test_a_profile_that_appears_first_is_never_replaced(self):
+        setup.start_from_example()
+        real = setup.can_adopt
+        calls = []
+
+        def appears(*a):
+            ok = real(*a)
+            if not calls:
+                self.live.write_text("identity: {full_name: Someone Real}\n",
+                                     encoding="utf-8")
+            calls.append(ok)
+            return ok
+        with mock.patch("jsa.setup.can_adopt", side_effect=appears):
+            with self.assertRaises(PermissionError):
+                setup.adopt()
+        self.assertIn("Someone Real", self.live.read_text(encoding="utf-8"))
+
+    def test_a_byte_order_mark_does_not_duplicate_the_block(self):
+        draft = setup.start_from_example()
+        draft.write_bytes(b"\xef\xbb\xbf" + draft.read_bytes())
+        setup.set_preferences(draft, {"target_titles": ["Analyst"]})
+        text = draft.read_text(encoding="utf-8-sig")
+        self.assertEqual(text.count("\njob_search_preferences:")
+                         + text.startswith("job_search_preferences:"), 1)

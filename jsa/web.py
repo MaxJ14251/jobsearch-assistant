@@ -3334,9 +3334,10 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             "target_titles": NL.join(map(str, p.get("target_titles") or [])),
             "fallback_titles": NL.join(map(str, p.get("fallback_titles") or [])),
             "home": home, "radius": p.get("radius_miles") or 40,
-            "remote": any(x.lower().startswith("remote") for x in locs),
-            "locations": NL.join(x for x in locs
-                                    if not x.lower().startswith("remote") and x != home),
+            # Only "Remote (US)" is the checkbox; any other "Remote (...)"
+            # stays a line of its own, not silently replaced (review R-29).
+            "remote": "Remote (US)" in locs,
+            "locations": NL.join(x for x in locs if x != "Remote (US)" and x != home),
             "work_authorization": p.get("work_authorization") or "",
             "needs_visa_sponsorship": tri.get(p.get("needs_visa_sponsorship"), ""),
             "willing_to_relocate": tri.get(p.get("willing_to_relocate"), ""),
