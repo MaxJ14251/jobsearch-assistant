@@ -8,6 +8,7 @@ against the source.
 import ast
 import re
 import shutil
+import sqlite3
 import tempfile
 import unittest
 from email.utils import format_datetime
@@ -133,6 +134,35 @@ class InboxCase(unittest.TestCase):
 
     def replies(self):
         return self.con.execute("SELECT * FROM inbox_replies ORDER BY id").fetchall()
+
+
+class TestNoLockWhileReadingMail(InboxCase):
+    """Review R-03: nothing is written until the mailbox has been read, so the
+    dashboard and Turbo's drafter can write while a fetch runs."""
+
+    def test_another_connection_can_write_during_every_fetch(self):
+        path, blocked = self.dir / "t.db", []
+
+        class Watching(FakeIMAP):
+            def uid(self, command, *args):
+                other = sqlite3.connect(path, timeout=0.1)
+                try:
+                    other.execute("UPDATE companies SET updated_at = updated_at")
+                    other.commit()
+                except sqlite3.OperationalError as exc:
+                    blocked.append(str(exc))
+                finally:
+                    other.close()
+                return super().uid(command, *args)
+
+        self.imap = Watching([
+            message(sender="Acme Robotics <no-reply@acmerobotics.com>",
+                    subject="Your application to Acme Robotics",
+                    body="Unfortunately we will not be moving forward.", mid=f"m{i}")
+            for i in range(3)])
+        report = inbox.fetch(self.con, imap=self.imap)
+        self.assertEqual(report.stored, 3)
+        self.assertEqual(blocked, [])
 
 
 class TestClassification(unittest.TestCase):

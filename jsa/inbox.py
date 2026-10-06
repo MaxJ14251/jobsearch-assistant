@@ -386,6 +386,10 @@ def fetch(con: sqlite3.Connection, imap: imaplib.IMAP4 | None = None) -> Report:
         report.searched = len(uids)
         known = {r[0] for r in con.execute("SELECT message_id FROM inbox_replies")}
         by_id = {a["id"]: a for a in apps}
+        # Rows are written after the mailbox is read, not during: an INSERT
+        # opens a write transaction, and holding it across IMAP round-trips
+        # locked out the dashboard and Turbo's drafter (review R-03).
+        rows: list[tuple] = []
         for uid in uids:
             raw_head = _fetch_part(imap, uid, HEADER_SPEC)
             head = headers(raw_head)
@@ -406,10 +410,7 @@ def fetch(con: sqlite3.Connection, imap: imaplib.IMAP4 | None = None) -> Report:
             report.matched += 1
             kind, rule = classify(head["subject"], text)
             status = app["status"] if app else by_id[ambiguous[0]]["status"]
-            con.execute(
-                "INSERT OR IGNORE INTO inbox_replies (message_id, application_id, "
-                "candidates, received_at, sender_domain, subject, kind, "
-                "suggested_stage, rule) VALUES (?,?,?,?,?,?,?,?,?)",
+            rows.append(
                 (head["message_id"], app["id"] if app else None,
                  json.dumps(ambiguous) if ambiguous else None,
                  head["received"].strftime("%Y-%m-%dT%H:%M:%SZ") if head["received"] else None,
@@ -418,6 +419,10 @@ def fetch(con: sqlite3.Connection, imap: imaplib.IMAP4 | None = None) -> Report:
             known.add(head["message_id"])
             report.stored += 1
             report.ambiguous += bool(ambiguous)
+        con.executemany(
+            "INSERT OR IGNORE INTO inbox_replies (message_id, application_id, "
+            "candidates, received_at, sender_domain, subject, kind, "
+            "suggested_stage, rule) VALUES (?,?,?,?,?,?,?,?,?)", rows)
         con.commit()
     finally:
         try:
