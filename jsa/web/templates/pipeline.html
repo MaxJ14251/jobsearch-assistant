@@ -6,7 +6,7 @@
 <form method="post" action="/inbox/fetch" class="inline" onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Checking…'">
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <button class="ghost" type="submit" {{ '' if mail_ready else 'disabled' }}>Check email</button>
-  <span class="meta">{% if mail_ready %}Reads your mailbox read-only: nothing is marked read, nothing is sent, and nothing moves until you confirm.{% else %}Not set up: add a Gmail app password to .env (see .env.example).{% endif %}</span>
+  <span class="meta">{% if mail_ready %}Reads your mailbox read-only: nothing is marked read, nothing is sent, and nothing moves until you confirm.{% else %}Not set up: add a Gmail app password to .env (`jsa init` creates it from the template).{% endif %}</span>
 </form>
 {% for r in replies %}
 <div class="card">

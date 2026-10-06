@@ -215,10 +215,10 @@ def check_live(db_path: Path | None = None) -> Check:
         sent = _submitted(con)
     finally:
         con.close()
-    from .config import ROOT
+    from .config import HOME
     for stored, digest in sent:
         f = Path(stored)
-        f = f if f.is_absolute() else ROOT / f
+        f = f if f.is_absolute() else HOME / f
         check.submitted_checked += 1
         if not f.is_file():
             check.problems.append(f"{f.name}: the sent file is gone ({stored})")

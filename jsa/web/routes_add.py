@@ -45,7 +45,9 @@ def register(app, ctx) -> None:
             con.close()
         paste = urlencode({"company": report.company, "title": report.title,
                            "location": report.city, "link": report.link})
+        from .. import config
         return render("find", "add", title="Find a listing", report=report,
+                      companies_path=str(config.COMPANIES_PATH),
                       live=True, paste_query=paste)
 
     def back_to_add(msg: str) -> RedirectResponse:

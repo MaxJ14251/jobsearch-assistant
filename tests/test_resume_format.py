@@ -17,7 +17,7 @@ from jsa.render import RenderError, extract_text, format_date, render_resume, sk
 from jsa.tailor import DraftBullet, TailoredDraft, collect_bullets, pick_summary
 
 EXAMPLE = yaml.safe_load(
-    (ROOT / "profile" / "master_profile.example.yaml").read_text(encoding="utf-8"))
+    (ROOT / "jsa" / "resources" / "master_profile.example.yaml").read_text(encoding="utf-8"))
 JOB = {"title": "Support Engineer", "company": "Acme"}
 
 

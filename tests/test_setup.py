@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from jsa import config, db, setup, web
 from jsa.config import ROOT, Preferences
 
-EXAMPLE = ROOT / "profile" / "master_profile.example.yaml"
+EXAMPLE = ROOT / "jsa" / "resources" / "master_profile.example.yaml"
 GOOD = {"target_titles": "Support Engineer\nData Analyst", "remote": "1",
         "home": "Boise, ID", "radius": "30", "work_authorization": "US citizen",
         "needs_visa_sponsorship": "no", "willing_to_relocate": "", "floor": "no floor",

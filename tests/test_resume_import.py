@@ -294,7 +294,7 @@ class TestCommand(Base):
         self.run_cli()
         draft = yaml.safe_load(self.draft.read_text(encoding="utf-8"))
         example = yaml.safe_load(
-            (ROOT / "profile" / "master_profile.example.yaml").read_text(encoding="utf-8"))
+            (ROOT / "jsa" / "resources" / "master_profile.example.yaml").read_text(encoding="utf-8"))
         self.assertEqual(set(draft), set(example))
         bullet = draft["experience"][0]["bullets"][0]
         self.assertEqual(bullet["id"], "b_northwind_supply_1")

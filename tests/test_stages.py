@@ -34,7 +34,7 @@ class TestTheStageVocabulary(unittest.TestCase):
     def test_it_matches_the_schema(self):
         """Follows tests/test_enrich.py: parse the CHECK, do not trust prose.
         The seniority list drifted from its CHECK once and killed a run."""
-        sql = (ROOT / "db" / "schema.sql").read_text(encoding="utf-8")
+        sql = (ROOT / "jsa" / "resources" / "schema.sql").read_text(encoding="utf-8")
         block = re.search(r"status\s+TEXT NOT NULL DEFAULT 'saved'\s*"
                           r"CHECK \(status IN \((.*?)\)\)", sql, re.S).group(1)
         in_schema = set(re.findall(r"'(\w+)'", block))

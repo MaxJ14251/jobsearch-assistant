@@ -1,4 +1,4 @@
-"""Rebuild the shipped data files in data/ from their public sources.
+"""Rebuild the shipped data files in jsa/resources/data/ from their public sources.
 
 `data/` holds 7.5 MB of compressed binary that decides where every job
 posting is placed on a map, and what ground is drawn under it. Until this
@@ -673,8 +673,8 @@ def as_csv(header: tuple[str, ...], rows) -> bytes:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--out", default="data", type=Path,
-                        help="where to write the three files (default: data)")
+    parser.add_argument("--out", default="jsa/resources/data", type=Path,
+                        help="where to write the files (default: jsa/resources/data)")
     parser.add_argument("--cache", type=Path, default=None,
                         help="keep the downloaded archives here and reuse them")
     parser.add_argument("--only", choices=("places", "zips", "outline", "basemap"),

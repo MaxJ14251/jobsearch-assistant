@@ -35,7 +35,7 @@ It needs a free key in `.env` as `MUSE_API_KEY` (register at
 — their terms ask you to). Without it that source is skipped, discovery still
 runs, and you get remote roles plus whatever the employer feeds hold near you.
 `jsa doctor` tells you your own numbers on day one. You can still add employers
-near you to [config/companies.yaml](config/companies.yaml) and run
+near you to [jsa/resources/companies.yaml](jsa/resources/companies.yaml) and run
 `python -m jsa verify`; see
 [ADR 0009](docs/decisions/0009-what-the-shipped-feed-list-is.md) for why the
 employer list is not simply made longer, and
@@ -47,15 +47,23 @@ aggregating source was the answer instead.
 ```bash
 git clone https://github.com/MaxJ14251/jobsearch-assistant && cd jobsearch-assistant
 python -m venv .venv && .venv/Scripts/python -m pip install -r requirements.txt
-cp .env.example .env                                        # add your API key
-cp profile/master_profile.example.yaml profile/master_profile.yaml
-.venv/Scripts/python -m jsa init
+.venv/Scripts/python -m jsa init       # your profile and .env from their templates, and the tracker
 .venv/Scripts/python -m jsa discover --min 0.5
 .venv/Scripts/python -m jsa matches --limit 20
 ```
 
 Edit `profile/master_profile.yaml` with your own history and target roles first —
-everything downstream reads from it. On macOS and Linux use `.venv/bin/python`.
+everything downstream reads from it, and put your API key in `.env`. On macOS
+and Linux use `.venv/bin/python`.
+
+**Or install it as a command** (no clone; your files go to a folder of your
+own: `%APPDATA%\jsa` on Windows, `~/.local/share/jsa` elsewhere, or wherever
+`JSA_HOME` points):
+
+```bash
+pipx install git+https://github.com/MaxJ14251/jobsearch-assistant
+jsa init        # prints where your folder is
+```
 
 ```
 [0.90] #421 T. Rowe Price — Full Stack Software Engineer, AI Lab
@@ -82,8 +90,8 @@ cd "C:\path\to\jobsearch-assistant"
 
 | # | Module | State |
 |---|--------|-------|
-| 1 | Master profile | **Done** — [master_profile.example.yaml](profile/master_profile.example.yaml) |
-| 2 | Tracker DB schema | **Done** — [db/schema.sql](db/schema.sql), validated on SQLite |
+| 1 | Master profile | **Done** — [master_profile.example.yaml](jsa/resources/master_profile.example.yaml) |
+| 2 | Tracker DB schema | **Done** — [schema.sql](jsa/resources/schema.sql), validated on SQLite |
 | 3 | Job discovery | **Done** — 50 verified feeds; national employers plus AI labs |
 | 3b | LLM enrichment | **Done** — degree/clearance/stack facts the filter can't see |
 | 4 | Resume/cover tailoring | **Done** — verifier, scrubber, ATS-safe .docx, provenance |
@@ -104,19 +112,18 @@ python -m venv .venv && .venv/Scripts/python -m pip install -r requirements.txt
 Eight steps, in order. Only the last three cost API calls; everything before
 them runs on your machine for free.
 
-**1. Make the tracker** (a SQLite file in this directory):
+**1. Set up your folder.** One command makes the tracker (a SQLite file in
+this directory) and starts `profile/master_profile.yaml` and `.env` from
+their templates. It never overwrites a file that is already there.
 
 ```bash
 .venv/Scripts/python -m jsa init
 ```
 
-**2. Copy the example profile and fill it in.** This file is the whole point:
-every sentence in every document comes out of it, and the tool will not write a
-claim that is not in it.
-
-```bash
-cp profile/master_profile.example.yaml profile/master_profile.yaml
-```
+**2. Fill in your profile** (`profile/master_profile.yaml`, which step 1
+started from the example). This file is the whole point: every sentence in
+every document comes out of it, and the tool will not write a claim that is
+not in it.
 
 Your name and contact details, what you have actually done as short bullets,
 the titles and places you want. It is gitignored, so it stays on your machine.
@@ -177,11 +184,7 @@ or the search box on the dashboard. Commas mean "or"; each word must start a
 word in the title, so `ai` finds "AI Engineer" but not "Maintenance".
 
 **6. Add your API key.** Steps 7 and 8 call a language model; the rest never
-does. Copy the example and put your key in it:
-
-```bash
-cp .env.example .env
-```
+does. Put your key in `.env`, which step 1 made from the template.
 
 `.env` holds `NVIDIA_API_KEY=...`. Get one free at build.nvidia.com. The key
 never leaves that file, and your name, address, phone and email are never sent
@@ -211,11 +214,11 @@ Or do the same in a browser with `jsa serve`.
 **What it will not do.** It does not submit applications, send email, or
 message anyone — there is no code path that transmits. It will not write a
 claim your profile does not make. It does not search every employer: it polls
-the boards listed in `config/companies.yaml`, and you add your own. If you set
+the boards listed in `jsa/resources/companies.yaml`, and you add your own. If you set
 it up, it reads your mailbox only when you ask, and never writes to it.
 
 **Replies from your email (optional).** With a Gmail app password in `.env`
-(see `.env.example`), `jsa inbox` or "Check email" on the dashboard's Pipeline
+(see the template, `jsa/resources/.env.example`), `jsa inbox` or "Check email" on the dashboard's Pipeline
 page reads your mailbox read-only and finds replies to your applications:
 rejections, interview requests, offers, receipts. It suggests a stage change
 for each, and nothing moves until you confirm it (`jsa inbox confirm <id>`)
@@ -223,7 +226,7 @@ or dismiss it. Nothing is marked read, nothing is sent, and no mail text
 goes to a model. See
 [ADR 0021](docs/decisions/0021-reading-replies-from-the-mailbox.md).
 
-**Where the shipped feeds point.** `config/companies.yaml` ships 50 employer and
+**Where the shipped feeds point.** `jsa/resources/companies.yaml` ships 50 employer and
 aggregator feeds (listed under [Feed coverage](#feed-coverage)). Their on-site
 jobs sit where those employers have offices, mostly California, Washington and
 Texas. Measured from a profile based in Columbus, Ohio: the matches that came
@@ -299,7 +302,7 @@ something still blocks you — so it also works as a setup check in a script.
 ```bash
 .venv/Scripts/python -m jsa verify
 ```
-Probes every feed in [config/companies.yaml](config/companies.yaml) and reports what
+Probes every feed in [jsa/resources/companies.yaml](jsa/resources/companies.yaml) and reports what
 actually returns listings. Run this after editing that file — board tokens are not
 derivable from a company name, and a wrong one either 404s or silently returns someone
 else's board.
@@ -361,7 +364,7 @@ list. It says what is missing and where to add it, never what to claim, and
 it never blocks a draft or an approval. Run it on its own with
 `jsa coach` (`--strict` exits 1 on any finding, if you want a gate); it is
 also shown on the review page beside Approve. The word lists live in
-`config/coach.yaml`. See [ADR 0023](docs/decisions/0023-the-resume-report.md).
+`jsa/resources/coach.yaml`. See [ADR 0023](docs/decisions/0023-the-resume-report.md).
 
 When you reject a draft, you can add a reason code beside your note
 (`jsa reject 12 --feedback "..." --reason wrong_bullets`, or the dropdown on
@@ -619,7 +622,7 @@ with it.
 ```
 Seen a job on LinkedIn or Indeed? Type what the listing shows, and this looks
 for the same job where the tool is allowed to look: your tracker, the
-employer's board from `config/companies.yaml` (checked live, for postings
+employer's board from `jsa/resources/companies.yaml` (checked live, for postings
 newer than your last discovery), or, for an employer with none, a few guessed
 Greenhouse, Lever and Ashby boards (at most 9 requests). The answer is
 **same job** (same title and city, from your tracker or a configured board),
@@ -849,7 +852,7 @@ Playwright is deliberately absent from requirements.txt.
 
 ## Feed coverage
 
-`config/companies.yaml` holds 55 sources: 50 employer feeds and aggregators,
+`jsa/resources/companies.yaml` holds 55 sources: 50 employer feeds and aggregators,
 the nationwide source, and four employers kept for reference with no public
 feed. They are grouped below by the kind of employer. Where a company is
 headquartered is not where its jobs are: SpaceX's own board supplies
@@ -1092,12 +1095,17 @@ Worth knowing before you rely on this.
 ```
 jobsearch/
   profile/
-    master_profile.example.yaml # committed template — copy and fill in
-    master_profile.yaml         # YOUR data. gitignored.
-  db/schema.sql                 # tracker: jobs, applications, documents, approvals
-  config/companies.yaml         # feeds, with verification status
-  .env.example                  # committed; copy to .env for your API key
+    master_profile.yaml         # YOUR data, started by `jsa init`. gitignored.
+  .env                          # YOUR API key, started by `jsa init`. gitignored.
+  pyproject.toml                # `pip install .` / pipx: the `jsa` command
   jsa/
+    resources/                  # what ships with the code, read-only:
+      schema.sql                #   tracker: jobs, applications, documents, approvals
+      companies.yaml            #   feeds, with verification status
+      master_profile.example.yaml  # the template `jsa init` copies
+      .env.example              #   the .env template
+      coach.yaml                #   the resume report's word lists
+      data/                     #   Census centroids, outline, basemap; public domain
     config.py                   # paths, .env loading, preferences
     db.py                       # all SQLite access + additive migrations
     sources.py                  # Greenhouse/Lever/Ashby/Workday/Workable/RSS/custom
@@ -1108,14 +1116,13 @@ jobsearch/
     posting.py                  # how much of a posting a model may read
     places.py                   # a posting's location -> a point on a map
     mapview.py                  # that map, as geometry: no markup, no tiles
-    basemap.py                  # the ground under it, from data/, same projection
+    basemap.py                  # the ground under it, from resources/data/, same projection
     web/                        # the local review dashboard:
       __init__.py               #   create_app, the request guard, shared helpers
       routes_*.py               #   one module per area (matches, turbo, job, ...)
       templates/*.html          #   the pages, plain Jinja files
     cli.py                      # python -m jsa ...
-  data/                         # Census centroids, outline, basemap; public domain
-  tools/build_map_data.py       # rebuilds data/ from its public sources
+  tools/build_map_data.py       # rebuilds jsa/resources/data/ from its public sources
   tests/                        # 888 tests
 ```
 
@@ -1126,13 +1133,9 @@ invented person — a field technician promoted into sales, two projects still
 in development, coursework without a conferred degree. It is shaped that way
 on purpose: two roles at one employer exercises the case that used to print
 one role's bullets under the other's heading, and the honest credential line
-shows how to answer the degree question the tool refuses to lie about. Copy it
-and replace every line with your own:
-
-```bash
-cp profile/master_profile.example.yaml profile/master_profile.yaml
-cp .env.example .env
-```
+shows how to answer the degree question the tool refuses to lie about. `jsa
+init` copies it to `profile/master_profile.yaml` (and `.env.example` to
+`.env`); replace every line with your own.
 
 `job_search_preferences` drives everything — `target_titles`, `fallback_titles` and
 `fallback_weight` (a second tier ranked below the first), `locations`,

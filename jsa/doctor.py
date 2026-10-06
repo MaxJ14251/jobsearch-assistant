@@ -1,6 +1,6 @@
 """What will not work yet, in plain language. Changes nothing.
 
-A newcomer copies master_profile.example.yaml and is then alone with a few
+A newcomer starts from the example profile (`jsa init`) and is then alone with a few
 hundred lines of YAML. The failures this project has actually produced are all
 silent until late:
 
@@ -24,7 +24,8 @@ from typing import Any
 
 import yaml
 
-from .config import ROOT
+from .config import (COMPANIES_PATH, ENV_PATH, EXAMPLE_PROFILE, PROFILE_PATH,
+                     running_from_clone)
 
 # What counts as "still the example". Read from the example file rather than
 # copied here: a copy is personal-looking data in source (the scanner blocked
@@ -37,7 +38,7 @@ _GENERIC = re.compile(r"\byour\b|\bnearby\b|would relocate", re.I)
 
 def example_values() -> set[str]:
     """Every identity and location string the shipped example contains."""
-    path = ROOT / "profile" / "master_profile.example.yaml"
+    path = EXAMPLE_PROFILE
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     except (OSError, yaml.YAMLError):
@@ -242,7 +243,7 @@ def check_resume_fields(profile: dict[str, Any], report: Report) -> None:
     if unused:
         report.add(False, f"{len(unused)} optional resume field(s) unused",
                    "Optional; the defaults work. See the comments in "
-                   "profile/master_profile.example.yaml: " + ", ".join(unused))
+                   f"{EXAMPLE_PROFILE.name}: " + ", ".join(unused))
     report.checked.append("optional resume fields")
 
 
@@ -393,7 +394,7 @@ def check_market(profile: dict[str, Any], con: sqlite3.Connection | None,
                    f"nationwide source is configured, so run `jsa discover` "
                    f"again -- it asks about your own cities. If it stays thin "
                    f"after that, the local market for these titles is thin, "
-                   f"and adding employers near you to config/companies.yaml "
+                   f"and adding employers near you to {COMPANIES_PATH} "
                    f"is the next lever.")
         else:
             fix = (f"{remote} remote role(s) are in your tracker, and local "
@@ -403,7 +404,7 @@ def check_market(profile: dict[str, Any], con: sqlite3.Connection | None,
                    f"source asks about YOUR cities across many employers. "
                    f"Measured 2026-09-26, it returned 9 Boise postings per "
                    f"run where these feeds had none at all. You can also add "
-                   f"employers near you to config/companies.yaml.")
+                   f"employers near you to {COMPANIES_PATH}.")
         report.add(False, f"Only {local} on-site posting(s) in {named}", fix)
 
 
@@ -416,8 +417,8 @@ def check_api_key(report: Report) -> None:
     except Exception:  # noqa: BLE001 - absence is a finding, not a crash
         report.add(False, "No API key configured",
                    "Discovery, matches and the dashboard work without one. "
-                   "Drafting documents and interview prep need it: copy "
-                   ".env.example to .env and add your key.")
+                   f"Drafting documents and interview prep need it: add it to "
+                   f"{ENV_PATH} (`jsa init` creates that file from the template).")
     report.checked.append("API key (presence only)")
 
 
@@ -447,6 +448,12 @@ def check_secrets(report: Report) -> None:
     from .config import ROOT
     from . import inbox
 
+    mailbox = "set up" if inbox.settings() is not None else "not set up (optional)"
+    if not running_from_clone():
+        # Installed: .env lives in your own folder, outside any repository.
+        report.checked.append(f"mailbox {mailbox}")
+        return
+
     def git(*args: str) -> subprocess.CompletedProcess | None:
         try:
             return subprocess.run(["git", *args], cwd=ROOT, capture_output=True,
@@ -464,7 +471,6 @@ def check_secrets(report: Report) -> None:
         report.add(False, "The pre-commit scanner is not switched on",
                    "Run `git config core.hooksPath .githooks` so every commit is "
                    "checked for keys and personal details.")
-    mailbox = "set up" if inbox.settings() is not None else "not set up (optional)"
     report.checked.append(f".env ignored, commit hook, mailbox {mailbox}")
 
 
@@ -474,8 +480,8 @@ def run(profile: dict[str, Any] | None,
     report = Report()
     if profile is None:
         report.add(True, "No profile file",
-                   "Copy profile/master_profile.example.yaml to "
-                   "profile/master_profile.yaml and fill it in.")
+                   f"Run `jsa init` to start {PROFILE_PATH} from the example, then "
+                   "fill it in (or import your resume: `jsa import-resume`).")
         check_tracker(con, {}, report)
         check_api_key(report)
         return report

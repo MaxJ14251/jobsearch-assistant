@@ -1,6 +1,6 @@
 """Add one job by hand: from a link on a supported board, or from pasted text.
 
-Discovery only knows the boards in config/companies.yaml. The operator finds
+Discovery only knows the boards in your companies list. The operator finds
 jobs everywhere else too, and until this module had no way to bring one in.
 
 Two routes, and the line between them is deliberate:

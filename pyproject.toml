@@ -1,0 +1,49 @@
+# Packaging (plan 27): `pipx install git+https://github.com/MaxJ14251/jobsearch-assistant`
+# gives a `jsa` command. requirements.txt stays for the clone workflow (CI,
+# Docker, the README); the dependencies below are the same list, minus the
+# test-only httpx2.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jobsearch-assistant"
+dynamic = ["version"]
+description = "A local job-search assistant: finds matches, drafts from your own profile, submits nothing."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27.0",
+    "PyYAML>=6.0.2",
+    "python-docx>=1.1.2",
+    "pypdf==6.19.0",
+    "feedparser>=6.0.11",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "jinja2>=3.1.4",
+    "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+test = ["httpx2>=2.13"]
+
+[project.scripts]
+jsa = "jsa.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/MaxJ14251/jobsearch-assistant"
+
+[tool.setuptools]
+packages = ["jsa", "jsa.web"]
+include-package-data = false
+
+[tool.setuptools.package-data]
+# What ships with the code: the schema, the map data, the seed companies list,
+# the example profile and .env template, and the dashboard's page templates.
+jsa = ["resources/*.sql", "resources/*.yaml", "resources/.env.example",
+       "resources/data/*.gz"]
+"jsa.web" = ["templates/*.html"]
+
+[tool.setuptools.dynamic]
+version = {attr = "jsa.__version__"}

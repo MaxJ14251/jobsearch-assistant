@@ -9,8 +9,32 @@ from typing import Any
 
 import yaml
 
-ROOT = Path(__file__).resolve().parent.parent
-ENV_PATH = ROOT / ".env"
+ROOT = Path(__file__).resolve().parent.parent   # a clone, or site-packages
+# What ships with the code, read-only: the schema, the map data, the seed
+# companies list, the example profile and .env template (plan 27).
+RESOURCES = Path(__file__).resolve().parent / "resources"
+
+
+def running_from_clone(root: Path = ROOT) -> bool:
+    """A git checkout or an unpacked source tree, not an installed wheel."""
+    return (root / ".git").exists() or (root / "pyproject.toml").exists()
+
+
+def _home() -> Path:
+    """Where the person's own files live: profile, .env, tracker, output,
+    backups, logs. JSA_HOME if set; else the clone itself, so a clone keeps
+    today's layout; else a per-user folder."""
+    if os.environ.get("JSA_HOME"):
+        return Path(os.environ["JSA_HOME"]).expanduser()
+    if running_from_clone():
+        return ROOT
+    if os.name == "nt":
+        return Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming") / "jsa"
+    return Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share") / "jsa"
+
+
+HOME = _home()
+ENV_PATH = HOME / ".env"
 
 
 def load_dotenv(path: Path = ENV_PATH) -> list[str]:
@@ -42,11 +66,18 @@ def load_dotenv(path: Path = ENV_PATH) -> list[str]:
     return loaded
 
 
-PROFILE_PATH = ROOT / "profile" / "master_profile.yaml"
-COMPANIES_PATH = ROOT / "config" / "companies.yaml"
-SCHEMA_PATH = ROOT / "db" / "schema.sql"
-DB_PATH = Path(os.environ.get("JSA_DB", ROOT / "jobsearch.db"))
-OUTPUT_DIR = ROOT / "output"
+PROFILE_PATH = HOME / "profile" / "master_profile.yaml"
+EXAMPLE_PROFILE = RESOURCES / "master_profile.example.yaml"
+ENV_EXAMPLE = RESOURCES / ".env.example"
+SCHEMA_PATH = RESOURCES / "schema.sql"
+DATA_DIR = RESOURCES / "data"
+SEED_COMPANIES = RESOURCES / "companies.yaml"
+# The companies list is both shipped and yours: `jsa verify --write` edits it.
+# A clone edits the tracked file itself, as before; an installed copy gets its
+# own copy in HOME, seeded on first use, and the package is never written.
+COMPANIES_PATH = SEED_COMPANIES if HOME == ROOT else HOME / "config" / "companies.yaml"
+DB_PATH = Path(os.environ.get("JSA_DB", HOME / "jobsearch.db"))
+OUTPUT_DIR = HOME / "output"
 
 PROJECT_URL = "https://github.com/MaxJ14251/jobsearch-assistant"
 
@@ -67,7 +98,8 @@ def user_agent() -> str:
         except Exception:  # noqa: BLE001 — a missing profile must not break a fetch
             contact = ""
     suffix = f"; contact {contact}" if contact else ""
-    return f"jobsearch-assistant/0.1 (+{PROJECT_URL}{suffix})"
+    from . import __version__
+    return f"jobsearch-assistant/{__version__} (+{PROJECT_URL}{suffix})"
 
 
 REQUEST_TIMEOUT = 20.0
@@ -325,7 +357,7 @@ def load_profile(path: Path = PROFILE_PATH) -> dict[str, Any]:
         return yaml.safe_load(fh)
 
 
-COACH_PATH = ROOT / "config" / "coach.yaml"
+COACH_PATH = RESOURCES / "coach.yaml"
 
 
 def load_coach(path: Path | None = None) -> dict[str, Any]:
@@ -338,7 +370,19 @@ def load_coach(path: Path | None = None) -> dict[str, Any]:
         return yaml.safe_load(fh) or {}
 
 
+def seed_companies(path: Path | None = None) -> Path:
+    """An installed copy's own companies list, copied from the shipped seed
+    the first time it is needed. Never overwrites."""
+    path = Path(path or COMPANIES_PATH)
+    if not path.exists() and path != SEED_COMPANIES and SEED_COMPANIES.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(SEED_COMPANIES.read_bytes())
+    return path
+
+
 def load_sources(path: Path = COMPANIES_PATH) -> list[dict[str, Any]]:
+    if path == COMPANIES_PATH:
+        seed_companies(path)
     if not path.exists():
         raise ConfigError(f"companies config not found at {path}")
     with path.open(encoding="utf-8") as fh:

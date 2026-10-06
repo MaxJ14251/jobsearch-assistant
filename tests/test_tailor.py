@@ -35,7 +35,7 @@ from jsa.tailor import (
 def load_profile():
     path = ROOT / "profile" / "master_profile.yaml"
     if not path.exists():                       # published checkout
-        path = ROOT / "profile" / "master_profile.example.yaml"
+        path = ROOT / "jsa" / "resources" / "master_profile.example.yaml"
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 

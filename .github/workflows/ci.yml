@@ -38,8 +38,6 @@ jobs:
       # what a fresh clone has. Anything that needs either must skip, not fail.
       - name: Set up a new user's world
         run: |
-          cp .env.example .env
-          cp profile/master_profile.example.yaml profile/master_profile.yaml
           python -m jsa init
 
       # Two warnings are failures here (Plan 4, 2026-10-02). Python 3.13 warns

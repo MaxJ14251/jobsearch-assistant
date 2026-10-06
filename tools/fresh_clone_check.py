@@ -89,8 +89,9 @@ def main() -> int:
         print("=" * 70)
         print(f"   copied {copied} file(s), excluded {skipped} by .gitignore")
 
-        for required in (".env.example", "profile/master_profile.example.yaml",
-                         "README.md", "requirements.txt", ".gitignore"):
+        for required in ("jsa/resources/.env.example",
+                         "jsa/resources/master_profile.example.yaml",
+                         "README.md", "requirements.txt", "pyproject.toml", ".gitignore"):
             ok = (dest / required).exists()
             print(f"   {'ok ' if ok else 'MISSING'} {required}")
         for forbidden in (".env", "profile/master_profile.yaml", "jobsearch.db",
@@ -120,11 +121,6 @@ def main() -> int:
         print("=" * 70)
         steps = []
 
-        shutil.copy2(dest / ".env.example", dest / ".env")
-        shutil.copy2(dest / "profile" / "master_profile.example.yaml",
-                     dest / "profile" / "master_profile.yaml")
-        print("   copied both example files, as the README instructs")
-
         code, out = run([sys.executable, "-m", "venv", ".venv"], dest)
         steps.append(("create venv", code))
         py = dest / ".venv" / ("Scripts" if sys.platform == "win32" else "bin") / "python.exe"
@@ -137,9 +133,11 @@ def main() -> int:
         if code:
             print(f"      {out[-300:]}")
 
+        # `jsa init` starts .env and the profile from their templates.
         code, out = run([str(py), "-m", "jsa", "init"], dest)
-        steps.append(("python -m jsa init", code))
-        if code:
+        made = (dest / ".env").exists() and (dest / "profile" / "master_profile.yaml").exists()
+        steps.append(("python -m jsa init", code or (0 if made else 1)))
+        if code or not made:
             print(f"      {out[-300:]}")
 
         code, out = run([str(py), "-m", "unittest", "discover", "-s", "tests",
@@ -166,6 +164,15 @@ def main() -> int:
         for label, rc in steps:
             print(f"   {'ok  ' if rc == 0 else 'FAIL'} {label}")
 
+        print()
+        print("=" * 70)
+        print("4. THE INSTALLED FORM (plan 27)")
+        print("=" * 70)
+        installed = installed_form(dest, Path(tmp))
+        for label, rc in installed:
+            print(f"   {'ok  ' if rc == 0 else 'FAIL'} {label}")
+        steps += installed
+
         failures = [l for l, rc in steps if rc != 0]
         print()
         print("=" * 70)
@@ -174,6 +181,68 @@ def main() -> int:
         print(f"   personal data leaks : {'none' if not leaks else 'FOUND'}")
         print(f"   README steps failing: {len(failures)} {failures if failures else ''}")
         return 1 if (leaks or failures) else 0
+
+
+def installed_form(source: Path, tmp: Path) -> list[tuple[str, int]]:
+    """Build a wheel from the clone, install it into its own venv, and run it
+    with JSA_HOME pointing at an empty folder. Everything it writes must land
+    in that folder; the schema and map data must come from the package."""
+    import os
+
+    steps: list[tuple[str, int]] = []
+    wheels, venv, home, cwd = (tmp / "wheels", tmp / "installed", tmp / "home",
+                               tmp / "elsewhere")
+    cwd.mkdir()
+    code, out = run([sys.executable, "-m", "pip", "wheel", str(source), "--no-deps",
+                     "-q", "-w", str(wheels)], tmp)
+    steps.append(("build a wheel", code))
+    if code:
+        print(f"      {out[-300:]}")
+        return steps
+    run([sys.executable, "-m", "venv", str(venv)], tmp)
+    bindir = venv / ("Scripts" if sys.platform == "win32" else "bin")
+    py = bindir / ("python.exe" if sys.platform == "win32" else "python")
+    jsa = bindir / ("jsa.exe" if sys.platform == "win32" else "jsa")
+    wheel = next(wheels.glob("*.whl"))
+    code, out = run([str(py), "-m", "pip", "install", "-q", str(wheel)], tmp)
+    steps.append(("pip install the wheel", code))
+    if code:
+        print(f"      {out[-300:]}")
+        return steps
+    package = Path(run([str(py), "-c", "import jsa, pathlib; "
+                        "print(pathlib.Path(jsa.__file__).parent)"], cwd)[1].strip())
+    before = sorted(p.relative_to(package) for p in package.rglob("*") if p.is_file())
+    env = {**os.environ, "JSA_HOME": str(home)}
+    env.pop("JSA_DB", None)
+
+    def jsa_run(*args: str) -> tuple[int, str]:
+        proc = subprocess.run([str(jsa), *args], cwd=cwd, env=env, capture_output=True,
+                              text=True, timeout=600)
+        return proc.returncode, proc.stdout + proc.stderr
+
+    code, out = jsa_run("init")
+    steps.append(("jsa init (the command, not python -m)", code))
+    code, out = jsa_run("matches", "--limit", "3")
+    steps.append(("jsa matches --limit 3", code))
+    code, out = jsa_run("doctor")
+    steps.append(("jsa doctor runs (findings are expected)",
+                  0 if code in (0, 1) and "Traceback" not in out else 1))
+    proc = subprocess.run(
+        [str(py), "-c", "from jsa import basemap, config, places; "
+         "print(places.data_is_present(), basemap.available(), config.SCHEMA_PATH.exists())"],
+        cwd=cwd, env=env, capture_output=True, text=True)
+    steps.append(("schema and map data load from the package",
+                  0 if proc.stdout.strip() == "True True True" else 1))
+    after = sorted(p.relative_to(package) for p in package.rglob("*")
+                   if p.is_file() and "__pycache__" not in p.parts)
+    before = [p for p in before if "__pycache__" not in p.parts]
+    stray = [p for p in cwd.rglob("*")] + [p for p in after if p not in before]
+    steps.append(("nothing written outside JSA_HOME", 0 if not stray else 1))
+    if stray:
+        print(f"      written outside JSA_HOME: {stray[:5]}")
+    for name in ("jobsearch.db", ".env", "profile/master_profile.yaml"):
+        steps.append((f"{name} is in JSA_HOME", 0 if (home / name).exists() else 1))
+    return steps
 
 
 if __name__ == "__main__":

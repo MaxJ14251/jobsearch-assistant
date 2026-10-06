@@ -39,9 +39,9 @@ from functools import lru_cache
 from pathlib import Path
 
 from . import places
-from .config import ROOT
+from .config import DATA_DIR
 
-OUTLINE_FILE = ROOT / "data" / "us_outline.json.gz"
+OUTLINE_FILE = DATA_DIR / "us_outline.json.gz"
 
 # Not drawn on the national map, and counted in words instead. Alaska and
 # Hawaii at their true position turn the lower 48 into a thumbnail, and an

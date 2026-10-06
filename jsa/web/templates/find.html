@@ -20,7 +20,7 @@
 {% if report.verdict == 'not_found' %}<h2>Not found</h2>
 <p>Not found on the employer's own board{% if not report.candidates %} (no company by that name is in your tracker or companies.yaml){% endif %}. Apply on the listing site. To track it, <a class="plain" href="/add?{{ paste_query }}#paste">paste the posting</a>; its job page then has an apply-by-hand checklist.</p>{% endif %}
 {% for b in report.boards if b.yaml %}<h2>A guessed {{ b.kind|title }} board answered</h2>
-<p>{{ b.confirm }} If it is theirs, add this to <code>config/companies.yaml</code> and run <code>jsa verify</code>:</p>
+<p>{{ b.confirm }} If it is theirs, add this to your companies list (<code>{{ companies_path }}</code>) and run <code>jsa verify</code>:</p>
 <pre>{{ b.yaml }}</pre>{% endfor %}
 {% for n in report.notes %}<p class="meta">{{ n }}</p>{% endfor %}
 <p><a class="plain" href="/add">Search for another</a></p>

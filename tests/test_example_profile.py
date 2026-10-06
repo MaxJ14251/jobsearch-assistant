@@ -19,7 +19,7 @@ import yaml
 
 from jsa.config import ROOT
 
-EXAMPLE = ROOT / "profile" / "master_profile.example.yaml"
+EXAMPLE = ROOT / "jsa" / "resources" / "master_profile.example.yaml"
 REAL = ROOT / "profile" / "master_profile.yaml"
 
 

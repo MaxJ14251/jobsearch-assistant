@@ -88,7 +88,8 @@ class TestSecretScanner(unittest.TestCase):
         self.addCleanup(__import__("shutil").rmtree, root, True)
         (root / "profile").mkdir()
         (root / "profile" / "master_profile.yaml").write_text(profile, encoding="utf-8")
-        (root / "profile" / "master_profile.example.yaml").write_text(
+        (root / "jsa" / "resources").mkdir(parents=True)
+        (root / "jsa" / "resources" / "master_profile.example.yaml").write_text(
             example or "experience: []\n", encoding="utf-8")
         self.addCleanup(lambda: (scanner.LIFE.clear(), scanner.LIFE_SHORT.clear()))
         with mock.patch.object(scanner, "ROOT", root):
@@ -174,8 +175,10 @@ class TestReleaseFiles(unittest.TestCase):
     def test_ci_sets_up_a_fresh_users_world(self):
         """The suite must pass with no API key and no job data."""
         ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
-        self.assertIn("master_profile.example.yaml", ci)
+        # `jsa init` starts the profile and .env from their templates
+        # (plan 27; tests/test_home.py checks it does).
         self.assertIn("jsa init", ci)
+        self.assertNotIn("cp ", ci.split("Set up a new user's world")[1].split("- name")[0])
 
     def test_dockerfile_runs_as_non_root(self):
         text = (ROOT / "Dockerfile").read_text(encoding="utf-8")
@@ -222,6 +225,17 @@ class TestProjectUrl(unittest.TestCase):
     def test_user_agent_advertises_the_project(self):
         from jsa.config import PROJECT_URL, user_agent
         self.assertIn(PROJECT_URL, user_agent())
+
+    def test_one_version_number(self):
+        """The User-Agent and the package read the same number (plan 27)."""
+        import jsa
+        from jsa.config import user_agent
+        self.assertRegex(jsa.__version__, r"^\d+\.\d+\.\d+$")
+        self.assertIn(f"jobsearch-assistant/{jsa.__version__} ", user_agent())
+        pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        self.assertIn('version = {attr = "jsa.__version__"}', pyproject)
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn(f"## [{jsa.__version__}]", changelog)
 
     def test_repo_url_is_allowed_in_code_but_profile_url_is_not(self):
         import tools.scan_secrets as scanner

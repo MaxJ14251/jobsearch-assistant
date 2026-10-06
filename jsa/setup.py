@@ -32,13 +32,14 @@ def draft_path() -> Path:
 
 
 def example_path() -> Path:
-    return config.PROFILE_PATH.with_name("master_profile.example.yaml")
+    return config.EXAMPLE_PROFILE
 
 
 def start_from_example() -> Path:
     """Copy the example to the draft, unless a draft already exists."""
     path = draft_path()
     if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(example_path(), path)
     return path
 
@@ -206,6 +207,7 @@ def adopt() -> Path | None:
         if not source.exists():
             raise FileNotFoundError("there is no draft yet")
         live = config.PROFILE_PATH
+        live.parent.mkdir(parents=True, exist_ok=True)
         copy = None
         if live.exists():                     # still the example: keep a copy first
             from . import backup

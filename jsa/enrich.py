@@ -72,7 +72,7 @@ TITLE: {title}
 POSTING:
 {description}"""
 
-# MUST stay a subset of the CHECK constraint on jobs.seniority in db/schema.sql.
+# MUST stay a subset of the CHECK constraint on jobs.seniority in jsa/resources/schema.sql.
 # These drifted apart once — the validator accepted "lead", the column did not,
 # and the pass died mid-run on IntegrityError. tests/test_enrich.py now parses
 # the schema and asserts the two agree.

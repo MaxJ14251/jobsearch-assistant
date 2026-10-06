@@ -119,7 +119,7 @@ def _dates(start: Any, end: Any, current: bool = False,
 
 def skill_label(key: str, labels: dict[str, Any], acronyms: list[str]) -> str:
     """`skill_labels[key]` if set, else the key humanized, with the acronyms
-    from config/coach.yaml in capitals ("ai_tools" -> "AI Tools")."""
+    from coach.yaml in capitals ("ai_tools" -> "AI Tools")."""
     if labels.get(key):
         return str(labels[key])
     upper = {str(a).lower(): str(a) for a in acronyms}

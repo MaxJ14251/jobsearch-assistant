@@ -20,7 +20,7 @@ import yaml
 from jsa import db, doctor
 from jsa.config import ROOT
 
-EXAMPLE = ROOT / "profile" / "master_profile.example.yaml"
+EXAMPLE = ROOT / "jsa" / "resources" / "master_profile.example.yaml"
 
 GOOD = {
     "identity": {"full_name": "Dana Rivers", "email": "dana@example.test",
@@ -138,10 +138,10 @@ class TestAWorkingProfile(unittest.TestCase):
         self.assertTrue(report.ok)
         self.assertIn("no postings yet", findings(report))
 
-    def test_a_missing_profile_blocks_and_names_the_copy_command(self):
+    def test_a_missing_profile_blocks_and_names_the_command_that_starts_one(self):
         report = doctor.run(None, None)
         self.assertFalse(report.ok)
-        self.assertIn("master_profile.example.yaml", findings(report))
+        self.assertIn("jsa init", findings(report))
 
     def test_tags_that_match_nothing_are_reported_with_their_cost(self):
         profile = copy.deepcopy(GOOD)
@@ -311,7 +311,8 @@ class TestTheFirstHourIsReal(unittest.TestCase):
     def test_the_first_hour_starts_with_the_profile_and_doctor(self):
         section = self.readme[self.readme.index("## Your first hour"):]
         section = section[:section.index("## Usage")]
-        for expected in ("master_profile.example.yaml", "jsa doctor",
+        # `jsa init` starts the profile from the example (plan 27).
+        for expected in ("jsa init", "jsa doctor",
                          "jsa discover", "jsa matches", "jsa tailor",
                          "jsa review", "jsa applied"):
             self.assertIn(expected, section, expected)

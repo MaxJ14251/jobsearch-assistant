@@ -2,7 +2,7 @@
 <h1>Set up</h1>
 <p class="sub">Four steps to your first matches. Everything here writes the <strong>draft</strong> profile, <code>profile/{{ draft_name }}</code>; your real profile is only created on a first run, and never overwritten.</p>
 {% if msg %}<p class="note {{ 'bad' if bad else 'good' }}" role="status">{{ msg }}</p>{% endif %}
-{% if not api_key %}<p class="note" role="note">No model API key yet. Matching works without one; drafting resumes needs one. Add <code>NVIDIA_API_KEY=...</code> to <code>.env</code> (see <code>.env.example</code>; a free key from build.nvidia.com). This page never asks for it.</p>{% endif %}
+{% if not api_key %}<p class="note" role="note">No model API key yet. Matching works without one; drafting resumes needs one. Add <code>NVIDIA_API_KEY=...</code> to <code>.env</code> (<code>jsa init</code> creates it from the template; a free key from build.nvidia.com). This page never asks for it.</p>{% endif %}
 
 <h2>1 · Start</h2>
 {% if draft %}<p class="sub">You have a draft. <a class="plain" href="/import">Import a resume</a> to replace it, or carry on below.</p>

@@ -89,7 +89,7 @@ class TestDocumentTraversal(unittest.TestCase):
                              "response contains the target file's bytes")
 
     def test_profile_outside_output_is_refused(self):
-        target = ROOT / "profile" / "master_profile.example.yaml"
+        target = ROOT / "jsa" / "resources" / "master_profile.example.yaml"
         self.assert_refused(target, target)
 
     def test_real_profile_is_refused(self):
@@ -100,7 +100,7 @@ class TestDocumentTraversal(unittest.TestCase):
         self.assert_refused(ROOT / ".env", ROOT / ".env")
 
     def test_dotdot_out_of_output_is_refused(self):
-        target = ROOT / "profile" / "master_profile.example.yaml"
+        target = ROOT / "jsa" / "resources" / "master_profile.example.yaml"
         import os
         # output/../../..<to the repo>: starts inside output/, resolves outside.
         sneaky = str(self.box.out) + os.sep + os.path.relpath(target, self.box.out)
@@ -108,7 +108,7 @@ class TestDocumentTraversal(unittest.TestCase):
         self.assert_refused(sneaky, target)
 
     def test_relative_traversal_is_refused(self):
-        target = ROOT / "profile" / "master_profile.example.yaml"
+        target = ROOT / "jsa" / "resources" / "master_profile.example.yaml"
         self.assert_refused("output/../profile/master_profile.example.yaml", target)
 
     def test_a_sibling_directory_sharing_the_prefix_is_refused(self):

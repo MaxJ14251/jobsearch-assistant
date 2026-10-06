@@ -10,7 +10,6 @@ services:
     volumes:
       - ./data:/data                                   # the tracker persists here
       - ./profile:/app/profile:ro                      # your filled-in profile
-      - ./config/companies.yaml:/app/config/companies.yaml:ro
       - ./output:/app/output                           # generated documents
     command: ["discover", "--min", "0.5"]
 

@@ -116,7 +116,7 @@ ok "town, ZIP and basemap data are in the image"
 
 # --- 3. init and matches, example profile, no key -----------------------------------
 mkdir -p "$WORK/profile"
-cp profile/master_profile.example.yaml "$WORK/profile/master_profile.yaml"
+cp jsa/resources/master_profile.example.yaml "$WORK/profile/master_profile.yaml"
 chmod -R a+rX "$WORK/profile"
 docker volume create "$VOLUME" >/dev/null
 run() {

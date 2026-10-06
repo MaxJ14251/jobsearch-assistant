@@ -28,9 +28,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Iterable
 
-from .config import ROOT
+from .config import DATA_DIR
 
-DATA = ROOT / "data"
+DATA = DATA_DIR
 EARTH_MILES = 3958.7613
 
 STATE_CODES = {

@@ -56,7 +56,7 @@ class TestTheCode(unittest.TestCase):
 class TestTheColumnArrivesOnOldTrackers(unittest.TestCase):
     def test_migrate_adds_reason_without_a_rebuild(self):
         path = Path(tempfile.mkdtemp()) / "old.db"
-        schema = (ROOT / "db" / "schema.sql").read_text(encoding="utf-8")
+        schema = (ROOT / "jsa" / "resources" / "schema.sql").read_text(encoding="utf-8")
         old = "\n".join(ln for ln in schema.splitlines()
                         if not ln.strip().startswith("reason          TEXT"))
         con = sqlite3.connect(path)

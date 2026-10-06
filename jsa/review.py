@@ -19,7 +19,7 @@ from typing import Any
 
 from docx import Document
 
-from .config import ROOT
+from .config import HOME
 
 SERVABLE_SUFFIXES = frozenset({".docx"})
 HEADINGS = frozenset({"SUMMARY", "EXPERIENCE", "PROJECTS", "SKILLS",
@@ -37,8 +37,9 @@ def safe_document_path(stored: str | None, output_dir: Path) -> Path | None:
         return None
     path = Path(stored)
     if not path.is_absolute():
-        # documents.path is documented as relative to the repo root.
-        path = ROOT / path
+        # documents.path is relative to HOME: the clone, for every tracker
+        # made before plan 27, so stored rows keep working.
+        path = HOME / path
     try:
         real = path.resolve(strict=True)
         base = Path(output_dir).resolve(strict=True)

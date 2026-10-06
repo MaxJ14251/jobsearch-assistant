@@ -1,8 +1,8 @@
 {% extends "base" %}{% from "card" import match_card %}{% block body %}
 <h1>Matches</h1>
 {% if no_profile %}<p class="note bad" role="alert">No profile yet, so nothing can be scored for you.
-  <a class="plain" href="/setup">Set up in the browser</a> (import your resume, or start from the example), or copy
-  <code>profile/master_profile.example.yaml</code> to <code>profile/master_profile.yaml</code> and fill it in.</p>{% endif %}
+  <a class="plain" href="/setup">Set up in the browser</a> (import your resume, or start from the example), or run
+  <code>jsa init</code> and fill in the profile it creates.</p>{% endif %}
 <div id="summary">
 <p class="sub">{{ total }} unreviewed · showing {{ rows|length - mine }}
   {%- if mine %} and {{ mine }} of your applications{% endif %}

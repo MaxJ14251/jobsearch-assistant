@@ -31,7 +31,7 @@ NOW = "2026-10-01T15:00:00Z"
 
 
 def profile() -> dict:
-    data = yaml.safe_load((ROOT / "profile" / "master_profile.example.yaml")
+    data = yaml.safe_load((ROOT / "jsa" / "resources" / "master_profile.example.yaml")
                           .read_text(encoding="utf-8"))
     data = copy.deepcopy(data)
     prefs = data.setdefault("job_search_preferences", {})

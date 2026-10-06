@@ -413,7 +413,7 @@ class TestCityNames(FixtureData):
     def test_every_shipped_name_resolves_but_one(self):
         """St. Charles, MD has no place in the 2024 Gazetteer, so no point
         to stand on; every other name does (n26 aliased the two misspelt)."""
-        with gzip.open(ROOT / "data" / "us_basemap_fine.json.gz", "rt", encoding="utf-8") as fh:
+        with gzip.open(ROOT / "jsa" / "resources" / "data" / "us_basemap_fine.json.gz", "rt", encoding="utf-8") as fh:
             cities = json.load(fh)["cities"]
         missing = [f"{c[0]}, {c[1]}" for c in cities if places.resolve(c[0], c[1]) is None]
         self.assertLessEqual(set(missing), {"St. Charles, MD"})

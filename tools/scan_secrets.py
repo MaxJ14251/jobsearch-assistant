@@ -364,7 +364,7 @@ def _example_values() -> set[str]:
     """Employers and schools the example profile ships, lowercased."""
     import yaml
 
-    path = ROOT / "profile" / "master_profile.example.yaml"
+    path = ROOT / "jsa" / "resources" / "master_profile.example.yaml"
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     except (OSError, yaml.YAMLError):

@@ -309,13 +309,13 @@ def _file_sha256(path: str | None) -> str | None:
     import hashlib
     from pathlib import Path
 
-    from .config import ROOT
+    from .config import HOME
 
     if not path:
         return None
     file = Path(path)
     if not file.is_absolute():
-        file = ROOT / file
+        file = HOME / file
     try:
         return hashlib.sha256(file.read_bytes()).hexdigest()
     except OSError:
@@ -408,7 +408,7 @@ def changed_since_approval(con: sqlite3.Connection, item: Sent) -> bool:
     from datetime import datetime, timezone
     from pathlib import Path
 
-    from .config import ROOT
+    from .config import HOME
 
     if not item.approved or not item.path:
         return False
@@ -418,7 +418,7 @@ def changed_since_approval(con: sqlite3.Connection, item: Sent) -> bool:
         (item.document_id,)).fetchone()[0]
     file = Path(item.path)
     if not file.is_absolute():
-        file = ROOT / file
+        file = HOME / file
     try:
         modified = datetime.fromtimestamp(os.path.getmtime(file), timezone.utc)
     except OSError:
@@ -585,7 +585,7 @@ def record_event(
 # tool cannot observe a phone screen, and it may never decide one happened.
 
 # MUST stay a subset of the CHECK constraint on applications.status in
-# db/schema.sql. The seniority vocabulary drifted from its CHECK once and
+# jsa/resources/schema.sql. The seniority vocabulary drifted from its CHECK once and
 # killed an enrichment run mid-pass; a test parses the schema and asserts
 # these agree.
 STAGES = (

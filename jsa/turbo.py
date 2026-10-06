@@ -99,7 +99,7 @@ def drafting_blocker(profile: dict[str, Any] | None) -> str | None:
     try:
         api_key()
     except LLMError:
-        return "no model API key is set (see .env.example)"
+        return "no model API key is set (add it to .env; `jsa init` creates the file)"
     return None
 
 

@@ -44,3 +44,8 @@ documents/
 *.log
 # `jsa daily` logs, beside the tracker.
 logs/
+
+# Packaging (plan 27): what `pip wheel .` leaves behind.
+build/
+dist/
+*.egg-info/

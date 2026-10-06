@@ -125,7 +125,7 @@ def mask(address: str) -> str:
 
 NOT_CONFIGURED = (
     "email is not set up. Put JSA_IMAP_USER and JSA_IMAP_APP_PASSWORD in .env "
-    "(see .env.example): a Gmail app password from Google Account > Security > "
+    "(`jsa init` creates .env from the template): a Gmail app password from Google Account > Security > "
     "2-Step Verification > App passwords, never your account password.")
 
 

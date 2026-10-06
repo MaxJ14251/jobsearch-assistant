@@ -362,7 +362,7 @@ class TestNoPersonalDataCommitted(unittest.TestCase):
     def test_example_profile_exists_and_is_loadable(self):
         import yaml
         from jsa.config import ROOT
-        p = ROOT / "profile" / "master_profile.example.yaml"
+        p = ROOT / "jsa" / "resources" / "master_profile.example.yaml"
         self.assertTrue(p.exists(), "example profile must be committed")
         data = yaml.safe_load(p.read_text(encoding="utf-8"))
         self.assertIn("job_search_preferences", data)

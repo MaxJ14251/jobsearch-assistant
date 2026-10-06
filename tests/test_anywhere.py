@@ -12,7 +12,7 @@ import yaml
 from jsa.config import Preferences
 from jsa.scoring import location_score, score_job
 
-EXAMPLE = "profile/master_profile.example.yaml"
+EXAMPLE = "jsa/resources/master_profile.example.yaml"
 
 
 def operator_places() -> tuple[set[str], set[str]]:

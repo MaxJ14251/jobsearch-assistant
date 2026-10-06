@@ -45,8 +45,30 @@ def region_clause(regions: dict[str, list[str]], region: str) -> str:
 
 
 def cmd_init(args: argparse.Namespace) -> int:
+    """Your folder, ready to fill in (plan 27). Never overwrites anything."""
+    from . import config
+
+    home = config.HOME
+    print(f"your folder: {home}")
+    for folder in (config.PROFILE_PATH.parent, config.OUTPUT_DIR):
+        folder.mkdir(parents=True, exist_ok=True)
+    for target, source, what in (
+            (config.PROFILE_PATH, config.EXAMPLE_PROFILE, "profile, from the example"),
+            (config.ENV_PATH, config.ENV_EXAMPLE, ".env, from the template")):
+        if target.exists():
+            print(f"  kept     {target} (already there; never overwritten)")
+        else:
+            target.write_bytes(source.read_bytes())
+            print(f"  created  {target} ({what})")
+    if config.COMPANIES_PATH != config.SEED_COMPANIES:
+        existed = config.COMPANIES_PATH.exists()
+        config.seed_companies()
+        print(f"  {'kept   ' if existed else 'created'}  {config.COMPANIES_PATH}"
+              + ("" if existed else " (the shipped companies list)"))
     path = db.init_db()
-    print(f"tracker ready at {path}")
+    print(f"  tracker  {path}")
+    print("\nnext: fill in the profile (or `jsa import-resume your_resume.docx`), "
+          "add your model key to .env, then `jsa doctor`.")
     return 0
 
 
@@ -1108,7 +1130,7 @@ def find_lines(report) -> list[str]:
     for board in report.boards:
         if board.yaml:
             out += [f"A guessed {board.kind.title()} board answered: {board.confirm}",
-                    "  If it is theirs, add this to config/companies.yaml and run "
+                    f"  If it is theirs, add this to {COMPANIES_PATH} and run "
                     "`jsa verify`:", ""]
             out += ["  " + line for line in board.yaml.splitlines()]
             out.append("")
@@ -1486,10 +1508,10 @@ FOLLOW_UP_DAYS = 7
 
 
 def _shown_path(path: str) -> str:
-    """Relative to the project when it is inside it; the paths are long enough."""
-    from .config import ROOT
+    """Relative to your folder when it is inside it; the paths are long enough."""
+    from .config import HOME
     try:
-        return str(Path(path).resolve().relative_to(ROOT.resolve()))
+        return str(Path(path).resolve().relative_to(HOME.resolve()))
     except ValueError:
         return path
 
@@ -1594,7 +1616,9 @@ def main(argv: list[str] | None = None) -> int:
         help="log per-call model, token and latency detail to stderr")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    sub.add_parser("init", help="create the tracker database").set_defaults(func=cmd_init)
+    sub.add_parser(
+        "init", help="set up your folder: profile, .env and tracker (never overwrites)"
+    ).set_defaults(func=cmd_init)
 
     sub.add_parser(
         "doctor", help="what will not work yet in your profile and tracker"

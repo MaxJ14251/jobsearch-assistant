@@ -38,7 +38,7 @@ class Base(unittest.TestCase):
         # the real profile folder, and don't start a real discovery.
         profile_dir = self.path.parent / "profile"
         profile_dir.mkdir()
-        shutil.copy(ROOT / "profile" / "master_profile.example.yaml", profile_dir)
+        shutil.copy(ROOT / "jsa" / "resources" / "master_profile.example.yaml", profile_dir)
         for patch in (mock.patch("jsa.config.PROFILE_PATH", profile_dir / "master_profile.yaml"),
                       mock.patch("jsa.setup.Discovery.start", return_value=True)):
             patch.start()

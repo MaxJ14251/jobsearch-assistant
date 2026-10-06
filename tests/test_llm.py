@@ -160,7 +160,7 @@ class TestDotenv(unittest.TestCase):
 
     def test_example_file_holds_no_real_key(self):
         from jsa.config import ROOT
-        example = (ROOT / ".env.example").read_text(encoding="utf-8")
+        example = (ROOT / "jsa" / "resources" / ".env.example").read_text(encoding="utf-8")
         self.assertNotIn("nvapi-i", example)
         self.assertIn("<paste", example)
 

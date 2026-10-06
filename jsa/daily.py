@@ -241,7 +241,7 @@ def write_log(result: Run, db_path: Path | None = None) -> Path:
 
 def schedule_help(at: str = "07:00") -> str:
     """The command the OWNER runs to schedule this. Printed, never run."""
-    from .config import ROOT
+    from .config import HOME as ROOT       # where `jsa daily` runs from
     python = Path(sys.executable)
     windows = (f'schtasks /Create /SC DAILY /ST {at} /TN "jsa daily" /TR '
                f'"cmd /c cd /d \\"{ROOT}\\" && \\"{python}\\" -X utf8 -m jsa daily"')

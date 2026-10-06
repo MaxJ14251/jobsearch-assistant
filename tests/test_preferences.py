@@ -27,7 +27,7 @@ from jsa.config import (
     parse_tristate,
 )
 
-EXAMPLE_PATH = ROOT / "profile" / "master_profile.example.yaml"
+EXAMPLE_PATH = ROOT / "jsa" / "resources" / "master_profile.example.yaml"
 REAL_PATH = ROOT / "profile" / "master_profile.yaml"
 REGIONS = {"la": [], "sd": [], "pa": []}
 

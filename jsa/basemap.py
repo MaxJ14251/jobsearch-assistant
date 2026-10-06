@@ -25,9 +25,9 @@ from array import array
 from functools import lru_cache
 
 from . import mapview, places
-from .config import ROOT
+from .config import DATA_DIR
 
-DATA = ROOT / "data"
+DATA = DATA_DIR
 TIERS = ("coarse", "medium", "fine")
 
 # How far around the requested point each tier is cut, in miles. Wide enough

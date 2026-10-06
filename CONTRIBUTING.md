@@ -9,8 +9,6 @@ isn't me.
 ```bash
 python -m venv .venv
 .venv/Scripts/python -m pip install -r requirements.txt   # Scripts/ on Windows, bin/ elsewhere
-cp .env.example .env
-cp profile/master_profile.example.yaml profile/master_profile.yaml
 .venv/Scripts/python -m jsa init
 .venv/Scripts/python -m unittest discover -s tests -t .
 ```
@@ -63,6 +61,12 @@ is deliberately unsupported.
 The last one simulates a clone and follows the README literally. If you had to
 deviate from the README to get something working, fix the README — that's the
 bug.
+
+### The changelog
+
+Every user-visible change adds a line under `## [Unreleased]` in
+`CHANGELOG.md`: what a person will notice, in their words, with an ADR link
+when there is one. The version number lives only in `jsa/__init__.py`.
 
 ### Drafting evals
 

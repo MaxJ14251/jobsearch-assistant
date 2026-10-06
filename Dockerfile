@@ -10,22 +10,19 @@ FROM python:3.12-slim
 # Fail fast and log straight through, rather than buffering into a lost stream.
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    JSA_DB=/data/jobsearch.db
+    JSA_DB=/data/jobsearch.db \
+    JSA_HOME=/app
 
 WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# jsa/ carries everything that ships (plan 27): the schema, the companies
+# list, the example profile and .env template, and the public-domain map data
+# (town and ZIP points, outlines, the basemap) under jsa/resources/.
 COPY jsa/ ./jsa/
-COPY db/ ./db/
-COPY config/ ./config/
-# The shipped public-domain reference data: town and ZIP points, outlines and
-# the basemap (n23). Without it nothing can be placed on a map.
-COPY data/*.gz ./data/
 COPY tools/ ./tools/
-COPY profile/master_profile.example.yaml ./profile/
-COPY .env.example ./
 
 # Run as a non-root user; nothing here needs privileges.
 RUN useradd --create-home --uid 1000 jsa \
