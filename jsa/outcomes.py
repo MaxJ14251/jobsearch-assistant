@@ -30,7 +30,7 @@ from .approvals import QUIET_DAYS
 POINTS = ("applied", "heard_back", "interview", "offer")
 _LEVEL = {"saved": 0, "drafting": 0, "ready": 0, "applied": 1,
           "phone_screen": 3, "technical": 3, "onsite": 3, "offer": 4}
-GROUPINGS = ("source_kind", "role_kind", "cover_letter", "redrafted", "speed")
+GROUPINGS = ("source_kind", "role_kind", "cover_letter", "redrafted", "speed", "via")
 # Below this many applications a group shows counts only, no rate. On
 # 2026-10-02 the owner had 4 applications in all: any percentage would be
 # one person's luck, and ADR 0011 already refused to analyse twelve notes.
@@ -132,6 +132,11 @@ def _group(con: sqlite3.Connection, o: Outcome, by: str) -> str:
         row = con.execute("SELECT title, track FROM jobs WHERE id = ?",
                           (o.job_id,)).fetchone()
         return role_kind(row["title"], row["track"])
+    if by == "via":
+        from .approvals import VIA_LABELS
+        row = con.execute("SELECT applied_via FROM applications WHERE id = ?",
+                          (o.application_id,)).fetchone()
+        return VIA_LABELS.get(row["applied_via"] or "", "not recorded")
     sent = {r["kind"]: r["version"] for r in con.execute(
         "SELECT kind, version FROM submitted_documents WHERE application_id = ?",
         (o.application_id,))}

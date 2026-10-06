@@ -115,6 +115,7 @@ class TestTheGuard(Base):
             "/setup/adopt": {},
             "/setup/discover": {},
             "/find": {"company": "Acme", "title": "Support Engineer"},
+            "/job/1/applied": {"via": "employer", "confirm": "1"},
         }
         routes = {r.path.replace("{job_id}", "1").replace("{reply_id}", "1")
                   for r in self.app.routes if "POST" in getattr(r, "methods", set())}

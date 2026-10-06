@@ -1449,6 +1449,16 @@ def _shown_path(path: str) -> str:
         return path
 
 
+def detected_channel(con, job_id: int) -> str:
+    """Where the job's own link points (plan 22): linkedin, indeed, employer, other."""
+    row = con.execute("SELECT j.url, c.name, c.careers_url FROM jobs j "
+                      "JOIN companies c ON c.id = j.company_id WHERE j.id = ?",
+                      (job_id,)).fetchone()
+    if row is None:
+        return "other"
+    return approvals.channel(row["url"], row["name"], row["careers_url"])
+
+
 def cmd_applied(args: argparse.Namespace) -> int:
     """Record that YOU submitted it, and exactly what you sent. Sends nothing."""
     cover = approvals.NOT_SENT if args.no_cover else args.cover
@@ -1457,8 +1467,9 @@ def cmd_applied(args: argparse.Namespace) -> int:
         before = con.execute("SELECT applied_at FROM applications WHERE job_id = ?",
                              (args.job_id,)).fetchone()
         adding = bool(before and before["applied_at"])
+        via = None if adding else (args.via or detected_channel(con, args.job_id))
         application_id, all_approved = approvals.mark_applied(
-            con, args.job_id, when=args.date, resume=args.resume, cover=cover)
+            con, args.job_id, when=args.date, resume=args.resume, cover=cover, via=via)
         line = _job_line(con, args.job_id)
         sent = approvals.submitted(con, application_id)
         edited = [s for s in sent if approvals.changed_since_approval(con, s)]
@@ -1480,7 +1491,11 @@ def cmd_applied(args: argparse.Namespace) -> int:
     if args.check:
         verb = "CHECK ONLY, nothing written. Would record"
     print(f"{verb}: application {application_id} -- {line}")
-    print(f"  applied {db.local_time(app_row['applied_at'])} (your local time)")
+    print(f"  applied {db.local_time(app_row['applied_at'])} (your local time)"
+          + (f" via {approvals.VIA_LABELS[via]}" if via else ""))
+    if via and not args.via:
+        print(f"  (the channel was read from the job's link; --via "
+              f"{'|'.join(approvals.VIA)} says otherwise)")
     if not sent:
         # Not a refusal. The tracker records what happened; see ADR 0003 #4.
         print("  recorded as sent: nothing. No approved document on file, and "
@@ -1824,7 +1839,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p_out = sub.add_parser("outcomes", help="what happened to each application")
     p_out.add_argument("--by", choices=["source_kind", "role_kind", "cover_letter",
-                                        "redrafted", "speed"],
+                                        "redrafted", "speed", "via"],
                        help="plain counts per group instead of the list")
     p_out.set_defaults(func=cmd_outcomes)
 
@@ -1840,6 +1855,9 @@ def main(argv: list[str] | None = None) -> int:
         help="the cover letter you sent (default: the newest you approved)")
     p_cover.add_argument(
         "--no-cover", action="store_true", help="you sent no cover letter")
+    p_done.add_argument(
+        "--via", choices=approvals.VIA,
+        help="where you applied (default: read from the job's link)")
     p_done.add_argument(
         "--check", action="store_true",
         help="show what would be recorded, and write nothing")

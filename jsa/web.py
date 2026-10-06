@@ -38,6 +38,8 @@ from .prep import INTERVIEW_ROUNDS
 
 HOST = "127.0.0.1"          # never 0.0.0.0
 MAX_PICKED = 500            # cards one opened map bubble may ask for
+# Stages where the job page shows the apply-by-hand checklist (plan 22).
+APPLY_BY_HAND_STAGES = ("saved", "drafting", "ready")
 PORT = 8765
 
 DOCX_TYPE = ("application/vnd.openxmlformats-officedocument."
@@ -1669,8 +1671,7 @@ JOB = """{% extends "base" %}{% block body %}
 </div>
 {% else %}<p class="empty">No documents drafted for this job yet.</p>{% endfor %}
 
-{% if application %}
-<h2 id="answers">Application answers</h2>
+{% macro answers_block() %}
 <p class="sub">For the employer's form: copy each one in yourself. Nothing is submitted. Facts come straight from your profile; written answers are checked against it, or built from your own sentences when a draft fails.</p>
 <div class="answers">
 {% for a in answer_facts + answer_written %}
@@ -1691,6 +1692,61 @@ JOB = """{% extends "base" %}{% block body %}
   <button type="submit">{{ 'Draft written answers again' if answer_written else 'Draft written answers' }}</button>
   <span class="meta">One model call: why this role, a relevant project, why this company.</span>
 </form>
+{% endmacro %}
+
+{% if checklist %}
+<section class="checklist" aria-labelledby="apply-h">
+<h2 id="apply-h">Apply by hand</h2>
+<p class="sub">What the application form will ask for, in order. You submit it yourself; this tool submits nothing.</p>
+<ol class="steps">
+  <li><h3>Where to apply</h3>
+    {% if checklist.employer %}<p><strong>Apply on the employer's site instead:</strong> the same job is on their own board as <a class="plain" href="/job/{{ checklist.employer.job_id }}">job #{{ checklist.employer.job_id }}</a>. <a class="btn" href="{{ checklist.employer.url }}" rel="noopener">Open the employer's posting</a></p>
+    <p class="meta">Or <a class="plain" href="{{ job.url }}" rel="noopener">open the listing on {{ checklist.via_label }}</a>.</p>
+    {% elif job.url %}<p><a class="btn" href="{{ job.url }}" rel="noopener">Open the listing on {{ checklist.via_label }}</a></p>
+    {% else %}<p class="meta">This job has no link. Find where it is posted, or <a class="plain" href="/add">look for it on the employer's board</a>.</p>{% endif %}
+    {% if checklist.via in ('linkedin', 'indeed') and not checklist.employer %}<p class="meta">Not sure the employer posts it too? <a class="plain" href="/add#find-company">Find it on their board</a>.</p>{% endif %}
+  </li>
+  {% for step, title, optional in [('resume', 'Resume', False), ('cover', 'Cover letter', True)] %}{% set k = checklist[step] %}
+  <li><h3>{{ title }}{% if optional %} <span class="meta">(optional: many quick-apply forms have no place for one)</span>{% endif %}</h3>
+    {% if k.approved %}{% set d = k.approved[0] %}
+    <p>v{{ d.version }}, approved. {% if d.servable %}<a class="btn" href="/document/{{ d.id }}">Download .docx</a> <a class="plain" href="/document/{{ d.id }}/preview">Preview</a>{% else %}<span class="meta">The file is missing from output/.</span>{% endif %}</p>
+    {% if k.approved|length > 1 %}<p class="meta">{{ k.approved|length - 1 }} older approved version(s) too; pick the one you send below.</p>{% endif %}
+    {% else %}<p class="note bad">No approved {{ title|lower }} yet.{% if k.waiting %} <a class="plain" href="/review#doc-{{ k.waiting[0].id }}">Review v{{ k.waiting[0].version }}</a>.{% elif not optional %} Draft one above, then review it.{% endif %}</p>{% endif %}
+    {% if k.approved and k.waiting %}<p class="note">A newer draft, v{{ k.waiting[0].version }}, is waiting in <a class="plain" href="/review#doc-{{ k.waiting[0].id }}">Review</a>. Approve it first if you mean to send it.</p>{% endif %}
+  </li>{% endfor %}
+  <li><h3 id="answers">Application answers</h3>{{ answers_block() }}</li>
+  <li><h3>I applied</h3>
+    <form method="post" action="/job/{{ job.id }}/applied" class="stack applied">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="two">
+        <label for="ap-via">Where<select name="via" id="ap-via">{% for v, label in checklist.choices %}<option value="{{ v }}" {{ 'selected' if v == checklist.via }}>{{ label }}</option>{% endfor %}</select></label>
+        <label for="ap-resume">Resume you sent<select name="resume" id="ap-resume">
+          {% for d in checklist.resume.approved %}<option value="{{ d.id }}" {{ 'selected' if loop.first }}>v{{ d.version }} (approved)</option>{% endfor %}
+          {% for d in checklist.resume.others %}<option value="{{ d.id }}" {{ 'selected' if loop.first and not checklist.resume.approved }}>v{{ d.version }} ({{ d.status }})</option>{% endfor %}
+          <option value="0" {{ 'selected' if not checklist.resume.approved and not checklist.resume.others }}>None of these (my own)</option></select></label>
+      </div>
+      <label for="ap-cover">Cover letter you sent<select name="cover" id="ap-cover">
+        {% for d in checklist.cover.approved %}<option value="{{ d.id }}" {{ 'selected' if loop.first }}>v{{ d.version }} (approved)</option>{% endfor %}
+        {% for d in checklist.cover.others %}<option value="{{ d.id }}">v{{ d.version }} ({{ d.status }})</option>{% endfor %}
+        <option value="0" {{ 'selected' if not checklist.cover.approved }}>No cover letter</option></select></label>
+      {% if not checklist.resume.approved %}<label class="check" for="ap-confirm"><input type="checkbox" id="ap-confirm" name="confirm" value="1"> Record that I applied without an approved resume</label>{% endif %}
+      <button type="submit">I applied</button>
+      <p class="meta" style="margin:0">Records today's date, where, and exactly which files went out. It is what <code>jsa applied {{ job.id }}</code> records; it sends nothing.</p>
+    </form>
+  </li>
+</ol>
+</section>
+<style>
+  .checklist ol.steps{padding-left:22px;display:flex;flex-direction:column;gap:14px}
+  .checklist ol.steps h3{margin:0 0 4px;font-size:1rem}
+  .checklist ol.steps h3 .meta{font-weight:400}
+  .checklist form.stack label.check{display:flex;gap:8px;align-items:center}
+</style>
+{% elif application %}
+<h2 id="answers">Application answers</h2>
+{{ answers_block() }}
+{% endif %}
+{% if application %}
 <style>
   .answers{display:grid;gap:8px}
   .ans{border:1px solid var(--rule);border-radius:4px;padding:8px 10px}
@@ -3440,6 +3496,9 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                 written = answers.stored(con, job_id) if application is not None else []
             except sqlite3.OperationalError:      # an older tracker: no table yet
                 written = []
+            checklist = (apply_checklist(con, dict(row), documents)
+                         if application is not None
+                         and application["status"] in APPLY_BY_HAND_STAGES else None)
         finally:
             con.close()
         facts = (answers.fact_answers(prof, dict(row))
@@ -3453,7 +3512,44 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                       application=dict(application) if application else None,
                       documents=documents, preps=preps, msg=msg, bad=bad,
                       interview_rounds=INTERVIEW_ROUNDS,
-                      answer_facts=facts, answer_written=written)
+                      answer_facts=facts, answer_written=written,
+                      checklist=checklist)
+
+    def apply_checklist(con, job: dict[str, Any], documents: list[dict]) -> dict:
+        """Plan 22: what applying by hand needs, in order. Reads only."""
+        company = con.execute("SELECT careers_url FROM companies WHERE id = ?",
+                              (job["company_id"],)).fetchone()
+        via = approvals.channel(job["url"], job["company"],
+                                company["careers_url"] if company else None)
+        employer = None
+        if via in ("linkedin", "indeed"):
+            # The employer's own posting of this job, if the tracker has it
+            # (plan 21's rule, tracker only: no request on page load).
+            from . import find
+            try:
+                report = find.find(con, job["company"], job["title"],
+                                   job["location"] or "", live=False, entries=[])
+            except find.FindError:
+                report = None
+            for hit in (report.same if report else []):
+                if hit.job_id != job["id"] and approvals.channel(
+                        hit.url, job["company"]) == "employer":
+                    employer = hit
+                    break
+
+        def kind(name: str) -> dict:
+            docs = [d for d in documents if d["kind"] == name]
+            approved = [d for d in docs if d["status"] == "approved"]
+            newest = approved[0]["version"] if approved else 0
+            waiting = [d for d in docs if d["status"] == "pending"
+                       and d["version"] > newest]
+            return {"approved": approved, "waiting": waiting,
+                    "others": [d for d in docs if d["status"] != "approved"]}
+
+        return {"via": via, "via_label": approvals.VIA_LABELS[via],
+                "choices": [(v, approvals.VIA_LABELS[v]) for v in approvals.VIA],
+                "employer": employer, "resume": kind("resume"),
+                "cover": kind("cover_letter")}
 
     def back_to_pipeline(msg: str, bad: bool) -> RedirectResponse:
         return RedirectResponse(
@@ -3899,6 +3995,33 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         return back_to_pipeline(
             f"Moved from {previous.replace('_', ' ')} to "
             f"{stage.replace('_', ' ')}." + (f" {hint}." if hint else ""), False)
+
+    @app.post("/job/{job_id}/applied")
+    def do_applied(job_id: int, via: str = Form(...), resume: str = Form(""),
+                   cover: str = Form(""), confirm: str = Form("")):
+        """Plan 22: the checklist's "I applied". The person's own statement,
+        through set_stage -> mark_applied, as `jsa applied` records it."""
+        resume_id, cover_id = (int(v) if v.strip().isdigit() else None
+                               for v in (resume, cover))
+        con = connect()
+        try:
+            approved_resume = (resume_id not in (None, approvals.NOT_SENT)
+                               and approvals.is_approved(con, "document", resume_id))
+            if not approved_resume and confirm != "1":
+                return back_to_job(job_id, "Nothing recorded. Record that you applied "
+                                   "without an approved resume? Tick the box under "
+                                   "\"I applied\" to confirm.", True)
+            application_id, previous = approvals.set_stage(
+                con, job_id, "applied", via=via, resume=resume_id, cover=cover_id)
+            sent = approvals.submitted(con, application_id)
+            con.commit()
+        except approvals.ApprovalError as exc:
+            return back_to_job(job_id, f"Nothing recorded: {exc}", True)
+        finally:
+            con.close()
+        what = "; ".join(s.describe() for s in sent) or "no document recorded"
+        return back_to_job(job_id, f"Recorded: you applied via {approvals.VIA_LABELS[via]}. "
+                           f"Sent: {what}. This tool submitted nothing.", False)
 
     @app.get("/review", response_class=HTMLResponse)
     def review_queue(error: str = "", error_id: int = 0):

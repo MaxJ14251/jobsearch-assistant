@@ -139,6 +139,9 @@ CREATE TABLE IF NOT EXISTS applications (
                         )),
     saved_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
     applied_at        TEXT,
+    -- Where YOU submitted it: linkedin | indeed | employer | other
+    -- (approvals.VIA, checked in code). Set only by your own "I applied".
+    applied_via       TEXT,
     last_activity_at  TEXT,
     next_action       TEXT,                        -- 'follow up with recruiter'
     next_action_due   TEXT,

@@ -87,3 +87,22 @@ none was modified after approval.
 - `documents.approved_at` exists in the schema and nothing writes it. Approval
   lives in `approvals`. Left alone here; worth removing or filling before
   publication so the schema does not suggest a fact it does not hold.
+
+## Note, 2026-10-05 (plan 22): where it was submitted
+
+`applications.applied_via` records where the person submitted the
+application: `linkedin`, `indeed`, `employer` or `other`. It is checked in
+code (`approvals.VIA`) rather than by a CHECK constraint, because changing a
+CHECK would force a table rebuild.
+
+- It is set only by the person's own action: `jsa applied --via` (which
+  defaults to the channel read from the job's link, and says so), or the job
+  page's **I applied** button. Both go through `set_stage` → `mark_applied`,
+  the same path as before.
+- The Pipeline stage form and a confirmed inbox reply still record "applied"
+  without a channel, which is shown as "not recorded" rather than guessed.
+- Applications from before this change have no channel and are not
+  backfilled.
+- A test parses `jsa/` and pins every caller of `mark_applied` and
+  `set_stage` to the person's own commands and routes.
+

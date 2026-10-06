@@ -418,9 +418,58 @@ def changed_since_approval(con: sqlite3.Connection, item: Sent) -> bool:
     return bool(decided) and modified.strftime("%Y-%m-%dT%H:%M:%SZ") > decided
 
 
+# Where an application was submitted, by hand (plan 22). Checked here, not
+# by a CHECK constraint: changing one forces a table rebuild.
+VIA = ("linkedin", "indeed", "employer", "other")
+VIA_LABELS = {"linkedin": "LinkedIn", "indeed": "Indeed",
+              "employer": "the employer's site", "other": "another site"}
+
+# Hosts that are an employer's own applicant system, whoever's job it is.
+_BOARD_HOSTS = ("greenhouse.io", "lever.co", "ashbyhq.com", "myworkdayjobs.com",
+                "workable.com", "smartrecruiters.com", "icims.com", "jobvite.com",
+                "bamboohr.com", "recruitee.com", "breezy.hr", "rippling-ats.com",
+                "dover.com", "teamtailor.com")
+
+
+_HOST_RE = re.compile(r"^https?://(?:[^/?#@]*@)?([^/?#:@]+)", re.I)
+
+
+def channel(url: str | None, company: str = "", careers_url: str | None = None) -> str:
+    """Where a job's link points: linkedin, indeed, employer or other.
+
+    Read from the host only: a known applicant-system host, the company's
+    own careers host, or a host carrying the company's name is the employer.
+    Nothing is fetched."""
+    def host_of(link: str | None) -> str:
+        # A regex, not urllib: this module is in outreach's import graph,
+        # which a test keeps free of anything network-capable.
+        match = _HOST_RE.match((link or "").strip())
+        host = match.group(1).lower() if match else ""
+        return host[4:] if host.startswith("www.") else host
+
+    host = host_of(url)
+    if not host:
+        return "other"
+    for name in ("linkedin", "indeed"):
+        if host == f"{name}.com" or host.endswith(f".{name}.com"):
+            return name
+    if any(host == h or host.endswith("." + h) for h in _BOARD_HOSTS):
+        return "employer"
+    if careers_url and host_of(careers_url) == host:
+        return "employer"
+    name = re.sub(r"[^a-z0-9]", "", (company or "").lower())
+    for word in ("inc", "llc", "corp", "co", "ai", "labs", "technologies"):
+        if len(name) > len(word) + 3 and name.endswith(word):
+            name = name[:-len(word)]
+            break
+    if len(name) >= 3 and name in re.sub(r"[^a-z0-9]", "", host):
+        return "employer"
+    return "other"
+
+
 def mark_applied(
     con: sqlite3.Connection, job_id: int, *, when: str | None = None,
-    resume: int | None = None, cover: int | None = None,
+    resume: int | None = None, cover: int | None = None, via: str | None = None,
 ) -> tuple[int, bool]:
     """Record that a human submitted this application. Returns (id, all_approved).
 
@@ -438,6 +487,8 @@ def mark_applied(
     every recorded document was approved -- not when any document for the job
     happens to be.
     """
+    if via is not None and via not in VIA:
+        raise ApprovalError(f"{via!r} is not a channel. Use one of: {', '.join(VIA)}")
     application_id = require_application(con, job_id)
     already = con.execute(
         "SELECT applied_at FROM applications WHERE id = ?", (application_id,)
@@ -488,13 +539,14 @@ def mark_applied(
         # wherever the operator has moved it since; it is not reset here.
         return application_id, all_approved
     con.execute(
-        "UPDATE applications SET applied_at = ? WHERE id = ?",
-        (stamp, application_id),
+        "UPDATE applications SET applied_at = ?, applied_via = ? WHERE id = ?",
+        (stamp, via, application_id),
     )
+    how = f"submitted by hand via {VIA_LABELS[via]}" if via else "submitted by hand"
     if not sent:
-        note = "submitted by hand; no approved document on file"
+        note = f"{how}; no approved document on file"
     else:
-        note = "submitted by hand: " + "; ".join(s.describe() for s in sent)
+        note = f"{how}: " + "; ".join(s.describe() for s in sent)
     record_event(con, application_id, "applied", actor="human", note=note)
     return application_id, all_approved
 
@@ -545,6 +597,7 @@ QUIET_DAYS = 21
 
 def set_stage(
     con: sqlite3.Connection, job_id: int, stage: str, *, note: str | None = None,
+    via: str | None = None, resume: int | None = None, cover: int | None = None,
 ) -> tuple[int, str]:
     """Move an application to `stage`. Returns (application_id, previous).
 
@@ -561,7 +614,7 @@ def set_stage(
         "SELECT status FROM applications WHERE id = ?", (application_id,)
     ).fetchone()["status"]
     if stage == "applied":
-        mark_applied(con, job_id)
+        mark_applied(con, job_id, via=via, resume=resume, cover=cover)
         if note:
             con.execute(
                 "UPDATE application_events SET note = note || ' — ' || ? "

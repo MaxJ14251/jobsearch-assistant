@@ -531,6 +531,7 @@ decision is per document version and is never inherited by a redraft.
 .venv/Scripts/python -m jsa applied 421 --check     # see what it would record
 .venv/Scripts/python -m jsa applied 421             # after YOU submit it
 .venv/Scripts/python -m jsa applied 389 --resume 15 --no-cover
+.venv/Scripts/python -m jsa applied 512 --via linkedin   # where you applied
 ```
 Records that **you** submitted it — the tool cannot observe that and never will —
 and **exactly which documents went out**, fixed at that moment. Drafting a new
@@ -543,7 +544,10 @@ you did not approve is never assumed sent; it is named back to you, and you add
 it with `--resume DOC` / `--cover DOC` if it did go out. With two approved
 versions of one kind it refuses and asks which, because a permanent record is
 not written on a guess. Something missing can be added later; something recorded
-cannot be changed. It still does not *require* an approval: the gate stops the
+cannot be changed. It also records where you applied (`linkedin`, `indeed`,
+`employer` or `other`): read from the job's link unless you pass `--via`, so
+`jsa outcomes --by via` can compare channels once there are enough
+applications. It still does not *require* an approval: the gate stops the
 agent acting on its own, not you applying with a resume you wrote by hand. See
 [ADR 0012](docs/decisions/0012-what-applied-means.md).
 
@@ -567,7 +571,7 @@ pipeline and keeps its whole history.
 
 ```bash
 .venv/Scripts/python -m jsa outcomes
-.venv/Scripts/python -m jsa outcomes --by source_kind   # or role_kind, cover_letter, redrafted, speed
+.venv/Scripts/python -m jsa outcomes --by source_kind   # or role_kind, cover_letter, redrafted, speed, via
 ```
 What happened to each application you sent: the furthest point it reached,
 *applied*, *heard back* (a reply from the employer, a rejection, or any later
@@ -694,6 +698,19 @@ match to a resume you can upload yourself:
   send) and a **Download .docx** link. Its interview preps are listed below. A **Save** button starts an
   application; a **Tailor** button runs exactly what `jsa tailor --force`
   runs and queues the draft for review.
+- **Apply by hand** (on a job you saved but haven't applied to): a checklist
+  in the order an application form asks. (1) Where to apply: the listing's
+  link, or "Apply on the employer's site instead" when your tracker has the
+  same job from the employer's own board. (2) The approved resume with its
+  Download link, or a note that none is approved, plus a warning when a newer
+  draft is waiting in Review. (3) The cover letter, marked optional. (4) The
+  copy-ready application answers. (5) An **I applied** button that records
+  today's date, where you applied (LinkedIn, Indeed, the employer's site or
+  another site, read from the job's link and changeable), and exactly which
+  files you sent: the same record `jsa applied` writes. Recording an
+  application without an approved resume asks you to tick a box first. The
+  tool submits nothing. LinkedIn and Indeed both take .docx uploads (checked
+  2026-10-05).
 - **Interview prep** page: each question, why it is asked, and your
   first-person answer notes.
 - **Review queue**: each draft line beside the profile bullet it came from,
