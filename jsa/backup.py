@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shutil
 import sqlite3
@@ -113,7 +114,10 @@ def make(root: Path | None = None, *, label: str = "manual",
         }
         (dest / MANIFEST).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     except Exception as exc:
-        raise BackupError(f"the copy in {dest} is incomplete: {exc}") from exc
+        # A half-written copy must not count as a copy: it would be "fresh" to
+        # doctor and push a good one out of prune's keep-N (review R-08).
+        shutil.rmtree(dest, ignore_errors=True)
+        raise BackupError(f"the copy failed and was removed: {exc}") from exc
     return dest
 
 
@@ -239,7 +243,8 @@ def listing(root: Path | None = None) -> list[Copy]:
     found = []
     for d in root.iterdir():
         m = _NAME.match(d.name)
-        if d.is_dir() and m:
+        # No manifest means it never finished (or isn't ours): not a copy.
+        if d.is_dir() and m and (d / MANIFEST).is_file():
             size = sum(p.stat().st_size for p in d.rglob("*") if p.is_file())
             found.append(Copy(d, m[2], datetime.strptime(m[1], "%Y-%m-%d_%H%M%S"), size))
     return sorted(found, key=lambda c: (c.made, c.path.name), reverse=True)
@@ -268,9 +273,15 @@ def newest_age_days(root: Path | None = None) -> float | None:
 
 
 def restore(source: Path, *, db_path: Path | None = None, everything: bool = False,
-            output_dir: Any = ..., profile_path: Any = ...) -> Path:
+            output_dir: Any = ..., profile_path: Any = ...) -> Path | None:
     """Put a verified copy back, after copying the current state. Returns the
-    pre-restore copy. The caller has already confirmed with the person."""
+    pre-restore copy, or None when there was no tracker to copy (the case a
+    restore is most often for). The caller has already confirmed.
+
+    With `everything`, output/ is copied in full beside the current one and
+    swapped in before the tracker is touched, so a file held open (Windows)
+    stops the restore before anything changes rather than halfway through
+    (review R-04)."""
     source = Path(source)
     db_path = Path(db_path or DB_PATH)
     output_dir = Path(_or(output_dir, OUTPUT_DIR))
@@ -283,25 +294,49 @@ def restore(source: Path, *, db_path: Path | None = None, everything: bool = Fal
         raise BackupError(
             "the tracker is in use (its -wal file holds writes). Stop the "
             "dashboard and anything else using the tracker, then run this again.")
-    safety = make(label="pre-restore", db_path=db_path,
-                  output_dir=output_dir if everything else None,
-                  profile_path=profile_path if everything else None,
-                  root=default_root(db_path))
-    src = sqlite3.connect(source / DB_NAME)
-    dst = sqlite3.connect(db_path)
+    safety = None
+    if db_path.exists():
+        safety = make(label="pre-restore", db_path=db_path,
+                      output_dir=output_dir if everything else None,
+                      profile_path=profile_path if everything else None,
+                      root=default_root(db_path))
+    kept = f" What was there before is in {safety}." if safety else ""
+    staged = aside = None
     try:
-        src.backup(dst)
-    finally:
-        dst.close()
-        src.close()
-    if everything:
-        if (source / "output").is_dir():
-            if Path(output_dir).exists():
-                shutil.rmtree(output_dir)
-            shutil.copytree(source / "output", output_dir)
-        profile_copy = source / Path(profile_path).name
-        if profile_copy.is_file():
-            shutil.copy2(profile_copy, profile_path)
+        if everything and (source / "output").is_dir():
+            stamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            staged = output_dir.with_name(f".{output_dir.name}.restoring-{stamp}")
+            shutil.copytree(source / "output", staged)
+            if output_dir.exists():
+                aside = output_dir.with_name(f".{output_dir.name}.replaced-{stamp}")
+                os.replace(output_dir, aside)
+            os.replace(staged, output_dir)
+            staged = None
+    except OSError as exc:
+        if staged is not None:
+            shutil.rmtree(staged, ignore_errors=True)
+        if aside is not None and not output_dir.exists():
+            os.replace(aside, output_dir)
+        raise BackupError(f"nothing was restored: {output_dir} could not be "
+                          f"replaced ({exc}). Close any file open from it and "
+                          f"run this again.{kept}") from exc
+    try:
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        src = sqlite3.connect(source / DB_NAME)
+        dst = sqlite3.connect(db_path)
+        try:
+            src.backup(dst)
+        finally:
+            dst.close()
+            src.close()
+        if everything:
+            profile_copy = source / Path(profile_path).name
+            if profile_copy.is_file():
+                shutil.copy2(profile_copy, profile_path)
+    except (OSError, sqlite3.Error) as exc:
+        raise BackupError(f"the restore stopped part way: {exc}.{kept}") from exc
+    if aside is not None:
+        shutil.rmtree(aside, ignore_errors=True)
     return safety
 
 

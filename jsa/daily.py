@@ -61,7 +61,8 @@ def _backup(db_path: Path) -> Step:
     from . import backup
     path = backup.make(backup.default_root(db_path), label="daily", db_path=db_path)
     check = backup.verify(path)
-    backup.prune(backup.default_root(db_path))
+    if check.ok:                       # never prune good copies for a bad one
+        backup.prune(backup.default_root(db_path))
     if not check.ok:
         return Step("backup", "failed", "copy does not verify: " + "; ".join(check.problems))
     return Step("backup", "ok", f"{check.tables} tables, {check.rows} rows, "

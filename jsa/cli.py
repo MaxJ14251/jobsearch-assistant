@@ -116,7 +116,10 @@ def cmd_restore(args: argparse.Namespace) -> int:
     except backup.BackupError as exc:
         print(f"refused: {exc}", file=sys.stderr)
         return 1
-    print(f"restored. The state before this is in {safety}")
+    if safety is None:
+        print("restored. There was no tracker to copy first.")
+    else:
+        print(f"restored. The state before this is in {safety}")
     return 0
 
 

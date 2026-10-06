@@ -1,6 +1,7 @@
 """Backups of the tracker (Plan 12, ADR 0025). Temp trackers only."""
 
 import io
+import os
 import json
 import sqlite3
 import tempfile
@@ -124,6 +125,7 @@ class TestPrune(Base):
         for n in range(4):
             folder = self.root / f"2026-01-0{n + 1}_120000-manual"
             folder.mkdir(parents=True)
+            (folder / backup.MANIFEST).write_text("{}", encoding="utf-8")
             made.append(folder)
         foreign = self.root / "my-notes"
         foreign.mkdir()
@@ -262,3 +264,81 @@ class TestKeptPrivate(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestReviewFixes(Base):
+    """Review R-04, R-08 and R-23."""
+
+    def jobs(self, path=None):
+        con = sqlite3.connect(path or self.db)
+        try:
+            return con.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+        finally:
+            con.close()
+
+    def restore(self, source, **kw):
+        return backup.restore(source, db_path=self.db, everything=True,
+                              output_dir=self.out, profile_path=self.profile, **kw)
+
+    def test_a_failed_copy_leaves_no_folder(self):
+        with mock.patch("jsa.backup.shutil.copytree", side_effect=OSError("disk full")):
+            with self.assertRaises(backup.BackupError):
+                self.make()
+        self.assertEqual(list(self.root.iterdir()) if self.root.exists() else [], [])
+
+    def test_a_folder_without_a_manifest_is_not_a_copy(self):
+        good = self.make()
+        half = self.root / "2099-01-01_000000-manual"
+        half.mkdir()
+        self.assertEqual([c.path for c in backup.listing(self.root)], [good])
+        backup.prune(self.root, keep={"manual": 0})
+        self.assertTrue(half.exists(), "prune never touches what isn't a copy")
+
+    def test_daily_does_not_prune_when_its_copy_fails_to_verify(self):
+        from jsa import daily
+        bad = backup.Check(self.root)
+        bad.problems.append("x")
+        with mock.patch("jsa.backup.verify", return_value=bad), \
+             mock.patch("jsa.backup.prune") as prune, \
+             mock.patch("jsa.backup.make", return_value=self.root):
+            step = daily._backup(self.db)
+        self.assertEqual(step.state, "failed")
+        prune.assert_not_called()
+
+    def test_a_file_that_cannot_be_moved_stops_the_restore_before_anything_changes(self):
+        copy = self.make()
+        con = db.connect(self.db)
+        con.execute("INSERT INTO jobs (id,company_id,title,url) VALUES (6,1,'New','u')")
+        con.commit()
+        con.close()
+        (self.out / "new.docx").write_bytes(b"made after the copy")
+        real = os.replace
+
+        def locked(src, dst):
+            if Path(src) == self.out:
+                raise PermissionError("in use")
+            return real(src, dst)
+        with mock.patch("jsa.backup.os.replace", side_effect=locked):
+            with self.assertRaises(backup.BackupError) as ctx:
+                self.restore(copy)
+        self.assertIn("nothing was restored", str(ctx.exception))
+        self.assertIn("pre-restore", str(ctx.exception))
+        self.assertEqual(self.jobs(), 2, "the tracker was not touched")
+        self.assertTrue((self.out / "new.docx").exists())
+        self.assertTrue(self.resume.exists())
+        self.assertEqual([p.name for p in self.tmp.iterdir() if ".restoring" in p.name], [])
+
+    def test_a_full_restore_swaps_output_in(self):
+        copy = self.make()
+        (self.out / "new.docx").write_bytes(b"made after the copy")
+        self.restore(copy)
+        self.assertFalse((self.out / "new.docx").exists())
+        self.assertTrue(self.resume.exists())
+        self.assertEqual([p.name for p in self.tmp.iterdir() if p.name.startswith(".output")], [])
+
+    def test_a_missing_tracker_can_still_be_restored(self):
+        copy = self.make()
+        self.db.unlink()
+        safety = backup.restore(copy, db_path=self.db)
+        self.assertIsNone(safety)
+        self.assertEqual(self.jobs(), 1)
