@@ -174,6 +174,15 @@ def check(text: str, profile: dict[str, Any], job: dict[str, Any]) -> list[str]:
         assert_no_degree_claim(text)
     except DegreeClaimError as exc:
         problems.append(f"implies a degree ({exc})")
+    # The answers prompt says never mention a degree; for someone who holds
+    # none, any mention is refused, as the letter does. The negation-aware
+    # check above let "my CS degree" through (review R-21).
+    from .facts import _edu, claims_a_degree
+    from .letter import _DEGREE
+    held = claims_a_degree(" ".join(str(_edu(profile).get("credential") or "").split()))
+    if (not held and _DEGREE.search(text)
+            and not any(p.startswith("implies a degree") for p in problems)):
+        problems.append("mentions a degree")
     said = {w.lower().strip(".,;:") for w in text.split()}
     for verb in sorted(ongoing_verbs(profile) & said):
         problems.append(f"describes ongoing work as finished ({verb!r})")

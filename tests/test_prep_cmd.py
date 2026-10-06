@@ -276,8 +276,14 @@ class TestPromptAsksForUsableText(unittest.TestCase):
     def test_the_prompt_still_forbids_inventing_experience(self):
         combined = (prep.PROMPT + prep.SYSTEM).lower()
         self.assertIn("invent", combined)
-        self.assertIn("not conferred", combined.replace("was not conferred",
-                                                        "not conferred"))
+        # The degree sentence now follows the credential (review R-11).
+        rule = prep._degree_rule({"field": "Computer Science",
+                                  "credential": "Coursework completed (degree not conferred)"})
+        self.assertIn("not conferred", rule.lower())
+        held = prep._degree_rule({"field": "Computer Science",
+                                  "credential": "B.S. in Computer Science"})
+        self.assertNotIn("not conferred", held.lower())
+        self.assertIn("never add a degree", held)
 
 
 class TestTruncationIsNamed(unittest.TestCase):

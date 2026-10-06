@@ -38,9 +38,12 @@ def education_line(profile: dict[str, Any]) -> str | None:
 # Words in a credential line that say the degree was NOT completed. Without
 # one, the line is something the person holds ("BS Computer Science, 2020")
 # and is stated as written; with one, it is stated as coursework.
+# "no" only next to "degree": "B.A., no honors" is a degree held. Review
+# R-21 added the not-completed wordings the list missed.
 _NOT_COMPLETED = re.compile(
-    r"\b(not|no|never|without|incomplete|unfinished|didn'?t|coursework|"
-    r"some college|in progress|pursuing|expected)\b", re.I)
+    r"\b(not|no degree|never|without|incomplete|unfinished|didn'?t|coursework|"
+    r"some college|in progress|pursuing|expected|un-?conferred|non-?conferred|"
+    r"withdr[ae]w\w*|toward|towards|candidate|abd|left|dropped|attended)\b", re.I)
 
 
 def claims_a_degree(credential: str) -> bool:
@@ -80,15 +83,27 @@ def degree_answer(profile: dict[str, Any]) -> str:
             "experience is what I'd point to.")
 
 
+_ONGOING_END = {"present", "current", "now", "today", "ongoing"}
+
+
+def _is_current(e: dict[str, Any]) -> bool:
+    """`current: true`, or an end written as "Present" (review R-28)."""
+    return bool(e.get("current")) or str(e.get("end") or "").strip().lower() in _ONGOING_END
+
+
 def _jobs(profile: dict[str, Any], today: dt.date) -> list[tuple[int, int, dict]]:
+    """(start, end, entry) in months, clamped so a typo can't make a negative
+    span: no start after today, no end before its start (review R-28)."""
     now = today.year * 12 + today.month - 1
     out = []
     for e in profile.get("experience") or []:
         start = _month(e.get("start"))
         if start is None:
             continue
-        end = now if e.get("current") else _month(e.get("end"), end=True)
-        out.append((start, end if end is not None else start, e))
+        start = min(start, now)
+        end = now if _is_current(e) else _month(e.get("end"), end=True)
+        end = start if end is None else min(max(end, start), now)
+        out.append((start, end, e))
     return sorted(out, key=lambda t: (t[0], t[1]))
 
 
@@ -99,7 +114,7 @@ def gap_since(profile: dict[str, Any], today: dt.date | None = None) -> tuple[st
 
     today = today or dt.date.today()
     jobs = _jobs(profile, today)
-    if not jobs or any(e.get("current") for _, _, e in jobs):
+    if not jobs or any(_is_current(e) for _, _, e in jobs):
         return None
     now = today.year * 12 + today.month - 1
     _, end, last = max(jobs, key=lambda t: t[1])

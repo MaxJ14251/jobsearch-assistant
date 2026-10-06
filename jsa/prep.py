@@ -240,8 +240,7 @@ POSTING:
 CANDIDATE FACTS — the only material available for answers:
 {bullets}
 
-The candidate completed coursework in {field} but the degree was NOT conferred.
-Never write that they hold, earned or graduated with a degree."""
+{degree_rule}"""
 
 
 def sent_bullets(
@@ -274,6 +273,23 @@ def sent_bullets(
         "the whole profile: no resume is recorded as sent for this application")
 
 
+def holds_degree(edu: dict[str, Any]) -> bool:
+    from .facts import claims_a_degree
+    return claims_a_degree(" ".join(str(edu.get("credential") or "").split()))
+
+
+def _degree_rule(edu: dict[str, Any]) -> str:
+    """What the model is told about education. It said "NOT conferred" for
+    everyone, which is false for anyone who holds one (review R-11)."""
+    field = edu.get("field") or "their field"
+    if holds_degree(edu):
+        return ("Describe the candidate's education only as their profile states "
+                "it; never add a degree, a level or an honour to it.")
+    return (f"The candidate completed coursework in {field} but the degree was "
+            "NOT conferred.\nNever write that they hold, earned or graduated "
+            "with a degree.")
+
+
 def generate(
     con: sqlite3.Connection, application_id: int, *, round: str = "phone_screen",
     profile: dict[str, Any] | None = None, models: list[str] | None = None,
@@ -300,7 +316,7 @@ def generate(
         title=row["title"], company=row["company"],
         description=posting.visible(row["description"]).text,
         bullets="\n".join(f"- {b.text}" for b in bullets),
-        field=edu.get("field") or "their field",
+        degree_rule=_degree_rule(edu),
     )
     scrub_prompt(prompt, profile)
 
@@ -309,7 +325,8 @@ def generate(
         temperature=0.3, thinking=False, attempts=2,
     )
 
-    questions = list(standard_drills(profile))
+    drills = list(standard_drills(profile))
+    questions: list[Question] = []
     for item in (data.get("questions") or []) if isinstance(data, dict) else []:
         if not isinstance(item, dict):
             continue
@@ -323,11 +340,16 @@ def generate(
 
     brief = str((data or {}).get("company_brief") or "") if isinstance(data, dict) else ""
 
-    # Every generated word is checked before it is stored.
-    for q in questions:
-        assert_no_degree_claim(q.answer_notes)
-        assert_no_degree_claim(q.question)
-    assert_no_degree_claim(brief)
+    # Every word the model wrote is checked before it is stored, unless the
+    # person holds a degree. The standard drills are built from the profile's
+    # own credential line and need no check: checking them refused prep for
+    # anyone whose credential says what they hold (review R-11).
+    if not holds_degree(edu):
+        for q in questions:
+            assert_no_degree_claim(q.answer_notes)
+            assert_no_degree_claim(q.question)
+        assert_no_degree_claim(brief)
+    questions = drills + questions
 
     prep = Prep(application_id=application_id, round=round,
                 questions=questions, company_brief=brief, model=usage.model,

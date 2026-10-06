@@ -285,8 +285,10 @@ def complete_json(prompt: str, *, attempts: int = 3, **kw: Any) -> tuple[Any, Us
     """
     last_text = ""
     last_usage = Usage()
+    # The caller's system prompt on EVERY attempt: retries used to fall back
+    # to JSON_SYSTEM and lose rules such as "never mention a degree" (R-22).
+    system = kw.pop("system", None)
     for attempt in range(attempts):
-        system = kw.pop("system", None) if attempt == 0 else None
         result = complete(
             prompt if attempt == 0 else f"{prompt}\n\nReturn ONLY valid JSON.",
             system=system or JSON_SYSTEM,
