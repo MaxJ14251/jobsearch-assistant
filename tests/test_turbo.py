@@ -275,3 +275,28 @@ class TestRoutes(Tracker):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDraftingNeverMovesALaterStageBack(Tracker):
+    """Review R-01: a queued draft that runs after the person applied must not
+    move the application back to "ready"."""
+
+    def test_an_interview_stage_survives_a_late_draft(self):
+        con = self.con()
+        turbo.interested(con, 3, PROFILE)
+        con.commit()
+        approvals.set_stage(con, 3, "applied")
+        approvals.set_stage(con, 3, "phone_screen")
+        con.commit()
+        with redirect_stderr(io.StringIO()):
+            self.worker().drain()
+        con = self.con()
+        status = con.execute("SELECT status FROM applications WHERE job_id = 3").fetchone()[0]
+        self.assertEqual(status, "phone_screen")
+        agent_moves = con.execute(
+            "SELECT from_status, to_status FROM application_events e "
+            "JOIN applications a ON a.id = e.application_id "
+            "WHERE a.job_id = 3 AND e.actor = 'agent'").fetchall()
+        self.assertTrue(agent_moves, "the drafts are still recorded")
+        self.assertTrue(all(r[0] == r[1] == "phone_screen" for r in agent_moves),
+                        [tuple(r) for r in agent_moves])

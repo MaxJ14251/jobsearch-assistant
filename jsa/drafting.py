@@ -16,6 +16,9 @@ from . import approvals
 from . import posting
 
 
+# Stages a new draft may move to "ready". Everything later is the person's.
+DRAFTABLE_STAGES = ("saved", "drafting", "ready")
+
 class DraftError(RuntimeError):
     """The draft was not produced.
 
@@ -136,9 +139,15 @@ def draft_document(
             coach=[f.as_dict() for f in findings] if kind == "resume" else None,
         )
         approvals.set_document_pointer(con, application_id, kind, document_id)
+        # Only an application not yet sent becomes "ready". Drafting after
+        # applying (Turbo's queue, or the Tailor button) must not move an
+        # applied, interview or closed application back: that would be the
+        # agent deciding a stage (review R-01). The draft is still recorded.
+        current = con.execute("SELECT status FROM applications WHERE id = ?",
+                              (application_id,)).fetchone()["status"]
         approvals.record_event(
-            con, application_id, "ready", actor="agent",
-            note=f"{kind} v{version} drafted, awaiting approval")
+            con, application_id, "ready" if current in DRAFTABLE_STAGES else current,
+            actor="agent", note=f"{kind} v{version} drafted, awaiting approval")
         approval_id = approvals.queue(
             con, "document", document_id,
             f"{kind} v{version} for {job.get('title')} at {job.get('company')}")
