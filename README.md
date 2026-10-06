@@ -597,6 +597,24 @@ degree, clearance and years (`--no-enrich` skips it); nothing about you goes
 with it.
 
 ```bash
+.venv/Scripts/python -m jsa find "Perplexity AI" "Support Engineer" --city "Austin, TX"
+```
+Seen a job on LinkedIn or Indeed? Type what the listing shows, and this looks
+for the same job where the tool is allowed to look: your tracker, the
+employer's board from `config/companies.yaml` (checked live, for postings
+newer than your last discovery), or, for an employer with none, a few guessed
+Greenhouse, Lever and Ashby boards (at most 9 requests). The answer is
+**same job** (same title and city, from your tracker or a configured board),
+**possible** (a close title, another city, no city given, or anything from a
+guessed board; check it), or **not found** (apply on the listing site). It
+only ever requests those boards' public APIs. A listing link you give is
+kept as text and never opened. A guessed board that answers prints a
+`companies.yaml` entry for you to add and `jsa verify`; nothing writes that
+file for you. The dashboard's **Add a job** page has the same search ("Seen
+it on LinkedIn or Indeed?"). See
+[ADR 0030](docs/decisions/0030-finding-a-listing-on-the-employers-board.md).
+
+```bash
 .venv/Scripts/python -m jsa serve
 ```
 Local review dashboard on http://127.0.0.1:8765. It covers the whole path from a

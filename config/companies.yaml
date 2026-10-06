@@ -5,7 +5,9 @@
 #
 # Board tokens are not derivable from a company name — a wrong token 404s, or
 # worse, silently returns someone else's board. Re-run `python -m jsa verify`
-# after any edit here. `discover` skips anything unverified.
+# after any edit here. `discover` skips anything unverified. To find a token
+# safely, `jsa find "<company>" "<a job title>"` tries a few guesses, checks
+# Greenhouse's board name against the company, and prints an entry to paste.
 #
 # Fields by kind:
 #   greenhouse/lever/ashby/workable   board

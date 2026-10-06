@@ -1035,6 +1035,83 @@ def cmd_add(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_find(args: argparse.Namespace) -> int:
+    """Look for a LinkedIn or Indeed listing on the employer's own board.
+    Reads the tracker and public boards; never LinkedIn or Indeed (ADR 0030)."""
+    from . import find
+
+    if not db.DB_PATH.exists():
+        print("error: no tracker yet. Run `jsa discover` first.", file=sys.stderr)
+        return 1
+    con = db.connect()
+    try:
+        report = find.find(con, args.company, args.title, args.city or "",
+                           link=args.link or "", live=not args.offline)
+    except find.FindError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        con.close()
+    for line in find_lines(report):
+        print(line)
+    return 0
+
+
+def find_lines(report) -> list[str]:
+    where = f", {report.city}" if report.city else ""
+    out = [f"Looking for {report.title!r} at {report.company}{where}.", ""]
+    if report.candidates:
+        out.append("Companies that name could be:" if len(report.candidates) > 1
+                   else "Company:")
+        for cand in report.candidates:
+            boards = ", ".join(e["kind"] for e in cand.entries)
+            out.append(f"  {cand.name} ({cand.why}"
+                       + (f"; board: {boards}" if boards else "") + ")")
+        if len(report.candidates) > 1:
+            out.append("  More than one matches, so all were searched. Check "
+                       "which one is the employer.")
+    else:
+        out.append("No company in your tracker or companies.yaml has that name.")
+    out.append("")
+
+    def hit_lines(hits):
+        for h in hits:
+            ref = f"#{h.job_id} " if h.job_id else ""
+            state = f" · {h.status.replace('_', ' ')}" if h.status else ""
+            out.append(f"  {ref}{h.title} -- {h.company}"
+                       + (f" · {h.location}" if h.location else "") + state)
+            out.append(f"      {h.reason}")
+            if h.url:
+                out.append(f"      {h.url}")
+            if h.add_url:
+                out.append(f"      store it: jsa add {h.add_url}"
+                           + (f' --company "{report.company}"' if h.where == "guess" else ""))
+
+    if report.same:
+        out.append("SAME JOB on the employer's own board:")
+        hit_lines(report.same)
+        out.append("")
+    if report.possible:
+        out.append("POSSIBLE MATCHES (check them):")
+        hit_lines(report.possible)
+        out.append("")
+    if report.verdict == "not_found":
+        out += ["Not found on the employer's own board. Apply on the listing site;",
+                "to track it, paste the posting with `jsa add --paste`, then use the",
+                "job page's apply-by-hand checklist.", ""]
+    for board in report.boards:
+        if board.yaml:
+            out += [f"A guessed {board.kind.title()} board answered: {board.confirm}",
+                    "  If it is theirs, add this to config/companies.yaml and run "
+                    "`jsa verify`:", ""]
+            out += ["  " + line for line in board.yaml.splitlines()]
+            out.append("")
+    for note in report.notes:
+        out.append(f"note: {note}")
+    out.append("Nothing was saved. LinkedIn and Indeed were not opened.")
+    return out
+
+
 def cmd_fill(args: argparse.Namespace) -> int:
     """Paste the real posting into a job whose feed carried a stub (ADR 0020).
 
@@ -1667,6 +1744,16 @@ def main(argv: list[str] | None = None) -> int:
     p_add.add_argument("--no-enrich", action="store_true",
                        help="skip the model call that reads degree/clearance/years")
     p_add.set_defaults(func=cmd_add)
+
+    p_find = sub.add_parser(
+        "find", help="look for a LinkedIn or Indeed listing on the employer's own board")
+    p_find.add_argument("company", help="the company, as the listing names it")
+    p_find.add_argument("title", help="the job title, as the listing shows it")
+    p_find.add_argument("--city", help="the city the listing names, or 'Remote'")
+    p_find.add_argument("--link", help="the listing's link: kept as text, never opened")
+    p_find.add_argument("--offline", action="store_true",
+                        help="search the tracker only; request no board")
+    p_find.set_defaults(func=cmd_find)
 
     p_fill = sub.add_parser(
         "fill", help="paste the real posting into a job that only has a stub")

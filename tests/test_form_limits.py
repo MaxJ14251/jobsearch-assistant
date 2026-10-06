@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 from jsa import db, intake, web
 from jsa.config import ROOT, Preferences
 from jsa.llm import LLMError
+from jsa.sources import FetchResult
 
 BASE = "http://127.0.0.1:8765"
 PREFS_PROFILE = {"job_search_preferences": {"target_titles": ["Support Engineer"],
@@ -113,6 +114,7 @@ class TestTheGuard(Base):
             "/setup/start": {}, "/setup/preferences": {"target_titles": "Engineer"},
             "/setup/adopt": {},
             "/setup/discover": {},
+            "/find": {"company": "Acme", "title": "Support Engineer"},
         }
         routes = {r.path.replace("{job_id}", "1").replace("{reply_id}", "1")
                   for r in self.app.routes if "POST" in getattr(r, "methods", set())}
@@ -120,7 +122,7 @@ class TestTheGuard(Base):
         self.assertEqual(routes, set(bodies), "a POST route is missing from this test")
         with mock.patch("jsa.llm.complete", side_effect=LLMError("no model in tests")), \
              mock.patch("jsa.inbox.settings", return_value=None), \
-             mock.patch("jsa.intake.enrich", return_value=""):
+             mock.patch("jsa.intake.enrich", return_value=""),              mock.patch("jsa.sources._get_json", side_effect=OSError("no network")),              mock.patch("jsa.sources.fetch", return_value=FetchResult(False, [], "off")):
             for url, body in bodies.items():
                 with self.subTest(url=url):
                     r = self.client.post(url, data={"csrf": self.csrf, **body},

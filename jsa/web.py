@@ -1952,6 +1952,21 @@ ADD = """{% extends "base" %}{% block body %}
 <p class="sub">Setting up your profile? <a class="plain" href="/import">Import your resume</a> instead.</p>
 {% if msg %}<p class="note {{ 'bad' if bad else 'good' }}" role="alert">{{ msg }}</p>{% endif %}
 
+<h2>Seen it on LinkedIn or Indeed?</h2>
+<form class="stack" method="post" action="/find" onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Looking…'">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="two">
+    <label for="find-company">Company<input type="text" name="company" id="find-company" required></label>
+    <label for="find-title">Job title<input type="text" name="title" id="find-title" required></label>
+  </div>
+  <label for="find-city">City, or Remote (optional; without it a match is only "possible")
+    <input type="text" name="city" id="find-city" placeholder="Austin, TX"></label>
+  <label for="find-link">The listing's link (optional; kept as text, never opened)
+    <input type="url" name="link" id="find-link"></label>
+  <button type="submit">Find it on the employer's board</button>
+  <p class="meta" style="margin:0">Type what the listing shows. This looks in your tracker and on the employer's own public job board; LinkedIn and Indeed are never opened.</p>
+</form>
+
 <h2>From a link</h2>
 <form class="stack" method="post" action="/add/link" onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Reading the posting…'">
   <input type="hidden" name="csrf" value="{{ csrf }}">
@@ -1963,21 +1978,52 @@ ADD = """{% extends "base" %}{% block body %}
   <p class="meta" style="margin:0">The posting is read from that board's public job API, not from the page itself. A LinkedIn, Indeed or company-site link is not fetched: paste the posting below instead.</p>
 </form>
 
-<h2>Paste a posting</h2>
+<h2 id="paste">Paste a posting</h2>
 <form class="stack" method="post" action="/add/paste" onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Adding…'">
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <div class="two">
-    <label for="paste-company">Company<input type="text" name="company" id="paste-company" required></label>
-    <label for="paste-title">Job title<input type="text" name="title" id="paste-title" required></label>
+    <label for="paste-company">Company<input type="text" name="company" id="paste-company" required value="{{ prefill.company }}"></label>
+    <label for="paste-title">Job title<input type="text" name="title" id="paste-title" required value="{{ prefill.title }}"></label>
   </div>
   <div class="two">
-    <label for="paste-location">Location<input type="text" name="location" id="paste-location" placeholder="Remote (US), or City, ST"></label>
-    <label for="paste-link">Where it is posted (optional)<input type="url" name="link" id="paste-link"></label>
+    <label for="paste-location">Location<input type="text" name="location" id="paste-location" placeholder="Remote (US), or City, ST" value="{{ prefill.location }}"></label>
+    <label for="paste-link">Where it is posted (optional)<input type="url" name="link" id="paste-link" value="{{ prefill.link }}"></label>
   </div>
   <label for="paste-text">The whole posting, requirements included
     <textarea name="text" id="paste-text" required minlength="{{ min_chars }}" maxlength="{{ max_chars }}"></textarea></label>
   <button type="submit">Add pasted posting</button>
 </form>
+{% endblock %}"""
+
+FIND = """{% extends "base" %}{% block body %}
+<h1>{{ report.title }} at {{ report.company }}</h1>
+<p class="sub">{% if report.city %}{{ report.city }} · {% endif %}searched your tracker{% if live %} and the employer's public job board{% endif %}. LinkedIn and Indeed were not opened.</p>
+{% if report.candidates|length > 1 %}<p class="note">More than one company matches that name, so all were searched. Check which one is the employer:
+  {% for c in report.candidates %}{{ c.name }} ({{ c.why }}){{ "; " if not loop.last }}{% endfor %}.</p>
+{% elif report.candidates %}<p class="meta">Company: {{ report.candidates[0].name }} ({{ report.candidates[0].why }}).</p>{% endif %}
+
+{% macro hits(list) %}<ul class="plainlist">{% for h in list %}
+  <li class="hit"><strong>{{ h.title }}</strong> · {{ h.company }}{% if h.location %} · {{ h.location }}{% endif %}{% if h.status %} · <span class="tag">{{ h.status|replace('_',' ') }}</span>{% endif %}
+    <div class="meta">{{ h.reason }}</div>
+    <div class="actions">{% if h.job_id %}<a class="plain" href="/job/{{ h.job_id }}">Open job #{{ h.job_id }}</a>{% endif %}
+      {% if h.url %}<a class="plain" href="{{ h.url }}" rel="noopener">Open the employer's page</a>{% endif %}
+      {% if h.add_url %}<form method="post" action="/add/link" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="url" value="{{ h.add_url }}">{% if h.where == 'guess' %}<input type="hidden" name="company" value="{{ report.company }}">{% endif %}<button type="submit">Add this job</button></form>{% endif %}</div>
+  </li>{% endfor %}</ul>{% endmacro %}
+
+{% if report.same %}<h2>Same job, on the employer's own board</h2>
+<p class="meta">Apply there rather than through the listing site: it goes straight to the employer.</p>
+{{ hits(report.same) }}{% endif %}
+{% if report.possible %}<h2>Possible matches: check them</h2>{{ hits(report.possible) }}{% endif %}
+{% if report.verdict == 'not_found' %}<h2>Not found</h2>
+<p>Not found on the employer's own board{% if not report.candidates %} (no company by that name is in your tracker or companies.yaml){% endif %}. Apply on the listing site. To track it, <a class="plain" href="/add?{{ paste_query }}#paste">paste the posting</a>; its job page then has an apply-by-hand checklist.</p>{% endif %}
+{% for b in report.boards if b.yaml %}<h2>A guessed {{ b.kind|title }} board answered</h2>
+<p>{{ b.confirm }} If it is theirs, add this to <code>config/companies.yaml</code> and run <code>jsa verify</code>:</p>
+<pre>{{ b.yaml }}</pre>{% endfor %}
+{% for n in report.notes %}<p class="meta">{{ n }}</p>{% endfor %}
+<p><a class="plain" href="/add">Search for another</a></p>
+<style>ul.plainlist{list-style:none;padding:0;display:flex;flex-direction:column;gap:12px}
+  .hit .actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:4px}
+  form.inline{display:inline;margin:0}</style>
 {% endblock %}"""
 
 IMPORT = """{% extends "base" %}{% block body %}
@@ -2354,7 +2400,7 @@ TURBO = """{% extends "base" %}{% from "card" import match_card %}{% block body 
 env = Environment(
     loader=DictLoader({"base": BASE, "card": CARD, "matches": MATCHES, "job": JOB,
                        "prep": PREP, "pipeline": PIPELINE, "review": REVIEW,
-                       "preview": PREVIEW, "add": ADD,
+                       "preview": PREVIEW, "add": ADD, "find": FIND,
                        "import": IMPORT, "imported": IMPORTED,
                        "turbo": TURBO, "setup": SETUP}),
     # Always on. select_autoescape(["html"]) keys on the template NAME, and
@@ -3510,10 +3556,32 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                       job_title=row["job_title"] or "job", company=row["company"] or "")
 
     @app.get("/add", response_class=HTMLResponse)
-    def add_form(msg: str = "", bad: int = 0):
+    def add_form(msg: str = "", bad: int = 0, company: str = "", title: str = "",
+                 location: str = "", link: str = ""):
         from .intake import MAX_PASTED_CHARS, MIN_PASTED_CHARS
+        prefill = {"company": company, "title": title, "location": location,
+                   "link": link}
         return render("add", "add", title="Add a job", msg=msg, bad=bad,
-                      min_chars=MIN_PASTED_CHARS, max_chars=MAX_PASTED_CHARS)
+                      min_chars=MIN_PASTED_CHARS, max_chars=MAX_PASTED_CHARS,
+                      prefill=prefill)
+
+    @app.post("/find", response_class=HTMLResponse)
+    def find_listing(company: str = Form(...), title: str = Form(...),
+                     city: str = Form(""), link: str = Form("")):
+        """Plan 21: the listing's job on the employer's own board. Reads only;
+        never requests LinkedIn or Indeed (jsa/find.py's host allowlist)."""
+        from . import find
+        con = connect()
+        try:
+            report = find.find(con, company, title, city, link=link)
+        except find.FindError as exc:
+            return back_to_add(str(exc))
+        finally:
+            con.close()
+        paste = urlencode({"company": report.company, "title": report.title,
+                           "location": report.city, "link": report.link})
+        return render("find", "add", title="Find a listing", report=report,
+                      live=True, paste_query=paste)
 
     def back_to_add(msg: str) -> RedirectResponse:
         return RedirectResponse("/add?" + urlencode({"msg": msg, "bad": 1}),
