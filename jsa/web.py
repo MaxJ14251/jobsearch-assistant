@@ -22,6 +22,7 @@ reachable from the browser that visits other sites:
 from __future__ import annotations
 
 import json
+import re
 import secrets
 import sqlite3
 from pathlib import Path
@@ -71,6 +72,8 @@ BASE = """<!doctype html>
     --map-water:#0A1114;--map-land:#252C29;--map-urban:#303834;
     --map-road:#6C5D49;--map-edge:#404C47;}}
   *{box-sizing:border-box}
+  /* A link to a section lands below the sticky nav, not under it. */
+  [id]{scroll-margin-top:64px}
   [hidden]{display:none!important}
   body{margin:0;background:var(--paper);color:var(--ink);line-height:1.55;
     font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
@@ -1700,9 +1703,9 @@ JOB = """{% extends "base" %}{% block body %}
 <p class="sub">What the application form will ask for, in order. You submit it yourself; this tool submits nothing.</p>
 <ol class="steps">
   <li><h3>Where to apply</h3>
-    {% if checklist.employer %}<p><strong>Apply on the employer's site instead:</strong> the same job is on their own board as <a class="plain" href="/job/{{ checklist.employer.job_id }}">job #{{ checklist.employer.job_id }}</a>. <a class="btn" href="{{ checklist.employer.url }}" rel="noopener">Open the employer's posting</a></p>
-    <p class="meta">Or <a class="plain" href="{{ job.url }}" rel="noopener">open the listing on {{ checklist.via_label }}</a>.</p>
-    {% elif job.url %}<p><a class="btn" href="{{ job.url }}" rel="noopener">Open the listing on {{ checklist.via_label }}</a></p>
+    {% if checklist.employer %}<p><strong>Apply on the employer's site instead:</strong> the same job is on their own board as <a class="plain" href="/job/{{ checklist.employer.job_id }}">job #{{ checklist.employer.job_id }}</a>. <a class="btn" href="{{ checklist.employer.url|safe_url }}" rel="noopener">Open the employer's posting</a></p>
+    <p class="meta">Or <a class="plain" href="{{ job.url|safe_url }}" rel="noopener">open the listing on {{ checklist.via_label }}</a>.</p>
+    {% elif job.url %}<p><a class="btn" href="{{ job.url|safe_url }}" rel="noopener">Open the listing on {{ checklist.via_label }}</a></p>
     {% else %}<p class="meta">This job has no link. Find where it is posted, or <a class="plain" href="/add">look for it on the employer's board</a>.</p>{% endif %}
     {% if checklist.via in ('linkedin', 'indeed') and not checklist.employer %}<p class="meta">Not sure the employer posts it too? <a class="plain" href="/add#find-company">Find it on their board</a>.</p>{% endif %}
   </li>
@@ -1729,7 +1732,7 @@ JOB = """{% extends "base" %}{% block body %}
         {% for d in checklist.cover.approved %}<option value="{{ d.id }}" {{ 'selected' if loop.first }}>v{{ d.version }} (approved)</option>{% endfor %}
         {% for d in checklist.cover.others %}<option value="{{ d.id }}">v{{ d.version }} ({{ d.status }})</option>{% endfor %}
         <option value="0" {{ 'selected' if not checklist.cover.approved }}>No cover letter</option></select></label>
-      {% if not checklist.resume.approved %}<label class="check" for="ap-confirm"><input type="checkbox" id="ap-confirm" name="confirm" value="1"> Record that I applied without an approved resume</label>{% endif %}
+      <label class="check" for="ap-confirm"><input type="checkbox" id="ap-confirm" name="confirm" value="1"> {% if checklist.resume.approved %}If the resume I sent isn't an approved one, record it anyway{% else %}Record that I applied without an approved resume{% endif %}</label>
       <button type="submit">I applied</button>
       <p class="meta" style="margin:0">Records today's date, where, and exactly which files went out. It is what <code>jsa applied {{ job.id }}</code> records; it sends nothing.</p>
     </form>
@@ -1789,7 +1792,7 @@ document.querySelectorAll('button.copy').forEach(function (b) {
 
 <h2>Posting</h2>
 {% if job.enrichment_note %}<p class="sub">{{ job.enrichment_note }}</p>{% endif %}
-<p><a class="plain" href="{{ job.url }}" rel="noopener">Open the original posting</a>{% if job.description_origin == 'pasted' %} · <span class="meta">text pasted by you; discovery will not overwrite it</span>{% endif %}</p>
+<p><a class="plain" href="{{ job.url|safe_url }}" rel="noopener">Open the original posting</a>{% if job.description_origin == 'pasted' %} · <span class="meta">text pasted by you; discovery will not overwrite it</span>{% endif %}</p>
 {% if thin %}
 <p class="note bad">{{ thin[:1]|upper }}{{ thin[1:] }}</p>
 <form class="stack" method="post" action="/job/{{ job.id }}/fill" onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Saving…'">
@@ -2062,7 +2065,7 @@ FIND = """{% extends "base" %}{% block body %}
   <li class="hit"><strong>{{ h.title }}</strong> · {{ h.company }}{% if h.location %} · {{ h.location }}{% endif %}{% if h.status %} · <span class="tag">{{ h.status|replace('_',' ') }}</span>{% endif %}
     <div class="meta">{{ h.reason }}</div>
     <div class="actions">{% if h.job_id %}<a class="plain" href="/job/{{ h.job_id }}">Open job #{{ h.job_id }}</a>{% endif %}
-      {% if h.url %}<a class="plain" href="{{ h.url }}" rel="noopener">Open the employer's page</a>{% endif %}
+      {% if h.url %}<a class="plain" href="{{ h.url|safe_url }}" rel="noopener">Open the employer's page</a>{% endif %}
       {% if h.add_url %}<form method="post" action="/add/link" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="url" value="{{ h.add_url }}">{% if h.where == 'guess' %}<input type="hidden" name="company" value="{{ report.company }}">{% endif %}<button type="submit">Add this job</button></form>{% endif %}</div>
   </li>{% endfor %}</ul>{% endmacro %}
 
@@ -2288,7 +2291,7 @@ TURBO = """{% extends "base" %}{% from "card" import match_card %}{% block body 
   </div>
   {% if r.thin %}<p><span class="flag warn">almost no posting text: Interested saves it without drafting</span></p>{% endif %}
   <div class="excerpt">{{ r.excerpt }}</div>
-  <p class="meta"><a class="plain" href="/job/{{ r.job_id }}">Job page</a> · <a class="plain" href="{{ r.url }}" rel="noopener">The posting</a></p>
+  <p class="meta"><a class="plain" href="/job/{{ r.job_id }}">Job page</a> · <a class="plain" href="{{ r.url|safe_url }}" rel="noopener">The posting</a></p>
 </article>
 {% endfor %}
 <div id="t-end" class="empty"{% if rows %} hidden{% endif %}>
@@ -2465,6 +2468,17 @@ env = Environment(
     autoescape=True,
 )
 env.filters["localtime"] = db.local_time
+
+
+def safe_url(url: Any) -> str:
+    """A link from stored data, only when it is http(s). A feed is third-party
+    input, and a `javascript:` URL in an href runs on the dashboard's own
+    origin when clicked (review R-09); anything else becomes a dead link."""
+    text = str(url or "").strip()
+    return text if re.match(r"(?i)https?://", text) else ""
+
+
+env.filters["safe_url"] = safe_url
 env.filters["localdate"] = lambda stamp: str(db.local_date(stamp) or stamp or "")
 
 
@@ -2833,7 +2847,10 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                profile_loader: Callable[[], dict[str, Any]] | None = None) -> FastAPI:
     """The three arguments exist for tests. Served, the app uses the
     configured tracker, output/ and profile."""
-    app = FastAPI(title="Job Search Review")
+    # No /docs, /redoc or /openapi.json: Swagger's page loads a script from a
+    # CDN into this origin, and nothing here is an API for others (review R-13).
+    app = FastAPI(title="Job Search Review", docs_url=None, redoc_url=None,
+                  openapi_url=None)
     app.state.csrf_token = secrets.token_urlsafe(32)
     from .turbo import Worker
     # Started by serve(); tests drive it with drain().
@@ -2865,11 +2882,12 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             kind = request.headers.get("content-type", "").split(";")[0].strip().lower()
             # Every POST is sized BEFORE it is read: this guard holds the
             # whole body in memory. Browsers always send Content-Length for a
-            # form. uvicorn's HTTP parser (h11) refuses a body longer than the
-            # length it declared, so checking the header is enough; the
-            # length check after reading is a second line for other servers.
+            # form, and never a chunked one. A chunked body's length is known
+            # only after reading it (h11 frames by Transfer-Encoding even when
+            # a Content-Length is sent too), so it is refused outright (review
+            # R-16). The length check after reading is a second line.
             length = request.headers.get("content-length", "")
-            if not length.isdigit():
+            if not length.isdigit() or "transfer-encoding" in request.headers:
                 return PlainTextResponse("Length required.", status_code=411)
             limit = MAX_UPLOAD_BYTES if kind == "multipart/form-data" else MAX_FORM_BYTES
             if int(length) > limit:
@@ -2890,11 +2908,19 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             else:
                 # No other format may slip past the token check.
                 sent = ""
-            if not secrets.compare_digest(sent, app.state.csrf_token):
+            # Bytes, not str: compare_digest raises on a non-ASCII str, which
+            # turned a junk token into a 500 (review R-12).
+            if not secrets.compare_digest(sent.encode("utf-8", "replace"),
+                                          app.state.csrf_token.encode()):
                 return PlainTextResponse(
                     "This form has expired. Reload the page and try again.",
                     status_code=403)
-        return await call_next(request)
+        response = await call_next(request)
+        # Not framed by another site's page, so its buttons can't be clicked
+        # through an overlay (review R-14).
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+        response.headers["Content-Security-Policy"] = "frame-ancestors 'self'"
+        return response
 
     def daily_banner(con) -> dict[str, Any] | None:
         """The latest `jsa daily` run nobody has dismissed yet (plan 18)."""
@@ -3338,7 +3364,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         finally:
             con.close()
         live = config.PROFILE_PATH
-        return render("setup", "matches", title="Set up", msg=msg, bad=bad,
+        return render("setup", "setup", title="Set up", msg=msg, bad=bad,
                       draft=draft is not None, draft_name=DRAFT_NAME,
                       f=form or setup_form_values(draft), errors=errors or {},
                       blocking=blocking, can_adopt=setup.can_adopt(),

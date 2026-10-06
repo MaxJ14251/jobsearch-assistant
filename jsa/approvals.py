@@ -206,10 +206,18 @@ def save_application(
     if con.execute("SELECT 1 FROM jobs WHERE id = ?", (int(job_id),)).fetchone() is None:
         raise ApprovalError(f"no job with id {job_id}")
 
+    # ON CONFLICT, not check-then-insert: two saves at once (a double click,
+    # two tabs, a repeated Turbo swipe) both passed the check above, and the
+    # second hit the UNIQUE constraint as a 500 (review R-18).
     cur = con.execute(
-        "INSERT INTO applications (job_id, status) VALUES (?, 'saved')",
+        "INSERT INTO applications (job_id, status) VALUES (?, 'saved') "
+        "ON CONFLICT(job_id) DO NOTHING",
         (int(job_id),),
     )
+    if cur.rowcount == 0:
+        row = con.execute("SELECT id FROM applications WHERE job_id = ?",
+                          (int(job_id),)).fetchone()
+        return int(row["id"]), False
     application_id = int(cur.lastrowid)
     # record_event writes the event and syncs status; 'saved' is already the
     # column default, so this exists for the audit trail, not the status.
