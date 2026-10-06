@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import re
 import json
+import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -206,17 +206,46 @@ def migrate(con: sqlite3.Connection, schema: Path = SCHEMA_PATH) -> list[str]:
     applied += _rebuild_sources_if_stale(con, text)
     applied += _repair_dangling_references(con, text)
 
-    # Views are rebuilt every time, not only when a table changed. They hold
-    # no data, and `CREATE VIEW IF NOT EXISTS` leaves an old definition in
-    # place forever: n20 added a column to v_new_matches, and on an existing
-    # tracker it silently never appeared, because no TABLE had changed to
-    # trigger the rebuild. Tests could not see it -- they start from empty.
-    for row in con.execute(
-        "SELECT name FROM sqlite_master WHERE type='view'"
-    ).fetchall():
-        con.execute(f"DROP VIEW IF EXISTS {row['name']}")
+    # Views are checked every time, not only when a table changed:
+    # `CREATE VIEW IF NOT EXISTS` leaves an old definition in place forever
+    # (n20 added a column to v_new_matches and an existing tracker never got
+    # it). A view whose stored SQL differs from the schema's is replaced, and
+    # all of them in ONE transaction: dropping every view with autocommit made
+    # the dashboard fail "no such table" while another process upgraded
+    # (review R-02: 37,287 failed reads during 40 upgrades).
+    _sync_views(con, text)
     con.executescript(text)
     return applied
+
+
+_VIEW_RE = re.compile(r"CREATE VIEW IF NOT EXISTS\s+(\w+)\s+(AS\b.*?);[ \t]*$", re.S | re.M)
+
+
+def _flat(sql: str) -> str:
+    return " ".join((sql or "").split())
+
+
+def _sync_views(con: sqlite3.Connection, text: str) -> None:
+    wanted = {m.group(1): f"CREATE VIEW {m.group(1)} {m.group(2)}"
+              for m in _VIEW_RE.finditer(text)}
+    stored = {row["name"]: row["sql"] for row in con.execute(
+        "SELECT name, sql FROM sqlite_master WHERE type='view'")}
+    stale = [n for n in stored if _flat(stored[n]) != _flat(wanted.get(n, ""))]
+    missing = [n for n in wanted if n not in stored]
+    if not stale and not missing:
+        return
+    con.commit()
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        for name in stale:
+            con.execute(f"DROP VIEW IF EXISTS {name}")
+        for name in [*stale, *missing]:
+            if name in wanted:
+                con.execute(wanted[name])
+        con.execute("COMMIT")
+    except BaseException:
+        con.execute("ROLLBACK")
+        raise
 
 
 def _approvals_stale(con: sqlite3.Connection) -> str:
