@@ -21,6 +21,7 @@ from jsa import cli, db, find, web
 
 BASE = "http://127.0.0.1:8765"
 REAL_CONNECT = db.connect
+REAL_GET_JSON = find.sources._get_json      # Case patches it with a fake board
 
 
 class FakeBoards:
@@ -357,3 +358,46 @@ class TestTheDashboard(Case):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestReviewFixes(Case):
+    """Review R-05, R-06 and R-15."""
+
+    def test_a_company_that_only_starts_the_same_is_never_the_same_job(self):
+        scale = db.upsert_company(self.con, name="Scale Computing", slug="scale-computing")
+        self.job(scale, "Software Engineer", "Austin, TX")
+        report = self.find("Scale AI", "Software Engineer", "Austin, TX", live=False)
+        self.assertEqual(report.verdict, "possible")
+        self.assertIn("only starts the same", report.possible[0].reason)
+
+    def test_the_same_city_name_in_another_state_is_another_place(self):
+        self.job(self.perplexity, "Software Engineer", "Portland, ME")
+        self.assertEqual(self.find("Perplexity", "Software Engineer", "Portland, OR",
+                                   live=False).verdict, "possible")
+        self.assertEqual(self.find("Perplexity", "Software Engineer", "Portland",
+                                   live=False).verdict, "same")
+        self.assertEqual(self.find("Perplexity", "Software Engineer", "portland, me",
+                                   live=False).verdict, "same")
+
+    def test_a_redirect_off_the_allowlist_is_never_followed(self):
+        import httpx
+        reached = []
+
+        def handler(request):
+            reached.append(str(request.url))
+            if request.url.host == "boards-api.greenhouse.io":
+                return httpx.Response(302, headers={"location":
+                                                    "https://www.linkedin.com/jobs/view/1"})
+            return httpx.Response(200, json={"jobs": []})
+
+        real = httpx.Client
+        with mock.patch.object(find.sources, "_get_json", REAL_GET_JSON), \
+             mock.patch("jsa.sources.httpx.Client",
+                        side_effect=lambda **kw: real(transport=httpx.MockTransport(handler),
+                                                      **kw)):
+            report = find.Report("Acme", "Support Engineer", "")
+            result = find._fetch(report, {"kind": "greenhouse", "board": "acme"})
+        self.assertFalse(result.ok)
+        self.assertIn("HostNotAllowed", result.status)
+        self.assertFalse(any("linkedin" in u for u in reached), reached)
+        self.assertTrue(all(find.allowed(u) for u in report.requested), report.requested)

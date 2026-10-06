@@ -37,7 +37,7 @@ from urllib.parse import urlparse
 
 from . import sources
 from .config import load_sources
-from .db import _first_city, _norm
+from .db import _norm
 from .scoring import dedup_key
 
 # Every host this module may send a request to: the boards' public APIs.
@@ -85,6 +85,9 @@ class Candidate:
     why: str
     company_id: int | None = None
     entries: list[dict[str, Any]] = field(default_factory=list)  # yaml boards
+    # Matched only because the name starts the same ("Scale" for "Scale
+    # AI"): another company is as likely, so never "same job" (review R-05).
+    prefix: bool = False
 
 
 @dataclass
@@ -199,7 +202,7 @@ def company_candidates(con: sqlite3.Connection, name: str,
             rank, why = 2, "name starts the same"
         else:
             continue
-        cand.why = why
+        cand.why, cand.prefix = why, rank == 2
         ranked.append((rank, cand))
     ranked.sort(key=lambda rc: (rc[0], not rc[1].entries, rc[1].name.lower()))
     return [c for _, c in ranked]
@@ -228,10 +231,20 @@ def overlap(a: str, b: str) -> float:
     return len(wa & wb) / len(wa | wb)
 
 
-def _city(location: Any) -> str:
-    """The first place's city alone: "Austin, TX; Remote" -> "austin"."""
-    first = str(location or "").split(";")[0].split("(")[0].split(",")[0]
-    return _norm(first)
+def _place(location: Any) -> tuple[str, str]:
+    """The first place's (city, state): "Austin, TX; Remote" -> ("austin", "tx")."""
+    first = str(location or "").split(";")[0].split("(")[0]
+    parts = [_norm(p) for p in first.split(",")]
+    return parts[0], (parts[1].split() or [""])[0] if len(parts) > 1 else ""
+
+
+def same_place(a: Any, b: Any) -> bool:
+    """Same city, and the same state when both name one: Portland, OR is not
+    Portland, ME (review R-06). A missing state on either side is allowed."""
+    (city_a, state_a), (city_b, state_b) = _place(a), _place(b)
+    if not city_a or city_a != city_b:
+        return False
+    return not (state_a and state_b) or state_a == state_b
 
 
 def judge(title: str, city: str, found_title: str, found_location: str,
@@ -241,8 +254,7 @@ def judge(title: str, city: str, found_title: str, found_location: str,
     if typed == theirs:
         if not city:
             return "possible", "same title; no city given to compare"
-        if _city(city) != _city(found_location) \
-                and _first_city(city) != _first_city(found_location):
+        if not same_place(city, found_location):
             return "possible", f"same title, but in {found_location or 'no stated place'}"
         if guessed:
             return "possible", "same title and city, on a guessed board"
@@ -272,19 +284,38 @@ def _board_url(entry: dict[str, Any]) -> str:
     return builder(entry) if builder else ""
 
 
+def _guarded(report: Report):
+    """Every request the fetchers make, redirects and Workday's detail pages
+    included, passes the allowlist; the first URL alone was checked before."""
+    def hook(request) -> None:
+        url = str(request.url)
+        if not allowed(url):
+            raise HostNotAllowed(f"refusing to request {request.url.host!r}")
+        if not report.requested or report.requested[-1] != url:
+            report.requested.append(url)
+    return hook
+
+
 def _fetch(report: Report, entry: dict[str, Any]) -> sources.FetchResult:
     url = _board_url(entry)
     _check(report, url)
-    return sources.fetch(entry)
+    token = sources.REQUEST_GUARD.set(_guarded(report))
+    try:
+        return sources.fetch(entry)
+    finally:
+        sources.REQUEST_GUARD.reset(token)
 
 
 def _greenhouse_name(report: Report, token: str) -> str | None:
     url = f"https://boards-api.greenhouse.io/v1/boards/{token}"
     _check(report, url)
+    guard = sources.REQUEST_GUARD.set(_guarded(report))
     try:
         data = sources._get_json(url)
     except Exception:  # noqa: BLE001 - no board by that token
         return None
+    finally:
+        sources.REQUEST_GUARD.reset(guard)
     return str((data or {}).get("name") or "")
 
 
@@ -314,18 +345,28 @@ def _refuse_links(**fields: str) -> None:
                 "listing shows them.")
 
 
+def _held_back(verdict: tuple[str, str] | None, prefix: bool) -> tuple[str, str] | None:
+    """A company matched only by how its name starts is never "same job"."""
+    if verdict and prefix and verdict[0] == "same":
+        return "possible", (f"{verdict[1]}, but at a company whose name only "
+                            "starts the same; check it is this employer")
+    return verdict
+
+
 def _tracker(con: sqlite3.Connection, report: Report, cands: list[Candidate]) -> None:
     ids = [c.company_id for c in cands if c.company_id is not None]
     if not ids:
         return
     rows = con.execute(
-        "SELECT j.id, j.title, j.location, j.url, j.passed_at, c.name AS company, "
-        "a.status FROM jobs j JOIN companies c ON c.id = j.company_id "
+        "SELECT j.id, j.title, j.location, j.url, j.passed_at, j.company_id, "
+        "c.name AS company, a.status FROM jobs j JOIN companies c ON c.id = j.company_id "
         "LEFT JOIN applications a ON a.job_id = j.id "
         f"WHERE j.company_id IN ({','.join('?' * len(ids))}) "
         "AND j.closed_at IS NULL AND j.archived_at IS NULL", ids).fetchall()
+    prefix = {c.company_id for c in cands if c.prefix}
     for row in rows:
-        verdict = judge(report.title, report.city, row["title"], row["location"] or "")
+        verdict = _held_back(judge(report.title, report.city, row["title"],
+                                   row["location"] or ""), row["company_id"] in prefix)
         if verdict is None:
             continue
         status = row["status"] or ("passed" if row["passed_at"] else "")
@@ -356,8 +397,9 @@ def _live(con: sqlite3.Connection, report: Report, cands: list[Candidate]) -> No
                                     f"did not answer: {result.status}")
                 continue
             for job in result.jobs:
-                verdict = judge(report.title, report.city, job.get("title") or "",
-                                job.get("location") or "")
+                verdict = _held_back(judge(report.title, report.city,
+                                           job.get("title") or "",
+                                           job.get("location") or ""), cand.prefix)
                 if verdict is None:
                     continue
                 job_id = _stored(con, entry, job)

@@ -13,6 +13,7 @@ requests.
 
 from __future__ import annotations
 
+import contextvars
 import hashlib
 import html
 import re
@@ -99,7 +100,15 @@ class FetchResult:
     skipped_ids: list[str] = field(default_factory=list)
 
 
+# A caller that must limit where requests go (jsa find's host allowlist)
+# sets this to a function called with every outgoing request, redirects
+# included; it raises to stop one (review R-15).
+REQUEST_GUARD: contextvars.ContextVar[Callable[[httpx.Request], None] | None] = (
+    contextvars.ContextVar("jsa_request_guard", default=None))
+
+
 def _client(browser_ua: bool = False) -> httpx.Client:
+    guard = REQUEST_GUARD.get()
     return httpx.Client(
         headers={
             "User-Agent": BROWSER_UA if browser_ua else user_agent(),
@@ -107,6 +116,7 @@ def _client(browser_ua: bool = False) -> httpx.Client:
         },
         timeout=REQUEST_TIMEOUT,
         follow_redirects=True,
+        event_hooks={"request": [guard]} if guard else None,
     )
 
 
