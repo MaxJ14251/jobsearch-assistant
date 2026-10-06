@@ -947,7 +947,7 @@ tested:
 | `review.py` | 96% | What the dashboard says a draft changed |
 | `approvals.py` | 95% | The human-approval gate |
 | `doctor.py` | 94% | What will not work yet |
-| `web.py` | 90% | Dashboard routes |
+| `web/` | 90% | Dashboard routes |
 | `llm.py` | 60% | Error paths need a live provider to reach |
 | `cli.py` | 42% | Argument plumbing over tested modules |
 | `sources.py` | 27% | Live ATS endpoints; exercised by `jsa verify` |
@@ -1088,7 +1088,10 @@ jobsearch/
     places.py                   # a posting's location -> a point on a map
     mapview.py                  # that map, as geometry: no markup, no tiles
     basemap.py                  # the ground under it, from data/, same projection
-    web.py                      # the local review dashboard
+    web/                        # the local review dashboard:
+      __init__.py               #   create_app, the request guard, shared helpers
+      routes_*.py               #   one module per area (matches, turbo, job, ...)
+      templates/*.html          #   the pages, plain Jinja files
     cli.py                      # python -m jsa ...
   data/                         # Census centroids, outline, basemap; public domain
   tools/build_map_data.py       # rebuilds data/ from its public sources

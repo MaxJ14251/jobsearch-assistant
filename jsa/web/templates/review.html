@@ -1,0 +1,78 @@
+{% extends "base" %}{% block body %}
+<h1>Review queue</h1>
+<p class="sub">{{ rows|length }} awaiting your decision · approving records your decision and sends nothing</p>
+{% if error and not error_in_rows %}<p class="note bad" role="alert">{{ error }}</p>{% endif %}
+{% for r in rows %}
+<div class="card" id="{{ ('doc-%s' % r.subject_id) if r.doc else ('item-%s' % r.approval_id) }}">
+  <div class="row1"><span class="flag">{{ r.subject_type }}</span>
+    <span class="title">{{ r.summary }}</span></div>
+  <div class="meta">requested {{ r.requested_at|localtime }}
+    {%- if r.doc and r.doc.job_id %} · <a class="plain" href="/job/{{ r.doc.job_id }}">job page</a>{% endif %}</div>
+
+  {% if r.doc %}
+    {% set c = r.doc.compare %}
+    {% if r.doc.problem %}<p class="note bad">{{ r.doc.problem }}</p>{% endif %}
+    {% if r.doc.kind == 'cover_letter' %}
+      {% if r.doc.note %}<p class="note bad">{{ r.doc.note }}</p>
+      {% else %}<p class="note good">Every word of this letter traces to your profile, the role title or the company name. Read it anyway: only you know whether it is true.</p>{% endif %}
+      {% if r.doc.letter and r.doc.letter.problems %}
+        <p class="note bad">Still flagged: {{ r.doc.letter.problems|join('; ') }}</p>{% endif %}
+      <div class="doc">{% for p in r.doc.paragraphs %}<p>{{ p.text }}</p>{% endfor %}</div>
+    {% endif %}
+    {% if c %}
+      {% if c.flagged %}<p class="note bad">{{ c.flagged }} line(s) say something your profile does not. Read the highlighted rows before you decide.</p>
+      {% else %}<p class="note good">Every line traces back to your profile. Only you know whether each one is true, so read it anyway.</p>{% endif %}
+      {% if c.summary %}
+      <div class="pair {{ 'flag-row' if c.summary.status == 'flag' }}">
+        <div><div class="lbl">Summary on the draft</div><p>{{ c.summary.text }}</p></div>
+        <div><div class="lbl">Words not in your profile</div>
+          <p>{% for w in c.summary.added %}<mark>{{ w }}</mark>{{ ', ' if not loop.last }}{% else %}none{% endfor %}</p></div>
+      </div>{% endif %}
+      {% for b in c.bullets %}
+      <div class="pair {{ 'flag-row' if b.status in ('flag','unsourced') }}">
+        <div><div class="lbl">On the draft · {{ b.note }}</div><p>{{ b.text }}</p>
+          {% if b.added %}<p class="meta">not in your profile: {% for w in b.added %}<mark>{{ w }}</mark>{{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}</div>
+        <div><div class="lbl">Your profile{% if b.source_id %} · {{ b.source_id }}{% endif %}</div>
+          <p>{{ b.source or 'no matching bullet' }}</p></div>
+      </div>
+      {% endfor %}
+      {% if c.missing_sources %}<p class="note bad">Listed bullets no longer in your profile: {{ c.missing_sources|join(', ') }}</p>{% endif %}
+    {% endif %}
+    {% if r.doc.paragraphs and r.doc.kind != 'cover_letter' %}
+    <details><summary>Read the whole draft</summary><div class="doc">
+      {% for p in r.doc.paragraphs %}
+        {% if p.kind == 'heading' %}<h3>{{ p.text }}</h3>
+        {% elif p.kind == 'bullet' %}<ul><li>{{ p.text }}</li></ul>
+        {% else %}<p>{{ p.text }}</p>{% endif %}
+      {% endfor %}</div></details>
+    {% endif %}
+    {% if r.doc.servable %}<div class="inline"><a class="btn" href="/document/{{ r.subject_id }}/preview">Preview as a page</a>
+      <a class="btn" href="/document/{{ r.subject_id }}">Download .docx</a></div>{% endif %}
+  {% elif r.body %}
+    <div class="doc" style="margin-top:8px"><p style="white-space:pre-wrap">{{ r.body }}</p></div>
+  {% endif %}
+
+  {% if r.coach %}<div class="note" style="background:var(--surface-2)">
+    <strong>Resume report</strong> <span class="meta">(advice for your profile; it does not block approving)</span>
+    <ul style="margin:6px 0 0;padding-left:18px">{% for f in r.coach %}<li><strong>{{ f.id }}</strong>: {{ f.message }} <span class="meta">{{ f.where }}</span></li>{% endfor %}</ul>
+  </div>{% endif %}
+  <form method="post" action="/approve" class="inline" style="margin-top:12px">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="approval_id" value="{{ r.approval_id }}">
+    <button type="submit">Approve</button>
+  </form>
+  <form method="post" action="/reject" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="approval_id" value="{{ r.approval_id }}">
+    <input type="search" name="feedback" id="feedback-{{ r.approval_id }}" maxlength="2000"
+           aria-label="What should change" placeholder="What should change? (required)" style="flex:1">
+    <select name="reason" id="reason-{{ r.approval_id }}" aria-label="Kind of problem (optional)">
+      <option value="">Kind of problem (optional)</option>
+      {% for code in reject_reasons %}<option value="{{ code }}">{{ code.replace('_', ' ') }}</option>{% endfor %}
+    </select>
+    <button class="ghost" type="submit">Reject</button>
+  </form>
+  {% if error_id == r.approval_id %}<p class="note bad" role="alert">{{ error }}</p>{% endif %}
+</div>
+{% else %}<p class="empty">Nothing waiting.</p>{% endfor %}
+{% endblock %}

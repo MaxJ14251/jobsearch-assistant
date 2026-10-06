@@ -1,0 +1,23 @@
+{% extends "base" %}{% block body %}
+<p class="sub" style="margin-top:18px"><a class="plain" href="/job/{{ doc.job_id }}">← {{ job_title }} at {{ company }}</a></p>
+<h1>{{ doc.kind|replace('_',' ')|capitalize }} v{{ doc.version }}</h1>
+<p class="sub">document {{ doc.id }} · {{ status }} · drafted {{ doc.generated_at|localtime }} · read from the .docx on disk, so this is the file you would send</p>
+<div class="inline" style="margin-bottom:12px">
+  <a class="btn" href="/document/{{ doc.id }}">Download .docx</a>
+  {% if status == 'pending' %}<a class="plain" href="/review#doc-{{ doc.id }}">Review it</a>{% endif %}
+</div>
+{% if problem %}<p class="note bad">{{ problem }}</p>{% else %}
+<div class="desk"><div class="sheet" style="font-family:'{{ sheet.font }}',Carlito,'Segoe UI',Arial,sans-serif;font-size:{{ sheet.size }}pt;padding-left:{{ sheet.margin_left_pct }}%;padding-right:{{ sheet.margin_right_pct }}%">
+{%- for p in sheet.paragraphs %}
+  {%- if p.empty %}<div class="blank"></div>
+  {%- else %}
+  {%- set style = 'text-align:%s;margin-top:%spt;margin-bottom:%spt' % (p.align, p.before, p.after) %}
+  {%- set body %}{% for r in p.runs %}<span style="font-size:{{ r.size }}pt{{ ';font-weight:700' if r.bold }}{{ ';font-style:italic' if r.italic }}">{{ r.text }}</span>{% endfor %}{% endset %}
+  {%- if p.bullet %}<ul style="{{ style }}"><li>{{ body }}</li></ul>
+  {%- else %}<p style="{{ style }}">{{ body }}</p>{% endif %}
+  {%- endif %}
+{%- endfor %}
+</div></div>
+<p class="sub" style="margin-top:10px">Fonts and line breaks can differ slightly from Word. The words, their order and their emphasis are exactly the file's.</p>
+{% endif %}
+{% endblock %}

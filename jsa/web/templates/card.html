@@ -1,0 +1,23 @@
+{% macro match_card(r) %}
+<div class="card" data-key="{{ r.key }}" data-status="{{ r.status }}">
+  <div class="row1">
+    <span class="score">{{ '%.2f'|format(r.match_score or 0) }}</span>
+    {% if r.status != 'new' %}<span class="pill" title="Your application">{{ r.stage|replace('_',' ') }}</span>{% endif %}
+    <span class="title"><a class="plain" href="/job/{{ r.job_id }}">{{ r.title }}</a></span>
+    <span class="co">{{ r.company }}</span>
+  </div>
+  <div class="meta">{{ r.location or 'location not stated' }} · {{ r.remote }}
+    {%- if r.miles is not none and r.remote != 'remote' %} · {{ r.miles }} mi away
+      {%- if r.via_copy %} (its nearest location){% endif %}{% endif %}
+    {%- if r.variant_count and r.variant_count > 1 %} · +{{ r.variant_count - 1 }} more location(s){% endif %}<span class="eta"></span></div>
+  <div class="flags">
+    {% if r.track == 'sales' %}<span class="flag">sales track</span>{% endif %}
+    {% if r.degree_required == 1 %}<span class="flag" title="Shown so you know, never used to hide or rank a job">asks for a degree</span>
+    {% elif r.degree_required == 0 %}<span class="flag ok">no degree needed</span>{% endif %}
+    {% if r.clearance_required == 1 %}<span class="flag warn">clearance</span>{% endif %}
+    {% if r.years_required is not none %}<span class="flag">{{ r.years_required }}+ yrs</span>{% endif %}
+    {% for t in r.stack %}<span class="flag">{{ t }}</span>{% endfor %}
+  </div>
+  {% if r.reasons %}<ul class="reasons">{% for x in r.reasons %}<li>{{ x }}</li>{% endfor %}</ul>{% endif %}
+</div>
+{% endmacro %}

@@ -1,0 +1,14 @@
+{% extends "base" %}{% block body %}
+<p class="sub" style="margin-top:18px"><a class="plain" href="/job/{{ prep.job_id }}">← {{ prep.title }} at {{ prep.company }}</a></p>
+<h1>Interview prep: {{ (prep.round or 'general')|replace('_',' ') }}</h1>
+<p class="sub">{{ questions|length }} question(s) · drafted {{ prep.generated_at|localdate }} · the answers are notes in your own words, not a script</p>
+{% if prep.company_brief %}<h2>Company brief</h2><p style="max-width:70ch;overflow-wrap:anywhere">{{ prep.company_brief }}</p>{% endif %}
+<h2>Questions</h2>
+{% for q in questions %}
+<div class="qa">
+  <div class="q">{{ loop.index }}. {{ q.question }}</div>
+  {% if q.why %}<div class="why">Why they ask: {{ q.why }}</div>{% endif %}
+  {% if q.answer_notes %}<p class="say">{{ q.answer_notes }}</p>{% endif %}
+</div>
+{% else %}<p class="empty">This prep has no questions.</p>{% endfor %}
+{% endblock %}

@@ -1,0 +1,195 @@
+{% extends "base" %}{% from "card" import match_card %}{% block body %}
+<h1>Turbo</h1>
+<p class="sub">One match at a time, with the same filters as <a class="plain" href="/{{ back_query }}">Matches</a>.
+  <b>Pass</b> (← or drag left) takes the posting out of your matches. <b>Interested</b> (→ or drag right) saves it and drafts a resume and cover letter into <a class="plain" href="/review">Review</a>. Nothing is ever submitted: you approve the drafts and apply on the employer's site.</p>
+{% if msg %}<p class="note {{ 'bad' if bad else 'good' }}" role="status">{{ msg }}</p>{% endif %}
+{% if blocker %}<p class="note bad" role="alert">Swiping right will save only: {{ blocker }}.</p>{% endif %}
+<p class="meta" id="t-limit">{{ left_today }} of {{ limit }} drafts left today.
+  {% if learn %}· {% if not learn.enabled %}Learning from swipes is off in your profile.{% elif learn.active %}Your swipes nudge the order ({{ learn.signals }} so far).{% else %}Learning from your swipes starts after {{ learn.minimum }} ({{ learn.signals }} so far).{% endif %}
+  {% if learn.enabled and learn.signals %}<form method="post" action="/learning/reset" class="inline" style="display:inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/turbo">
+    <button class="ghost" type="submit" onclick="return confirm('Ignore every swipe so far? Nothing is deleted.')">Reset learning</button></form>{% endif %}{% endif %}</p>
+<div class="note" id="strip" role="status" aria-live="polite"{% if not strip %} hidden{% endif %}>{{ strip }}</div>
+
+<div id="deck">
+{% for r in rows %}
+<article class="tcard" data-job="{{ r.job_id }}" data-title="{{ r.title }}"{% if not loop.first %} hidden{% endif %}>
+  {{ match_card(r) }}
+  <div class="tact">
+    <form method="post" action="/turbo/pass">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="job_id" value="{{ r.job_id }}">
+      <input type="hidden" name="back" value="{{ back_query }}">
+      <button class="ghost" type="submit" data-act="pass">← Pass</button>
+    </form>
+    <form method="post" action="/turbo/interested">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="job_id" value="{{ r.job_id }}">
+      <input type="hidden" name="back" value="{{ back_query }}">
+      <button type="submit" data-act="interested">Interested →</button>
+    </form>
+  </div>
+  {% if r.thin %}<p><span class="flag warn">almost no posting text: Interested saves it without drafting</span></p>{% endif %}
+  <div class="excerpt">{{ r.excerpt }}</div>
+  <p class="meta"><a class="plain" href="/job/{{ r.job_id }}">Job page</a> · <a class="plain" href="{{ r.url|safe_url }}" rel="noopener">The posting</a></p>
+</article>
+{% endfor %}
+<div id="t-end" class="empty"{% if rows %} hidden{% endif %}>
+  No more matches for these filters{% if more %} on this page (<a class="plain" href="/turbo{{ back_query }}">deal more</a>){% endif %}.
+  <a class="plain" href="/review">Go to Review</a>.
+</div>
+</div>
+<div id="toast" class="note" role="status" hidden><span id="toast-text"></span>
+  <button class="ghost" type="button" id="undo">Undo (Z)</button></div>
+<style>
+  #deck{max-width:720px}
+  .tcard{touch-action:pan-y;user-select:none;will-change:transform}
+  .tcard .card{margin-bottom:8px}
+  .excerpt{white-space:pre-wrap;font-size:13.5px;color:var(--ink-2);max-height:16em;overflow:hidden;
+    border-left:2px solid var(--rule);padding-left:10px;margin:8px 0}
+  .tact{display:flex;gap:10px;margin-top:10px}
+  .tact form{flex:1;display:flex}
+  .tact button{flex:1;padding:12px;font-size:15px}
+  .tcard.fly{transition:transform .25s ease-in,opacity .25s ease-in}
+  #toast{position:sticky;bottom:12px;display:flex;gap:12px;align-items:center;justify-content:space-between}
+  @media (prefers-reduced-motion: reduce){.tcard.fly{transition:none}}
+</style>
+<script>
+(function () {
+  /* Turbo, live. Without this script each button is a plain form post.
+     A swipe waits 5 seconds with an Undo before anything is sent: undo
+     inside that window writes nothing. A new swipe sends the one before it
+     at once. Nothing here can submit an application; the server can't. */
+  var token = {{ csrf|tojson }}, back = {{ back_query|tojson }};
+  var deck = document.getElementById('deck'), end = document.getElementById('t-end');
+  var toast = document.getElementById('toast'), toastText = document.getElementById('toast-text');
+  var strip = document.getElementById('strip');
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var pending = null;                        // {card, act, timer}
+  function cards() { return Array.prototype.slice.call(deck.querySelectorAll('.tcard')); }
+  function current() { return cards().filter(function (c) { return !c.hidden; })[0] || null; }
+  function body(job, act) {
+    var b = new URLSearchParams({csrf: token, job_id: job, back: back, js: '1'});
+    return b;
+  }
+  function send(p) {
+    return fetch('/turbo/' + p.act, {method: 'POST', body: body(p.card.dataset.job, p.act),
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'}})
+      .then(function (r) { return r.json(); })
+      .then(function (j) { if (j.message) { strip.hidden = false; strip.textContent = j.message; }
+                           if (j.queued) { poll(); } })
+      .catch(function () { strip.hidden = false; strip.textContent = 'That did not reach the dashboard; reload the page.'; });
+  }
+  function flush() {
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    var p = pending; pending = null; toast.hidden = true;
+    send(p);
+  }
+  function showNext(card) {
+    var list = cards(), i = list.indexOf(card), next = list[i + 1];
+    card.hidden = true; card.style.transform = ''; card.style.opacity = ''; card.classList.remove('fly');
+    if (next) { next.hidden = false; } else { end.hidden = false; }
+  }
+  function act(kind) {
+    var card = current(); if (!card) return;
+    flush();
+    var dx = kind === 'pass' ? -1 : 1;
+    function done() {
+      showNext(card);
+      pending = {card: card, act: kind, timer: setTimeout(flush, 5000)};
+      toastText.textContent = (kind === 'pass' ? 'Passed: ' : 'Interested: ') + card.dataset.title;
+      toast.hidden = false;
+    }
+    if (reduce) { done(); return; }
+    card.classList.add('fly');
+    card.style.transform = 'translateX(' + (dx * 120) + '%) rotate(' + (dx * 12) + 'deg)';
+    card.style.opacity = '0';
+    setTimeout(done, 250);
+  }
+  function undo() {
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    var card = pending.card; pending = null; toast.hidden = true;
+    var shown = current(); if (shown) shown.hidden = true;
+    end.hidden = true; card.hidden = false;
+  }
+  deck.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-act]'); if (!b) return;
+    e.preventDefault(); act(b.dataset.act);
+  });
+  document.getElementById('undo').addEventListener('click', undo);
+  document.addEventListener('keydown', function (e) {
+    var t = e.target;
+    if ((t.closest && t.closest('input, textarea, select')) || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); act('pass'); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); act('interested'); }
+    else if (e.key === 'z' || e.key === 'Z') { undo(); }
+  });
+  // Drag with a mouse or a finger.
+  var drag = null;
+  deck.addEventListener('pointerdown', function (e) {
+    var card = e.target.closest('.tcard');
+    if (!card || card.hidden || e.target.closest('a, button')) return;
+    drag = {card: card, x: e.clientX}; card.setPointerCapture(e.pointerId);
+  });
+  deck.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    var dx = e.clientX - drag.x;
+    drag.card.style.transform = reduce ? '' : 'translateX(' + dx + 'px) rotate(' + (dx / 25) + 'deg)';
+  });
+  function release(e) {
+    if (!drag) return;
+    var dx = e.clientX - drag.x, card = drag.card; drag = null;
+    if (Math.abs(dx) > 100) { act(dx < 0 ? 'pass' : 'interested'); }
+    else { card.style.transform = ''; }
+  }
+  deck.addEventListener('pointerup', release);
+  deck.addEventListener('pointercancel', release);
+  // Leaving the page sends the last swipe rather than losing it.
+  window.addEventListener('pagehide', function () {
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    navigator.sendBeacon('/turbo/' + pending.act, body(pending.card.dataset.job, pending.act));
+    pending = null;
+  });
+  // Drafting progress.
+  var polling = null;
+  function render(s) {
+    var parts = [];
+    var busy = s.queued + s.running;
+    if (busy) parts.push('Drafting: ' + s.running + ' running, ' + s.queued + ' waiting');
+    if (s.done_today) parts.push(s.done_today + ' drafted today');
+    if (s.pending_review) parts.push(s.pending_review + ' waiting in Review');
+    strip.innerHTML = '';
+    strip.append(document.createTextNode(parts.join(' · ')));
+    if (s.failed.length) {
+      strip.append(document.createTextNode(' · ' + s.failed.length + ' failed: '));
+      s.failed.forEach(function (f, i) {
+        var a = document.createElement('a'); a.className = 'plain'; a.href = '/job/' + f.job_id;
+        a.textContent = f.company + ' (' + f.kind.replace('_', ' ') + ')'; a.title = f.error || '';
+        if (i) strip.append(document.createTextNode(', '));
+        strip.append(a);
+      });
+    }
+    if (s.queued) {
+      var c = document.createElement('button'); c.className = 'ghost'; c.type = 'button';
+      c.textContent = 'Cancel waiting drafts'; c.style.marginLeft = '10px';
+      c.addEventListener('click', function () {
+        fetch('/turbo/cancel', {method: 'POST', body: new URLSearchParams({csrf: token, js: '1'}),
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'}}).then(poll);
+      });
+      strip.append(c);
+    }
+    strip.hidden = !parts.length && !s.failed.length;
+    return busy;
+  }
+  function poll() {
+    fetch('/turbo/status').then(function (r) { return r.json(); }).then(function (s) {
+      var busy = render(s);
+      clearTimeout(polling);
+      if (busy) polling = setTimeout(poll, 5000);
+    });
+  }
+  poll();
+})();
+</script>
+{% endblock %}

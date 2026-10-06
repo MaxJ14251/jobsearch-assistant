@@ -1,0 +1,193 @@
+{% extends "base" %}{% block body %}
+<h1>{{ job.title }}</h1>
+<p class="sub">{{ job.company }} · {{ job.location or 'location not stated' }} · {{ job.remote }}</p>
+<div class="flags" style="margin-bottom:14px">
+  {% if application %}<span class="flag ok">application: {{ application.status }}</span>{% endif %}
+  {% if job.degree_required == 1 %}<span class="flag" title="Shown so you know, never used to hide or rank a job">asks for a degree</span>
+  {% elif job.degree_required == 0 %}<span class="flag ok">no degree needed</span>{% endif %}
+  {% if job.clearance_required == 1 %}<span class="flag warn">clearance</span>{% endif %}
+  {% if job.years_required is not none %}<span class="flag">{{ job.years_required }}+ yrs</span>{% endif %}
+  {% for t in stack %}<span class="flag">{{ t }}</span>{% endfor %}
+</div>
+{% if msg %}<p class="note {{ 'bad' if bad else 'good' }}" role="status">{{ msg }}</p>{% endif %}
+
+<h2>Documents</h2>
+{% if not application %}
+  <p class="sub">Tailoring needs a saved application. Saving only records that you are pursuing this job.</p>
+  <form method="post" action="/job/{{ job.id }}/save" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button type="submit">Save as application</button>
+  </form>
+{% else %}
+  <form method="post" action="/job/{{ job.id }}/tailor" class="inline"
+        onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Drafting, up to a minute…'">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <select name="kind" id="tailor-kind" aria-label="Document kind">
+      <option value="resume">Resume</option>
+      <option value="cover_letter">Cover letter</option>
+    </select>
+    <button type="submit">{{ 'Draft a new version' if documents else 'Tailor a draft' }}</button>
+    <span class="meta">The draft goes to your review queue. Nothing is sent.</span>
+  </form>
+{% endif %}
+{% for d in documents %}
+<div class="card" id="doc-{{ d.id }}">
+  <div class="row1">
+    <span class="title">{{ d.kind|replace('_',' ')|capitalize }} v{{ d.version }}</span>
+    <span class="flag {{ {'approved':'ok','rejected':'warn'}.get(d.status,'') }}">{{ d.status }}</span>
+    {% if d.flagged %}<span class="flag warn">{{ d.flagged }} line(s) not in your profile</span>{% endif %}
+    <span class="co">document {{ d.id }}</span>
+  </div>
+  <div class="meta">drafted {{ d.generated_at|localtime }} · {{ d.model or 'model not recorded' }}</div>
+  {% if d.feedback %}<div class="meta">your note: {{ d.feedback }}</div>{% endif %}
+  <div class="flags">
+    {% for g in d.gaps %}<span class="flag warn">gap: {{ g }}</span>
+    {% else %}<span class="flag ok">no keyword gaps reported</span>{% endfor %}
+  </div>
+  <details><summary>{{ d.bullets|length }} bullet(s) selected from your profile</summary>
+    <ul class="reasons">{% for b in d.bullets %}
+      <li><span class="ids">{{ b.id }}</span> · {{ b.text or 'no longer in your profile' }}</li>
+    {% endfor %}</ul>
+  </details>
+  <div class="inline">
+    {% if d.servable %}<a class="btn" href="/document/{{ d.id }}/preview">Preview</a>
+    <a class="btn" href="/document/{{ d.id }}">Download .docx</a>
+    {% else %}<span class="meta">The file is missing from output/.</span>{% endif %}
+    {% if d.status == 'pending' %}<a class="plain" href="/review#doc-{{ d.id }}">Review it</a>{% endif %}
+  </div>
+</div>
+{% else %}<p class="empty">No documents drafted for this job yet.</p>{% endfor %}
+
+{% macro answers_block() %}
+<p class="sub">For the employer's form: copy each one in yourself. Nothing is submitted. Facts come straight from your profile; written answers are checked against it, or built from your own sentences when a draft fails.</p>
+<div class="answers">
+{% for a in answer_facts + answer_written %}
+<div class="ans">
+  <div class="lbl">{{ a.question }}
+    {% if a.source == 'composed' %}<span class="flag">from your own sentences</span>
+    {% elif a.source == 'undecided' %}<span class="flag warn">undecided</span>
+    {% elif a.source == 'model' %}<span class="flag ok">checked</span>{% endif %}</div>
+  <p class="abody" id="ans-{{ loop.index }}">{{ a.body }}</p>
+  {% if a.note %}<p class="meta">{{ a.note }}</p>{% endif %}
+  <button class="ghost copy" type="button" data-copy="ans-{{ loop.index }}">Copy</button>
+</div>
+{% endfor %}
+</div>
+<form method="post" action="/job/{{ job.id }}/answers" class="inline" style="margin-top:8px"
+      onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Drafting answers…'">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <button type="submit">{{ 'Draft written answers again' if answer_written else 'Draft written answers' }}</button>
+  <span class="meta">One model call: why this role, a relevant project, why this company.</span>
+</form>
+{% endmacro %}
+
+{% if checklist %}
+<section class="checklist" aria-labelledby="apply-h">
+<h2 id="apply-h">Apply by hand</h2>
+<p class="sub">What the application form will ask for, in order. You submit it yourself; this tool submits nothing.</p>
+<ol class="steps">
+  <li><h3>Where to apply</h3>
+    {% if checklist.employer %}<p><strong>Apply on the employer's site instead:</strong> the same job is on their own board as <a class="plain" href="/job/{{ checklist.employer.job_id }}">job #{{ checklist.employer.job_id }}</a>. <a class="btn" href="{{ checklist.employer.url|safe_url }}" rel="noopener">Open the employer's posting</a></p>
+    <p class="meta">Or <a class="plain" href="{{ job.url|safe_url }}" rel="noopener">open the listing on {{ checklist.via_label }}</a>.</p>
+    {% elif job.url %}<p><a class="btn" href="{{ job.url|safe_url }}" rel="noopener">Open the listing on {{ checklist.via_label }}</a></p>
+    {% else %}<p class="meta">This job has no link. Find where it is posted, or <a class="plain" href="/add">look for it on the employer's board</a>.</p>{% endif %}
+    {% if checklist.via in ('linkedin', 'indeed') and not checklist.employer %}<p class="meta">Not sure the employer posts it too? <a class="plain" href="/add#find-company">Find it on their board</a>.</p>{% endif %}
+  </li>
+  {% for step, title, optional in [('resume', 'Resume', False), ('cover', 'Cover letter', True)] %}{% set k = checklist[step] %}
+  <li><h3>{{ title }}{% if optional %} <span class="meta">(optional: many quick-apply forms have no place for one)</span>{% endif %}</h3>
+    {% if k.approved %}{% set d = k.approved[0] %}
+    <p>v{{ d.version }}, approved. {% if d.servable %}<a class="btn" href="/document/{{ d.id }}">Download .docx</a> <a class="plain" href="/document/{{ d.id }}/preview">Preview</a>{% else %}<span class="meta">The file is missing from output/.</span>{% endif %}</p>
+    {% if k.approved|length > 1 %}<p class="meta">{{ k.approved|length - 1 }} older approved version(s) too; pick the one you send below.</p>{% endif %}
+    {% else %}<p class="note bad">No approved {{ title|lower }} yet.{% if k.waiting %} <a class="plain" href="/review#doc-{{ k.waiting[0].id }}">Review v{{ k.waiting[0].version }}</a>.{% elif not optional %} Draft one above, then review it.{% endif %}</p>{% endif %}
+    {% if k.approved and k.waiting %}<p class="note">A newer draft, v{{ k.waiting[0].version }}, is waiting in <a class="plain" href="/review#doc-{{ k.waiting[0].id }}">Review</a>. Approve it first if you mean to send it.</p>{% endif %}
+  </li>{% endfor %}
+  <li><h3 id="answers">Application answers</h3>{{ answers_block() }}</li>
+  <li><h3>I applied</h3>
+    <form method="post" action="/job/{{ job.id }}/applied" class="stack applied">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="two">
+        <label for="ap-via">Where<select name="via" id="ap-via">{% for v, label in checklist.choices %}<option value="{{ v }}" {{ 'selected' if v == checklist.via }}>{{ label }}</option>{% endfor %}</select></label>
+        <label for="ap-resume">Resume you sent<select name="resume" id="ap-resume">
+          {% for d in checklist.resume.approved %}<option value="{{ d.id }}" {{ 'selected' if loop.first }}>v{{ d.version }} (approved)</option>{% endfor %}
+          {% for d in checklist.resume.others %}<option value="{{ d.id }}" {{ 'selected' if loop.first and not checklist.resume.approved }}>v{{ d.version }} ({{ d.status }})</option>{% endfor %}
+          <option value="0" {{ 'selected' if not checklist.resume.approved and not checklist.resume.others }}>None of these (my own)</option></select></label>
+      </div>
+      <label for="ap-cover">Cover letter you sent<select name="cover" id="ap-cover">
+        {% for d in checklist.cover.approved %}<option value="{{ d.id }}" {{ 'selected' if loop.first }}>v{{ d.version }} (approved)</option>{% endfor %}
+        {% for d in checklist.cover.others %}<option value="{{ d.id }}">v{{ d.version }} ({{ d.status }})</option>{% endfor %}
+        <option value="0" {{ 'selected' if not checklist.cover.approved }}>No cover letter</option></select></label>
+      <label class="check" for="ap-confirm"><input type="checkbox" id="ap-confirm" name="confirm" value="1"> {% if checklist.resume.approved %}If the resume I sent isn't an approved one, record it anyway{% else %}Record that I applied without an approved resume{% endif %}</label>
+      <button type="submit">I applied</button>
+      <p class="meta" style="margin:0">Records today's date, where, and exactly which files went out. It is what <code>jsa applied {{ job.id }}</code> records; it sends nothing.</p>
+    </form>
+  </li>
+</ol>
+</section>
+<style>
+  .checklist ol.steps{padding-left:22px;display:flex;flex-direction:column;gap:14px}
+  .checklist ol.steps h3{margin:0 0 4px;font-size:1rem}
+  .checklist ol.steps h3 .meta{font-weight:400}
+  .checklist form.stack label.check{display:flex;gap:8px;align-items:center}
+</style>
+{% elif application %}
+<h2 id="answers">Application answers</h2>
+{{ answers_block() }}
+{% endif %}
+{% if application %}
+<style>
+  .answers{display:grid;gap:8px}
+  .ans{border:1px solid var(--rule);border-radius:4px;padding:8px 10px}
+  .ans .abody{margin:4px 0;white-space:pre-wrap}
+</style>
+<script>
+document.querySelectorAll('button.copy').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var el = document.getElementById(b.dataset.copy), text = el.textContent.trim();
+    function select() {
+      var r = document.createRange(); r.selectNodeContents(el);
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      b.textContent = 'Selected: press Ctrl+C';
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { b.textContent = 'Copied'; }, select);
+    } else { select(); }
+  });
+});
+</script>
+{% endif %}
+
+<h2>Interview prep</h2>
+{% for p in preps %}
+<div class="card"><div class="row1">
+  <span class="title"><a class="plain" href="/prep/{{ p.id }}">{{ (p.round or 'general')|replace('_',' ')|capitalize }}</a></span>
+  <span class="co">{{ p.count }} question(s) · {{ p.generated_at|localdate }}</span></div></div>
+{% else %}<p class="empty">No interview prep yet.{% if application %} Run <code>jsa prep {{ application.id }}</code> to draft one.{% endif %}</p>{% endfor %}
+{% if application and application.status in interview_rounds %}
+<form method="post" action="/job/{{ job.id }}/prep" class="inline" style="margin-top:8px"
+      onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Drafting prep…'">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <select name="round" id="prep-round" aria-label="Interview round">
+    {% for r in interview_rounds %}<option value="{{ r }}" {{ 'selected' if r == application.status }}>{{ r.replace('_', ' ') }}</option>{% endfor %}
+  </select>
+  <button type="submit">Draft interview prep</button>
+  <span class="meta">One model call; questions grounded in this posting and your profile.</span>
+</form>
+{% endif %}
+
+<h2>Posting</h2>
+{% if job.enrichment_note %}<p class="sub">{{ job.enrichment_note }}</p>{% endif %}
+<p><a class="plain" href="{{ job.url|safe_url }}" rel="noopener">Open the original posting</a>{% if job.description_origin == 'pasted' %} · <span class="meta">text pasted by you; discovery will not overwrite it</span>{% endif %}</p>
+{% if thin %}
+<p class="note bad">{{ thin[:1]|upper }}{{ thin[1:] }}</p>
+<form class="stack" method="post" action="/job/{{ job.id }}/fill" onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Saving…'">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="fill-location">Where the job is, as the posting says it (the stub's is often wrong)
+    <input type="text" name="location" id="fill-location" value="{{ job.location or '' }}" placeholder="Austin, TX, or Remote (US)"></label>
+  <label for="fill-text">Paste the full posting from the link above, requirements included
+    <textarea name="text" id="fill-text" required minlength="{{ min_chars }}" maxlength="{{ max_chars }}"></textarea></label>
+  <button type="submit">Use this text for this job</button>
+  <p class="meta" style="margin:0">It replaces the stub in this job; its number, application and drafts stay. Pay and score are re-read from it. Nothing is fetched.</p>
+</form>
+{% endif %}
+<div class="jd">{{ job.description or 'No description captured.' }}</div>
+{% endblock %}

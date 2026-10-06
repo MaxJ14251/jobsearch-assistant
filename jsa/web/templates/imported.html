@@ -1,0 +1,27 @@
+{% extends "base" %}{% block body %}
+<h1>Your draft profile</h1>
+<p class="note good" role="status">Wrote <code>{{ draft_path }}</code>. Your real profile was not changed.</p>
+{% if warning %}<p class="note bad" role="alert">{{ warning[0]|upper }}{{ warning[1:] }}</p>{% endif %}
+<p class="sub">Imported {{ v.experience|length }} job(s), {{ v.projects|length }} project(s), {{ v.bullet_count }} bullet(s), {{ v.certifications|length }} certification(s), {{ v.education|length }} school(s) and {{ v.skills|length }} skill(s), each copied word for word from your resume.</p>
+
+{% if v.dropped %}<h2>Left out ({{ v.dropped|length }})</h2>
+<p class="sub">Nothing is reworded into your profile. These were not found word for word in your resume; copy any you want across by hand.</p>
+<ul>{% for d in v.dropped %}<li><strong>{{ d.where }}:</strong> {{ d.what }} <span class="meta">({{ d.why }})</span></li>{% endfor %}</ul>{% endif %}
+
+{% if blocking %}<h2>Fill these in, in the draft ({{ blocking|length }})</h2>
+<ul>{% for f in blocking %}<li><strong>{{ f.what }}</strong><br><span class="meta">{{ f.fix }}</span></li>{% endfor %}</ul>{% endif %}
+
+<h2>What the draft would match</h2>
+{% if no_preview %}<p class="sub">No preview yet: {{ no_preview }}</p>
+{% else %}<p class="sub">From jobs already in your tracker, which were found using your current profile. Run <code>jsa discover</code> after adopting the draft for a full search.</p>
+{% if matches %}<ul>{% for m in matches %}<li><a class="plain" href="/job/{{ m.job_id }}">{{ m.company }}: {{ m.title }}</a> <span class="meta">{{ '%.2f'|format(m.score) }}</span></li>{% endfor %}</ul>
+{% else %}<p class="sub">Nothing in the tracker scores above 0 for this draft.</p>{% endif %}{% endif %}
+
+<h2>Next</h2>
+<p><a class="btn" href="/setup">Continue setup</a> <span class="meta">your preferences, what's missing, then your first search</span></p>
+<ol>
+  <li>Review <code>{{ draft_path }}</code>: the TODO lines, and every line marked <code># suggested: check</code>.</li>
+  <li>Copy it over your profile:<br><code>copy "{{ draft_path }}" "{{ live_path }}"</code></li>
+  <li>Run <code>jsa doctor</code>, then <code>jsa discover</code>.</li>
+</ol>
+{% endblock %}

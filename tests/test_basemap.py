@@ -459,7 +459,7 @@ class TestPaintingOffThePagesThread(unittest.TestCase):
     SRC = web_source()
 
     def test_one_routine_for_page_and_worker(self):
-        self.assertIn("paintGround.toString() + '\\\\n' + PAINTER", self.SRC)
+        self.assertIn("paintGround.toString() + '\\n' + PAINTER", self.SRC)
         self.assertIn("paintGround(paint, ch.paths, msg)", self.SRC)
         self.assertIn('paintGround(g, p, m);', self.SRC)
 

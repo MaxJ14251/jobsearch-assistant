@@ -1,0 +1,39 @@
+{% extends "base" %}{% block body %}
+<h1>Import your resume</h1>
+<p class="sub">Turns your resume into a <strong>draft</strong> profile, <code>{{ draft_name }}</code>, and shows what it would match. Your real profile is never changed: adopting the draft is a copy you make yourself.</p>
+{% if msg %}<p class="note bad" role="alert">{{ msg }}</p>{% endif %}
+<form class="stack" method="post" action="/import" enctype="multipart/form-data" id="import-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="f-resume" class="drop" id="drop">
+    <span class="drop-title">Drop your resume here, or choose a file</span>
+    <span class="meta">{{ kinds }}, up to {{ max_mb }} MB</span>
+    <input type="file" id="f-resume" name="resume" accept="{{ accept }}" required>
+  </label>
+  <label class="check" for="f-replace"><input type="checkbox" id="f-replace" name="replace" value="1"> Replace my existing draft</label>
+  <button type="submit">Import</button>
+  <p class="meta" style="margin:0">What leaves your machine: the resume's text, with your name and contact details removed first, goes to the model API set in <code>.env</code> (one call). The file itself is read in a temporary folder and deleted; it is not stored.</p>
+</form>
+<style>
+  form.stack label.drop{display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center;
+    border:2px dashed var(--rule);border-radius:8px;padding:28px 16px;text-align:center;cursor:pointer}
+  .drop.over{border-color:var(--copper);background:var(--sage-soft)}
+  .drop-title{font-weight:600}
+  .drop input{max-width:100%}
+  form.stack label.check{display:flex;gap:8px;align-items:center;font-size:13.5px}
+  form.stack label.check input{width:auto;margin:0}
+</style>
+<script>
+(function(){
+  var form=document.getElementById('import-form'), drop=document.getElementById('drop'),
+      input=document.getElementById('f-resume');
+  form.addEventListener('submit',function(){var b=form.querySelector('button');b.disabled=true;b.textContent='Reading your resume…';});
+  ['dragenter','dragover'].forEach(function(e){drop.addEventListener(e,function(ev){ev.preventDefault();drop.classList.add('over');});});
+  ['dragleave','drop'].forEach(function(e){drop.addEventListener(e,function(ev){ev.preventDefault();drop.classList.remove('over');});});
+  drop.addEventListener('drop',function(ev){
+    if(!ev.dataTransfer||!ev.dataTransfer.files.length)return;
+    input.files=ev.dataTransfer.files;
+    if(form.reportValidity()){form.requestSubmit?form.requestSubmit():form.submit();}
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base" %}{% block body %}
+<h1>{{ report.title }} at {{ report.company }}</h1>
+<p class="sub">{% if report.city %}{{ report.city }} · {% endif %}searched your tracker{% if live %} and the employer's public job board{% endif %}. LinkedIn and Indeed were not opened.</p>
+{% if report.candidates|length > 1 %}<p class="note">More than one company matches that name, so all were searched. Check which one is the employer:
+  {% for c in report.candidates %}{{ c.name }} ({{ c.why }}){{ "; " if not loop.last }}{% endfor %}.</p>
+{% elif report.candidates %}<p class="meta">Company: {{ report.candidates[0].name }} ({{ report.candidates[0].why }}).</p>{% endif %}
+
+{% macro hits(list) %}<ul class="plainlist">{% for h in list %}
+  <li class="hit"><strong>{{ h.title }}</strong> · {{ h.company }}{% if h.location %} · {{ h.location }}{% endif %}{% if h.status %} · <span class="tag">{{ h.status|replace('_',' ') }}</span>{% endif %}
+    <div class="meta">{{ h.reason }}</div>
+    <div class="actions">{% if h.job_id %}<a class="plain" href="/job/{{ h.job_id }}">Open job #{{ h.job_id }}</a>{% endif %}
+      {% if h.url %}<a class="plain" href="{{ h.url|safe_url }}" rel="noopener">Open the employer's page</a>{% endif %}
+      {% if h.add_url %}<form method="post" action="/add/link" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="url" value="{{ h.add_url }}">{% if h.where == 'guess' %}<input type="hidden" name="company" value="{{ report.company }}">{% endif %}<button type="submit">Add this job</button></form>{% endif %}</div>
+  </li>{% endfor %}</ul>{% endmacro %}
+
+{% if report.same %}<h2>Same job, on the employer's own board</h2>
+<p class="meta">Apply there rather than through the listing site: it goes straight to the employer.</p>
+{{ hits(report.same) }}{% endif %}
+{% if report.possible %}<h2>Possible matches: check them</h2>{{ hits(report.possible) }}{% endif %}
+{% if report.verdict == 'not_found' %}<h2>Not found</h2>
+<p>Not found on the employer's own board{% if not report.candidates %} (no company by that name is in your tracker or companies.yaml){% endif %}. Apply on the listing site. To track it, <a class="plain" href="/add?{{ paste_query }}#paste">paste the posting</a>; its job page then has an apply-by-hand checklist.</p>{% endif %}
+{% for b in report.boards if b.yaml %}<h2>A guessed {{ b.kind|title }} board answered</h2>
+<p>{{ b.confirm }} If it is theirs, add this to <code>config/companies.yaml</code> and run <code>jsa verify</code>:</p>
+<pre>{{ b.yaml }}</pre>{% endfor %}
+{% for n in report.notes %}<p class="meta">{{ n }}</p>{% endfor %}
+<p><a class="plain" href="/add">Search for another</a></p>
+<style>ul.plainlist{list-style:none;padding:0;display:flex;flex-direction:column;gap:12px}
+  .hit .actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:4px}
+  form.inline{display:inline;margin:0}</style>
+{% endblock %}

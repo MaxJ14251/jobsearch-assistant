@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }} · Job Search</title>
+<style>
+  :root{
+    --paper:#F2F3F0;--surface:#fff;--surface-2:#E9EBE6;--ink:#171C1A;
+    --ink-2:#39423E;--mute:#6E7873;--rule:#D3D7D0;
+    --copper:#B5652E;--sage:#3F7A66;--sage-soft:#DDEAE3;
+    --clay:#A8412F;--clay-soft:#F5DFDA;
+    --blue:#2F6BC4;--violet:#7A4DC4;
+    /* The ground under the live map (n23): context, so quieter than
+       anything drawn on it. Water against land is at least 1.3:1 in both
+       themes (n26: 1.38 light, 1.33 dark; it was 1.23 and 1.12). */
+    --map-water:#C5D6DE;--map-land:#F7F6F1;--map-urban:#ECE6DA;
+    --map-road:#D8B98C;--map-edge:#BCC5C0;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --paper:#121615;--surface:#191F1D;--surface-2:#222927;--ink:#E8EBE7;
+    --ink-2:#C0C7C2;--mute:#8B958F;--rule:#2C3532;--copper:#D98A4F;
+    --sage:#6DAF96;--sage-soft:#1B2A25;--clay:#D2705B;--clay-soft:#2E1B17;
+    --blue:#6FA3EE;--violet:#AE8BEB;
+    --map-water:#0A1114;--map-land:#252C29;--map-urban:#303834;
+    --map-road:#6C5D49;--map-edge:#404C47;}}
+  *{box-sizing:border-box}
+  /* A link to a section lands below the sticky nav, not under it. */
+  [id]{scroll-margin-top:64px}
+  [hidden]{display:none!important}
+  body{margin:0;background:var(--paper);color:var(--ink);line-height:1.55;
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 16px 64px}
+  .wrap.wide{max-width:1480px}
+  nav{border-bottom:1px solid var(--rule);background:var(--surface);
+      position:sticky;top:0;z-index:5}
+  nav .wrap{display:flex;gap:18px;padding-block:12px;align-items:center;
+    flex-wrap:wrap;padding-bottom:12px}
+  nav a{color:var(--ink-2);text-decoration:none;font-weight:500;font-size:14px}
+  nav a.on{color:var(--copper)}
+  h1{font-size:22px;margin:24px 0 4px;line-height:1.2;text-wrap:balance;
+    overflow-wrap:anywhere}
+  h2{font-size:13px;margin:28px 0 8px;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--ink-2)}
+  .sub{color:var(--mute);font-size:13px;margin:0 0 18px;overflow-wrap:anywhere}
+  form.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;
+    background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:12px}
+  select,input[type=search],input[type=text],input[type=url],textarea{font:inherit;
+    font-size:13px;padding:6px 8px;border:1px solid var(--rule);border-radius:3px;
+    background:var(--surface);color:var(--ink);min-width:0}
+  form.stack{display:grid;gap:10px;background:var(--surface);border:1px solid var(--rule);
+    border-radius:4px;padding:14px 16px;margin-bottom:10px}
+  form.stack label{display:grid;gap:4px;font-size:12.5px;color:var(--ink-2)}
+  form.stack .two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+  form.stack button{justify-self:start}
+  label.pair-in{display:flex;gap:6px;align-items:center;font-size:13px;
+    color:var(--ink-2);white-space:nowrap}
+  input.miles{width:110px;accent-color:var(--copper)}
+  input.miles:disabled{opacity:.45}
+  output{font-variant-numeric:tabular-nums;min-width:66px}
+  /* The map. Drawn from shipped data on this machine: no tiles, so no
+     request tells anybody where the operator lives. */
+  figure.map{margin:0 0 14px;background:var(--surface);border:1px solid var(--rule);
+    border-radius:4px;padding:10px 10px 6px}
+  figure.map svg{display:block;width:100%;height:auto;max-height:62vh}
+  figure.map figcaption{color:var(--mute);font-size:12.5px;padding:4px 4px 2px;
+    overflow-wrap:anywhere}
+  .land{fill:var(--surface-2);stroke:var(--rule);stroke-width:.8}
+  .ring{fill:var(--sage);fill-opacity:.08;stroke:var(--sage);stroke-width:1.2;
+    stroke-dasharray:5 4}
+  .dot{stroke:var(--surface);stroke-width:.8}
+  .dot.in{fill:var(--copper);fill-opacity:.8}
+  .dot.out{fill:var(--mute);fill-opacity:.4}
+  figure.map a:focus-visible .dot{stroke:var(--copper);stroke-width:2.5}
+  .home{fill:var(--ink)}
+  .town{font-size:10px;fill:var(--ink-2);text-anchor:middle;paint-order:stroke;
+    stroke:var(--surface);stroke-width:2.5px}
+  .town.left{text-anchor:start}
+  .city{font-size:9.5px;fill:var(--mute);text-anchor:middle;letter-spacing:.06em;
+    text-transform:uppercase;paint-order:stroke;stroke:var(--map-land);stroke-width:3px;
+    pointer-events:none}
+  .bar{fill:var(--ink-2)}
+  /* n21: the Matches page as map + list + analytics. Without the script it
+     is the page above: the server's map, the server's list. */
+  .st-new,[data-status=new]{--st:var(--mute)} .st-saved,[data-status=saved]{--st:var(--blue)}
+  .st-applied,[data-status=applied]{--st:var(--sage)}
+  .st-interview,[data-status=interview]{--st:var(--violet)}
+  .split{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+  .feed{min-width:0}
+  @media (width>=1100px){
+    .split.live{grid-template-columns:minmax(0,1fr) 440px;align-items:start}
+    .split.live .mapcol{position:sticky;top:58px}
+    .split.live .feed{max-height:calc(100vh - 70px);overflow-y:auto;
+      padding-right:4px;scrollbar-width:thin}
+  }
+  .pill{font:600 10.5px ui-monospace,Menlo,monospace;letter-spacing:.05em;
+    text-transform:uppercase;padding:2px 6px;border-radius:3px;white-space:nowrap;
+    color:var(--st);background:color-mix(in srgb,var(--st) 15%,transparent)}
+  .eta{white-space:nowrap}
+  .card[data-key]{cursor:pointer;transition:border-color .12s}
+  .card.hov{border-color:var(--ink-2)}
+  .card.sel{border-color:var(--copper);box-shadow:inset 3px 0 0 var(--copper)}
+  .feed-head{display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+    justify-content:space-between;position:sticky;top:0;z-index:2;
+    background:var(--paper);padding:0 0 10px}
+  .chips,.seg{display:flex;flex-wrap:wrap;gap:4px}
+  .chip{display:inline-flex;gap:6px;align-items:center;font-size:12px;padding:4px 8px;
+    border:1px solid var(--rule);border-radius:3px;background:var(--surface);color:var(--ink)}
+  .chip i{width:9px;height:9px;border-radius:50%;background:var(--st);display:inline-block}
+  .chip[aria-pressed="false"]{color:var(--mute);border-style:dashed;background:transparent}
+  .chip[aria-pressed="false"] i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--st)}
+  .chip b{font:500 11px ui-monospace,Menlo,monospace;color:var(--mute)}
+  .seg button{font-size:12px;padding:4px 8px;background:transparent;color:var(--mute);
+    border:1px solid var(--rule)}
+  .seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .livemap{position:relative;height:min(70vh,720px);min-height:360px;overflow:hidden;
+    border-radius:3px;background:var(--surface);touch-action:none;user-select:none}
+  figure.map .livemap svg{display:block;width:100%;height:100%;max-height:none}
+  .bm-land{fill:var(--map-land);stroke:var(--map-edge);stroke-width:.8px}
+  .bm-urban{fill:var(--map-urban)}
+  .bm-water{fill:var(--map-water)}
+  .bm-county{fill:none;stroke:var(--map-edge);stroke-width:.5px;stroke-dasharray:4 3}
+  .bm-lake{fill:var(--map-water);stroke:var(--map-edge);stroke-width:.5px}
+  .bm-road{fill:none;stroke:var(--map-road);stroke-width:1.1px;stroke-linejoin:round}
+  .livemap{isolation:isolate}
+  .livemap .bm-canvas{position:absolute;z-index:-1;pointer-events:none;transform-origin:0 0}
+  .livemap .mapnorth{position:absolute;right:13px;top:158px;z-index:2;width:26px;height:26px;
+    border-radius:50%;background:var(--surface);border:1px solid var(--rule);
+    font:600 10px/26px ui-monospace,Menlo,monospace;text-align:center;color:var(--ink-2)}
+  .livemap .mapnorth::before{content:"";position:absolute;left:50%;top:-6px;margin-left:-4px;
+    border:4px solid transparent;border-top:0;border-bottom:7px solid var(--copper)}
+  .livemap .bm-note{position:absolute;left:10px;bottom:34px;font-size:11.5px;
+    color:var(--mute);background:var(--surface);padding:2px 6px;border-radius:3px}
+  .livemap .mk{cursor:pointer}
+  .picked{scroll-margin-top:64px;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline;margin:0 0 10px;
+    padding:8px 12px;border:1px solid var(--rule);border-radius:4px;background:var(--surface-2);
+    font-size:13px;color:var(--ink-2)}
+  .picked b{color:var(--ink)}
+  .picked button{margin-left:auto;font:inherit;font-size:12.5px;padding:3px 10px;
+    border:1px solid var(--rule);border-radius:3px;background:var(--surface);color:var(--ink);cursor:pointer}
+  .livemap .mk:focus-visible circle{stroke:var(--copper);stroke-width:3}
+  .rp{position:absolute;left:10px;top:10px;width:250px;z-index:3;display:grid;gap:10px;
+    background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:12px;
+    box-shadow:0 8px 24px -14px rgba(0,0,0,.45);font-size:12.5px;
+    max-height:calc(100% - 20px);overflow-y:auto}
+  .rp .num{font:500 34px/1 ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+  .rp .stbar{display:flex;height:5px;border-radius:3px;overflow:hidden;background:var(--surface-2)}
+  .rp .stbar span{background:var(--st)}
+  .rp .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .rp .modes{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;
+    background:var(--surface-2);border-radius:3px;padding:2px}
+  .rp .modes button{background:transparent;color:var(--mute);font-size:11.5px;padding:5px 0}
+  .rp .modes button[aria-checked="true"]{background:var(--surface);color:var(--ink);
+    box-shadow:0 1px 2px rgba(0,0,0,.15)}
+  .rp .sw{display:flex;gap:6px}
+  .rp .sw button{width:18px;height:18px;padding:0;border-radius:50%;background:var(--c);
+    border:2px solid transparent}
+  .rp .sw button[aria-checked="true"]{border-color:var(--ink)}
+  .rp input[type=range]{width:120px;accent-color:var(--copper)}
+  .rp details{margin:0}
+  .rp details p{margin:6px 0 0;color:var(--mute)}
+  .mapctl{position:absolute;right:10px;top:10px;z-index:3;display:grid;
+    border:1px solid var(--rule);border-radius:3px;overflow:hidden;background:var(--surface)}
+  .mapctl button{background:transparent;color:var(--ink-2);width:30px;height:30px;
+    padding:0;border-radius:0;border-bottom:1px solid var(--rule);font-size:15px}
+  .mapctl button:last-child{border-bottom:0}
+  .maplegend{position:absolute;right:10px;bottom:10px;z-index:2;display:grid;gap:3px;
+    background:var(--surface);border:1px solid var(--rule);border-radius:3px;
+    padding:6px 8px;font-size:11px;pointer-events:none}
+  .maplegend span{display:flex;gap:6px;align-items:center}
+  .maplegend i{width:9px;height:9px;border-radius:50%;background:var(--st)}
+  .mapfoot{position:absolute;left:10px;bottom:10px;z-index:2;pointer-events:none;
+    font:11px ui-monospace,Menlo,monospace;color:var(--mute)}
+  .mapfoot .sb{height:6px;border:1.5px solid var(--ink-2);border-top:0;margin-top:3px}
+  .tip{position:absolute;z-index:4;pointer-events:none;max-width:260px;font-size:12px;
+    background:var(--surface);border:1px solid var(--rule);border-radius:3px;
+    padding:7px 9px;box-shadow:0 6px 18px -10px rgba(0,0,0,.5)}
+  .tip b{display:block;font-weight:600}
+  .tip span{display:block;color:var(--mute)}
+  .drawer{margin-top:16px;background:var(--surface);border:1px solid var(--rule);border-radius:4px}
+  .drawer>summary{padding:10px 14px;font-size:13px;color:var(--ink);list-style-position:inside}
+  .drawer>summary b{letter-spacing:.06em;text-transform:uppercase;font-size:12px;margin-right:8px}
+  .an{display:grid;gap:20px 28px;padding:4px 14px 16px;
+    grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+  .an h3{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);
+    margin:8px 0 8px;display:flex;justify-content:space-between;gap:8px}
+  .an h3 small{letter-spacing:0;text-transform:none}
+  .an ol{list-style:none;margin:0;padding:0;display:grid;gap:3px}
+  .an li{display:grid;grid-template-columns:minmax(0,7.5rem) 1fr 2.2rem;gap:8px;
+    align-items:center;font-size:12px}
+  .an li>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .an .track{height:7px;background:var(--surface-2);border-radius:2px;overflow:hidden}
+  .an .track i{display:block;height:100%;background:var(--ink-2);border-radius:2px}
+  .an li b{font:500 11.5px ui-monospace,Menlo,monospace;text-align:right}
+  .an .foot{color:var(--mute);font-size:11.5px;margin:6px 0 0}
+  .an li[role=button]{cursor:pointer;border-radius:2px;padding:1px 2px}
+  .an li[role=button]:hover{background:var(--surface-2)}
+  .an li[aria-pressed="true"]{font-weight:600}
+  .an li[aria-pressed="true"] .track i{background:var(--copper)}
+  .facet{font-size:12px;display:flex;gap:6px;align-items:center;width:100%}
+  .facet button{font-size:12px;padding:3px 8px;background:var(--ink);color:var(--paper)}
+  @media (max-width:760px){
+    .rp{position:static;width:auto;max-height:none;border-width:0 0 1px;border-radius:0;
+      box-shadow:none}
+    .livemap{height:auto;display:flex;flex-direction:column}
+    figure.map .livemap svg{height:58vh;min-height:320px}
+    .maplegend{display:none}
+    .mapctl{top:auto;bottom:44px}
+    .livemap .mapnorth{top:10px}
+  }
+  textarea{min-height:220px;resize:vertical;line-height:1.45}
+  /* The preview is a sheet of paper in either theme: it shows the document as
+     it prints, and a resume is black on white. */
+  .desk{background:var(--surface-2);border-radius:4px;padding:24px 12px;overflow-x:auto}
+  .sheet{background:#fff;color:#111;max-width:8.5in;margin:0 auto;
+    box-shadow:0 1px 3px rgba(0,0,0,.18),0 8px 24px rgba(0,0,0,.08);
+    padding-block:7%;line-height:1.25;overflow-wrap:anywhere}
+  .sheet p{margin:0;white-space:pre-wrap}
+  .sheet ul{margin:0;padding-left:1.5em}
+  .sheet .blank{height:1.1em}
+  button{font:inherit;font-size:13px;padding:6px 12px;border:0;border-radius:3px;
+    background:var(--copper);color:#fff;cursor:pointer}
+  button:disabled{opacity:.6;cursor:progress}
+  button.ghost{background:var(--surface-2);color:var(--ink-2)}
+  :focus-visible{outline:2px solid var(--copper);outline-offset:2px}
+  .card{background:var(--surface);border:1px solid var(--rule);border-radius:4px;
+    padding:14px 16px;margin-bottom:10px}
+  .row1{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+  .score{font:600 14px ui-monospace,Menlo,monospace;color:var(--copper);
+    font-variant-numeric:tabular-nums}
+  .title{font-weight:600;overflow-wrap:anywhere}
+  .co{color:var(--mute);font-size:13px;overflow-wrap:anywhere}
+  .meta{color:var(--mute);font-size:12.5px;margin-top:3px;overflow-wrap:anywhere}
+  .flags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .flag{font:500 11px ui-monospace,Menlo,monospace;padding:2px 7px;border-radius:3px;
+    background:var(--surface-2);color:var(--mute);white-space:nowrap}
+  .flag.warn{background:var(--clay-soft);color:var(--clay)}
+  .flag.ok{background:var(--sage-soft);color:var(--sage)}
+  .reasons{margin:8px 0 0;padding-left:16px;color:var(--ink-2);font-size:13px}
+  .reasons li{margin:2px 0;overflow-wrap:anywhere}
+  .jd{background:var(--surface);border:1px solid var(--rule);border-radius:4px;
+    padding:16px;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;
+    font-size:13.5px;color:var(--ink-2);max-height:70vh;overflow-y:auto}
+  .empty{color:var(--mute);padding:12px 0}
+  a.plain{color:var(--copper);overflow-wrap:anywhere}
+  a.btn{display:inline-block;font-size:13px;padding:6px 12px;border-radius:3px;
+    background:var(--surface-2);color:var(--ink);text-decoration:none}
+  code{font:12.5px ui-monospace,Menlo,monospace;overflow-wrap:anywhere}
+  .note{border-radius:4px;padding:10px 12px;margin:10px 0;font-size:13.5px;
+    overflow-wrap:anywhere}
+  .note.bad{background:var(--clay-soft);color:var(--clay)}
+  .note.good{background:var(--sage-soft);color:var(--sage)}
+  .note.daily{display:flex;gap:12px;align-items:center;justify-content:space-between;
+    flex-wrap:wrap;background:var(--surface-2);color:var(--ink)}
+  .inline{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+  .ids{font:12px ui-monospace,Menlo,monospace;color:var(--mute);overflow-wrap:anywhere}
+  details{margin-top:8px}
+  summary{cursor:pointer;color:var(--copper);font-size:13px}
+  .pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;
+    padding:10px 0;border-top:1px solid var(--rule)}
+  .pair.flag-row{background:var(--clay-soft);padding-inline:10px;border-radius:3px;
+    border-top-color:transparent;margin-top:4px}
+  .lbl{font:600 10.5px ui-monospace,Menlo,monospace;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--mute);margin-bottom:2px;overflow-wrap:anywhere}
+  .pair p{margin:0;font-size:13.5px;overflow-wrap:anywhere}
+  mark{background:transparent;color:var(--clay);font-weight:600}
+  .doc{background:var(--surface-2);border-radius:4px;padding:12px 14px;
+    font-size:13.5px;overflow-wrap:anywhere}
+  .doc h3{font-size:12px;letter-spacing:.06em;margin:12px 0 4px}
+  .doc p{margin:2px 0}
+  .doc ul{margin:2px 0;padding-left:18px}
+  .qa{border-top:1px solid var(--rule);padding:14px 0}
+  .qa .q{font-weight:600;overflow-wrap:anywhere}
+  .qa .why{color:var(--mute);font-size:13px;margin:4px 0;overflow-wrap:anywhere}
+  .qa .say{margin:8px 0 0;padding-left:12px;border-left:3px solid var(--sage);
+    overflow-wrap:anywhere;max-width:70ch}
+  @media (max-width:460px){
+    .wrap{padding:0 12px 48px}
+    h1{font-size:19px}
+    form.filters{flex-direction:column}
+    select,input[type=search],form.filters button{width:100%}
+    .pair{grid-template-columns:minmax(0,1fr)}
+    form.stack .two{grid-template-columns:minmax(0,1fr)}
+    .desk{padding:12px 0}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style></head><body>
+<nav><div class="wrap">
+  <a href="/" class="{{ 'on' if page=='matches' }}">Matches</a>
+  <a href="/turbo" class="{{ 'on' if page=='turbo' }}">Turbo</a>
+  <a href="/pipeline" class="{{ 'on' if page=='pipeline' }}">Pipeline</a>
+  <a href="/review" class="{{ 'on' if page=='review' }}">Review{% if pending_count %} ({{ pending_count }}){% endif %}</a>
+  <a href="/add" class="{{ 'on' if page=='add' }}">Add a job</a>
+</div></nav>
+<div class="wrap{{ ' wide' if wide }}">{% if daily %}
+<div class="note daily" id="daily-banner" role="status">
+  <span>Since your last daily run ({{ daily.started_at|localtime }}):
+    <a class="plain" href="/">{{ daily.s.new_matches }} new match(es)</a> ·
+    <a class="plain" href="/pipeline">{{ daily.s.replies }} repl(ies) to confirm</a> ·
+    <a class="plain" href="/pipeline">{{ daily.s.due }} follow-up(s) due</a> ·
+    <a class="plain" href="/review">{{ daily.s.review }} draft(s) waiting in Review</a>
+    {%- if not daily.ok %} · <strong>failed: {{ daily.s.failed|join(', ') }}</strong> (see logs/){% endif %}
+    {%- if daily.s.top %}<br><span class="meta">Newest best: {% for t in daily.s.top %}<a class="plain" href="/job/{{ t.job_id }}">{{ t.company }}, {{ t.title }}</a>{{ ' · ' if not loop.last }}{% endfor %}</span>{% endif %}</span>
+  <form method="post" action="/daily/seen" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="run_id" value="{{ daily.id }}">
+    <input type="hidden" name="back" value="{{ page_path }}">
+    <button class="ghost" type="submit">Got it</button>
+  </form>
+</div>{% endif %}{% block body %}{% endblock %}</div>
+</body></html>

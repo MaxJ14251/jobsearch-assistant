@@ -1,0 +1,1233 @@
+{% extends "base" %}{% from "card" import match_card %}{% block body %}
+<h1>Matches</h1>
+{% if no_profile %}<p class="note bad" role="alert">No profile yet, so nothing can be scored for you.
+  <a class="plain" href="/setup">Set up in the browser</a> (import your resume, or start from the example), or copy
+  <code>profile/master_profile.example.yaml</code> to <code>profile/master_profile.yaml</code> and fill it in.</p>{% endif %}
+<div id="summary">
+<p class="sub">{{ total }} unreviewed · showing {{ rows|length - mine }}
+  {%- if mine %} and {{ mine }} of your applications{% endif %}
+  {%- if home %} · within {{ radius }} miles of {{ home }}:
+    {{ near_count }} near you, {{ rows|length - near_count }} remote{% endif %}</p>
+{% if home_problem %}<p class="note bad" role="alert">{{ home_problem }}</p>{% endif %}
+{% if hidden %}<p class="sub">{{ hidden }} match(es) hidden by the radius.
+  {%- if unplaced %} {{ unplaced }} of them name a place this could not find, so the distance is unknown rather than far.{% endif %}
+  <a class="plain" href="{{ nationwide_url }}">Show them anyway</a></p>{% endif %}
+</div>
+<form class="filters" method="get" id="where">
+  <label class="pair-in" for="f-radius">within
+    <input type="range" name="radius" id="f-radius" class="miles"
+           min="{{ radius_min }}" max="{{ radius_max }}" step="5"
+           value="{{ radius or profile_radius }}" aria-label="How far you would go">
+    <output for="f-radius" id="f-radius-out">{{ radius or profile_radius }} miles</output>
+  </label>
+  <label class="pair-in" for="f-home">of
+    <input type="search" name="home" id="f-home" value="{{ home_text }}"
+           placeholder="ZIP or City, ST" size="16"
+           aria-label="Where you are">
+  </label>
+  <label class="pair-in" for="f-anywhere">
+    <input type="checkbox" name="anywhere" id="f-anywhere" value="1"
+           {{ 'checked' if not radius }}> anywhere in the US
+  </label>
+  <input type="search" name="q" id="f-q" value="{{ q }}" size="26"
+         placeholder="Search roles, e.g. support, data analyst"
+         aria-label="Search roles">
+  <select name="degree" id="f-degree" aria-label="Degree"><option value="">Degree: any</option>
+    <option value="no" {{ 'selected' if degree=='no' }}>Not required</option>
+    <option value="yes" {{ 'selected' if degree=='yes' }}>Required</option>
+  </select>
+  <select name="remote" id="f-remote" aria-label="Location type"><option value="">Any location type</option>
+    <option value="remote" {{ 'selected' if remote=='remote' }}>Remote only</option>
+  </select>
+  <button type="submit">Filter</button>
+</form>
+{% if q_terms %}<p class="sub" id="q-hint">Matching titles: {% for t in q_terms %}<strong>{{ t }}</strong>{% if not loop.last %} <em>or</em> {% endif %}{% endfor %} · <a class="plain" href="{{ clear_q_url }}">Clear</a></p>{% endif %}
+<div class="split{{ ' live' if live }}">
+<div class="mapcol">
+{% if map.drawn %}
+<figure class="map" id="map-figure">
+  <svg viewBox="0 0 {{ map.width }} {{ map.height }}" role="img" aria-label="{{ map_note }}">
+    {% if map.ground %}<g aria-hidden="true"><rect class="bm-water" width="100%" height="100%"/><g transform="matrix({{ '%.6f'|format(map.per_mile) }} 0 0 {{ '%.6f'|format(-map.per_mile) }} {{ map.width / 2 }} {{ map.height / 2 }})">{% for name, d in map.ground.items() %}<path class="bm-{{ name }}" vector-effect="non-scaling-stroke" d="{{ d }}"/>{% endfor %}</g></g>{% endif %}
+    {% for d in map.paths %}<path class="land" d="{{ d }}"/>{% endfor %}
+    {% if map.circle %}<circle id="ring" class="ring" cx="{{ map.width // 2 }}"
+      cy="{{ map.height // 2 }}" r="{{ '%.1f'|format(map.circle) }}"
+      data-per-mile="{{ '%.6f'|format(map.per_mile) }}"/>{% endif %}
+    {% for b in map.bubbles %}<a href="/job/{{ b.job_id }}"><circle
+      class="dot {{ 'in' if b.inside else 'out' }}" cx="{{ '%.1f'|format(b.x) }}"
+      cy="{{ '%.1f'|format(b.y) }}" r="{{ '%.1f'|format(b.r) }}"><title>{{ b.place }}: {{ b.count }} posting(s){% if b.miles is not none %}, {{ b.miles }} miles away{% endif %}</title></circle></a>
+    {% endfor %}
+    {% if map.home %}<circle class="home" cx="{{ '%.1f'|format(map.home[0]) }}"
+      cy="{{ '%.1f'|format(map.home[1]) }}" r="4"><title>{{ map.home_name }}</title></circle>{% endif %}
+    {% for l in map.labels %}<text class="town" x="{{ '%.1f'|format(l.x) }}"
+      y="{{ '%.1f'|format(l.y) }}">{{ l.text }}</text>{% endfor %}
+    <rect class="bar" x="16" y="{{ map.height - 22 }}" width="{{ '%.1f'|format(map.scale_px) }}" height="3"/>
+    <text class="town left" x="16" y="{{ map.height - 28 }}">{{ map.scale_miles }} miles</text>
+  </svg>
+  <figcaption id="map-note">{{ map_note }}
+    {%- if map.kind == 'local' and map.off_map %}
+    <a class="plain" href="{{ nationwide_url }}">See the whole country</a>{% endif %}</figcaption>
+</figure>
+{% endif %}
+{% if live %}
+<div class="rp" id="radius-panel" hidden>
+  <div>
+    <div class="lbl">Inside the circle</div>
+    <div class="row" style="justify-content:flex-start;align-items:baseline">
+      <span class="num" id="rp-count" aria-live="polite">0</span><span id="rp-of" class="meta" style="margin:0"></span>
+    </div>
+  </div>
+  <div class="stbar" id="rp-bar" aria-hidden="true"></div>
+  <div class="row"><span>Commute bands</span>
+    <label class="pair-in" for="rp-bands"><input type="checkbox" id="rp-bands"> show</label></div>
+  <div class="modes" id="rp-modes" role="radiogroup" aria-label="How you would get there">
+    <button type="button" role="radio" data-mode="drive">Drive</button>
+    <button type="button" role="radio" data-mode="transit">Transit</button>
+    <button type="button" role="radio" data-mode="bike">Bike</button>
+    <button type="button" role="radio" data-mode="walk">Walk</button>
+  </div>
+  <div class="meta" id="rp-median" style="margin:0"></div>
+  <details><summary>How the times are estimated</summary>
+    <p>Straight-line distance, times a typical detour, at an average speed, plus a start-up time:
+      drive ×1.25 at 32 mph +4 min; transit ×1.35 at 13 mph +12 min; bike ×1.3 at 11 mph +2 min;
+      walk ×1.25 at 3 mph. Not routed. Traffic, timetables and hills are not in it.</p></details>
+  <div class="row"><span>Circle</span>
+    <span class="sw" id="rp-fence" role="radiogroup" aria-label="Circle colour">
+      <button type="button" role="radio" data-fence="sage" style="--c:var(--sage)" aria-label="Sage"></button>
+      <button type="button" role="radio" data-fence="copper" style="--c:var(--copper)" aria-label="Copper"></button>
+      <button type="button" role="radio" data-fence="blue" style="--c:var(--blue)" aria-label="Blue"></button>
+      <button type="button" role="radio" data-fence="ink" style="--c:var(--ink-2)" aria-label="Ink"></button>
+    </span></div>
+  <label class="row" for="rp-fill"><span>Fill</span>
+    <input type="range" id="rp-fill" min="0" max="40" step="1"></label>
+</div>
+{% endif %}
+</div>
+<section class="feed" id="feed" aria-label="The list">
+  <div class="feed-head" id="feed-head" hidden>
+    <div class="chips" id="feed-chips" role="group" aria-label="Show by status"></div>
+    <div class="seg" id="feed-sort" role="group" aria-label="Sort the list">
+      <button type="button" data-sort="score" aria-pressed="true">Best match</button>
+      <button type="button" data-sort="near" aria-pressed="false">Nearest</button>
+      <button type="button" data-sort="pay" aria-pressed="false">Pay</button>
+      <button type="button" data-sort="new" aria-pressed="false">Newest</button>
+    </div>
+    <div class="facet" id="feed-facet" hidden></div>
+  </div>
+  <div id="feed-list">
+{% for r in rows %}
+{{ match_card(r) }}
+{% else %}<p class="empty">Nothing matches those filters.</p>{% endfor %}
+  </div>
+</section>
+</div>
+{% if live %}
+<details class="drawer" id="analytics" open>
+  <summary><b>Area analytics</b><span id="an-sum" class="meta"></span></summary>
+  <div class="an" id="an-body"><p class="empty">The area analytics need JavaScript.</p></div>
+</details>
+<script type="application/json" id="map-data">{{ live|tojson }}</script>
+{% endif %}
+<script>
+/* The Matches page, live (n21). Presentation only, as it was before n21.
+
+   The server decides which postings are in the list, every time. While the
+   radius handle moves, this redraws the circle and sorts DOTS into inside
+   and outside by "d" -- the distance the server measured, the same float
+   its filter compared, compared the same way. When the handle settles it
+   asks the server for the page again and swaps the list in. The
+   three-per-company cap, folding and the remote rule live in Python only.
+
+   Chips, sorting and the analytics rearrange what the server sent; they
+   never add to it. Commute times are estimates and say so. Nothing here
+   reaches another host. Without this script the page is the form, the
+   server's map and the server's list. */
+(function () {
+  'use strict';
+  var form = document.getElementById('where');
+  if (!form) { return; }
+  var slider = form.querySelector('#f-radius');
+  var shown = form.querySelector('#f-radius-out');
+  var anywhere = form.querySelector('#f-anywhere');
+  var dataEl = document.getElementById('map-data');
+
+  if (!dataEl) {
+    /* No home, or "anywhere": the server's map, with its circle resized
+       while the handle moves and the form submitted when it is let go. */
+    var ring = document.getElementById('ring');
+    var perMile = ring ? parseFloat(ring.getAttribute('data-per-mile')) : 0;
+    var paint = function () {
+      shown.textContent = slider.value + ' miles';
+      slider.disabled = anywhere.checked;
+      if (ring && perMile) { ring.setAttribute('r', (slider.value * perMile).toFixed(1)); }
+    };
+    slider.addEventListener('input', paint);
+    slider.addEventListener('change', function () { anywhere.checked = false; form.submit(); });
+    anywhere.addEventListener('change', function () { paint(); form.submit(); });
+    paint();
+    return;
+  }
+
+  var live = JSON.parse(dataEl.textContent);
+  var R = live.radius;
+  var NS = 'http://www.w3.org/2000/svg';
+  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---- per-viewer preferences: conveniences, so a failure is harmless -- */
+  function load(k, d) {
+    try { var v = localStorage.getItem('jsa.map.' + k); return v === null ? d : JSON.parse(v); }
+    catch (e) { return d; }
+  }
+  function save(k, v) { try { localStorage.setItem('jsa.map.' + k, JSON.stringify(v)); } catch (e) { /* private window */ } }
+
+  var MODES = {
+    drive: {noun: 'driving', detour: 1.25, mph: 32, start: 4, rings: [10, 20, 30, 45, 60, 90]},
+    transit: {noun: 'by transit', detour: 1.35, mph: 13, start: 12, rings: [20, 30, 45, 60, 90, 120]},
+    bike: {noun: 'cycling', detour: 1.3, mph: 11, start: 2, rings: [15, 30, 45, 60, 90, 120]},
+    walk: {noun: 'walking', detour: 1.25, mph: 3, start: 0, rings: [15, 30, 45, 60, 90, 120]}
+  };
+  var FENCE = {sage: 'var(--sage)', copper: 'var(--copper)', blue: 'var(--blue)', ink: 'var(--ink-2)'};
+  var ST_COLOR = {'new': 'var(--mute)', saved: 'var(--blue)', applied: 'var(--sage)', interview: 'var(--violet)'};
+  var STATUSES = [['interview', 'Interview'], ['applied', 'Applied'], ['saved', 'Saved'], ['new', 'New']];
+
+  var state = {
+    mode: MODES[load('mode', 'drive')] ? load('mode', 'drive') : 'drive',
+    bands: load('bands', true) === true,
+    fence: FENCE[load('fence', 'sage')] ? load('fence', 'sage') : 'sage',
+    fill: Math.max(0, Math.min(40, +load('fill', 10) || 0)),
+    on: {interview: true, applied: true, saved: true, 'new': true},
+    sort: 'score', sel: null, hov: null, facet: null
+  };
+
+  function minutes(d) { var m = MODES[state.mode]; return m.start + d * m.detour / m.mph * 60; }
+  function reach(t) { var m = MODES[state.mode]; return Math.max(0, t - m.start) * m.mph / 60 / m.detour; }
+  function fmtMin(x) {
+    if (x < 60) { return Math.max(1, Math.round(x)) + ' min'; }
+    var h = Math.floor(x / 60), r = Math.round(x % 60);
+    return r ? h + ' h ' + r + ' min' : h + ' h';
+  }
+  function fmtMiles(r) { return (r % 1 ? r.toFixed(1) : String(r)) + ' mi'; }
+  function money(n) { return '$' + Math.round(n / 1000) + 'k'; }
+  function median(xs) {
+    if (!xs.length) { return null; }
+    var s = xs.slice().sort(function (a, b) { return a - b; }), m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  }
+  function node(tag, attrs, parent, svg) {
+    var n = svg ? document.createElementNS(NS, tag) : document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      if (attrs[k] !== null && attrs[k] !== undefined) { n.setAttribute(k, attrs[k]); }
+    });
+    if (parent) { parent.appendChild(n); }
+    return n;
+  }
+  function sv(tag, attrs, parent) { return node(tag, attrs, parent, true); }
+  function text(parent, tag, words, cls) {
+    var n = node(tag, cls ? {'class': cls} : {}, parent); n.textContent = words; return n;
+  }
+  function clear(n) { while (n.firstChild) { n.removeChild(n.firstChild); } }
+
+  /* ---- the map ---------------------------------------------------------- */
+  var fig = document.getElementById('map-figure');
+  var staticSvg = fig.querySelector('svg');
+  if (staticSvg) { staticSvg.style.display = 'none'; }
+  var box = node('div', {'class': 'livemap'});
+  fig.insertBefore(box, fig.firstChild);
+  var panel = document.getElementById('radius-panel');
+  box.appendChild(panel);
+  panel.hidden = false;
+  var svg = sv('svg', {role: 'img', 'aria-label': 'Map of postings around ' + live.home}, box);
+  var clipC = sv('circle', {cx: 0, cy: 0}, sv('clipPath', {id: 'fence-clip'}, sv('defs', {}, svg)));
+  var ground = sv('rect', {width: '100%', height: '100%'}, svg);
+  ground.style.fill = 'var(--surface)';
+  var world = sv('g', {}, svg);
+  var gridG = sv('g', {}, world);
+  var fenceFill = sv('circle', {cx: 0, cy: 0}, world);
+  var bandsG = sv('g', {'clip-path': 'url(#fence-clip)'}, world);
+  var fenceLine = sv('circle', {cx: 0, cy: 0, 'vector-effect': 'non-scaling-stroke'}, world);
+  var marksG = sv('g', {}, svg);
+  var labelsG = sv('g', {}, svg);
+  var overG = sv('g', {}, svg);
+
+  var ctl = node('div', {'class': 'mapctl'}, box);
+  [['+', 'Zoom in', function () { zoomBy(1.6); }],
+   ['−', 'Zoom out', function () { zoomBy(1 / 1.6); }],
+   ['⤢', 'Fit the circle', function () { fly(fitView(R)); }],
+   ['⌖', 'Back to home', function () { fly(centerOn(0, 0, view.s)); }]
+  ].forEach(function (b) {
+    var btn = node('button', {type: 'button', title: b[1], 'aria-label': b[1]}, ctl);
+    btn.textContent = b[0];
+    btn.addEventListener('click', b[2]);
+  });
+  var legend = node('div', {'class': 'maplegend', 'aria-hidden': 'true'}, box);
+  STATUSES.forEach(function (s) {
+    var row = node('span', {'class': 'st-' + s[0]}, legend);
+    node('i', {}, row); row.appendChild(document.createTextNode(s[1]));
+  });
+  var foot = node('div', {'class': 'mapfoot'}, box);
+  var northEl = node('div', {'class': 'mapnorth', hidden: '', 'aria-hidden': 'true',
+                              title: 'North. Zoomed out, the map turns to match the usual map of the US.'}, box);
+  northEl.textContent = 'N';
+  var bmNote = node('div', {'class': 'bm-note', hidden: ''}, box);
+  bmNote.textContent = 'Map detail ends at this zoom';
+
+  /* ---- the ground ------------------------------------------------------- */
+  /* Land, towns and roads from this machine's own data (n23). The server
+     projects every vertex with the function that places the pins, and this
+     paints them with the same view numbers (S, tx, ty) the pins are drawn
+     with, so the two cannot drift. It is painted into a canvas BEHIND the
+     svg, once per settled view: while the view moves, the canvas is only
+     moved and scaled -- the same affine change the pins get -- because
+     repainting megabytes of outline on every frame is what made a pan stall.
+     Context only: no tab stop, no accessible name. */
+  var BM = live.basemap, bm = {chunks: {}, pending: {}, shown: null, at: null};
+  var BM_TIERS = ['coarse', 'medium', 'fine'];
+  var BM_LAYERS = ['land', 'urban', 'county', 'lake', 'road'];
+  var BM_MARGIN = 0.5;          /* painted beyond each edge, for panning into */
+  var canvas = null, paint = null, painter = null, chunkSeq = 0, paintSeq = 0, asked = '';
+  /* The one painting routine. The page runs it where it must, and the
+     worker runs it from this very source, so the two cannot differ. */
+  function paintGround(g, p, m) {
+    var c = m.colors, px = m.px;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, m.w, m.h);
+    g.fillStyle = c.water; g.fillRect(0, 0, m.w, m.h);
+    g.setTransform(m.t[0], m.t[1], m.t[2], m.t[3], m.t[4], m.t[5]);
+    g.lineJoin = 'round';
+    if (p.land) { g.fillStyle = c.land; g.fill(p.land); }
+    if (p.urban) { g.fillStyle = c.urban; g.fill(p.urban); }
+    if (p.county) {
+      g.strokeStyle = c.edge; g.lineWidth = 0.5 * px;
+      g.setLineDash([4 * px, 3 * px]); g.stroke(p.county); g.setLineDash([]);
+    }
+    if (p.land) { g.strokeStyle = c.edge; g.lineWidth = 0.8 * px; g.stroke(p.land); }
+    /* Lakes are filled, not outlined: the Census splits a lake at every
+       county line, and an outline would draw each seam across the water. */
+    if (p.lake) { g.fillStyle = c.water; g.fill(p.lake); }
+    if (p.road) { g.strokeStyle = c.road; g.lineWidth = 1.1 * px; g.stroke(p.road); }
+  }
+  /* Painting a whole tier takes 25 to 90 ms (n26, measured). On the page's
+     own thread that is a hitch every time the map settles, so a worker
+     paints on an OffscreenCanvas and hands the finished picture back whole.
+     Until it arrives the old picture stays up, moved like everything else.
+     Only the newest request is painted. A browser that cannot do this
+     paints here instead, as before. */
+  var PAINTER = [
+    'var chunks = {};',
+    'onmessage = function (e) {',
+    '  var m = e.data, p, k;',
+    '  if (m.type === "chunk") {',
+    '    p = {}; for (k in m.layers) { p[k] = new Path2D(m.layers[k]); }',
+    '    chunks[m.id] = p; return;',
+    '  }',
+    '  if (m.type === "drop") { delete chunks[m.id]; return; }',
+    '  p = chunks[m.id];',
+    '  if (!p) { postMessage({seq: m.seq, bitmap: null}); return; }',
+    '  var t0 = performance.now(), c = new OffscreenCanvas(m.w, m.h), g = c.getContext("2d");',
+    '  paintGround(g, p, m);',
+    '  if (m.debug) { g.getImageData(0, 0, 1, 1); }',
+    '  var bitmap = c.transferToImageBitmap();',
+    '  postMessage({seq: m.seq, bitmap: bitmap, ms: performance.now() - t0}, [bitmap]);',
+    '};'
+  ].join('\n');
+  function localPaths(layers) {
+    var paths = {};
+    BM_LAYERS.forEach(function (name) { if (layers[name]) { paths[name] = new Path2D(layers[name]); } });
+    return paths;
+  }
+  if (BM) {
+    canvas = node('canvas', {'class': 'bm-canvas', 'aria-hidden': 'true'}, null);
+    box.insertBefore(canvas, box.firstChild);
+    try {
+      if (window.Worker && window.OffscreenCanvas && window.Blob && window.URL) {
+        painter = new Worker(URL.createObjectURL(new Blob(
+          [paintGround.toString() + '\n' + PAINTER], {type: 'text/javascript'})));
+        painter.onmessage = bmPainted;
+        painter.onerror = function () { bmLocal(); };
+        paint = canvas.getContext('bitmaprenderer');
+        if (!paint) { throw new Error('no bitmaprenderer'); }
+      }
+    } catch (e) {
+      if (painter) { painter.terminate(); }
+      painter = null;
+    }
+    if (!painter) { paint = canvas.getContext('2d'); }
+  }
+  /* The worker failed (an older browser without Path2D in workers): paint
+     here from now on, on a fresh canvas, from the chunks already fetched. */
+  function bmLocal() {
+    if (!painter) { return; }
+    painter.terminate(); painter = null;
+    var fresh = node('canvas', {'class': 'bm-canvas', 'aria-hidden': 'true'}, null);
+    canvas.replaceWith(fresh); canvas = fresh; paint = canvas.getContext('2d');
+    BM_TIERS.forEach(function (t) {
+      var ch = bm.chunks[t];
+      if (ch && !ch.paths) { ch.paths = localPaths(ch.src); }
+    });
+    bm.at = null; bm.job = null; asked = ''; redraw();
+  }
+  /* The coarsest tier still honest at this scale. */
+  function bmWant(S) {
+    for (var i = 0; i < BM_TIERS.length; i++) { if (S <= BM.ppm[BM_TIERS[i]]) { return BM_TIERS[i]; } }
+    return 'fine';
+  }
+  /* A chunk is used only if it holds the whole view. */
+  function bmCovers(ch) {
+    if (ch.reach === null) { return true; }
+    var z = size(), half = Math.hypot(z.w, z.h) / 2 / view.s;
+    return Math.hypot(view.cx - ch.at[0], view.cy - ch.at[1]) + half <= ch.reach;
+  }
+  function bmBuild(d) {
+    var ch = {id: ++chunkSeq, tier: d.tier, reach: d.reach, at: d.at,
+              cities: d.cities || [], src: d.layers, paths: null};
+    if (painter) { painter.postMessage({type: 'chunk', id: ch.id, layers: d.layers}); }
+    else { ch.paths = localPaths(d.layers); }
+    return ch;
+  }
+  function bmEnsure(tier) {
+    var ch = bm.chunks[tier];
+    if ((ch && bmCovers(ch)) || bm.pending[tier]) { return; }
+    var at = BM.reach[tier] === null ? [0, 0] : [view.cx, view.cy];
+    bm.pending[tier] = true;
+    var q = new URLSearchParams({home: BM.home, x: at[0].toFixed(1), y: at[1].toFixed(1), v: BM.v});
+    fetch('/basemap/' + tier + '?' + q.toString(), {credentials: 'same-origin'})
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        bm.pending[tier] = false;
+        if (!d) { return; }
+        var old = bm.chunks[tier];
+        bm.chunks[tier] = bmBuild(d);
+        if (old && painter) { painter.postMessage({type: 'drop', id: old.id}); }
+        redraw();
+      })
+      .catch(function () { bm.pending[tier] = false; });
+  }
+  /* Work that waits for the view to stop: a fly or a drag passes through
+     scales and places nobody stops at. */
+  var bmTimer = 0, flying = false;
+  function bmSoon() {
+    if (bmTimer) { return; }
+    bmTimer = setTimeout(function () {
+      bmTimer = 0;
+      if (flying || drag) { bmSoon(); return; }
+      bmEnsure(bmWant(view.s));
+      bm.shown = bmPick(view.s);
+      bmPaint();
+      bmDraw(view.s);
+    }, 120);
+  }
+  /* The tier this scale wants when it is here; while it loads, a FINER
+     one that already covers the view (more detail than needed is still
+     true). Never a coarser one: at this scale its simplified coast would
+     be visibly in the wrong place, so the ground stays flat instead. */
+  function bmPick(S) {
+    var want = bmWant(S), have = bm.chunks[want];
+    if (!(have && bmCovers(have))) { bmSoon(); }
+    for (var i = BM_TIERS.indexOf(want); i < BM_TIERS.length; i++) {
+      var ch = bm.chunks[BM_TIERS[i]];
+      if (ch && bmCovers(ch)) { return ch; }
+    }
+    return null;
+  }
+  function bmColor(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue('--map-' + name).trim();
+  }
+  /* Paint the shown chunk at the current view. The transform is the one
+     `world` gets in draw(), shifted by the margin: same S, same tx, ty. */
+  function bmPaint() {
+    if (!canvas) { return; }
+    var z = size(), dpr = window.devicePixelRatio || 1;
+    var ox = z.w * BM_MARGIN, oy = z.h * BM_MARGIN, W = z.w + 2 * ox, H = z.h + 2 * oy;
+    var ch = bm.shown, M = frame(view, z.w, z.h);
+    var key = [ch ? ch.id : 0, z.w, z.h, view.cx, view.cy, view.s].join();
+    if (key === asked) { return; }            /* already asked for exactly this */
+    if (bm.job) { bm.next = true; return; }  /* one in flight: ask again when it lands */
+    asked = key;
+    /* An svg has no offsetLeft; place by the boxes the browser laid out. */
+    var sr = svg.getBoundingClientRect(), br = box.getBoundingClientRect();
+    var job = {at: {cx: view.cx, cy: view.cy, s: view.s, w: z.w, h: z.h, ch: ch, m: M},
+               W: W, H: H, left: sr.left - br.left - box.clientLeft - ox,
+               top: sr.top - br.top - box.clientTop - oy};
+    if (!ch) { bmShow(job, null); return; }
+    var msg = {w: Math.round(W * dpr), h: Math.round(H * dpr), px: 1 / view.s,
+               t: [dpr * M[0], dpr * M[1], dpr * M[2], dpr * M[3],
+                   dpr * (M[4] + ox), dpr * (M[5] + oy)],
+               colors: {water: bmColor('water'), land: bmColor('land'), urban: bmColor('urban'),
+                        road: bmColor('road'), edge: bmColor('edge')}};
+    if (painter) {
+      job.seq = msg.seq = ++paintSeq; msg.type = 'paint'; msg.id = ch.id; msg.debug = FRAMES;
+      bm.job = job;
+      painter.postMessage(msg);
+      return;
+    }
+    var t0 = FRAMES ? performance.now() : 0;
+    bmPlace(job, msg.w, msg.h);
+    paintGround(paint, ch.paths, msg);
+    if (FRAMES) {
+      paint.getImageData(0, 0, 1, 1);         /* wait for the pixels */
+      console.info('[paint] ' + JSON.stringify({where: 'page', tier: ch.tier,
+        ms: +(performance.now() - t0).toFixed(1), px_per_mile: +view.s.toFixed(3)}));
+    }
+    bm.at = job.at;
+  }
+  function bmPlace(job, w, h) {
+    canvas.width = w; canvas.height = h;
+    canvas.style.width = job.W + 'px'; canvas.style.height = job.H + 'px';
+    canvas.style.left = job.left + 'px'; canvas.style.top = job.top + 'px';
+    canvas.style.transform = 'none';
+  }
+  /* Nothing to show: clear the picture. */
+  function bmShow(job) {
+    bmPlace(job, 1, 1);
+    if (painter) { paint.transferFromImageBitmap(null); }
+    else { paint.clearRect(0, 0, 1, 1); }
+    bm.at = job.at;
+  }
+  /* The worker's picture. Put it up, and move it to wherever the view has
+     got to since it was asked for. */
+  function bmPainted(e) {
+    var m = e.data, job = bm.job;
+    if (!job || m.seq !== job.seq) { if (m.bitmap) { m.bitmap.close(); } return; }
+    bm.job = null;
+    if (m.bitmap) {
+      var t0 = FRAMES ? performance.now() : 0;
+      bmPlace(job, m.bitmap.width, m.bitmap.height);
+      paint.transferFromImageBitmap(m.bitmap);
+      bm.at = job.at;
+      if (FRAMES) {
+        console.info('[paint] ' + JSON.stringify({where: 'worker', tier: job.at.ch.tier,
+          worker_ms: +m.ms.toFixed(1), page_ms: +(performance.now() - t0).toFixed(2),
+          px_per_mile: +job.at.s.toFixed(3)}));
+      }
+    }
+    if (bm.next) { bm.next = false; asked = ''; }
+    redraw();
+  }
+  function bmDraw(S) {
+    if (!BM) { return; }
+    var ch = bmPick(S), z = size(), a = bm.at;
+    bm.shown = ch;
+    if (!a || a.ch !== ch || a.w !== z.w || a.h !== z.h) {
+      if (flying || drag) { bmSoon(); } else { bmPaint(); }
+    } else if (a.s !== view.s || a.cx !== view.cx || a.cy !== view.cy) {
+      bmSoon();
+    }
+    a = bm.at;
+    if (a && a.ch) {
+      /* Map what was painted at view `a` onto the view now: the same
+         affine change the pins just went through, turn included. */
+      var ox = a.w * BM_MARGIN, oy = a.h * BM_MARGIN;
+      var t = compose([1, 0, 0, 1, ox, oy], compose(frame(view, a.w, a.h),
+                      compose(invert(a.m), [1, 0, 0, 1, -ox, -oy])));
+      canvas.style.transform = 'matrix(' + t.join(',') + ')';
+    }
+    ground.style.fill = (a && a.ch) ? 'transparent' : 'var(--surface)';
+    /* Past the finest tier's measured accuracy the ground fades out rather
+       than pretend to a precision it does not have (ADR 0019). */
+    var limit = BM.ppm.fine, fade = S <= limit ? 1 : Math.max(0, 1 - (S - limit) / limit);
+    canvas.style.opacity = fade;
+    bmNote.hidden = !(a && a.ch && S > limit);
+  }
+  if (BM && window.matchMedia) {
+    var scheme = window.matchMedia('(prefers-color-scheme: dark)');
+    if (scheme.addEventListener) {
+      scheme.addEventListener('change', function () { bm.at = null; asked = ''; redraw(); });
+    }
+  }
+  var tip = node('div', {'class': 'tip', hidden: ''}, box);
+
+  var view = {cx: 0, cy: 0, s: 1};
+  function size() { return {w: svg.clientWidth || box.clientWidth || 600, h: svg.clientHeight || 420}; }
+  function panelWidth() { return window.innerWidth > 760 ? panel.offsetWidth + 20 : 0; }
+
+  /* The turn. North is straight up at home, where pins and streets are
+     read. Zoomed out towards the whole country, the map turns to the
+     orientation of the usual map of the United States (Albers, centred on
+     96 W), because north-up at home tips the rest of the country over by as
+     much as its meridians converge. Turning about home changes no distance:
+     the circle, the rings and every d stay exactly what they were. */
+  var TURN = live.turn || 0;
+  function turnAt(s) {
+    var lo = Math.log(0.6), hi = Math.log(3);
+    var t = Math.max(0, Math.min(1, (Math.log(s) - lo) / (hi - lo)));
+    return TURN * (1 - t * t * (3 - 2 * t));
+  }
+  /* A view as [a, b, c, d, e, f], the six numbers of an svg or css
+     matrix(): miles (x east, y north) to pixels, y flipped, turned. The
+     pins, the rings and the ground all go through this one function. */
+  function frame(v, w, h) {
+    var turn = turnAt(v.s), a = Math.cos(turn) * v.s, b = -Math.sin(turn) * v.s;
+    var c = b, d = -a;
+    return [a, b, c, d, w / 2 - (a * v.cx + c * v.cy), h / 2 - (b * v.cx + d * v.cy)];
+  }
+  function apply(m, x, y) { return [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]]; }
+  function invert(m) {
+    var det = m[0] * m[3] - m[1] * m[2];
+    var a = m[3] / det, b = -m[1] / det, c = -m[2] / det, d = m[0] / det;
+    return [a, b, c, d, -(a * m[4] + c * m[5]), -(b * m[4] + d * m[5])];
+  }
+  function compose(m, n) {          /* m after n */
+    return [m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1],
+            m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3],
+            m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5]];
+  }
+  /* Miles moved by a pixel offset at scale s (its turn included). */
+  function unshift(s, dx, dy) { return apply(invert(frame({cx: 0, cy: 0, s: s}, 0, 0)), dx, dy); }
+  function toWorld(px, py) { var z = size(); return apply(invert(frame(view, z.w, z.h)), px, py); }
+  /* The view at scale s that puts the point (x, y) at pixel (px, py). */
+  function anchor(s, x, y, px, py) {
+    var z = size(), u = unshift(s, px - z.w / 2, py - z.h / 2);
+    return {cx: x - u[0], cy: y - u[1], s: s};
+  }
+  /* The view that puts (x, y) in the middle of the part of the map the
+     panel does not cover. */
+  function centerOn(x, y, s) {
+    var z = size(), left = panelWidth();
+    return anchor(s, x, y, left + (z.w - left) / 2, z.h / 2);
+  }
+  function fitView(r) {
+    var z = size(), left = panelWidth(), room = Math.max(120, Math.min(z.w - left, z.h));
+    return centerOn(0, 0, room / 2 / (Math.max(r, 2) * 1.12));
+  }
+  function clampS(s) { return Math.max(0.03, Math.min(250, s)); }
+
+  /* ?debug=frames (n26): the worst frame of each pan or zoom, written to
+     the console once the map settles. Off unless the address asks for it;
+     it writes nothing anywhere else and sends nothing. */
+  var FRAMES = new URLSearchParams(location.search).get('debug') === 'frames';
+  var frameLog = null, lastWheel = 0, motion = {n: 0, worst: 0, total: 0, timer: 0};
+  function moving() { return flying || drag || performance.now() - lastWheel < 150; }
+  function watchFrames() {
+    if (!FRAMES || frameLog) { return; }
+    frameLog = {last: performance.now(), worst: 0, n: 0, still: 0};
+    requestAnimationFrame(function tick(t) {
+      var gap = t - frameLog.last;
+      frameLog.last = t;
+      if (moving()) { frameLog.worst = Math.max(frameLog.worst, gap); frameLog.n++; frameLog.still = 0; }
+      else if (++frameLog.still > 10) {
+        console.info('[frames] ' + JSON.stringify({
+          tier: bm.shown ? bm.shown.tier : 'none', frames: frameLog.n,
+          worst_ms: Math.round(frameLog.worst), px_per_mile: +view.s.toFixed(3),
+          page: document.visibilityState}));
+        frameLog = null;
+        return;
+      }
+      requestAnimationFrame(tick);
+    });
+  }
+
+  var raf = 0;
+  function redraw() { if (!raf) { raf = requestAnimationFrame(function () { raf = 0; draw(); }); } }
+  var anim = 0;
+  function fly(to) {
+    cancelAnimationFrame(anim);
+    to.s = clampS(to.s);
+    if (reduced) { view = to; redraw(); return; }
+    var from = {cx: view.cx, cy: view.cy, s: view.s}, t0 = performance.now();
+    flying = true;
+    watchFrames();
+    (function step(t) {
+      var k = Math.min(1, (t - t0) / 340), e = 1 - Math.pow(1 - k, 3);
+      view = {cx: from.cx + (to.cx - from.cx) * e, cy: from.cy + (to.cy - from.cy) * e,
+              s: from.s * Math.pow(to.s / from.s, e)};
+      flying = k < 1;
+      draw();
+      if (k < 1) { anim = requestAnimationFrame(step); }
+    })(t0);
+  }
+  function zoomBy(k) { fly({cx: view.cx, cy: view.cy, s: view.s * k}); }
+
+  function feedKeys() {
+    var keys = {};
+    cards().forEach(function (c) { if (!c.hidden) { keys[c.getAttribute('data-key')] = c; } });
+    return keys;
+  }
+
+  function cluster(pts, px) {
+    var out = [];
+    pts.forEach(function (p) {
+      var best = null, bd = px;
+      out.forEach(function (c) {
+        if (c.inside !== p.inside) { return; }
+        var d = Math.hypot(c.x - p.x, c.y - p.y);
+        if (d < bd) { best = c; bd = d; }
+      });
+      if (best) {
+        var n = best.m.length;
+        best.x = (best.x * n + p.x) / (n + 1); best.y = (best.y * n + p.y) / (n + 1);
+        best.m.push(p);
+      } else { out.push({x: p.x, y: p.y, inside: p.inside, m: [p]}); }
+    });
+    return out;
+  }
+
+  function draw() {
+    var t0 = FRAMES ? performance.now() : 0;
+    drawNow();
+    if (FRAMES && moving()) {
+      var spent = performance.now() - t0;
+      motion.n++; motion.worst = Math.max(motion.worst, spent); motion.total += spent;
+      clearTimeout(motion.timer);
+      motion.timer = setTimeout(function () {
+        console.info('[draw] ' + JSON.stringify({tier: bm.shown ? bm.shown.tier : 'none',
+          draws: motion.n, worst_ms: +motion.worst.toFixed(1),
+          mean_ms: +(motion.total / motion.n).toFixed(2), px_per_mile: +view.s.toFixed(3)}));
+        motion = {n: 0, worst: 0, total: 0, timer: 0};
+      }, 400);
+    }
+  }
+  function drawNow() {
+    var z = size(), w = z.w, h = z.h, S = view.s;
+    svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+    var M = frame(view, w, h), H = apply(M, 0, 0);
+    world.setAttribute('transform', 'matrix(' + M.join(' ') + ')');
+    var color = FENCE[state.fence];
+    bmDraw(S);
+    var turn = turnAt(S);
+    northEl.hidden = Math.abs(turn) < 0.01;
+    northEl.style.transform = 'rotate(' + (-turn * 180 / Math.PI).toFixed(2) + 'deg)';
+
+    /* Range rings about home: in this projection a circle IS a distance. */
+    clear(gridG);
+    var far = Math.hypot(Math.max(Math.abs(H[0]), Math.abs(w - H[0])), Math.max(Math.abs(H[1]), Math.abs(h - H[1]))) / S;
+    var step = [1, 2, 5, 10, 25, 50, 100, 250, 500].find(function (m) { return m * S >= 70; }) || 1000;
+    for (var k = 1; k * step <= far && k <= 60; k++) {
+      var g = sv('circle', {cx: 0, cy: 0, r: k * step, 'vector-effect': 'non-scaling-stroke'}, gridG);
+      g.style.fill = 'none'; g.style.stroke = 'var(--rule)'; g.style.strokeWidth = '1px';
+    }
+
+    clipC.setAttribute('r', R);
+    fenceFill.setAttribute('r', R);
+    fenceFill.style.fill = color;
+    fenceFill.style.fillOpacity = (state.bands ? state.fill * 0.5 : state.fill) / 100;
+    fenceLine.setAttribute('r', R);
+    fenceLine.style.fill = 'none'; fenceLine.style.stroke = color; fenceLine.style.strokeWidth = '1.75px';
+
+    clear(bandsG);
+    var rings = [];
+    if (state.bands) {
+      MODES[state.mode].rings.forEach(function (t) { var r = reach(t); if (r > 0) { rings.push({t: t, r: r}); } });
+    }
+    rings.slice().reverse().forEach(function (b) {
+      var c = sv('circle', {cx: 0, cy: 0, r: b.r}, bandsG);
+      c.style.fill = color; c.style.fillOpacity = 0.09;
+    });
+    rings.forEach(function (b) {
+      var c = sv('circle', {cx: 0, cy: 0, r: b.r, 'vector-effect': 'non-scaling-stroke'}, bandsG);
+      c.style.fill = 'none'; c.style.stroke = color; c.style.strokeOpacity = 0.6;
+      c.style.strokeWidth = '1px'; c.style.strokeDasharray = '3 4';
+    });
+
+    /* Markers. Inside or outside is decided by d, never by x and y. */
+    var inFeed = feedKeys();
+    var pts = [];
+    live.points.forEach(function (p) {
+      if (!state.on[p.status]) { return; }
+      var q = apply(M, p.x, p.y), x = q[0], y = q[1];
+      if (x < -30 || y < -30 || x > w + 30 || y > h + 30) { return; }
+      pts.push({p: p, x: x, y: y, inside: p.d <= R});
+    });
+    clear(marksG); clear(labelsG); clear(overG);
+    var clusters = cluster(pts, 22);
+    clusters.filter(function (c) { return !c.inside; }).forEach(function (c) { drawCluster(c, inFeed); });
+    clusters.filter(function (c) { return c.inside; }).forEach(function (c) { drawCluster(c, inFeed); });
+
+    /* Name the places with the most postings, where the names fit. */
+    var taken = [];
+    clusters.slice().sort(function (a, b) { return b.m.length - a.m.length; }).slice(0, 14).forEach(function (c) {
+      if (c.m.length < 2 && S < 6) { return; }
+      var count = {}, best = null;
+      c.m.forEach(function (q) { count[q.p.place] = (count[q.p.place] || 0) + 1; });
+      Object.keys(count).forEach(function (n) { if (!best || count[n] > count[best]) { best = n; } });
+      var r = c.m.length > 1 ? 12 + Math.min(9, Math.log2(c.m.length) * 2.4) : 8;
+      var bx = [c.x + r + 3, c.y - 8, c.x + r + 5 + best.length * 6.3, c.y + 6];
+      if (taken.some(function (t) { return bx[0] < t[2] && bx[2] > t[0] && bx[1] < t[3] && bx[3] > t[1]; })) { return; }
+      taken.push(bx);
+      var tl = sv('text', {x: c.x + r + 4, y: c.y + 4, 'class': 'town left'}, labelsG);
+      tl.textContent = best;
+    });
+
+    /* City names from the ground, after the jobs' own names: a job's label
+       always wins the space, and no name sits on a marker or on home. Each
+       name is on the same Census town point a pin for that town uses.
+       Biggest places first; none once the ground has faded out. */
+    var shownGround = bm.at && bm.at.ch;
+    if (shownGround && S <= 2 * BM.ppm.fine) {
+      var blocked = taken.concat(clusters.map(function (c) {
+        var r = c.m.length > 1 ? 14 : 9;
+        return [c.x - r, c.y - r, c.x + r, c.y + r];
+      }), [[H[0] - 12, H[1] - 12, H[0] + 12, H[1] + 12]]);
+      var named = 0;
+      shownGround.cities.forEach(function (ct) {
+        if (named >= 40) { return; }
+        var q = apply(M, ct[1], ct[2]), half = ct[0].length * 3.4 + 3;
+        if (q[0] < half || q[1] < 10 || q[0] > w - half || q[1] > h - 10) { return; }
+        var bx = [q[0] - half, q[1] - 8, q[0] + half, q[1] + 5];
+        if (blocked.some(function (t) { return bx[0] < t[2] && bx[2] > t[0] && bx[1] < t[3] && bx[3] > t[1]; })) { return; }
+        blocked.push(bx); named++;
+        sv('text', {x: q[0].toFixed(1), y: (q[1] + 3).toFixed(1), 'class': 'city'}, labelsG).textContent = ct[0];
+      });
+    }
+
+    /* The card under the pointer, and the chosen one: every copy of it. */
+    [[state.sel, 2, null], [state.hov, 1.25, '2 3']].forEach(function (s) {
+      if (!s[0]) { return; }
+      pts.forEach(function (q) {
+        if (q.p.key !== s[0]) { return; }
+        var c = sv('circle', {cx: q.x, cy: q.y, r: 12}, overG);
+        c.style.fill = 'none'; c.style.stroke = 'var(--ink)'; c.style.strokeWidth = s[1] + 'px';
+        if (s[2]) { c.style.strokeDasharray = s[2]; }
+        c.style.pointerEvents = 'none';
+      });
+    });
+
+    var lastY = Infinity;
+    rings.forEach(function (b) {
+      if (b.r >= R * 0.97 || b.r * S < 16) { return; }
+      var x = H[0], y = H[1] - b.r * S;
+      if (y < 0 || y > h || lastY - y < 20) { return; }
+      lastY = y;
+      var label = b.t >= 60 ? fmtMin(b.t) : b.t + ' min';
+      var g = sv('g', {transform: 'translate(' + x + ' ' + y + ')'}, overG);
+      g.style.pointerEvents = 'none';
+      var bg = sv('rect', {x: -label.length * 3.3 - 5, y: -8, width: label.length * 6.6 + 10, height: 16, rx: 3}, g);
+      bg.style.fill = 'var(--surface)'; bg.style.opacity = 0.92;
+      var t = sv('text', {'text-anchor': 'middle', dy: '0.35em'}, g);
+      t.style.fill = color; t.style.font = '10px ui-monospace,Menlo,monospace';
+      t.textContent = label;
+    });
+
+    var ex = H[0] + R * S, ey = H[1];
+    if (ex > 0 && ex < w) {
+      var rl = fmtMiles(R), rg = sv('g', {transform: 'translate(' + ex + ' ' + ey + ')'}, overG);
+      rg.style.pointerEvents = 'none';
+      sv('rect', {x: -rl.length * 3.6 - 6, y: -10, width: rl.length * 7.2 + 12, height: 20, rx: 3}, rg).style.fill = color;
+      var rt = sv('text', {'text-anchor': 'middle', dy: '0.35em'}, rg);
+      rt.style.fill = 'var(--surface)'; rt.style.font = '600 11px ui-monospace,Menlo,monospace';
+      rt.textContent = rl;
+    }
+
+    var home = sv('g', {transform: 'translate(' + H[0] + ' ' + H[1] + ')'}, overG);
+    home.style.pointerEvents = 'none';
+    var hc = sv('circle', {r: 8}, home); hc.style.fill = 'var(--surface)'; hc.style.stroke = 'var(--ink)'; hc.style.strokeWidth = '2px';
+    sv('circle', {r: 2.5}, home).style.fill = 'var(--ink)';
+    var ht = sv('text', {x: 12, y: -10, 'class': 'town left'}, home);
+    ht.style.fontWeight = '600'; ht.textContent = 'Home';
+
+    var scaleMi = [0.5, 1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500].filter(function (m) { return m * S <= 130; }).pop() || 0.5;
+    clear(foot);
+    text(foot, 'div', scaleMi + ' mi');
+    node('div', {'class': 'sb', style: 'width:' + (scaleMi * S).toFixed(1) + 'px'}, foot);
+  }
+
+  function drawCluster(c, inFeed) {
+    var n = c.m.length;
+    var g = sv('g', {transform: 'translate(' + c.x.toFixed(1) + ' ' + c.y.toFixed(1) + ')',
+                     'class': 'mk', role: 'button', tabindex: c.inside ? 0 : -1}, marksG);
+    var dimmed = state.facet && !c.m.some(function (q) { return inFeed[q.p.key]; });
+    g.style.opacity = !c.inside ? 0.32 : (dimmed ? 0.3 : 1);
+    if (n === 1) {
+      var p = c.m[0].p;
+      g.setAttribute('aria-label', titleOf(p) + ', ' + p.d.toFixed(1) + ' miles');
+      sv('circle', {r: 11}, g).style.fill = 'transparent';
+      var big = p.key === state.sel || p.key === state.hov;
+      var dot = sv('circle', {r: big ? 7.5 : 5.5}, g);
+      dot.style.fill = ST_COLOR[p.status]; dot.style.stroke = 'var(--surface)'; dot.style.strokeWidth = '2px';
+    } else {
+      g.setAttribute('aria-label', n + ' postings here. List them.');
+      var r = 11 + Math.min(9, Math.log2(n) * 2.4), C = 2 * Math.PI * (r - 2), acc = 0;
+      var back = sv('circle', {r: r + 1.5}, g); back.style.fill = 'var(--surface)';
+      STATUSES.forEach(function (s) {
+        var share = c.m.filter(function (q) { return q.p.status === s[0]; }).length / n;
+        if (!share) { return; }
+        var arc = sv('circle', {r: r - 2, transform: 'rotate(-90)'}, g);
+        arc.style.fill = 'none'; arc.style.stroke = ST_COLOR[s[0]]; arc.style.strokeWidth = '3.5px';
+        arc.style.strokeDasharray = (share * C) + ' ' + C; arc.style.strokeDashoffset = String(-acc * C);
+        acc += share;
+      });
+      var t = sv('text', {'text-anchor': 'middle', dy: '0.36em'}, g);
+      t.style.fill = 'var(--ink)'; t.style.font = '500 11px ui-monospace,Menlo,monospace';
+      t.textContent = n;
+    }
+    g.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+    var open = function () {
+      if (n > 1) { listCluster(c); return; }
+      var p = c.m[0].p, card = feedKeys()[p.key];
+      if (card) { select(p.key, false); card.scrollIntoView({block: 'nearest', behavior: reduced ? 'auto' : 'smooth'}); }
+      else { window.location.assign('/job/' + p.job); }
+    };
+    g.addEventListener('click', open);
+    g.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+    g.addEventListener('pointerenter', function () { showTip(c); if (n === 1) { hover(c.m[0].p.key); } });
+    g.addEventListener('pointerleave', function () { tip.hidden = true; if (n === 1) { hover(null); } });
+  }
+
+  /* The map data carries no titles: a posting the radius hides must not be
+     on the page at all (tests/test_radius). A listed card names itself. */
+  function titleOf(p) {
+    var card = feedKeys()[p.key], t = card && card.querySelector('.title');
+    return t ? t.textContent.trim() : 'A posting in ' + p.place;
+  }
+  function showTip(c) {
+    clear(tip);
+    var inFeed = feedKeys();
+    if (c.m.length === 1) {
+      var p = c.m[0].p;
+      text(tip, 'b', titleOf(p));
+      text(tip, 'span', p.place + ' · ' + p.d.toFixed(1) + ' mi · ~' + fmtMin(minutes(p.d)) + ' ' + MODES[state.mode].noun + ' (est.)');
+      var where = !c.inside ? 'Outside the circle. Click to open it.'
+        : inFeed[p.key] ? 'In the list. Click to find it.'
+        : 'Inside, but not in the list (three per company). Click to open it.';
+      text(tip, 'span', where);
+    } else {
+      text(tip, 'b', c.m.length + ' postings ' + (c.inside ? 'inside' : 'outside') + ' the circle');
+      text(tip, 'span', STATUSES.map(function (s) {
+        var k = c.m.filter(function (q) { return q.p.status === s[0]; }).length;
+        return k ? k + ' ' + s[1].toLowerCase() : '';
+      }).filter(Boolean).join(' · '));
+      text(tip, 'span', 'Click to list them. Scroll to zoom in.');
+    }
+    var z = size();
+    tip.style.left = Math.min(c.x + 16, z.w - 270) + 'px';
+    tip.style.top = Math.max(8, Math.min(c.y - 12, z.h - 90)) + 'px';
+    tip.hidden = false;
+  }
+
+  /* Pan, zoom. */
+  var drag = null;
+  svg.addEventListener('pointerdown', function (e) {
+    if (e.button !== 0) { return; }
+    cancelAnimationFrame(anim); flying = false;
+    drag = {x: e.clientX, y: e.clientY, cx: view.cx, cy: view.cy, moved: false};
+    watchFrames();
+    svg.setPointerCapture(e.pointerId);
+  });
+  svg.addEventListener('pointermove', function (e) {
+    if (!drag) { return; }
+    var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (Math.abs(dx) + Math.abs(dy) > 3) { drag.moved = true; }
+    var u = unshift(view.s, dx, dy);
+    view.cx = drag.cx - u[0]; view.cy = drag.cy - u[1];
+    redraw();
+  });
+  function endDrag(e) {
+    if (drag && !drag.moved && e.type === 'pointerup') { select(null, false); }
+    drag = null;
+  }
+  svg.addEventListener('pointerup', endDrag);
+  svg.addEventListener('pointercancel', endDrag);
+  svg.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    cancelAnimationFrame(anim); flying = false;
+    lastWheel = performance.now();
+    watchFrames();
+    var r = svg.getBoundingClientRect();
+    var sx = e.clientX - r.left, sy = e.clientY - r.top, at = toWorld(sx, sy);
+    view = anchor(clampS(view.s * Math.exp(-e.deltaY * 0.0016)), at[0], at[1], sx, sy);
+    redraw();
+  }, {passive: false});
+  if (window.ResizeObserver) { new ResizeObserver(redraw).observe(box); }
+
+  /* ---- the panel -------------------------------------------------------- */
+  var bandsBox = document.getElementById('rp-bands');
+  var fill = document.getElementById('rp-fill');
+  bandsBox.checked = state.bands;
+  fill.value = state.fill;
+  function radio(groupId, attr, value) {
+    Array.prototype.forEach.call(document.querySelectorAll('#' + groupId + ' [' + attr + ']'), function (b) {
+      b.setAttribute('aria-checked', String(b.getAttribute(attr) === value));
+    });
+  }
+  radio('rp-modes', 'data-mode', state.mode);
+  radio('rp-fence', 'data-fence', state.fence);
+  document.getElementById('rp-modes').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-mode]'); if (!b) { return; }
+    state.mode = b.getAttribute('data-mode'); save('mode', state.mode);
+    radio('rp-modes', 'data-mode', state.mode); refresh();
+  });
+  document.getElementById('rp-fence').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-fence]'); if (!b) { return; }
+    state.fence = b.getAttribute('data-fence'); save('fence', state.fence);
+    radio('rp-fence', 'data-fence', state.fence); redraw();
+  });
+  bandsBox.addEventListener('change', function () { state.bands = bandsBox.checked; save('bands', state.bands); redraw(); });
+  fill.addEventListener('input', function () { state.fill = +fill.value; save('fill', state.fill); redraw(); });
+
+  function counter() {
+    var by = {interview: 0, applied: 0, saved: 0, 'new': 0}, n = 0, mins = [];
+    live.points.forEach(function (p) {
+      if (state.on[p.status] && p.d <= R) { n++; by[p.status]++; mins.push(minutes(p.d)); }
+    });
+    document.getElementById('rp-count').textContent = n;
+    document.getElementById('rp-of').textContent = ' postings within ' + fmtMiles(R) +
+      (live.remote ? '; ' + live.remote + ' remote have no distance' : '');
+    var bar = document.getElementById('rp-bar'); clear(bar);
+    STATUSES.forEach(function (s) {
+      if (by[s[0]]) { node('span', {'class': 'st-' + s[0], style: 'width:' + (100 * by[s[0]] / n) + '%'}, bar); }
+    });
+    var med = median(mins);
+    document.getElementById('rp-median').textContent = med === null ? 'Nothing inside the circle yet.'
+      : 'Median ' + MODES[state.mode].noun + ' inside: about ' + fmtMin(med) + ' (estimated).';
+  }
+
+  /* ---- the list --------------------------------------------------------- */
+  var feed = document.getElementById('feed');
+  document.getElementById('feed-head').hidden = false;
+  var chips = document.getElementById('feed-chips');
+  STATUSES.forEach(function (s) {
+    var b = node('button', {type: 'button', 'class': 'chip st-' + s[0], 'aria-pressed': 'true', 'data-status': s[0]}, chips);
+    node('i', {}, b); b.appendChild(document.createTextNode(s[1] + ' ')); node('b', {}, b);
+  });
+  chips.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-status]'); if (!b) { return; }
+    var st = b.getAttribute('data-status');
+    state.on[st] = !state.on[st];
+    b.setAttribute('aria-pressed', String(state.on[st]));
+    refresh();
+  });
+  document.getElementById('feed-sort').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-sort]'); if (!b) { return; }
+    state.sort = b.getAttribute('data-sort');
+    Array.prototype.forEach.call(this.querySelectorAll('[data-sort]'), function (x) {
+      x.setAttribute('aria-pressed', String(x === b));
+    });
+    applyFeed();
+  });
+  function cards() { return Array.prototype.slice.call(document.querySelectorAll('#feed-list .card[data-key]')); }
+  function info(c) { return live.cards[c.getAttribute('data-key')] || {}; }
+  function bindFeed() { cards().forEach(function (c, i) { c.setAttribute('data-i', i); }); }
+  function facetOk(d) {
+    if (!state.facet) { return true; }
+    return state.facet.kind === 'skill' ? (d.skills || []).indexOf(state.facet.value) >= 0
+                                        : d.company === state.facet.value;
+  }
+  var SORTS = {
+    score: function (a, b) { return +a.getAttribute('data-i') - +b.getAttribute('data-i'); },
+    near: function (a, b) {
+      var x = info(a), y = info(b);
+      var dx = x.remote || x.miles === null || x.miles === undefined ? Infinity : x.miles;
+      var dy = y.remote || y.miles === null || y.miles === undefined ? Infinity : y.miles;
+      return dx - dy || SORTS.score(a, b);
+    },
+    pay: function (a, b) {
+      var x = info(a).pay, y = info(b).pay;
+      return (y ? y[1] : -1) - (x ? x[1] : -1) || SORTS.score(a, b);
+    },
+    'new': function (a, b) {
+      var x = info(a).found || '', y = info(b).found || '';
+      return x < y ? 1 : x > y ? -1 : SORTS.score(a, b);
+    }
+  };
+  function applyFeed() {
+    var list = document.getElementById('feed-list');
+    var all = cards(), counts = {interview: 0, applied: 0, saved: 0, 'new': 0}, visible = 0;
+    all.sort(SORTS[state.sort]).forEach(function (c) { list.appendChild(c); });
+    all.forEach(function (c) {
+      var d = info(c), st = c.getAttribute('data-status'), key = c.getAttribute('data-key');
+      counts[st] += 1;
+      c.hidden = !(state.on[st] && facetOk(d));
+      if (!c.hidden) { visible++; }
+      var eta = c.querySelector('.eta');
+      if (eta) {
+        eta.textContent = d.miles !== null && d.miles !== undefined && !d.remote
+          ? ' · about ' + fmtMin(minutes(d.miles)) + ' ' + MODES[state.mode].noun + ' (est.)' : '';
+      }
+      c.classList.toggle('sel', key === state.sel);
+      c.classList.toggle('hov', key === state.hov);
+    });
+    Array.prototype.forEach.call(chips.querySelectorAll('[data-status]'), function (b) {
+      b.querySelector('b').textContent = counts[b.getAttribute('data-status')];
+    });
+    var none = document.getElementById('feed-none');
+    if (!visible && all.length) {
+      if (!none) { none = text(list, 'p', 'Everything in the list is hidden by the choices above.', 'empty'); none.id = 'feed-none'; }
+    } else if (none) { none.remove(); }
+    var facet = document.getElementById('feed-facet'); clear(facet);
+    facet.hidden = !state.facet;
+    if (state.facet) {
+      text(facet, 'span', 'Only ' + (state.facet.kind === 'skill' ? 'asking for ' : 'at ') + state.facet.value, 'meta');
+      var x = node('button', {type: 'button'}, facet); x.textContent = 'Show all';
+      x.addEventListener('click', function () { state.facet = null; refresh(); });
+    }
+    analytics();
+  }
+  function hover(key) {
+    if (state.hov === key) { return; }
+    state.hov = key;
+    cards().forEach(function (c) { c.classList.toggle('hov', c.getAttribute('data-key') === key); });
+    redraw();
+  }
+  function select(key, flyTo) {
+    state.sel = key;
+    cards().forEach(function (c) { c.classList.toggle('sel', c.getAttribute('data-key') === key); });
+    if (flyTo && key) {
+      var best = null;
+      live.points.forEach(function (p) { if (p.key === key && (!best || p.d < best.d)) { best = p; } });
+      if (best) { fly(centerOn(best.x, best.y, Math.max(view.s, fitView(12).s))); }
+    }
+    redraw();
+  }
+  feed.addEventListener('mouseover', function (e) {
+    var c = e.target.closest('.card[data-key]'); hover(c ? c.getAttribute('data-key') : null);
+  });
+  feed.addEventListener('mouseleave', function () { hover(null); });
+  feed.addEventListener('click', function (e) {
+    if (e.target.closest('a,button')) { return; }
+    var c = e.target.closest('.card[data-key]'); if (!c) { return; }
+    select(c.getAttribute('data-key'), true);
+  });
+
+  /* ---- analytics of what the list shows ---------------------------------- */
+  var an = document.getElementById('an-body'), anSum = document.getElementById('an-sum');
+  function bars(parent, title, note, rows, pick) {
+    var col = node('div', {}, parent);
+    var h = text(col, 'h3', title); if (note) { text(h, 'small', note); }
+    var ol = node('ol', {}, col), top = Math.max.apply(null, rows.map(function (r) { return r[1]; }).concat([1]));
+    rows.forEach(function (r) {
+      var li = node('li', {}, ol);
+      text(li, 'span', r[0]).title = r[0];
+      node('i', {style: 'width:' + (100 * r[1] / top) + '%'}, node('span', {'class': 'track'}, li));
+      text(li, 'b', String(r[1]));
+      if (pick) {
+        var on = !!state.facet && state.facet.kind === pick && state.facet.value === r[0];
+        li.setAttribute('role', 'button'); li.setAttribute('tabindex', '0');
+        li.setAttribute('aria-pressed', String(on));
+        var go = function () { state.facet = on ? null : {kind: pick, value: r[0]}; refresh(); };
+        li.addEventListener('click', go);
+        li.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+      }
+    });
+    if (!rows.length) { text(col, 'p', 'Nothing to count.', 'foot'); }
+    return col;
+  }
+  function tally(xs) {
+    var m = {};
+    xs.forEach(function (x) { m[x] = (m[x] || 0) + 1; });
+    return Object.keys(m).map(function (k) { return [k, m[k]]; })
+      .sort(function (a, b) { return b[1] - a[1] || (a[0] < b[0] ? -1 : 1); });
+  }
+  function analytics() {
+    var shownCards = cards().filter(function (c) { return !c.hidden; }).map(info);
+    clear(an);
+    var pays = shownCards.filter(function (d) { return d.pay; }).map(function (d) { return (d.pay[0] + d.pay[1]) / 2; });
+    var BANDS = [[0, 60000, 'under 60k'], [60000, 90000, '60-90k'], [90000, 120000, '90-120k'],
+                 [120000, 150000, '120-150k'], [150000, 200000, '150-200k'], [200000, Infinity, '200k and up']];
+    var pay = bars(an, 'Pay, by midpoint', pays.length + ' of ' + shownCards.length + ' state it',
+      BANDS.map(function (b) { return [b[2], pays.filter(function (v) { return v >= b[0] && v < b[1]; }).length]; }));
+    var mp = median(pays);
+    if (mp !== null) { text(pay, 'p', 'Median ' + money(mp) + ' a year. Hourly pay is counted at 2,080 hours.', 'foot'); }
+    var withSkills = shownCards.filter(function (d) { return d.skills && d.skills.length; });
+    bars(an, 'Skills asked for', 'from ' + withSkills.length + ' read by enrich',
+      tally([].concat.apply([], withSkills.map(function (d) { return d.skills; }))).slice(0, 8), 'skill');
+    bars(an, 'Hiring here', 'click to filter',
+      tally(shownCards.map(function (d) { return d.company; })).slice(0, 6), 'company');
+    var placed = shownCards.filter(function (d) { return d.miles !== null && d.miles !== undefined && !d.remote; });
+    var ringsNow = MODES[state.mode].rings, rows = ringsNow.map(function (t, i) {
+      var lo = i ? ringsNow[i - 1] : 0;
+      return [(i ? lo + '-' : 'up to ') + fmtMin(t), placed.filter(function (d) { var m = minutes(d.miles); return m > lo && m <= t; }).length];
+    });
+    var last = ringsNow[ringsNow.length - 1];
+    rows.push(['over ' + fmtMin(last), placed.filter(function (d) { return minutes(d.miles) > last; }).length]);
+    var com = bars(an, 'Time ' + MODES[state.mode].noun, 'estimated', rows);
+    var remoteN = shownCards.length - placed.length;
+    if (remoteN) { text(com, 'p', remoteN + ' remote or unplaced, with no trip to estimate.', 'foot'); }
+    anSum.textContent = shownCards.length + ' in the list' + (mp !== null ? ' · median pay ' + money(mp) : '');
+  }
+
+  /* ---- the radius: live circle, then the server's list -------------------- */
+  var timer = 0, inflight = null;
+  function requery(ms) { clearTimeout(timer); timer = setTimeout(function () { fetchList(); }, ms); }
+  /* The list, from the server. With `pick` it is exactly the cards of one
+     opened bubble: the same page asked for by card key, so every card and
+     every rule on it is the server's, as for the radius. A picked list is a
+     moment, not a place: it is not written into the address bar, and the
+     next radius change brings the whole list back. */
+  function fetchList(pick) {
+    var params = new URLSearchParams(new FormData(form));
+    params.set('radius', String(R));
+    params.delete('anywhere');
+    params.delete('only');
+    var url = '?' + params.toString();
+    if (pick) { params.set('only', pick.keys.join(',')); }
+    var ask = '?' + params.toString();
+    if (inflight) { inflight.abort(); }
+    var mine = inflight = new AbortController();
+    var list = document.getElementById('feed-list');
+    list.setAttribute('aria-busy', 'true'); list.style.opacity = 0.55;
+    fetch(ask, {signal: mine.signal, credentials: 'same-origin'})
+      .then(function (r) { if (!r.ok) { throw new Error(String(r.status)); } return r.text(); })
+      .then(function (html) {
+        if (mine !== inflight) { return; }
+        inflight = null;
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        (pick ? ['feed-list'] : ['summary', 'feed-list']).forEach(function (id) {
+          var a = document.getElementById(id), b = doc.getElementById(id);
+          if (a && b) { a.replaceWith(document.importNode(b, true)); }
+        });
+        var d = doc.getElementById('map-data');
+        if (d) { live.cards = JSON.parse(d.textContent).cards; }
+        if (pick) { pickedBanner(pick); } else { history.replaceState(null, '', url); }
+        bindFeed(); applyFeed(); redraw();
+      })
+      .catch(function (e) {
+        if (e.name === 'AbortError') { return; }
+        var l = document.getElementById('feed-list');
+        l.style.opacity = 1; l.removeAttribute('aria-busy');
+        if (!document.getElementById('feed-stale')) {
+          var p = text(l, 'p', 'The list did not refresh for ' + fmtMiles(R) + '. Press Filter to reload the page.', 'note bad');
+          p.id = 'feed-stale'; l.insertBefore(p, l.firstChild);
+        }
+      });
+  }
+  /* A bubble with several postings, opened: list them all. */
+  function listCluster(c) {
+    var keys = [], seen = {}, where = {};
+    c.m.forEach(function (q) {
+      if (!seen[q.p.key]) { seen[q.p.key] = true; keys.push(q.p.key); }
+      where[q.p.place] = (where[q.p.place] || 0) + 1;
+    });
+    var places = Object.keys(where).sort(function (a, b) { return where[b] - where[a]; });
+    var label = places.length === 1 ? places[0]
+      : places.slice(0, 3).map(function (n) { return n + ' (' + where[n] + ')'; }).join(', ') +
+        (places.length > 3 ? ' and ' + (places.length - 3) + ' more' : '');
+    fetchList({keys: keys, postings: c.m.length, label: label});
+  }
+  function pickedBanner(pick) {
+    var list = document.getElementById('feed-list');
+    var cards = list.querySelectorAll('[data-key]').length;
+    var bar = node('div', {'class': 'picked', role: 'status'}, null);
+    text(bar, 'b', pick.postings + (pick.postings === 1 ? ' posting' : ' postings'));
+    bar.appendChild(document.createTextNode(' in ' + pick.label +
+      (cards !== pick.postings ? ', on ' + cards + (cards === 1 ? ' card' : ' cards') : '')));
+    var back = node('button', {type: 'button'}, bar);
+    back.textContent = 'Show the whole list';
+    back.addEventListener('click', function () { fetchList(); });
+    list.insertBefore(bar, list.firstChild);
+    bar.scrollIntoView({block: 'start', behavior: reduced ? 'auto' : 'smooth'});
+  }
+  slider.addEventListener('input', function () {
+    R = +slider.value;
+    shown.textContent = slider.value + ' miles';
+    counter(); redraw(); requery(250);
+  });
+  slider.addEventListener('change', function () {
+    requery(0);
+    var z = size();
+    if (R * view.s > Math.min(z.w - panelWidth(), z.h) / 2) { fly(fitView(R)); }
+  });
+  anywhere.addEventListener('change', function () { form.submit(); });
+
+  function refresh() { counter(); applyFeed(); redraw(); }
+
+  var note = document.getElementById('map-note');
+  if (note) {
+    note.textContent = live.points.length + ' posting(s) on the map' +
+      (live.remote ? '; ' + live.remote + ' remote, with no distance to draw' : '') +
+      (live.unplaced ? '; ' + live.unplaced + ' naming a place this could not find' : '') +
+      '. Drag to pan, scroll to zoom. Distances are straight-line miles from ' + live.home + '.';
+  }
+  view = fitView(R);
+  bindFeed();
+  refresh();
+})();
+</script>
+{% endblock %}

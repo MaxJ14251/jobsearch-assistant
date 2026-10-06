@@ -108,6 +108,14 @@ def build(folder: Path) -> tuple[Path, Path]:
         elif decide == "reject":
             approvals.reject(con, approval, "Wrong bullets for this role.")
         docs.append(doc)
+    # Fixed times, so a page rendered tomorrow matches one rendered today.
+    con.execute("UPDATE approvals SET requested_at = ?, "
+                "decided_at = CASE WHEN decided_at IS NULL THEN NULL ELSE ? END",
+                (NOW, NOW))
+    con.execute("UPDATE application_events SET occurred_at = ?", (NOW,))
+    con.execute("UPDATE applications SET saved_at = ?, last_activity_at = ?, "
+                "applied_at = CASE WHEN applied_at IS NULL THEN NULL ELSE ? END",
+                (NOW, NOW, NOW))
     con.execute(
         "INSERT INTO interview_prep (id,application_id,round,questions,company_brief,"
         "generated_at) VALUES (1,?,?,?,?,?)",
@@ -162,7 +170,12 @@ def render_all(folder: Path) -> list[Path]:
         prof = profile()
         app = web.create_app(db_path=path, output_dir=out, profile_loader=lambda: prof)
         token = app.state.csrf_token
+        # Nothing from this machine: no mail settings, no profile on disk, and
+        # the basemap's version (a hash of its files' times) held still.
         with TestClient(app, base_url=BASE) as client, \
+             mock.patch("jsa.inbox.settings", return_value=None), \
+             mock.patch("jsa.config.PROFILE_PATH", work / "profile" / "master_profile.yaml"), \
+             mock.patch("jsa.basemap.version", return_value="00000000"), \
              mock.patch("jsa.sources.fetch",
                         return_value=sources.FetchResult(False, [], "offline")), \
              mock.patch("jsa.sources._get_json", side_effect=OSError("offline")), \
