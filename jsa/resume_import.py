@@ -58,7 +58,13 @@ _STREET = re.compile(
     r"\b\d{1,6} [A-Za-z0-9.' ]{2,40}? (?:St|Street|Ave|Avenue|Rd|Road|Blvd|"
     r"Boulevard|Dr|Drive|Ln|Lane|Way|Ct|Court|Pl|Place|Ter|Terrace|Pkwy|"
     r"Circle|Cir)\b\.?(?:,? (?:Apt|Unit|Suite|#) ?\w+)?")
-_NAME = re.compile(r"^[A-Z][A-Za-z'.-]+(?: [A-Z][A-Za-z'.-]+){1,3}$")
+# Name particles that are lowercase inside a name: Ludwig van Beethoven.
+_PARTICLES = {"van", "von", "de", "der", "den", "da", "das", "dos", "del", "della",
+              "di", "du", "la", "le", "bin", "binti", "al", "el", "y", "e", "ter"}
+# What a name line may carry after the name: ", MBA", " | Data Analyst".
+_NAME_TAIL = re.compile(r"\s*(?:[|•·–—]|,\s|\s-\s)")
+# Unzipped, a resume's .docx is well under this; more is a zip bomb (R-19).
+MAX_DOCX_UNZIPPED = 50_000_000
 _BULLET = re.compile(r"^\s*[•●▪◦‣∙·*–—-]\s+")
 _ONGOING = {"present", "current", "now", "today", "ongoing"}
 _LABEL_CONTACT = re.compile(r"\s*[-|,:–—]?\s*\[contact\]")
@@ -92,6 +98,15 @@ def read_docx(path: Path) -> list[str]:
     from docx.table import Table
     from docx.text.paragraph import Paragraph
 
+    try:
+        import zipfile
+        with zipfile.ZipFile(path) as archive:
+            unzipped = sum(i.file_size for i in archive.infolist())
+    except Exception:  # noqa: BLE001 - not a zip: Document() says why below
+        unzipped = 0
+    if unzipped > MAX_DOCX_UNZIPPED:
+        raise ResumeReadError(f"{path.name} unpacks to {unzipped // 1_000_000} MB; a "
+                              "resume is far smaller. Is this the right file?")
     try:
         doc = Document(str(path))
     except Exception as exc:  # python-docx raises several unrelated types
@@ -140,6 +155,9 @@ def read_docx(path: Path) -> list[str]:
 # size and page count are checked before and right after opening.
 MAX_PDF_BYTES = 5_000_000
 MAX_PDF_PAGES = 10            # a resume is 1-3 pages
+# Page content, decompressed. The test fixtures are a few KB a page; a dense
+# two-page resume is well under 100 KB. 2 MB is twenty times that.
+MAX_PDF_CONTENT = 2_000_000
 MIN_PDF_WORDS = 50            # under this over all pages: a scan, no text layer
 SCAN = ("this PDF looks like a scan, with no text to read. Save your resume "
         "as .docx, or export a text PDF from your editor.")
@@ -199,6 +217,17 @@ def read_pdf(path: Path) -> list[str]:
     if len(pages) > MAX_PDF_PAGES:
         raise ResumeReadError(f"{path.name} has {len(pages)} pages; a resume is "
                               "1-3. Is this the right file?")
+    # Text extraction costs about a second per MB of page content, twice (two
+    # modes), and a few-KB file can expand to 75 MB per stream (review R-20).
+    try:
+        content = sum(len(p.get_contents().get_data()) for p in pages
+                      if p.get_contents() is not None)
+    except Exception as exc:  # noqa: BLE001 - a broken content stream
+        raise ResumeReadError(f"{path.name}: its pages could not be read "
+                              f"({exc}). {DOCX_ONLY}") from exc
+    if content > MAX_PDF_CONTENT:
+        raise ResumeReadError(f"{path.name} holds {content // 1_000_000} MB of page "
+                              "content; a resume is far smaller. Is this the right file?")
     try:
         by_mode = {mode: [p.extract_text(extraction_mode=mode) or "" for p in pages]
                    for mode in ("plain", "layout")}
@@ -249,11 +278,37 @@ class Identity:
         }
 
 
-def split_identity(lines: list[str]) -> tuple[Identity, list[str]]:
+def name_on(line: str) -> str | None:
+    """The name a contact-block line starts with, or None.
+
+    2-5 words, each capitalized (any alphabet) or a lowercase particle, before
+    any ", MBA" or " | headline". The ASCII-only pattern this replaces missed
+    "José García", "Jane Doe, MBA" and "Ludwig van Beethoven", and the name
+    then went to the model unredacted (review R-10).
+    """
+    head = _NAME_TAIL.split(line.strip(), maxsplit=1)[0].strip()
+    words = head.split()
+    if not 2 <= len(words) <= 5:
+        return None
+    capitals = 0
+    for word in words:
+        if word.lower() in _PARTICLES and word.islower():
+            continue
+        if not (word[0].isupper() and all(c.isalpha() or c in "'.-" for c in word)):
+            return None
+        capitals += 1
+    return head if capitals >= 2 else None
+
+
+def split_identity(lines: list[str], known: list[str] | None = None
+                   ) -> tuple[Identity, list[str]]:
     """Find contact details and replace each with [contact]. Nothing is guessed:
-    a field that isn't clearly there stays None and the draft marks it TODO."""
+    a field that isn't clearly there stays None and the draft marks it TODO.
+
+    `known`: identity values already on file (the live profile's), redacted
+    wherever they appear, so a name these patterns miss still never leaves."""
     ident = Identity()
-    found: list[str] = []
+    found: list[str] = [v for v in (known or []) if v]
     head = 0
     while head < len(lines) and not _SECTION.match(lines[head]):
         head += 1
@@ -286,9 +341,10 @@ def split_identity(lines: list[str]) -> tuple[Identity, list[str]]:
         if m and ident.city is None:
             ident.city, ident.state = m.group(1), m.group(2)
             found.append(m.group(0))
-        if ident.full_name is None and _NAME.match(line) and not _SECTION.match(line):
-            ident.full_name = line
-            found.append(line)
+        name = None if _SECTION.match(line) else name_on(line)
+        if ident.full_name is None and name:
+            ident.full_name = name
+            found.append(name)
 
     redacted = []
     # Longest first, so a URL containing the name is replaced whole.
@@ -336,11 +392,14 @@ SHAPE = """Return this JSON object:
 """ % ", ".join(FAMILIES)
 
 
-def extract(redacted_lines: list[str], identity: Identity) -> dict[str, Any]:
+def extract(redacted_lines: list[str], identity: Identity,
+            also: dict[str, Any] | None = None) -> dict[str, Any]:
     from .tailor import scrub_prompt
 
     prompt = SHAPE + "\nRESUME:\n" + "\n".join(redacted_lines)
     scrub_prompt(prompt, identity.as_profile())
+    if also:                       # the live profile's identity, when one exists
+        scrub_prompt(prompt, also)
     data, _usage = llm.complete_json(prompt, system=SYSTEM, max_tokens=6000)
     if not isinstance(data, dict):
         raise llm.LLMError("the model did not return a JSON object")
@@ -778,6 +837,18 @@ def read(path: Path) -> list[str]:
     return read_pdf(path) if Path(path).suffix.lower() == ".pdf" else read_docx(path)
 
 
+def _live_identity(live: Path) -> dict[str, Any] | None:
+    """The identity and links of the profile on file, or None."""
+    try:
+        import yaml
+        data = yaml.safe_load(Path(live).read_text(encoding="utf-8")) or {}
+    except Exception:  # noqa: BLE001 - no profile, or not one we can read
+        return None
+    if not isinstance(data, dict):
+        return None
+    return {"identity": data.get("identity") or {}, "links": data.get("links") or {}}
+
+
 def run(path: Path, *, out: Path, live: Path, force: bool = False,
         con: sqlite3.Connection | None = None,
         source_name: str | None = None) -> ImportReport:
@@ -797,8 +868,10 @@ def run(path: Path, *, out: Path, live: Path, force: bool = False,
                            "draft (--force, or tick 'Replace my draft').")
 
     lines = read(path)
-    ident, redacted = split_identity(lines)
-    verified = verify(extract(redacted, ident), "\n".join(redacted))
+    on_file = _live_identity(live)
+    from .tailor import identity_values
+    ident, redacted = split_identity(lines, identity_values(on_file) if on_file else None)
+    verified = verify(extract(redacted, ident, on_file), "\n".join(redacted))
     write_draft(out, ident, verified, source_name or Path(path).name)
 
     import yaml
