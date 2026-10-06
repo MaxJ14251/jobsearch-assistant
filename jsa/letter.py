@@ -315,6 +315,7 @@ def write(job: dict[str, Any], profile: dict[str, Any], draft: TailoredDraft,
             result = llm.complete(
                 attempt_prompt, system=SYSTEM, models=models, max_tokens=700,
                 temperature=0.4 if attempt == 0 else 0.2, thinking=False,
+                purpose="letter",
             )
         except Exception as exc:  # noqa: BLE001 - a failed call falls back
             last = [f"the model call failed ({type(exc).__name__})"]

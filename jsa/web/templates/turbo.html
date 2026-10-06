@@ -159,6 +159,7 @@
     if (busy) parts.push('Drafting: ' + s.running + ' running, ' + s.queued + ' waiting');
     if (s.done_today) parts.push(s.done_today + ' drafted today');
     if (s.pending_review) parts.push(s.pending_review + ' waiting in Review');
+    if (s.model_calls_today) parts.push(s.model_calls_today + ' model call(s) today');
     strip.innerHTML = '';
     strip.append(document.createTextNode(parts.join(' · ')));
     if (s.failed.length) {

@@ -257,6 +257,7 @@ def write(con: sqlite3.Connection, job_id: int, profile: dict[str, Any],
     found: dict[str, list[str]] = {}
     try:
         data, usage = llm.complete_json(prompt, system=SYSTEM, models=models,
+                                        purpose="answers",
                                         max_tokens=900, temperature=0.3,
                                         thinking=False, attempts=2)
         drafted = data if isinstance(data, dict) else {}
@@ -276,6 +277,7 @@ def write(con: sqlite3.Connection, job_id: int, profile: dict[str, Any],
                      + ", ".join(banned[:30]) if banned else "")
                      + ". Say only what the notes say.")
             again, _ = llm.complete_json(retry, system=SYSTEM, models=models,
+                                         purpose="answers",
                                          max_tokens=900, temperature=0.2,
                                          thinking=False, attempts=2)
             if isinstance(again, dict):

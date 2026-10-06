@@ -585,6 +585,20 @@ few to compare": a rate on four applications is luck. The same list is under
 changes nothing.
 
 ```bash
+.venv/Scripts/python -m jsa usage                 # the last 7 days, by purpose
+.venv/Scripts/python -m jsa usage --days 1 --by model
+```
+How many model calls were made and what they cost in tokens: every HTTP
+attempt is counted (retries and fallbacks too), with its purpose (tailor,
+letter, prep, answers, enrich, resume-import, outreach), model, tokens in and
+out, and whether it worked. Set `JSA_PRICE_IN_PER_MTOK` and
+`JSA_PRICE_OUT_PER_MTOK` in `.env` to see an estimated cost; without them
+only counts are shown. If your provider doesn't report token counts, it says
+so and counts calls. Turbo's status strip shows today's calls, `jsa daily`
+reports yesterday's, and `jsa doctor` mentions a day over 200. Only counts
+are kept, never the text of a prompt or a reply.
+
+```bash
 .venv/Scripts/python -m jsa add https://job-boards.greenhouse.io/company/jobs/1234567
 .venv/Scripts/python -m jsa add --paste --company "Acme" --title "Support Engineer" --file posting.txt
 ```

@@ -321,7 +321,7 @@ def generate(
     scrub_prompt(prompt, profile)
 
     data, usage = llm.complete_json(
-        prompt, system=SYSTEM, models=models, max_tokens=1600,
+        prompt, system=SYSTEM, models=models, max_tokens=1600, purpose="prep",
         temperature=0.3, thinking=False, attempts=2,
     )
 

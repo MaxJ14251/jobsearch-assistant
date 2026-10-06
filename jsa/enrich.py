@@ -167,8 +167,9 @@ def validate(data: Any) -> Enrichment:
     )
 
 
-def enrich_one(title: str, description: str, metrics=None) -> Enrichment:
-    """Call the model for a single listing. Raises LLMError or ValueError."""
+def enrich_one(title: str, description: str) -> Enrichment:
+    """Call the model for a single listing. Raises LLMError or ValueError.
+    Each attempt is counted in the model-call ledger (plan 26)."""
     prompt = PROMPT.format(
         title=title or "(untitled)",
         description=posting.visible(description).text,
@@ -181,9 +182,8 @@ def enrich_one(title: str, description: str, metrics=None) -> Enrichment:
         temperature=0.1,
         thinking=False,      # non-negotiable; see the module docstring
         attempts=2,
+        purpose="enrich",
     )
-    if metrics is not None:
-        metrics.record(_usage)
     return validate(data)
 
 
@@ -276,7 +276,6 @@ def run(
     force: bool = False,
     workers: int = DEFAULT_WORKERS,
     progress: bool = True,
-    metrics=None,
     job_ids: list[int] | None = None,
 ) -> EnrichReport:
     """Enrich pending listings. Safe to interrupt — each row commits as it lands."""
@@ -291,7 +290,7 @@ def run(
 
         def work(row: sqlite3.Row):
             try:
-                return row, enrich_one(row["title"], row["description"], metrics), None
+                return row, enrich_one(row["title"], row["description"]), None
             except Exception as exc:  # noqa: BLE001 — one bad row must not stop the pass
                 return row, None, f"{type(exc).__name__}: {str(exc)[:90]}"
 

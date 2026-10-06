@@ -1005,7 +1005,7 @@ def tailor(
     scrub_prompt(prompt, profile)          # fails closed before any network call
 
     data, usage = llm.complete_json(
-        prompt, system=SYSTEM, models=models, max_tokens=1200,
+        prompt, system=SYSTEM, models=models, max_tokens=1200, purpose="tailor",
         temperature=0.3, thinking=False, attempts=2,
     )
 

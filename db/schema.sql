@@ -310,6 +310,26 @@ CREATE TABLE IF NOT EXISTS daily_runs (
     seen_at         TEXT                           -- the dashboard banner's "Got it"
 );
 
+-- One row per HTTP attempt at a model (plan 26): retries and fallbacks are
+-- rows of their own. Counts only: no prompt or reply text is ever stored, and
+-- a test holds this table to these columns.
+CREATE TABLE IF NOT EXISTS model_calls (
+    id                INTEGER PRIMARY KEY,
+    at                TEXT NOT NULL,                 -- UTC, when the attempt ended
+    purpose           TEXT NOT NULL,                 -- tailor, letter, prep, enrich...
+    model             TEXT NOT NULL,
+    prompt_tokens     INTEGER NOT NULL DEFAULT 0,    -- 0 when the provider doesn't say
+    completion_tokens INTEGER NOT NULL DEFAULT 0,
+    total_tokens      INTEGER NOT NULL DEFAULT 0,
+    latency_s         REAL NOT NULL DEFAULT 0,       -- this attempt alone, no retry sleep
+    attempt           INTEGER NOT NULL,              -- 1, 2... within one complete()
+    fell_back         INTEGER NOT NULL DEFAULT 0 CHECK (fell_back IN (0,1)),
+    ok                INTEGER NOT NULL CHECK (ok IN (0,1)),
+    error_kind        TEXT                           -- "http 429", "ReadTimeout"...
+);
+
+CREATE INDEX IF NOT EXISTS idx_model_calls_at ON model_calls(at);
+
 -- Written answers to application-form questions (plan 17, ADR 0027). Fact
 -- answers are read live from the profile and never stored. Append-only: a
 -- regenerate archives the previous set.

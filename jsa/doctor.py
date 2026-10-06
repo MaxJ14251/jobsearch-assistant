@@ -290,6 +290,14 @@ def check_tracker(con: sqlite3.Connection | None, profile: dict[str, Any],
             report.add(False, f"The last daily run was on {started}",
                        "Run `jsa daily`, or check the task you scheduled for it.")
 
+    # Plan 26: a day with far more model calls than any planned one.
+    from . import ledger
+    calls = ledger.on_day(datetime.now().date(), con).calls
+    if calls > ledger.USAGE_WARN_CALLS:
+        report.add(False, f"{calls} model calls today, more than "
+                          f"{ledger.USAGE_WARN_CALLS}",
+                   "See what made them with `jsa usage --days 1`.")
+
     if jobs >= MIN_POSTINGS_FOR_TAGS:
         from .tailor import is_dead, tag_weights, vocabulary
 

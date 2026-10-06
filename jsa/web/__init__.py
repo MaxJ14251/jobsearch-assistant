@@ -785,6 +785,8 @@ def serve(host: str = HOST, port: int = PORT) -> None:
 
     from .. import basemap
     threading.Thread(target=basemap.warm, name="basemap-warm", daemon=True).start()
+    from .. import ledger
+    ledger.install()                       # count every model call (plan 26)
     app = create_app()
     app.state.worker.start()               # Turbo's drafting queue (plan 16)
     uvicorn.run(app, host=host, port=port, log_level="warning")

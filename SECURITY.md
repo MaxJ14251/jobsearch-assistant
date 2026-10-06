@@ -66,6 +66,11 @@ it:
   name, email, phone, street, ZIP, home city and links removed** locally
   first; it refuses before any network call if one is still in the prompt.
 
+**The model-call ledger** (`model_calls` in the tracker, read by `jsa usage`)
+stores counts only: when, for what, which model, the token counts the
+provider reported, the latency and whether it worked. Never prompt or reply
+text; a test holds the table to those columns.
+
 **Backups** (`jsa backup`) hold the tracker, `output/` and your profile, so
 they are as personal as the tracker. They go to `backups/` beside it
 (gitignored, kept out of Docker images, skipped by the scanner) or to a

@@ -400,7 +400,8 @@ def extract(redacted_lines: list[str], identity: Identity,
     scrub_prompt(prompt, identity.as_profile())
     if also:                       # the live profile's identity, when one exists
         scrub_prompt(prompt, also)
-    data, _usage = llm.complete_json(prompt, system=SYSTEM, max_tokens=6000)
+    data, _usage = llm.complete_json(prompt, system=SYSTEM, max_tokens=6000,
+                                     purpose="resume-import")
     if not isinstance(data, dict):
         raise llm.LLMError("the model did not return a JSON object")
     return data

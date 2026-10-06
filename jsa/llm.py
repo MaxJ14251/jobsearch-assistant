@@ -21,10 +21,12 @@ Two things drive the design:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from datetime import datetime, timezone
+from typing import Any, Callable
 
 import httpx
 
@@ -48,6 +50,22 @@ MAX_ATTEMPTS_PER_MODEL = 2
 
 class LLMError(RuntimeError):
     """Every model in the chain failed."""
+
+
+# Called once per HTTP attempt, success or failure, with a dict of counts (no
+# prompt or reply text). `cli.main` and `serve` set it to `ledger.record`;
+# tests leave it None. A failing recorder never fails a model call (plan 26).
+recorder: Callable[[dict[str, Any]], None] | None = None
+
+
+def _record(**row: Any) -> None:
+    if recorder is None:
+        return
+    row.setdefault("at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+    try:
+        recorder(row)
+    except Exception:  # noqa: BLE001 - bookkeeping must not cost a draft
+        logging.getLogger("jsa").debug("model-call ledger: not recorded", exc_info=True)
 
 
 @dataclass
@@ -114,8 +132,12 @@ def complete(
     json_mode: bool = False,
     thinking: bool = False,
     timeout: float = 120.0,
+    purpose: str = "",
 ) -> Completion:
-    """Run a chat completion, falling back through `models` on failure."""
+    """Run a chat completion, falling back through `models` on failure.
+
+    `purpose` names the caller in the model-call ledger (plan 26); every
+    caller in jsa/ passes one, and a test holds them to it."""
     chain = models or DEFAULT_MODELS
     messages = []
     if system:
@@ -147,18 +169,28 @@ def complete(
 
             for attempt in range(MAX_ATTEMPTS_PER_MODEL):
                 attempts += 1
+                tried = time.time()
+                common = {"purpose": purpose or "unspecified", "model": model,
+                          "attempt": attempts, "fell_back": index > 0}
                 try:
                     resp = client.post(
                         f"{BASE_URL}/chat/completions", headers=headers, json=payload
                     )
                 except Exception as exc:  # noqa: BLE001
                     errors.append(f"{model}: {type(exc).__name__}")
+                    _record(**common, ok=False, error_kind=type(exc).__name__,
+                            latency_s=round(time.time() - tried, 2))
                     break  # transport failure — move to the next model
 
                 if resp.status_code == 200:
                     body = resp.json()
                     text = body["choices"][0]["message"]["content"] or ""
                     u = body.get("usage") or {}
+                    _record(**common, ok=True, error_kind=None,
+                            latency_s=round(time.time() - tried, 2),
+                            prompt_tokens=int(u.get("prompt_tokens") or 0),
+                            completion_tokens=int(u.get("completion_tokens") or 0),
+                            total_tokens=int(u.get("total_tokens") or 0))
                     return Completion(
                         text=_strip_reasoning(text),
                         usage=Usage(
@@ -174,6 +206,8 @@ def complete(
                     )
 
                 errors.append(f"{model}: {resp.status_code} {resp.text[:90]}")
+                _record(**common, ok=False, error_kind=f"http {resp.status_code}",
+                        latency_s=round(time.time() - tried, 2))
                 if resp.status_code in RETRY_STATUS:
                     time.sleep(1.5 * (attempt + 1))
                     continue
@@ -318,6 +352,7 @@ def probe_models(candidates: list[str] | None = None) -> list[tuple[str, bool, s
     with httpx.Client(timeout=60.0) as client:
         for model in chain:
             try:
+                tried = time.time()
                 r = client.post(
                     f"{BASE_URL}/chat/completions",
                     headers=headers,
@@ -327,6 +362,10 @@ def probe_models(candidates: list[str] | None = None) -> list[tuple[str, bool, s
                         "max_tokens": 10,
                     },
                 )
+                _record(purpose="probe", model=model, attempt=1, fell_back=False,
+                        ok=r.status_code == 200,
+                        error_kind=None if r.status_code == 200 else f"http {r.status_code}",
+                        latency_s=round(time.time() - tried, 2))
                 out.append(
                     (model, r.status_code == 200,
                      "ok" if r.status_code == 200 else f"{r.status_code} {r.text[:60]}")

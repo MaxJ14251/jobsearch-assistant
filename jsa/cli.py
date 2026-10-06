@@ -527,11 +527,11 @@ def cmd_enrich(args: argparse.Namespace) -> int:
     else:
         print(f"enriching up to {args.limit} listing(s) scoring >= {args.min}"
               f"{' (forced re-run)' if args.force else ''}...")
-    from .log import RunMetrics
-    metrics = RunMetrics()
+    from . import ledger
+    started = ledger.stamp()
     report = enrich.run(min_score=args.min, limit=args.limit,
                         force=args.force, workers=args.workers,
-                        metrics=metrics, job_ids=args.job or None)
+                        job_ids=args.job or None)
 
     if not report.attempted:
         if args.job:
@@ -552,6 +552,9 @@ def cmd_enrich(args: argparse.Namespace) -> int:
         print(f"  require a clearance : {report.clearance_required}")
         print("\nThese are flagged, not filtered — a degree line is often boilerplate.")
         print("See them with `python -m jsa matches`.")
+    spent = ledger.since(started, purpose="enrich")
+    if spent.calls:
+        print(f"\n  {spent.line()}")
     return 0 if report.succeeded or not report.failed else 1
 
 
@@ -1402,6 +1405,45 @@ def cmd_due(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_usage(args: argparse.Namespace) -> int:
+    """What the model calls cost, from the ledger (plan 26). Counts only."""
+    from . import ledger
+
+    if not DB_PATH.exists():
+        print("no tracker yet, so no model calls recorded.")
+        return 0
+    con = db.connect()
+    try:
+        result = ledger.usage(con, days=args.days, by=args.by)
+    finally:
+        con.close()
+    span = "today" if args.days == 1 else f"the last {args.days} days"
+    if not result.total.calls:
+        print(f"No model calls in {span}.")
+        return 0
+    priced = result.price_in is not None and result.price_out is not None
+    width = max(len(r.group) for r in result.rows + [ledger.Spent(group=args.by)])
+    head = (f"{args.by:<{width}}  {'calls':>6}  {'failed':>6}  {'fallback':>8}  "
+            f"{'tokens in':>10}  {'tokens out':>10}" + ("  est. cost" if priced else ""))
+    print(f"Model calls in {span}, by {args.by}:\n")
+    print(head)
+    for row in result.rows + [ledger.Spent(**{**result.total.__dict__, "group": "total"})]:
+        cost = result.cost(row)
+        print(f"{row.group:<{width}}  {row.calls:>6}  {row.failed:>6}  {row.fell_back:>8}  "
+              f"{row.tokens_in:>10,}  {row.tokens_out:>10,}"
+              + (f"  ${cost:>8.2f}" if priced and cost is not None else ""))
+    if result.no_token_counts:
+        print("\nYour provider doesn't report token counts; only calls are counted.")
+    if priced:
+        print("\nThe cost is an estimate from the prices in .env "
+              f"({ledger.PRICE_IN_ENV}, {ledger.PRICE_OUT_ENV}), per million tokens.")
+    else:
+        print(f"\nSet {ledger.PRICE_IN_ENV} and {ledger.PRICE_OUT_ENV} in .env "
+              "(per million tokens) to see an estimated cost.")
+    print("Only counts are kept: no prompt or reply text is ever stored.")
+    return 0
+
+
 def cmd_outcomes(args: argparse.Namespace) -> int:
     """What happened to each application. A report; it changes nothing."""
     from . import outcomes
@@ -1840,6 +1882,11 @@ def main(argv: list[str] | None = None) -> int:
                        help="how far ahead to look (default 7)")
     p_due.set_defaults(func=cmd_due)
 
+    p_use = sub.add_parser("usage", help="how many model calls, and their tokens")
+    p_use.add_argument("--days", type=int, default=7, help="how far back (default 7)")
+    p_use.add_argument("--by", choices=["purpose", "model", "day"], default="purpose")
+    p_use.set_defaults(func=cmd_usage)
+
     p_out = sub.add_parser("outcomes", help="what happened to each application")
     p_out.add_argument("--by", choices=["source_kind", "role_kind", "cover_letter",
                                         "redrafted", "speed", "via"],
@@ -1883,8 +1930,10 @@ def main(argv: list[str] | None = None) -> int:
             stream.reconfigure(errors="replace")
     from .log import configure
     configure(getattr(args, "verbose", False))
+    from . import ledger, llm
     from .llm import LLMError
 
+    previous = ledger.install()            # count every model call (plan 26)
     try:
         return args.func(args)
     except ConfigError as exc:
@@ -1896,6 +1945,8 @@ def main(argv: list[str] | None = None) -> int:
         # the bottom, which reads as a broken tool.
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    finally:
+        llm.recorder = previous
 
 
 if __name__ == "__main__":

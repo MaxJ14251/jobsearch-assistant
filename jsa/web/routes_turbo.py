@@ -42,6 +42,8 @@ def register(app, ctx) -> None:
             parts.append(f"{s['pending_review']} waiting in Review")
         if s["failed"]:
             parts.append(f"{len(s['failed'])} failed")
+        if s["model_calls_today"]:
+            parts.append(f"{s['model_calls_today']} model call(s) today")
         return " · ".join(parts)
 
     @app.get("/turbo", response_class=HTMLResponse)

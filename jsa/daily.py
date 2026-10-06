@@ -128,7 +128,18 @@ def summarize(con: sqlite3.Connection, since: str) -> dict[str, Any]:
         "due": sum(1 for d in due if d.days_out is not None),
         "review": con.execute("SELECT COUNT(*) FROM approvals "
                               "WHERE decision = 'pending'").fetchone()[0],
+        "model_calls": _yesterday(con),
     }
+
+
+def _yesterday(con: sqlite3.Connection) -> dict[str, int]:
+    """Yesterday's model calls (plan 26): what the day before this run cost."""
+    from datetime import date
+
+    from . import ledger
+    spent = ledger.on_day(date.today() - timedelta(days=1), con)
+    return {"calls": spent.calls, "tokens_in": spent.tokens_in,
+            "tokens_out": spent.tokens_out}
 
 
 def summary_line(summary: dict[str, Any]) -> str:
@@ -201,6 +212,11 @@ def report(result: Run) -> str:
                  + summary_line(result.summary))
     for t in result.summary.get("top") or []:
         lines.append(f"  {t['score']:.2f}  #{t['job_id']} {t['company']} — {t['title']}")
+    calls = result.summary.get("model_calls") or {}
+    if calls.get("calls"):
+        tokens = (f", {calls['tokens_in']:,} tokens in / {calls['tokens_out']:,} out"
+                  if calls.get("tokens_in") or calls.get("tokens_out") else "")
+        lines.append(f"yesterday: {calls['calls']} model call(s){tokens} (jsa usage)")
     lines.append("")
     lines.append("ok" if result.ok else
                  "FAILED: " + ", ".join(result.summary.get("failed") or []))

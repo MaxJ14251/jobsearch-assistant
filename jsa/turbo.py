@@ -177,7 +177,14 @@ def status(con: sqlite3.Connection) -> dict[str, Any]:
                    for r in rows if r["state"] == "failed"
                    and db.local_date(r["finished_at"]) == today],
         "pending_review": pending,
+        # Every model call today, any purpose (plan 26's ledger).
+        "model_calls_today": _calls_today(con, today),
     }
+
+
+def _calls_today(con: sqlite3.Connection, today: date) -> int:
+    from . import ledger
+    return ledger.on_day(today, con).calls
 
 
 # --- the worker -----------------------------------------------------------------

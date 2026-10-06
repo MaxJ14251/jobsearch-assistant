@@ -408,6 +408,7 @@ def draft(
         result = llm.complete(
             attempt_prompt, system=SYSTEM, models=models, max_tokens=600,
             temperature=0.4 if attempt == 0 else 0.2, thinking=False,
+            purpose="outreach",
         )
         body = re.sub(r"\n{3,}", "\n\n", result.text.strip())
 
@@ -420,7 +421,7 @@ def draft(
             retry = llm.complete(
                 SHORTEN.format(actual=len(body), limit=limit, body=body),
                 system=SYSTEM, models=models, max_tokens=600,
-                temperature=0.3, thinking=False,
+                temperature=0.3, thinking=False, purpose="outreach-shorten",
             )
             shorter = re.sub(r"\n{3,}", "\n\n", retry.text.strip())
             if not shorter:
