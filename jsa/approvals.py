@@ -436,7 +436,9 @@ VIA_LABELS = {"linkedin": "LinkedIn", "indeed": "Indeed",
 _BOARD_HOSTS = ("greenhouse.io", "lever.co", "ashbyhq.com", "myworkdayjobs.com",
                 "workable.com", "smartrecruiters.com", "icims.com", "jobvite.com",
                 "bamboohr.com", "recruitee.com", "breezy.hr", "rippling-ats.com",
-                "dover.com", "teamtailor.com")
+                "dover.com", "teamtailor.com",
+                # Federal jobs: the agencies' own application system (plan 29).
+                "usajobs.gov")
 
 
 _HOST_RE = re.compile(r"^https?://(?:[^/?#@]*@)?([^/?#:@]+)", re.I)

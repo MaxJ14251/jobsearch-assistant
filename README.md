@@ -34,7 +34,17 @@ It needs a free key in `.env` as `MUSE_API_KEY` (register at
 [themuse.com/developers/api/v2/apps](https://www.themuse.com/developers/api/v2/apps)
 — their terms ask you to). Without it that source is skipped, discovery still
 runs, and you get remote roles plus whatever the employer feeds hold near you.
-`jsa doctor` tells you your own numbers on day one. You can still add employers
+`jsa doctor` tells you your own numbers on day one.
+
+**Federal jobs in your cities** come from USAJOBS, the second source asked
+about your own locations. It needs a free key and the email address you
+requested it with, in `.env` as `USAJOBS_API_KEY` and `USAJOBS_EMAIL`
+(request one at [developer.usajobs.gov](https://developer.usajobs.gov/APIRequest/)).
+USAJOBS asks for that email in every request; it goes there and nowhere else.
+Each posting links to its USAJOBS page, which is where you apply. The shipped
+entry stays unverified until someone runs it with a real key: after setting
+both values, run `jsa verify`, and if USAJOBS returns listings, set its
+`verified:` to `true` (or `jsa verify --write`). You can still add employers
 near you to [jsa/resources/companies.yaml](jsa/resources/companies.yaml) and run
 `python -m jsa verify`; see
 [ADR 0009](docs/decisions/0009-what-the-shipped-feed-list-is.md) for why the
@@ -854,7 +864,8 @@ Playwright is deliberately absent from requirements.txt.
 ## Feed coverage
 
 **Supported board types:** Greenhouse, Lever, Ashby, Workday, Workable and
-Recruitee, plus RSS and two company-specific APIs. Any employer on one of
+Recruitee, plus RSS and two company-specific APIs, and two sources asked
+about your own cities: The Muse and USAJOBS. Any employer on one of
 these can be added to your own companies list (`kind:` and `board:`; see the
 list's header) and checked with `jsa verify`. Recruitee says it will require
 the employer's own token from 10 February 2027, after which its boards report

@@ -46,8 +46,11 @@ it:
 
 - `jsa discover` and `jsa verify` read public job boards (GET requests;
   Workday boards take their search as a POST body). Nothing about you is in
-  those requests, except that the nationwide source is asked about the
-  cities in your profile. `jsa add <link>` fetches the one page you give it.
+  those requests, except that the nationwide sources are asked about the
+  cities in your profile, and USAJOBS (only if you set it up) receives the
+  email address you requested its key with, in the User-Agent header its
+  terms require. The key and that email stay in `.env` and are never printed
+  or stored in the tracker. `jsa add <link>` fetches the one page you give it.
 - `jsa inbox` (only if you set it up) reads your mailbox over IMAP, read-only:
   the folder is opened read-only, nothing is marked read, and nothing is
   sent or changed. What it keeps is each matching reply's subject, date and

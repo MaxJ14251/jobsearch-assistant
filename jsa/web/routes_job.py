@@ -37,8 +37,9 @@ def register(app, ctx) -> None:
         con = connect()
         try:
             row = con.execute(
-                "SELECT j.*, c.name AS company FROM jobs j "
-                "JOIN companies c ON c.id = j.company_id WHERE j.id = ?",
+                "SELECT j.*, c.name AS company, "
+                "(SELECT kind FROM sources WHERE id = j.source_id) AS source_kind "
+                "FROM jobs j JOIN companies c ON c.id = j.company_id WHERE j.id = ?",
                 (job_id,)).fetchone()
             if row is None:
                 return not_found("job")

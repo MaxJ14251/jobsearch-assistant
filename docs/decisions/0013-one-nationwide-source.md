@@ -104,3 +104,26 @@ dropped, not merged.
   what it was: remote roles everywhere, local roles where the shipped
   employers have offices. That is a real dependency, and the reason USAJOBS
   is recorded here as the obvious second source rather than a discarded one.
+
+## USAJOBS added, 2026-10-07 (plan 29)
+
+USAJOBS is now the second source asked about the operator's own cities
+(`kind: usajobs`). The 401 recorded above was its key requirement: a free key
+from developer.usajobs.gov, sent with the requesting email as the
+User-Agent. Its API terms (section 2, read 2026-10-07) allow this use: the
+data is "for the explicit use of the requesting company or individual", may
+be stored and reformatted "for internal application purposes", must keep
+"displayed data values" unaltered, credit USAJOBS and send people to USAJOBS
+to view and apply, and may not be redistributed. So every person uses their
+own key; postings keep USAJOBS's own text and link to their USAJOBS page,
+and the job page says the posting is from USAJOBS.
+
+It is shaped like The Muse: per city, bounded (`USAJOBS_MAX_PAGES = 2`
+pages of 100), skipped without settings, one row across cities, and the
+agency as the employer, so `find_duplicate` works as before.
+
+**Not yet measured.** The key belongs to the owner and has not been
+requested yet, so the coverage numbers (per city: postings, local, remote,
+agencies, how many pass `min_score`), whether `Keyword` from target titles
+helps, and the page bound are still to be set from one real run. Until then
+the shipped entry is `verified: false` and discovery does not poll it.

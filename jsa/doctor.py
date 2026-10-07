@@ -405,7 +405,24 @@ def check_market(profile: dict[str, Any], con: sqlite3.Connection | None,
                    f"Measured 2026-09-26, it returned 9 Boise postings per "
                    f"run where these feeds had none at all. You can also add "
                    f"employers near you to {COMPANIES_PATH}.")
+        if not (os.environ.get("USAJOBS_API_KEY", "").strip()
+                and os.environ.get("USAJOBS_EMAIL", "").strip()):
+            fix += (" For federal jobs in your cities, set USAJOBS_API_KEY and "
+                    "USAJOBS_EMAIL (free, from developer.usajobs.gov).")
         report.add(False, f"Only {local} on-site posting(s) in {named}", fix)
+
+
+def check_usajobs(report: Report) -> None:
+    """Both USAJOBS settings or neither. Presence only, never the values."""
+    import os
+
+    have = [v for v in ("USAJOBS_API_KEY", "USAJOBS_EMAIL")
+            if os.environ.get(v, "").strip()]
+    if len(have) == 1:
+        missing = "USAJOBS_EMAIL" if have == ["USAJOBS_API_KEY"] else "USAJOBS_API_KEY"
+        report.add(False, f"{have[0]} is set but {missing} is not",
+                   "USAJOBS needs both: the key, and the email address you "
+                   "requested it with. Until both are in .env, discovery skips it.")
 
 
 def check_api_key(report: Report) -> None:
@@ -495,5 +512,6 @@ def run(profile: dict[str, Any] | None,
     check_market(profile, con, report)
     check_basemap(report)
     check_api_key(report)
+    check_usajobs(report)
     check_secrets(report)
     return report

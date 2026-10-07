@@ -176,7 +176,7 @@ document.querySelectorAll('button.copy').forEach(function (b) {
 
 <h2>Posting</h2>
 {% if job.enrichment_note %}<p class="sub">{{ job.enrichment_note }}</p>{% endif %}
-<p><a class="plain" href="{{ job.url|safe_url }}" rel="noopener">Open the original posting</a>{% if job.description_origin == 'pasted' %} · <span class="meta">text pasted by you; discovery will not overwrite it</span>{% endif %}</p>
+<p><a class="plain" href="{{ job.url|safe_url }}" rel="noopener">Open the original posting</a>{% if job.source_kind == 'usajobs' %} · <span class="meta">from USAJOBS, the federal government's job site; view and apply there</span>{% endif %}{% if job.description_origin == 'pasted' %} · <span class="meta">text pasted by you; discovery will not overwrite it</span>{% endif %}</p>
 {% if thin %}
 <p class="note bad">{{ thin[:1]|upper }}{{ thin[1:] }}</p>
 <form class="stack" method="post" action="/job/{{ job.id }}/fill" onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Saving…'">

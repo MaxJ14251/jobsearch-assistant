@@ -92,6 +92,9 @@ KEY_PATTERNS = [
     # on a line that mentions a password. .env.example ships the key empty.
     ("Mailbox app password in a settings line",
      re.compile(r"JSA_IMAP_APP_PASSWORD[ \t]*=[ \t]*[^\s#]+")),
+    # Plan 29: the USAJOBS key with a value, anywhere but .env.
+    ("USAJOBS API key in a settings line",
+     re.compile(r"USAJOBS_API_KEY[ \t]*=[ \t]*[^\s#]+")),
     ("Gmail app password", re.compile(
         r"(?i:password)[^\n]*?(?<![A-Za-z])[a-z]{4} [a-z]{4} [a-z]{4} [a-z]{4}(?![A-Za-z])")),
 ]

@@ -58,9 +58,17 @@ def _slug(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "company"
 
 
+# Sources asked about the operator's own cities, and the .env settings each
+# needs: entry field -> environment variable. Keys stay out of companies.yaml.
+NATIONWIDE = {
+    "themuse": {"api_key": "MUSE_API_KEY"},
+    "usajobs": {"api_key": "USAJOBS_API_KEY", "email": "USAJOBS_EMAIL"},
+}
+
+
 def _verify_context(entry: dict[str, Any]) -> dict[str, Any]:
     """Same context, for `jsa verify`, which runs before a tracker exists."""
-    if entry.get("kind") != "themuse":
+    if entry.get("kind") not in NATIONWIDE:
         return entry
     try:
         prefs = Preferences.from_profile(load_profile())
@@ -80,11 +88,12 @@ def _with_context(entry: dict[str, Any], prefs: Preferences) -> dict[str, Any]:
         # Lets the fetcher skip detail requests for title-rejected postings
         # (Plan 3). Only discovery passes it: verify probes the whole board.
         return {**entry, "title_filter": prefs}
-    if entry.get("kind") != "themuse":
+    if entry.get("kind") not in NATIONWIDE:
         return entry
     import os
-    return {**entry, "locations": prefs.locations,
-            "api_key": os.environ.get("MUSE_API_KEY", "")}
+    settings = {field: os.environ.get(var, "")
+                for field, var in NATIONWIDE[entry["kind"]].items()}
+    return {**entry, "locations": prefs.locations, **settings}
 
 
 def discover(

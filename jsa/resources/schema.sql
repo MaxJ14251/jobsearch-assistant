@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS sources (
     id              INTEGER PRIMARY KEY,
     name            TEXT NOT NULL UNIQUE,          -- 'anthropic-greenhouse'
     kind            TEXT NOT NULL
-                      CHECK (kind IN ('greenhouse','lever','ashby','workday','workable','recruitee','custom','rss','themuse','manual','other')),
+                      CHECK (kind IN ('greenhouse','lever','ashby','workday','workable','recruitee','custom','rss','themuse','usajobs','manual','other')),
     url             TEXT NOT NULL,                 -- the JSON feed / RSS endpoint
     company_id      INTEGER REFERENCES companies(id) ON DELETE SET NULL,
     enabled         INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0,1)),

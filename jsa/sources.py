@@ -768,6 +768,145 @@ def fetch_themuse(entry: dict[str, Any]) -> FetchResult:
     return FetchResult(True, list(jobs.values()), "ok")
 
 
+# --- USAJOBS ----------------------------------------------------------------
+# The second nationwide source (ADR 0013): every federal job open to the
+# public, asked about the operator's own cities, as The Muse is.
+#
+# Read 2026-10-07 at developer.usajobs.gov (plan 29):
+# - Authentication: every call sends `Host: data.usajobs.gov`, a User-Agent
+#   that "should be the email address used when requesting the API Key", and
+#   `Authorization-Key`. Keys come from developer.usajobs.gov/APIRequest.
+# - Rate limiting: "Maximum of 500 rows per page", "Maximum of 10,000 rows
+#   per query"; results "default to public jobs". No request rate is stated.
+# - Terms of Service (on the API Request page), section 2: data "is for the
+#   explicit use of the requesting company or individual"; "You may store and
+#   reformat API data for internal application purposes" provided "displayed
+#   data values are not altered", "USAJOBS is clearly credited as the source"
+#   and "users are directed to USAJOBS to view and apply"; no redistribution
+#   to third parties. So each person uses their own key, the posting links to
+#   its USAJOBS page, and the source is named USAJOBS wherever it shows.
+# The general system-use notice (/guides/terms-of-use) adds monitoring and a
+# ban on unauthorized use; nothing in either forbids this use.
+#
+# The email is personal: it goes in the header and nowhere else -- not in a
+# status line, an exception or the ledger.
+
+USAJOBS_BASE = "https://data.usajobs.gov/api/search"
+# Per city per run, 100 a page. Not yet measured against a real key (plan 29
+# step 3 waits for one); 200 of the newest per city is the same order as The
+# Muse's 100, and far under the 10,000-row query cap.
+USAJOBS_MAX_PAGES = 2
+USAJOBS_PAGE_SIZE = 100
+_USAJOBS_PERIODS = {"PA": "year", "PH": "hour"}
+
+
+def usajobs_url(entry: dict[str, Any]) -> str:
+    return USAJOBS_BASE
+
+
+def _usajobs_job(item: dict[str, Any]) -> dict[str, Any] | None:
+    d = item.get("MatchedObjectDescriptor") or {}
+    url = (d.get("PositionURI") or "").strip()
+    ident = str(item.get("MatchedObjectId") or d.get("PositionID") or "").strip()
+    if not url or not ident:
+        return None
+    details = (d.get("UserArea") or {}).get("Details") or {}
+    duties = details.get("MajorDuties") or []
+    if isinstance(duties, str):
+        duties = [duties]
+    desc = "\n\n".join(p for p in (strip_html(details.get("JobSummary")),
+                                   *(strip_html(x) for x in duties)) if p)
+    places = [str(p.get("CityName") or p.get("LocationName") or "").strip()
+              for p in d.get("PositionLocation") or []]
+    location = "; ".join(dict.fromkeys(p for p in places if p)) \
+        or (d.get("PositionLocationDisplay") or "")
+    if details.get("RemoteIndicator") is True:
+        remote = "remote"
+    elif details.get("TeleworkEligible") is True:
+        remote = "hybrid"      # some days at home; the job is still at a place
+    else:
+        remote = classify_remote(location, desc)
+    parts = []
+    for pay in d.get("PositionRemuneration") or []:
+        period = _USAJOBS_PERIODS.get(str(pay.get("RateIntervalCode") or "").upper())
+        try:
+            pair = salary._pair(pay.get("MinimumRange") or None,
+                                pay.get("MaximumRange") or None)
+        except ValueError:
+            pair = None
+        if period and pair:
+            parts.append((*pair, period, "USD"))
+    schedule = (d.get("PositionSchedule") or [{}])[0].get("Name")
+    return {
+        "external_id": ident,
+        "employer": (d.get("OrganizationName") or "").strip(),
+        "title": d.get("PositionTitle") or "",
+        "department": d.get("DepartmentName"),
+        "location": location,
+        "remote": remote,
+        "employment_type": norm_employment(schedule),
+        "url": url,
+        "description": desc,
+        "description_hash": content_hash(desc),
+        "posted_at": d.get("PublicationStartDate"),
+        "pay": salary._combine(parts, "USAJOBS"),
+    }
+
+
+def fetch_usajobs(entry: dict[str, Any]) -> FetchResult:
+    """Public federal postings in the operator's own cities.
+
+    `locations`, `api_key` and `email` are filled in by discovery from the
+    profile and .env. Without the key or the email it is skipped, not failed.
+    """
+    locations = [str(l).strip() for l in (entry.get("locations") or []) if str(l).strip()]
+    if not locations:
+        return FetchResult(
+            False, [], "no locations: fill in job_search_preferences.locations")
+    key = (entry.get("api_key") or "").strip()
+    email = (entry.get("email") or "").strip()
+    if not key or not email:
+        return FetchResult(True, [], "skipped (no USAJOBS_API_KEY / USAJOBS_EMAIL; "
+                                     "request a free key at developer.usajobs.gov)")
+
+    jobs: dict[str, dict[str, Any]] = {}
+    headers = {"Host": "data.usajobs.gov", "User-Agent": email, "Authorization-Key": key}
+    try:
+        with _client() as client:
+            for city in locations:
+                for page in range(1, USAJOBS_MAX_PAGES + 1):
+                    resp = client.get(USAJOBS_BASE, headers=headers, params={
+                        "LocationName": city, "ResultsPerPage": USAJOBS_PAGE_SIZE,
+                        "Page": page})
+                    if resp.status_code == 401:
+                        return FetchResult(False, list(jobs.values()),
+                                           "USAJOBS refused the key (401): check "
+                                           "USAJOBS_API_KEY, and that USAJOBS_EMAIL is "
+                                           "the address you requested it with")
+                    if resp.status_code == 429:
+                        return FetchResult(False, list(jobs.values()),
+                                           "rate limited by USAJOBS (429)")
+                    if resp.status_code >= 400:
+                        return FetchResult(False, list(jobs.values()),
+                                           f"USAJOBS answered {resp.status_code}")
+                    result = (resp.json() or {}).get("SearchResult") or {}
+                    items = result.get("SearchResultItems") or []
+                    for item in items:
+                        job = _usajobs_job(item)
+                        if job:
+                            jobs[job["external_id"]] = job   # one row across cities
+                    pages = int(((result.get("UserArea") or {}).get("NumberOfPages")
+                                 or 1))
+                    if len(items) < USAJOBS_PAGE_SIZE or page >= pages:
+                        break
+                    time.sleep(POLITE_DELAY_S)
+                time.sleep(POLITE_DELAY_S)
+    except Exception as exc:  # noqa: BLE001
+        # The exception's own text, never the request's headers.
+        return FetchResult(False, list(jobs.values()), f"{type(exc).__name__}")
+    return FetchResult(True, list(jobs.values()), "ok")
+
+
 # --- dispatch ---------------------------------------------------------------
 
 FETCHERS: dict[str, Callable[[dict[str, Any]], FetchResult]] = {
@@ -780,6 +919,7 @@ FETCHERS: dict[str, Callable[[dict[str, Any]], FetchResult]] = {
     "custom": fetch_custom,
     "rss": fetch_rss,
     "themuse": fetch_themuse,
+    "usajobs": fetch_usajobs,
 }
 
 URL_BUILDERS: dict[str, Callable[[dict[str, Any]], str]] = {
@@ -790,6 +930,7 @@ URL_BUILDERS: dict[str, Callable[[dict[str, Any]], str]] = {
     "workable": workable_url,
     "recruitee": recruitee_url,
     "themuse": themuse_url,
+    "usajobs": usajobs_url,
 }
 
 REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
@@ -802,6 +943,7 @@ REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
     "custom": ("handler",),
     "rss": ("url",),
     "themuse": (),
+    "usajobs": (),
 }
 
 

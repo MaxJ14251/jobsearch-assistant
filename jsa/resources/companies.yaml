@@ -15,6 +15,7 @@
 #   workday                           tenant, wd, site
 #   custom                            handler  (see jsa/sources.py CUSTOM)
 #   rss                               url
+#   themuse, usajobs                  none: asked about your own cities, keys in .env
 
 sources:
 
@@ -41,6 +42,23 @@ sources:
     hq: nationwide
     priority: 1
     verified: true
+
+  # Every federal job open to the public, asked about YOUR cities like the
+  # one above (plan 29; ADR 0013). It needs a free key and the email you
+  # requested it with, in .env as USAJOBS_API_KEY and USAJOBS_EMAIL. Without
+  # them, discovery reports it as skipped. Each posting links to its USAJOBS
+  # page, where you apply; the API terms ask for exactly that.
+  #
+  # Not yet verified: nobody has run it with a real key. Once you have set
+  # both values, run `jsa verify` and, if it returns listings, set this to
+  # true (or `jsa verify --write`).
+  - company: USAJOBS
+    slug: usajobs
+    kind: usajobs
+    careers_url: https://www.usajobs.gov
+    hq: nationwide
+    priority: 1
+    verified: false
 
 
   # ==========================================================================

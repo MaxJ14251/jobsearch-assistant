@@ -14,6 +14,12 @@ version number lives in one place, `jsa/__init__.py`.
   HR were checked and declined on their own terms
   ([ADR 0020](docs/decisions/0020-postings-the-tool-may-not-read.md)).
 
+- **Federal jobs from USAJOBS**, asked about your own cities like The Muse,
+  once you put a free key and the email you requested it with in `.env`
+  (`USAJOBS_API_KEY`, `USAJOBS_EMAIL`). Each posting links to USAJOBS, where
+  you apply. `jsa doctor` says when only one of the two is set
+  ([ADR 0013](docs/decisions/0013-one-nationwide-source.md)).
+
 ### Fixed
 
 - A tracker made before a newer source kind is now rebuilt for it (with a
