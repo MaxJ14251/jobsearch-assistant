@@ -73,7 +73,7 @@ def upgrade(path: Path = DB_PATH, schema: Path = SCHEMA_PATH) -> list[str]:
     """
     path = Path(path)
     if path.exists():
-        snapshot_before_rebuild(path)
+        snapshot_before_rebuild(path, schema)
     con = connect(path)
     try:
         con.executescript(schema.read_text(encoding="utf-8"))
@@ -87,18 +87,18 @@ def upgrade(path: Path = DB_PATH, schema: Path = SCHEMA_PATH) -> list[str]:
     return applied
 
 
-def rebuilds_pending(con: sqlite3.Connection) -> list[str]:
+def rebuilds_pending(con: sqlite3.Connection, schema_sql: str | None = None) -> list[str]:
     """The whole-table rebuilds migrate() would run on this tracker. Reads only."""
     pending = []
     if _approvals_stale(con):
         pending.append("approvals")
-    if _sources_stale(con):
+    if _sources_stale(con, schema_sql):
         pending.append("sources")
     pending += _dangling_tables(con)
     return pending
 
 
-def snapshot_before_rebuild(path: Path) -> Path | None:
+def snapshot_before_rebuild(path: Path, schema: Path = SCHEMA_PATH) -> Path | None:
     """Copy the tracker before a migration rebuilds a table (ADR 0025).
 
     Those rebuilds' own docstrings record past damage to the author's
@@ -112,7 +112,7 @@ def snapshot_before_rebuild(path: Path) -> Path | None:
 
     con = connect(path)
     try:
-        pending = rebuilds_pending(con)
+        pending = rebuilds_pending(con, schema.read_text(encoding="utf-8"))
     finally:
         con.close()
     if not pending:
@@ -263,11 +263,32 @@ def _approvals_stale(con: sqlite3.Connection) -> str:
     return "check" if "superseded" not in sql else ""
 
 
-def _sources_stale(con: sqlite3.Connection) -> bool:
+_KIND_CHECK_RE = re.compile(r"CHECK\s*\(\s*kind\s+IN\s*\(([^)]*)\)", re.I)
+_SOURCES_TABLE_RE = re.compile(r"CREATE TABLE IF NOT EXISTS\s+sources\s*\(.*?\n\);", re.S)
+
+
+def source_kinds(table_sql: str) -> set[str]:
+    """The kinds a `sources` table's CHECK allows: {'greenhouse', 'lever', ...}."""
+    match = _KIND_CHECK_RE.search(table_sql or "")
+    return set(re.findall(r"'([^']+)'", match.group(1))) if match else set()
+
+
+def _sources_stale(con: sqlite3.Connection, schema_sql: str | None = None) -> bool:
+    """True when the live CHECK lacks any kind the schema lists.
+
+    This once looked for one word ('themuse'), the newest kind at the time,
+    so a tracker made before the next kind would never have been rebuilt and
+    the first posting of that kind would fail its CHECK (plan 28)."""
     row = con.execute(
         "SELECT sql FROM sqlite_master WHERE type='table' AND name='sources'"
     ).fetchone()
-    return bool(row) and "themuse" not in (row["sql"] or "")
+    if not row:
+        return False
+    if schema_sql is None:
+        schema_sql = SCHEMA_PATH.read_text(encoding="utf-8")
+    table = _SOURCES_TABLE_RE.search(schema_sql)
+    wanted = source_kinds(table.group(0)) if table else set()
+    return bool(wanted - source_kinds(row["sql"] or ""))
 
 
 def _dangling_tables(con: sqlite3.Connection) -> list[str]:
@@ -374,14 +395,11 @@ def _rebuild_sources_if_stale(con: sqlite3.Connection, schema_sql: str) -> list[
     constraint error on the first discovery run, which reads as a bug in the
     feed rather than an out-of-date table.
     """
-    if not _sources_stale(con):
+    if not _sources_stale(con, schema_sql):
         return []
 
-    import re as _re
-
     cols = [r["name"] for r in con.execute("PRAGMA table_info(sources)")]
-    match = _re.search(r"CREATE TABLE IF NOT EXISTS\s+sources\s*\(.*?\n\);",
-                       schema_sql, _re.S)
+    match = _SOURCES_TABLE_RE.search(schema_sql)
     if not match:
         return []
     con.executescript("PRAGMA foreign_keys=OFF;"

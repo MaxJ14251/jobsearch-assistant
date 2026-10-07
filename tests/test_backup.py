@@ -162,6 +162,38 @@ class TestPreUpgradeSnapshot(unittest.TestCase):
         self.assertEqual(db.rebuilds_pending(con), [])
         con.close()
 
+    def test_a_tracker_missing_any_one_kind_is_stale(self):
+        """Not just the newest kind (plan 28): the check once looked for the
+        word 'themuse' alone, so a tracker missing a later kind was never
+        rebuilt and its first posting of that kind failed the CHECK."""
+        schema = SCHEMA_PATH.read_text(encoding="utf-8")
+        table = db._SOURCES_TABLE_RE.search(schema).group(0)
+        kinds = sorted(db.source_kinds(table))
+        self.assertIn("themuse", kinds)
+        for kind in kinds:
+            with self.subTest(kind=kind):
+                con = sqlite3.connect(":memory:")
+                con.row_factory = sqlite3.Row
+                con.executescript(table.replace(f"'{kind}',", "").replace(f",'{kind}'", ""))
+                self.assertTrue(db._sources_stale(con, schema))
+                self.assertIn("sources", db.rebuilds_pending(con, schema))
+                con.close()
+        con = sqlite3.connect(":memory:")
+        con.row_factory = sqlite3.Row
+        con.executescript(table)
+        self.assertFalse(db._sources_stale(con, schema))
+        con.close()
+
+    def test_a_rebuilt_tracker_accepts_every_kind(self):
+        folder, path = self.old_tracker()
+        with redirect_stderr(io.StringIO()):
+            db.upgrade(path)
+        con = db.connect(path)
+        table = db._SOURCES_TABLE_RE.search(SCHEMA_PATH.read_text(encoding="utf-8")).group(0)
+        for i, kind in enumerate(sorted(db.source_kinds(table))):
+            db.upsert_source(con, name=f"s{i}", kind=kind, url="https://x", company_id=None)
+        con.close()
+
     def test_an_up_to_date_tracker_gets_no_copy(self):
         folder = Path(tempfile.mkdtemp())
         path = tracker(folder)
