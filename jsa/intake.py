@@ -5,7 +5,7 @@ jobs everywhere else too, and until this module had no way to bring one in.
 
 Two routes, and the line between them is deliberate:
 
-- A link on Greenhouse, Lever, Ashby or Workday is read from that board's
+- A link on Greenhouse, Lever, Ashby, Workday or Recruitee is read from that board's
   PUBLIC API, through the same adapter discovery uses, so the stored posting
   is exactly what discovery would have stored. The page the link points at is
   never fetched. The tool only ever requests an API URL it built itself from
@@ -39,7 +39,7 @@ from . import db, salary, sources
 from .config import Preferences, load_sources
 from .scoring import dedup_key, job_track, score_job
 
-SUPPORTED = "Greenhouse, Lever, Ashby or Workday"
+SUPPORTED = "Greenhouse, Lever, Ashby, Workday or Recruitee"
 
 # A pasted posting shorter than this is almost certainly a title and a
 # location, and would be drafted against with nothing to tailor to.
@@ -63,9 +63,9 @@ class IntakeError(ValueError):
 
 @dataclass(frozen=True)
 class Link:
-    kind: str                  # greenhouse | lever | ashby | workday
+    kind: str                  # greenhouse | lever | ashby | workday | recruitee
     board: str                 # the board token, or the Workday site
-    job_id: str                # the posting's id on that board
+    job_id: str                # the posting's id on that board (Recruitee: its slug)
     tenant: str | None = None  # Workday only
     wd: str | None = None      # Workday only
     path: str | None = None    # Workday only: /job/<location>/<slug>_<req>
@@ -87,6 +87,7 @@ class Added:
 _TOKEN = r"[A-Za-z0-9][A-Za-z0-9_.-]*"
 _UUID = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
 _WORKDAY_HOST = re.compile(r"^(?P<tenant>[a-z0-9-]+)\.(?P<wd>wd\d+)\.myworkdayjobs\.com$")
+_RECRUITEE_HOST = re.compile(r"^(?P<board>[a-z0-9][a-z0-9-]*)\.recruitee\.com$")
 
 
 def parse_link(url: str) -> Link | None:
@@ -136,6 +137,14 @@ def parse_link(url: str) -> Link | None:
                         wd=match["wd"], path=path)
         return None
 
+    # {board}.recruitee.com/o/{slug}. A board on the employer's own domain
+    # (jobs.example.com/o/...) is not recognized: the host must say Recruitee.
+    match = _RECRUITEE_HOST.match(host)
+    if match:
+        if len(segs) >= 2 and segs[0] == "o" and re.fullmatch(_TOKEN, segs[1]):
+            return Link("recruitee", match["board"], segs[1])
+        return None
+
     return None
 
 
@@ -177,6 +186,9 @@ def fetch_posting(link: Link) -> dict[str, Any]:
                           f"{link.board!r}: {result.status}")
     for job in result.jobs:
         if str(job.get("external_id")).lower() == link.job_id.lower():
+            return job
+        if link.kind == "recruitee" and str(job.get("url") or "").rstrip("/").endswith(
+                f"/o/{link.job_id}"):
             return job
     raise IntakeError(
         f"posting {link.job_id} is not on the {link.board!r} "

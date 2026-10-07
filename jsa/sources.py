@@ -429,6 +429,88 @@ def fetch_workable(entry: dict[str, Any]) -> FetchResult:
     return FetchResult(True, jobs, "ok")
 
 
+# --- Recruitee --------------------------------------------------------------
+# The careers-site API every Recruitee-hosted board reads its own list from:
+# one request, the whole board, descriptions and pay fields included.
+#
+# Checked 2026-10-07 (plan 28). Recruitee's API docs describe it as the way
+# to "display a list of job offers" on a careers site; it answered without a
+# key. The same docs (docs.recruitee.com, "Authentication") set a "Deadline
+# for introducing the token to calls" of 10 February 2027, after which a
+# call without the X-Careers-Sites-Token header gets 401. That token is made
+# inside the employer's own account, so from then on these boards can be read
+# only with the employer's help; a 401 says so rather than looking broken.
+# Measured the same day on 6 boards: 165 postings, every one with a
+# description; 9 with a usable pay field (1 board), and one board filled in
+# a period and currency on 27 of 37 postings with no figure.
+#
+# Two other board types were checked the same day and are not read (ADR 0020):
+# SmartRecruiters (api.smartrecruiters.com/robots.txt disallows every agent
+# but LinkedInBot, and its docs describe the Posting API as key-
+# authenticated) and Breezy HR (its terms, updated 2026-08-10, allow access
+# only "by ... our publicly supported interfaces" and name scraping; its
+# public list has no descriptions, which only its HTML pages carry).
+
+
+def recruitee_url(entry: dict[str, Any]) -> str:
+    return f"https://{entry['board']}.recruitee.com/api/offers/"
+
+
+def _recruitee_place(place: dict[str, Any]) -> str:
+    city = (place.get("city") or "").strip()
+    if (place.get("country_code") or "").upper() == "US":
+        state = (place.get("state_code") or "").strip()
+        return ", ".join(p for p in (city, state) if p)
+    country = (place.get("country") or "").strip()
+    return ", ".join(p for p in (city, country) if p)
+
+
+def recruitee_job(item: dict[str, Any]) -> dict[str, Any]:
+    places = item.get("locations") or [item]
+    location = "; ".join(dict.fromkeys(p for p in map(_recruitee_place, places) if p))
+    desc = "\n\n".join(p for p in (strip_html(item.get("description")),
+                                   strip_html(item.get("requirements"))) if p)
+    if item.get("remote"):
+        remote = "remote"
+    elif item.get("hybrid"):
+        remote = "hybrid"
+    elif item.get("on_site"):
+        remote = "onsite"
+    else:
+        remote = classify_remote(location, desc)
+    return {
+        "external_id": str(item.get("id")),
+        "title": item.get("title") or "",
+        "department": item.get("department"),
+        "location": location,
+        "remote": remote,
+        "employment_type": norm_employment(
+            (item.get("employment_type_code") or "").split("_")[0]),
+        "url": item.get("careers_url") or "",
+        "description": desc,
+        "description_hash": content_hash(desc),
+        "posted_at": item.get("published_at"),
+        "pay": salary.from_recruitee(item.get("salary")),
+    }
+
+
+def fetch_recruitee(entry: dict[str, Any]) -> FetchResult:
+    try:
+        data = _get_json(recruitee_url(entry))
+    except httpx.HTTPStatusError as exc:
+        code = exc.response.status_code
+        if code == 401:
+            return FetchResult(False, [], "401: Recruitee now asks for the employer's "
+                               "careers-site token, so this board can't be read without it")
+        if code == 404:
+            return FetchResult(False, [], f"404: no Recruitee board named "
+                               f"{entry['board']!r}")
+        return _fail(exc)
+    except Exception as exc:  # noqa: BLE001
+        return _fail(exc)
+    return FetchResult(True, [recruitee_job(i) for i in data.get("offers") or []], "ok")
+
+
 # --- Company-specific boards ------------------------------------------------
 # Two employers run their own job APIs. Each is a handful of lines, and
 # both post many roles, so they earn a custom adapter.
@@ -694,6 +776,7 @@ FETCHERS: dict[str, Callable[[dict[str, Any]], FetchResult]] = {
     "ashby": fetch_ashby,
     "workday": fetch_workday,
     "workable": fetch_workable,
+    "recruitee": fetch_recruitee,
     "custom": fetch_custom,
     "rss": fetch_rss,
     "themuse": fetch_themuse,
@@ -705,6 +788,7 @@ URL_BUILDERS: dict[str, Callable[[dict[str, Any]], str]] = {
     "ashby": ashby_url,
     "workday": workday_url,
     "workable": workable_url,
+    "recruitee": recruitee_url,
     "themuse": themuse_url,
 }
 
@@ -713,6 +797,7 @@ REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
     "lever": ("board",),
     "ashby": ("board",),
     "workable": ("board",),
+    "recruitee": ("board",),
     "workday": ("tenant", "site"),
     "custom": ("handler",),
     "rss": ("url",),

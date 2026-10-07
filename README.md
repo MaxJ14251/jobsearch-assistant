@@ -606,7 +606,7 @@ are kept, never the text of a prompt or a reply.
 .venv/Scripts/python -m jsa add --paste --company "Acme" --title "Support Engineer" --file posting.txt
 ```
 Adds one job discovery did not find, and on the dashboard **Add a job** does
-the same. A Greenhouse, Lever, Ashby or Workday link is read from that
+the same. A Greenhouse, Lever, Ashby, Workday or Recruitee link is read from that
 board's public job API, through the same code discovery uses; the page itself
 is never fetched, and the tool only calls an API address it built from the
 board and posting id, so a link cannot send it anywhere else. Any other link,
@@ -844,13 +844,22 @@ counts as near you if *any* of its copies is. See
 
 **Feeds are public JSON only** — the same endpoints each company's own careers page
 already calls: Greenhouse `boards-api`, Lever `api.lever.co`, Ashby `posting-api`,
-Workday `wday/cxs`, Workable `widget/accounts`, two company-specific APIs, plus RSS.
+Workday `wday/cxs`, Workable `widget/accounts`, Recruitee `api/offers`, two
+company-specific APIs, plus RSS.
 Descriptive User-Agent, delay between requests, no auth, no scraping behind a login.
 Playwright is deliberately absent from requirements.txt.
 
 **Nothing is hard-deleted.** Rows carry `archived_at`.
 
 ## Feed coverage
+
+**Supported board types:** Greenhouse, Lever, Ashby, Workday, Workable and
+Recruitee, plus RSS and two company-specific APIs. Any employer on one of
+these can be added to your own companies list (`kind:` and `board:`; see the
+list's header) and checked with `jsa verify`. Recruitee says it will require
+the employer's own token from 10 February 2027, after which its boards report
+a 401 rather than listings. SmartRecruiters and Breezy HR were checked and
+are not read ([ADR 0020](docs/decisions/0020-postings-the-tool-may-not-read.md)).
 
 `jsa/resources/companies.yaml` holds 55 sources: 50 employer feeds and aggregators,
 the nationwide source, and four employers kept for reference with no public
@@ -1108,7 +1117,7 @@ jobsearch/
       data/                     #   Census centroids, outline, basemap; public domain
     config.py                   # paths, .env loading, preferences
     db.py                       # all SQLite access + additive migrations
-    sources.py                  # Greenhouse/Lever/Ashby/Workday/Workable/RSS/custom
+    sources.py                  # Greenhouse/Lever/Ashby/Workday/Workable/Recruitee/RSS/custom
     scoring.py                  # the free deterministic match filter
     discover.py                 # feed -> score -> tracker
     llm.py                      # OpenAI-compatible client, fallback chain

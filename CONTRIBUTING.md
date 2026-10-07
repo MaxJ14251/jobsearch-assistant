@@ -45,9 +45,17 @@ Board tokens are **not** derivable from a company name. Before opening a PR,
 run `python -m jsa verify` and include the real output — a wrong token 404s, or
 worse, silently returns a different company's board.
 
-Platforms already handled: Greenhouse, Lever, Ashby, Workday, Workable, RSS,
-plus two company-specific APIs. Eightfold returns 403 to automated clients and
-is deliberately unsupported.
+Platforms already handled: Greenhouse, Lever, Ashby, Workday, Workable,
+Recruitee, RSS, plus two company-specific APIs. Eightfold returns 403 to
+automated clients and is deliberately unsupported; SmartRecruiters and Breezy
+HR were declined on their own terms (ADR 0020).
+
+A new platform needs, in this order: its provider's own docs, terms and
+robots.txt read and quoted with the date in the fetcher's header comment (a
+provider that rules out automated reading is not added); its kind in the
+`sources.kind` CHECK in `jsa/resources/schema.sql` (existing trackers are
+rebuilt for it, with a backup first); and its `FETCHERS`, `URL_BUILDERS` and
+`REQUIRED_FIELDS` entries.
 
 ## Before you open a PR
 

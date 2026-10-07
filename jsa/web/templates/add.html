@@ -22,7 +22,7 @@
 <h2>From a link</h2>
 <form class="stack" method="post" action="/add/link" onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Reading the posting…'">
   <input type="hidden" name="csrf" value="{{ csrf }}">
-  <label for="add-url">Posting link on Greenhouse, Lever, Ashby or Workday
+  <label for="add-url">Posting link on Greenhouse, Lever, Ashby, Workday or Recruitee
     <input type="url" name="url" id="add-url" required placeholder="https://job-boards.greenhouse.io/company/jobs/1234567"></label>
   <label for="add-company">Company name (optional; otherwise taken from the board)
     <input type="text" name="company" id="add-company"></label>

@@ -404,6 +404,25 @@ def from_lever(salary_range: dict | None) -> Salary | None:
                     "Lever")
 
 
+def from_recruitee(salary: dict | None) -> Salary | None:
+    """Recruitee's `salary` {min, max, period, currency}; figures are strings.
+
+    Boards fill in the period and currency with no figures at all (one board
+    measured on 2026-10-07: 27 of 37 postings), and some pay by the month;
+    only a year or an hour with a figure counts, as everywhere else."""
+    if not salary:
+        return None
+    period = {"year": "year", "hour": "hour"}.get(str(salary.get("period") or ""))
+    try:
+        pair = _pair(salary.get("min") or None, salary.get("max") or None)
+    except ValueError:
+        return None
+    if not period or not pair:
+        return None
+    return _combine([(*pair, period, str(salary.get("currency") or "USD").upper())],
+                    "Recruitee")
+
+
 def columns(salary: Salary | None) -> dict[str, object]:
     """The jobs-table columns for a result. None clears them all."""
     if salary is None:

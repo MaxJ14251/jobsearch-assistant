@@ -76,3 +76,26 @@ location too (`jsa fill <#> --location`, or the field above the paste box,
 pre-filled with what the stub has) and works out remote, hybrid or on-site
 from it, as discovery does. Without one, the stub's is kept. Kyber's score
 went from 0.89, on the stub's "remote", to 0.66 on its real location.
+
+## Two job-board types, checked 2026-10-07 (plan 28)
+
+Plan 28 proposed three more per-employer board types. Each provider's own
+docs, terms and robots.txt were read first; two are not read:
+
+- **SmartRecruiters.** `api.smartrecruiters.com/robots.txt` says
+  `User-agent: *` / `Disallow: /`, with `/v1/companies/` allowed to
+  LinkedInBot alone, and its developer docs describe the Posting API as
+  authenticated by an API key or OAuth. The company-postings list did
+  answer without a key, but the provider has said who may read it, and it
+  is not this tool.
+- **Breezy HR.** Its terms (updated 2026-08-10) rule out accessing the
+  service "by any means other than our publicly supported interfaces (for
+  example, 'scraping')". The per-board JSON list is not documented by Breezy
+  anywhere found, and it carries no descriptions: those are only on the HTML
+  posting pages, so reading them would be scraping.
+- **Recruitee** is read. Its docs present the careers-site API as the way to
+  "display a list of job offers", and it needs no key today. They also set
+  10 February 2027 as the date a token becomes required, and that token is
+  made inside the employer's account. After that date a Recruitee board
+  answers 401, and the tool says the board can't be read without the
+  employer's token.

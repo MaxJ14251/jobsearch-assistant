@@ -130,3 +130,10 @@ The finding stands: large multi-site employers carry Washington and Texas
 (573 and 784 on-site postings from aerospace, hardware and vehicles alone),
 while Ohio and Idaho get almost nothing from any group.
 
+## New board types, 2026-10-07 (plan 28)
+
+Recruitee boards can now be read (`kind: recruitee`). That widens what a
+reader can add to their own list; it adds no employer to the shipped one.
+The shipped list still grows only with a measurement, as above. Three
+Recruitee boards were checked with `jsa verify` as a local trial (7, 26 and
+76 postings) and were not committed.

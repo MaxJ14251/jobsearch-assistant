@@ -11,6 +11,7 @@
 #
 # Fields by kind:
 #   greenhouse/lever/ashby/workable   board
+#   recruitee                         board  (the {board}.recruitee.com part)
 #   workday                           tenant, wd, site
 #   custom                            handler  (see jsa/sources.py CUSTOM)
 #   rss                               url

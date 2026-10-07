@@ -6,6 +6,19 @@ version number lives in one place, `jsa/__init__.py`.
 
 ## [Unreleased]
 
+### Added
+
+- **Recruitee boards** (`kind: recruitee` in your companies list), in
+  discovery, `jsa verify`, `jsa add <link>` and `jsa find`'s live check,
+  with the board's pay field when it gives one. SmartRecruiters and Breezy
+  HR were checked and declined on their own terms
+  ([ADR 0020](docs/decisions/0020-postings-the-tool-may-not-read.md)).
+
+### Fixed
+
+- A tracker made before a newer source kind is now rebuilt for it (with a
+  backup first); the check used to look for one kind's name only.
+
 ## [0.2.0] - 2026-10-05
 
 The first packaged release. Everything below landed after 0.1.0.

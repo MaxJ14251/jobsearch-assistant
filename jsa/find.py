@@ -46,11 +46,12 @@ ALLOWED_HOSTS = frozenset({
     "apply.workable.com",
 })
 _WORKDAY_API = re.compile(r"^[a-z0-9-]+\.wd\d+\.myworkdayjobs\.com$")
+_RECRUITEE_API = re.compile(r"^[a-z0-9][a-z0-9-]*\.recruitee\.com$")
 REFUSED_HOSTS = ("linkedin.com", "indeed.com", "glassdoor.com")
 
 # Kinds with a public board this can check live. Workday is searched with
 # the typed title server-side, so its detail requests stay few.
-LIVE_KINDS = ("greenhouse", "lever", "ashby", "workable", "workday")
+LIVE_KINDS = ("greenhouse", "lever", "ashby", "workable", "workday", "recruitee")
 GUESS_KINDS = ("greenhouse", "lever", "ashby")
 MAX_GUESSES = 3        # token guesses per kind
 MAX_GUESS_REQUESTS = 9  # over all guesses, Greenhouse's name check included
@@ -270,7 +271,8 @@ def judge(title: str, city: str, found_title: str, found_location: str,
 
 def allowed(url: str) -> bool:
     host = (urlparse(url).hostname or "").lower()
-    return host in ALLOWED_HOSTS or bool(_WORKDAY_API.match(host))
+    return (host in ALLOWED_HOSTS or bool(_WORKDAY_API.match(host))
+            or bool(_RECRUITEE_API.match(host)))
 
 
 def _check(report: Report, url: str) -> None:
@@ -328,7 +330,7 @@ def add_link(kind: str, token: str, job: dict[str, Any]) -> str:
         return f"https://jobs.lever.co/{token}/{jid}"
     if kind == "ashby" and jid:
         return f"https://jobs.ashbyhq.com/{token}/{jid}"
-    if kind == "workday":
+    if kind in ("workday", "recruitee"):
         return str(job.get("url") or "")
     return ""
 
