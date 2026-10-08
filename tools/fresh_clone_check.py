@@ -228,11 +228,12 @@ def installed_form(source: Path, tmp: Path) -> list[tuple[str, int]]:
     steps.append(("jsa doctor runs (findings are expected)",
                   0 if code in (0, 1) and "Traceback" not in out else 1))
     proc = subprocess.run(
-        [str(py), "-c", "from jsa import basemap, config, places; "
-         "print(places.data_is_present(), basemap.available(), config.SCHEMA_PATH.exists())"],
+        [str(py), "-c", "from jsa import basemap, config, places, roles; "
+         "print(places.data_is_present(), basemap.available(), config.SCHEMA_PATH.exists(), "
+         "roles.occupation_for('Software Engineer') is not None)"],
         cwd=cwd, env=env, capture_output=True, text=True)
-    steps.append(("schema and map data load from the package",
-                  0 if proc.stdout.strip() == "True True True" else 1))
+    steps.append(("schema, map and role data load from the package",
+                  0 if proc.stdout.strip() == "True True True True" else 1))
     after = sorted(p.relative_to(package) for p in package.rglob("*")
                    if p.is_file() and "__pycache__" not in p.parts)
     before = [p for p in before if "__pycache__" not in p.parts]

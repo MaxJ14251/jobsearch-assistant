@@ -90,7 +90,7 @@ def register(app, ctx) -> None:
                       documents=documents, preps=preps, msg=msg, bad=bad,
                       interview_rounds=INTERVIEW_ROUNDS,
                       answer_facts=facts, answer_written=written,
-                      checklist=checklist, education=education)
+                      checklist=checklist, education=education, role=_role(row))
 
     def _education(row) -> dict | None:
         """What this posting asks for, and its company's postings (plan 32)."""
@@ -108,6 +108,11 @@ def register(app, ctx) -> None:
                 "certs": _json_list(row["certs_named"]),
                 "company": profile.line() if profile and profile.n else "",
                 "caveat": degree.CAVEAT}
+
+    def _role(row) -> dict | None:
+        """Who holds this kind of job, nationwide (plan 33), or None."""
+        from .. import roles
+        return roles.for_title(row["title"])
 
     def apply_checklist(con, job: dict[str, Any], documents: list[dict]) -> dict:
         """Plan 22: what applying by hand needs, in order. Reads only."""

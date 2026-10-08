@@ -8,6 +8,10 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Added
 
+- **Who holds this kind of job, nationwide**: the education mix of workers
+  in a posting's occupation (BLS table 5.3, titles mapped with O*NET), on
+  job pages and Turbo cards, with an About this data page
+  ([ADR 0033](docs/decisions/0033-who-holds-each-kind-of-job.md)).
 - **What postings ask for in education**, read from the text with no model:
   on each job page, for each company (a new Companies page and `jsa
   companies`), and as a Matches option, "Open to equivalent experience"

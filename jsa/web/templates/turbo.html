@@ -28,6 +28,7 @@
     </form>
   </div>
   {% if r.thin %}<p><span class="flag warn">almost no posting text: Interested saves it without drafting</span></p>{% endif %}
+  {% if r.role %}<p class="meta role">This role nationwide: {{ r.role.line }} {{ r.role.caveat }} <a class="plain" href="/about-data">Sources</a></p>{% endif %}
   <div class="excerpt">{{ r.excerpt }}</div>
   <p class="meta"><a class="plain" href="/job/{{ r.job_id }}">Job page</a> · <a class="plain" href="{{ r.url|safe_url }}" rel="noopener">The posting</a></p>
 </article>

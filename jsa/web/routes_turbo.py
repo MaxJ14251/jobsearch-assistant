@@ -51,7 +51,7 @@ def register(app, ctx) -> None:
                    degree: str = "", remote: str = "", home: str = "",
                    radius: str = "", anywhere: str = "", q: str = "",
                    msg: str = "", bad: int = 0):
-        from .. import posting, turbo
+        from .. import posting, roles, turbo
         q = q.strip()
         where, params = match_filters(near, track, q, degree, remote)
         kept = [(k, v) for k, v in request.query_params.multi_items()
@@ -77,6 +77,8 @@ def register(app, ctx) -> None:
             text = texts.get(r["job_id"]) or ""
             r["excerpt"] = posting.visible(text).text[:1200] if text else ""
             r["thin"] = bool(posting.thin(text, r["job_id"]))
+            # Who holds this kind of job, nationwide (plan 33), or nothing.
+            r["role"] = roles.for_title(r["title"])
         back = urlencode(kept)
         return render("turbo", "turbo", title="Turbo", rows=rows, more=more,
                       back_query=f"?{back}" if back else "", msg=msg, bad=bad,

@@ -748,6 +748,15 @@ match to a resume you can upload yourself:
   Matches can show only postings open to equivalent experience. Read from
   the text, no model. It is what postings ask for, not who gets hired:
   [ADR 0032](docs/decisions/0032-what-postings-ask-for-not-who-gets-hired.md).
+- **Who holds this kind of job, nationwide**: job pages and Turbo cards show
+  the education of workers in the occupation a title matches, for example
+  "Software developers (15-1252): 3% high school or less · 11% some college
+  or associate's · 52% bachelor's · 34% graduate degree", from BLS table
+  5.3, with job titles mapped by O*NET. It is what people in the role hold,
+  not what the job requires or who the company hires. Nothing is shown when
+  a title doesn't match confidently. Sources and attribution: the
+  dashboard's About this data page and
+  [ADR 0033](docs/decisions/0033-who-holds-each-kind-of-job.md).
 - **The browser extension** (`extension/`, loaded unpacked in Chrome): on a
   Greenhouse, Lever or Ashby application, "Fill this application" fills your
   name, contact details, links, the approved resume and cover letter, yes/no
@@ -1169,6 +1178,7 @@ jobsearch/
     cli.py                      # python -m jsa ...
   extension/                    # the Chrome extension: fills a form, never submits
   tools/build_map_data.py       # rebuilds jsa/resources/data/ from its public sources
+  tools/build_role_data.py      # rebuilds the role education data (BLS, O*NET)
   tests/                        # 888 tests
 ```
 

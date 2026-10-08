@@ -1,0 +1,15 @@
+{% extends "base" %}{% block body %}
+<h1>About this data</h1>
+<p class="sub">Where the education figures on job pages and Turbo cards come from, and what they can and can't tell you.</p>
+
+<h2>This role, nationwide</h2>
+<p>The line "This role, nationwide" shows the highest education held by workers 25 and older in the occupation a posting's title matches. It is what people in that kind of job <strong>hold</strong>, nationwide; not what the job requires, and not who this company hires.</p>
+<ul>
+  <li><strong>Education by occupation:</strong> U.S. Bureau of Labor Statistics, Employment Projections, <a class="plain" href="{{ sources.bls }}" rel="noopener">table 5.3, Educational attainment for workers 25 years and older by detailed occupation</a>, from the American Community Survey, {{ year }}. Public US-government data.</li>
+  <li><strong>Job titles to occupations:</strong> This page includes information from the <a class="plain" href="{{ sources.onet }}" rel="noopener">O*NET 31.0 Database</a> by the U.S. Department of Labor, Employment and Training Administration (USDOL/ETA). Used under the <a class="plain" href="{{ sources.license }}" rel="noopener">CC BY 4.0</a> license. This tool has modified all or some of this information: titles were normalized and mapped to BLS occupation codes. USDOL/ETA has not approved, endorsed, or tested these modifications. O*NET® is a trademark of USDOL/ETA.</li>
+</ul>
+<p class="meta">A title is matched word for word, or on its words when at least {{ (min_confidence * 100)|round|int }}% of them are shared and the last word (the occupation) is the same. Otherwise nothing is shown. The occupation it matched is always named, so a poor match can be seen.</p>
+
+<h2>What postings ask for</h2>
+<p>"This posting asks for" and the Companies page read each posting's own text, with no model. {{ degree_caveat }} They cover the postings in your tracker, which are the ones that matched your search.</p>
+{% endblock %}
