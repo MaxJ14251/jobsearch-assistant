@@ -367,6 +367,10 @@ def fill(con: sqlite3.Connection, job_id: int, text: str,
          job.get("salary_max"), job.get("salary_period"), job.get("salary_text"),
          job.get("salary_currency"), job.get("salary_source"), score,
          json.dumps(reasons), track, job["location"], job["remote"], job_id))
+    from .degree import columns as degree_columns
+    con.execute("UPDATE jobs SET degree_level = :degree_level, certs_named = :certs_named, "
+                "degree_evidence = :degree_evidence WHERE id = :id",
+                {**degree_columns(text), "id": job_id})
 
     app = con.execute("SELECT id, status FROM applications WHERE job_id = ?",
                       (job_id,)).fetchone()

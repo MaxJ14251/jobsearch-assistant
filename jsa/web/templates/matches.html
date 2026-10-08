@@ -35,6 +35,7 @@
   <select name="degree" id="f-degree" aria-label="Degree"><option value="">Degree: any</option>
     <option value="no" {{ 'selected' if degree=='no' }}>Not required</option>
     <option value="yes" {{ 'selected' if degree=='yes' }}>Required</option>
+    <option value="open" {{ 'selected' if degree=='open' }}>Open to equivalent experience</option>
   </select>
   <select name="remote" id="f-remote" aria-label="Location type"><option value="">Any location type</option>
     <option value="remote" {{ 'selected' if remote=='remote' }}>Remote only</option>

@@ -646,6 +646,11 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             where.append("m.degree_required = 1")
         elif degree == "no":
             where.append("(m.degree_required = 0 OR m.degree_required IS NULL)")
+        elif degree == "open":
+            # Open to someone without a bachelor's, as the posting is written
+            # (plan 32): no degree named, an associate's, or a degree with
+            # equivalent experience accepted. Read from the text, no model.
+            where.append("m.degree_level IN ('none', 'associate', 'bachelors_or_equiv')")
         if remote == "remote":
             where.append("m.remote = 'remote'")
         return where, params
@@ -756,6 +761,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         routes_pipeline,
         routes_review,
         routes_ext,
+        routes_companies,
     )
     routes_matches.register(app, ctx)
     routes_turbo.register(app, ctx)
@@ -767,6 +773,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
     routes_pipeline.register(app, ctx)
     routes_review.register(app, ctx)
     routes_ext.register(app, ctx)
+    routes_companies.register(app, ctx)
     return app
 
 

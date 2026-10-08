@@ -79,6 +79,7 @@ def register(app, ctx) -> None:
             con.close()
         facts = (answers.fact_answers(prof, dict(row))
                  if application is not None and prof else [])
+        education = _education(row)
         from .. import intake, posting
         return render("job", "matches", title=row["title"], job=dict(row),
                       thin=posting.thin(row["description"], job_id),
@@ -89,7 +90,24 @@ def register(app, ctx) -> None:
                       documents=documents, preps=preps, msg=msg, bad=bad,
                       interview_rounds=INTERVIEW_ROUNDS,
                       answer_facts=facts, answer_written=written,
-                      checklist=checklist)
+                      checklist=checklist, education=education)
+
+    def _education(row) -> dict | None:
+        """What this posting asks for, and its company's postings (plan 32)."""
+        from .. import companies, degree
+        # An older tracker has no reading until it is upgraded.
+        if "degree_level" not in row.keys() or row["degree_level"] is None:
+            return None
+        con = connect()
+        try:
+            profile = companies.company_profile(con, row["company_id"])
+        finally:
+            con.close()
+        return {"label": degree.LABELS[row["degree_level"]],
+                "evidence": row["degree_evidence"],
+                "certs": _json_list(row["certs_named"]),
+                "company": profile.line() if profile and profile.n else "",
+                "caveat": degree.CAVEAT}
 
     def apply_checklist(con, job: dict[str, Any], documents: list[dict]) -> dict:
         """Plan 22: what applying by hand needs, in order. Reads only."""

@@ -202,6 +202,10 @@ def migrate(con: sqlite3.Connection, schema: Path = SCHEMA_PATH) -> list[str]:
             except sqlite3.OperationalError:
                 pass
 
+    if "jobs.degree_level" in applied:
+        filled = backfill_degree(con)
+        applied.append(f"jobs.degree_level read for {filled} posting(s)")
+
     applied += _rebuild_approvals_if_stale(con, text)
     applied += _rebuild_sources_if_stale(con, text)
     applied += _repair_dangling_references(con, text)
@@ -486,6 +490,19 @@ def job_for_link(con: sqlite3.Connection, link: Any) -> int | None:
     return int(row["id"]) if row else None
 
 
+def backfill_degree(con: sqlite3.Connection, only_missing: bool = True) -> int:
+    """Read the education ask for stored postings (plan 32). No network."""
+    from .degree import columns as degree_columns
+    rows = con.execute(
+        "SELECT id, description FROM jobs" +
+        (" WHERE degree_level IS NULL" if only_missing else "")).fetchall()
+    for row in rows:
+        con.execute("UPDATE jobs SET degree_level = :degree_level, certs_named = "
+                    ":certs_named, degree_evidence = :degree_evidence WHERE id = :id",
+                    {**degree_columns(row["description"]), "id": row["id"]})
+    return len(rows)
+
+
 def mark_source_polled(
     con: sqlite3.Connection, source_id: int, status: str
 ) -> None:
@@ -539,7 +556,7 @@ def find_duplicate(con: sqlite3.Connection, job: dict[str, Any]) -> int | None:
 def upsert_job(con: sqlite3.Connection, job: dict[str, Any]) -> tuple[int, bool]:
     """Insert or update a listing. Returns (job_id, is_new)."""
     existing = con.execute(
-        "SELECT id, description_hash, description_origin FROM jobs "
+        "SELECT id, description_hash, description_origin, degree_level FROM jobs "
         "WHERE source_id IS ? AND external_id IS ?",
         (job.get("source_id"), job.get("external_id")),
     ).fetchone()
@@ -574,6 +591,12 @@ def upsert_job(con: sqlite3.Connection, job: dict[str, Any]) -> tuple[int, bool]
         "track": job.get("track") or "engineering",
         "description_origin": job.get("description_origin"),
     }
+    # What it asks for in education, read again only when the text changed
+    # (plan 32): the classifier needs no network, but it isn't free either.
+    if (existing is None or existing["degree_level"] is None
+            or existing["description_hash"] != job.get("description_hash")):
+        from .degree import columns as degree_columns
+        payload.update(degree_columns(job.get("description")))
 
     if (existing and existing["description_origin"] == "pasted"
             and job.get("description_origin") != "pasted"):

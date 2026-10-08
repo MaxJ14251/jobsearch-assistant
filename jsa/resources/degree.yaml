@@ -1,0 +1,57 @@
+# Certifications the degree classifier names when a posting mentions them
+# (plan 32, ADR 0032). Edit freely: one entry per certification, with the
+# spellings postings use. Matching is case-insensitive and on whole words.
+#
+#   name:     how it is shown
+#   patterns: regular expressions, any of which counts as a mention
+certifications:
+  - name: CompTIA A+
+    patterns: ['comptia a\+', '\ba\+ certifi']
+  - name: CompTIA Network+
+    patterns: ['network\+']
+  - name: CompTIA Security+
+    patterns: ['security\+']
+  - name: CompTIA Linux+
+    patterns: ['linux\+']
+  - name: AWS certification
+    patterns: ['aws certifi', 'aws certified', 'aws solutions architect', 'aws (cloud )?practitioner']
+  - name: Azure certification
+    patterns: ['azure certifi', 'microsoft certified', '\baz-\d{3}\b']
+  - name: Google Cloud certification
+    patterns: ['google cloud certifi', 'gcp certifi', 'professional cloud architect']
+  - name: Google Career Certificate
+    patterns: ['google career certificate', 'google (it support|data analytics|project management|ux design) certificate']
+  - name: CCNA
+    patterns: ['\bccna\b']
+  - name: CCNP
+    patterns: ['\bccnp\b']
+  - name: CISSP
+    patterns: ['\bcissp\b']
+  - name: CISM
+    patterns: ['\bcism\b']
+  - name: CEH
+    patterns: ['\bceh\b', 'certified ethical hacker']
+  - name: OSCP
+    patterns: ['\boscp\b']
+  - name: PMP
+    patterns: ['\bpmp\b', 'project management professional']
+  - name: Certified ScrumMaster
+    patterns: ['\bcsm\b', 'scrum ?master certifi', 'certified scrum']
+  - name: ITIL
+    patterns: ['\bitil\b']
+  - name: Salesforce certification
+    patterns: ['salesforce certifi', 'salesforce certified']
+  - name: CKA / CKAD (Kubernetes)
+    patterns: ['\bckad?\b', 'certified kubernetes']
+  - name: HashiCorp Terraform
+    patterns: ['terraform associate', 'hashicorp certifi']
+  - name: CPA
+    patterns: ['\bcpa\b']
+  - name: Six Sigma
+    patterns: ['six sigma']
+  - name: FAA certificate (A&P)
+    patterns: ['\ba&p\b', 'airframe and powerplant']
+  - name: NICET
+    patterns: ['\bnicet\b']
+  - name: Professional Engineer (PE)
+    patterns: ['\bp\.e\.\b', 'professional engineer(ing)? licen']

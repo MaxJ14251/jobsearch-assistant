@@ -107,6 +107,13 @@ CREATE TABLE IF NOT EXISTS jobs (
     enriched_at         TEXT,
     enrichment_model    TEXT,          -- provenance: which model produced this
     enrichment_hash     TEXT,          -- description_hash when enriched; re-run on change
+    -- ---- What the posting asks for in education (plan 32, ADR 0032) -----
+    -- Read from the text with no model (jsa/degree.py), whenever the text
+    -- changes. What a posting ASKS for, not who gets hired.
+    -- (One line: migrate() reads a column per line.)
+    degree_level      TEXT CHECK (degree_level IN ('none','associate','bachelors_or_equiv','bachelors','masters_preferred','masters')),
+    certs_named       TEXT,                        -- JSON list of certification names
+    degree_evidence   TEXT,                        -- the sentence it was read from
     archived_at       TEXT,
     UNIQUE (source_id, external_id)
 );
@@ -470,6 +477,8 @@ SELECT r.id            AS job_id,
        r.dedup_key,
        -- populated by `jsa enrich`; NULL means not yet looked at
        r.degree_required,
+       -- what the posting asks for in education, read with no model (plan 32)
+       r.degree_level,
        r.clearance_required,
        r.years_required,
        r.tech_stack,

@@ -738,6 +738,16 @@ match to a resume you can upload yourself:
   application without an approved resume asks you to tick a box first. The
   tool submits nothing. LinkedIn and Indeed both take .docx uploads (checked
   2026-10-05).
+- **What postings ask for in education**: each job page says what its
+  posting asks for (no degree, an associate's, a bachelor's or equivalent
+  experience, a bachelor's required, a graduate degree preferred or
+  required), with the sentence it read and the certifications it names, and
+  the same for the company's other postings in your tracker. The
+  **Companies** page ranks companies by how many of their postings are open
+  to equivalent experience or name a certification (`jsa companies`), and
+  Matches can show only postings open to equivalent experience. Read from
+  the text, no model. It is what postings ask for, not who gets hired:
+  [ADR 0032](docs/decisions/0032-what-postings-ask-for-not-who-gets-hired.md).
 - **The browser extension** (`extension/`, loaded unpacked in Chrome): on a
   Greenhouse, Lever or Ashby application, "Fill this application" fills your
   name, contact details, links, the approved resume and cover letter, yes/no

@@ -1427,6 +1427,43 @@ def cmd_due(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_companies(args: argparse.Namespace) -> int:
+    """What each company's postings ask for in education (plan 32). Reads
+    only, after bringing the tracker up to date so the readings exist."""
+    from . import companies
+    from .degree import CAVEAT
+
+    if not DB_PATH.exists():
+        print("no tracker yet: run `jsa init`, then `jsa discover`.")
+        return 0
+    # The path is passed, not left to the defaults, which are fixed when db.py
+    # loads: a test that patched DB_PATH once upgraded the real tracker.
+    db.upgrade(DB_PATH)
+    con = db.connect(DB_PATH)
+    try:
+        profiles = companies.all_profiles(con, minimum=args.min, sort=args.sort)
+    finally:
+        con.close()
+    if not profiles:
+        print(f"No company has {args.min} open postings in your tracker yet.")
+        return 0
+    width = max(len(p.company) for p in profiles)
+    print(f"{'company':<{width}}  {'postings':>8}  {'open':>5}  {'BA req':>6}  "
+          f"{'grad':>5}  {'certs':>5}")
+    pct = lambda v: "  -" if v is None else f"{round(100 * v):>3}%"
+    for p in profiles:
+        print(f"{p.company:<{width}}  {p.n:>8}  {pct(p.open_share):>5}  "
+              f"{pct(p.share('bachelors')):>6}  "
+              f"{pct(p.share('masters_preferred', 'masters')):>5}  {pct(p.certs_share):>5}")
+    print()
+    print("open: no degree named, an associate's, or experience accepted instead "
+          "of a bachelor's.")
+    print("From the postings in your tracker (the ones that matched your search), "
+          "read from their text.")
+    print(CAVEAT)
+    return 0
+
+
 def cmd_usage(args: argparse.Namespace) -> int:
     """What the model calls cost, from the ledger (plan 26). Counts only."""
     from . import ledger
@@ -1905,6 +1942,15 @@ def main(argv: list[str] | None = None) -> int:
     p_due.add_argument("--days", type=int, default=7,
                        help="how far ahead to look (default 7)")
     p_due.set_defaults(func=cmd_due)
+
+    p_co = sub.add_parser("companies", help="what each company's postings ask for in "
+                          "education")
+    p_co.add_argument("--sort", choices=["open", "certs"], default="open",
+                      help="by share open to equivalent experience (default), or naming "
+                           "a certification")
+    p_co.add_argument("--min", type=int, default=10,
+                      help="only companies with at least this many open postings")
+    p_co.set_defaults(func=cmd_companies)
 
     p_use = sub.add_parser("usage", help="how many model calls, and their tokens")
     p_use.add_argument("--days", type=int, default=7, help="how far back (default 7)")

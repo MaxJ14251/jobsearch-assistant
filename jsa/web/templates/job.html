@@ -175,6 +175,11 @@ document.querySelectorAll('button.copy').forEach(function (b) {
 {% endif %}
 
 <h2>Posting</h2>
+{% if education %}<div class="education">
+  <p><strong>This posting asks for:</strong> {{ education.label }}{% if education.certs %} · names {{ education.certs|join(", ") }}{% endif %}{% if education.evidence %}<br><span class="meta">“{{ education.evidence }}”</span>{% endif %}</p>
+  {% if education.company %}<p><strong>This company:</strong> {{ education.company }} <a class="plain" href="/companies">All companies</a></p>{% endif %}
+  <p class="meta">{{ education.caveat }}</p>
+</div>{% endif %}
 {% if job.enrichment_note %}<p class="sub">{{ job.enrichment_note }}</p>{% endif %}
 <p><a class="plain" href="{{ job.url|safe_url }}" rel="noopener">Open the original posting</a>{% if job.source_kind == 'usajobs' %} · <span class="meta">from USAJOBS, the federal government's job site; view and apply there</span>{% endif %}{% if job.description_origin == 'pasted' %} · <span class="meta">text pasted by you; discovery will not overwrite it</span>{% endif %}</p>
 {% if thin %}

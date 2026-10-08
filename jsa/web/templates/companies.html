@@ -1,0 +1,34 @@
+{% extends "base" %}{% block body %}
+<h1>Companies</h1>
+<p class="sub">What each company's postings in your tracker ask for in education, read from the posting text. Companies with at least {{ minimum }} open postings.</p>
+<p class="note">{{ caveat }} These are the postings that matched your search, not each company's whole board.</p>
+<p class="meta">Sort by:
+  {% if sort == 'open' %}<strong>open to equivalent experience</strong>{% else %}<a class="plain" href="/companies?sort=open">open to equivalent experience</a>{% endif %} ·
+  {% if sort == 'certs' %}<strong>naming a certification</strong>{% else %}<a class="plain" href="/companies?sort=certs">naming a certification</a>{% endif %}</p>
+{% if profiles %}
+<div class="tablewrap"><table class="companies">
+  <thead><tr><th scope="col">Company</th><th scope="col" class="num">Postings</th>
+    <th scope="col" class="num">Open to equivalent experience</th>
+    <th scope="col" class="num">Bachelor's required</th>
+    <th scope="col" class="num">Graduate degree asked</th>
+    <th scope="col" class="num">Name a certification</th>
+    <th scope="col">Certifications named</th></tr></thead>
+  <tbody>{% for p in profiles %}
+  <tr><th scope="row">{{ p.company }}</th>
+    <td class="num">{{ p.n }}</td>
+    <td class="num">{{ (p.open_share * 100)|round|int }}%</td>
+    <td class="num">{{ (p.share('bachelors') * 100)|round|int }}%</td>
+    <td class="num">{{ (p.share('masters_preferred', 'masters') * 100)|round|int }}%</td>
+    <td class="num">{{ (p.certs_share * 100)|round|int }}%</td>
+    <td>{% for name, count in p.certs %}{{ name }} ({{ count }}){{ ", " if not loop.last }}{% else %}<span class="meta">none</span>{% endfor %}</td></tr>
+  {% endfor %}</tbody>
+</table></div>
+{% else %}
+<p class="empty">No company has {{ minimum }} open postings in your tracker yet.</p>
+{% endif %}
+<p class="meta">"Open to equivalent experience" counts postings that name no degree, ask for an associate's, or accept experience instead of a bachelor's. Each posting's own reading, with the sentence it came from, is on its job page. CLI: <code>jsa companies --sort open|certs</code>.</p>
+<style>.tablewrap{overflow-x:auto}
+  table.companies{border-collapse:collapse;width:100%;font-size:14px}
+  table.companies th,table.companies td{padding:6px 10px;border-bottom:1px solid var(--rule);text-align:left;vertical-align:top}
+  table.companies .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}</style>
+{% endblock %}

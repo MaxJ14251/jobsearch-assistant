@@ -8,6 +8,11 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Added
 
+- **What postings ask for in education**, read from the text with no model:
+  on each job page, for each company (a new Companies page and `jsa
+  companies`), and as a Matches option, "Open to equivalent experience"
+  ([ADR 0032](docs/decisions/0032-what-postings-ask-for-not-who-gets-hired.md)).
+
 - **A browser extension that fills, and you submit** (`extension/`, loaded
   unpacked in Chrome): fills Greenhouse, Lever and Ashby applications from
   your profile, approved documents and answers, outlines what it left for

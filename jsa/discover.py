@@ -243,6 +243,9 @@ def rescore(con, prefs: Preferences) -> RescoreReport:
                                         "salary_text", "salary_currency",
                                         "salary_source")},
              "score": score, "reasons": json.dumps(reasons), "id": row["id"]})
+    # What each posting asks for in education, read again with today's rules
+    # (plan 32). No network either.
+    db.backfill_degree(con, only_missing=False)
     return report
 
 
