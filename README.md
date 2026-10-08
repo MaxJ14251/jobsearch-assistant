@@ -738,6 +738,17 @@ match to a resume you can upload yourself:
   application without an approved resume asks you to tick a box first. The
   tool submits nothing. LinkedIn and Indeed both take .docx uploads (checked
   2026-10-05).
+- **The browser extension** (`extension/`, loaded unpacked in Chrome): on a
+  Greenhouse, Lever or Ashby application, "Fill this application" fills your
+  name, contact details, links, the approved resume and cover letter, yes/no
+  answers your profile states, and your written answers, outlines the
+  required fields it left for you, and lists where each value came from.
+  Salary is never filled. You read the form and press its Submit yourself;
+  the extension has no way to. "I submitted this" then records the
+  application. It reads only from your dashboard, with a key you make on
+  the dashboard's Extension page. Install and use:
+  [extension/README.md](extension/README.md); why it never submits:
+  [ADR 0031](docs/decisions/0031-autofill-in-your-browser-you-press-submit.md).
 - **Interview prep** page: each question, why it is asked, and your
   first-person answer notes.
 - **Review queue**: each draft line beside the profile bullet it came from,
@@ -1142,6 +1153,7 @@ jobsearch/
       routes_*.py               #   one module per area (matches, turbo, job, ...)
       templates/*.html          #   the pages, plain Jinja files
     cli.py                      # python -m jsa ...
+  extension/                    # the Chrome extension: fills a form, never submits
   tools/build_map_data.py       # rebuilds jsa/resources/data/ from its public sources
   tests/                        # 888 tests
 ```

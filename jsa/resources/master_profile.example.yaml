@@ -111,6 +111,9 @@ job_search_preferences:
   # changing this. See docs/decisions/0006-salary-extraction-and-pay-ranking.md.
   compensation_floor_usd: null   # no_floor | a number | a per-region map
   work_authorization: null       # e.g. "US citizen - no sponsorship required"
+  # Optional: a plain yes/no for forms that ask "Are you authorized to work in
+  # the US?" The browser extension never reads one out of the text above.
+  # authorized_to_work_us: true
   needs_visa_sponsorship: null   # true/false
   willing_to_relocate: null      # true/false
   # Years of experience you can credibly claim, and what happens to a posting

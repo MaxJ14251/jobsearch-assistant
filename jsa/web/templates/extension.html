@@ -1,0 +1,34 @@
+{% extends "base" %}{% block body %}
+<h1>Browser extension</h1>
+<p class="sub">Fills a Greenhouse, Lever or Ashby application in your own Chrome from your profile, your approved documents and your answers. You review the form and press its Submit yourself; the extension never does.</p>
+
+{% if key %}
+<div class="note good">
+  <p><strong>Your pairing key.</strong> Paste it into the extension's options now. It is shown once and not stored here; if you lose it, connect again.</p>
+  <p><input type="text" id="ext-key" class="keybox" value="{{ key }}" readonly aria-label="Pairing key"
+       onclick="this.select()"></p>
+</div>
+{% endif %}
+
+{% if paired %}
+<p>Connected since {{ paired|localtime }}. Only a browser with this key can read what the extension fills.</p>
+<div class="actions">
+  <form method="post" action="/extension/connect"><input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit">Make a new key</button></form>
+  <form method="post" action="/extension/disconnect"><input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit">Disconnect</button></form>
+</div>
+<p class="meta">A new key stops the old one working at once.</p>
+{% else %}
+<p>Not connected. Until you are, the extension can read nothing from this dashboard.</p>
+<form method="post" action="/extension/connect"><input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit">Connect the browser extension</button></form>
+{% endif %}
+
+<h2>Install it</h2>
+<ol>
+  <li>In Chrome, open <code>chrome://extensions</code> and turn on <strong>Developer mode</strong>.</li>
+  <li>Choose <strong>Load unpacked</strong> and pick the <code>extension</code> folder of this project.</li>
+  <li>Open the extension's options, paste the key from above, and check the dashboard port (8765).</li>
+</ol>
+<p class="meta">On an application page it fills what it can, outlines required fields it left empty, and lists what it filled and from where. Salary is never filled. When you have pressed the page's Submit, “I submitted this” in its panel records the application here.</p>
+<style>.keybox{width:100%;max-width:520px;font-family:var(--mono, monospace);font-size:14px;padding:8px}
+  .actions{display:flex;flex-wrap:wrap;gap:12px}</style>
+{% endblock %}

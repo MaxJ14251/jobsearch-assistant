@@ -466,6 +466,26 @@ def upsert_source(
     return int(cur.lastrowid)
 
 
+def job_for_link(con: sqlite3.Connection, link: Any) -> int | None:
+    """The stored job a parsed board link (`intake.Link`) names, or None.
+
+    Matched on the board kind and the posting's id on that board. A Recruitee
+    link names its posting by slug, which is the end of the stored URL."""
+    if link.kind == "recruitee":
+        row = con.execute(
+            "SELECT j.id FROM jobs j JOIN sources s ON s.id = j.source_id "
+            "WHERE s.kind = 'recruitee' AND lower(rtrim(j.url, '/')) LIKE ? ESCAPE '\\' "
+            "ORDER BY j.archived_at IS NOT NULL, j.id LIMIT 1",
+            ("%/o/" + re.sub(r"([%_\\])", r"\\\1", link.job_id.lower()),)).fetchone()
+    else:
+        row = con.execute(
+            "SELECT j.id FROM jobs j JOIN sources s ON s.id = j.source_id "
+            "WHERE s.kind = ? AND lower(j.external_id) = lower(?) "
+            "ORDER BY j.archived_at IS NOT NULL, j.id LIMIT 1",
+            (link.kind, link.job_id)).fetchone()
+    return int(row["id"]) if row else None
+
+
 def mark_source_polled(
     con: sqlite3.Connection, source_id: int, status: str
 ) -> None:

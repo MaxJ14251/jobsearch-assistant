@@ -68,6 +68,18 @@ jobs:
           coverage report --omit="tests/*,tools/*" --skip-covered
           coverage xml
 
+  # The browser extension's own tests (plan 30): Node's built-in runner, no
+  # npm and no dependencies. The runner image ships Node; the version is
+  # printed so a change in it shows up in the log.
+  extension:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run the extension's tests
+        run: |
+          node --version
+          node --test extension/test/*.test.mjs
+
   no-secrets:
     runs-on: ubuntu-26.04
     steps:

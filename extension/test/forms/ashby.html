@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fixture: Ashby-shaped form</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 640px; margin: 24px auto; padding: 0 16px;
+         background: #fff; color: #222; }
+  .field { margin: 14px 0; }
+  label { display: block; font-weight: 600; }
+  input[type=text], input[type=email], textarea { width: 100%; padding: 6px; box-sizing: border-box; }
+</style>
+</head>
+<body>
+<!-- Field markup in the shape of an Ashby application. Fictional; not a copied page. -->
+<h1>Support Engineer</h1>
+<form action="#" onsubmit="document.body.dataset.submitted = 'yes'; return false;">
+  <div class="field"><label for="_systemfield_name">Name *</label><input type="text" id="_systemfield_name" name="_systemfield_name" required></div>
+  <div class="field"><label for="_systemfield_email">Email *</label><input type="email" id="_systemfield_email" name="_systemfield_email" required></div>
+  <div class="field"><label for="_systemfield_resume">Resume *</label><input type="file" id="_systemfield_resume" name="_systemfield_resume" required></div>
+  <div class="field"><label for="f1">Why are you interested in this role? *</label><textarea id="f1" name="0d4e-why" rows="4" required></textarea></div>
+  <div class="field"><label for="f2">LinkedIn</label><input type="text" id="f2" name="0d4e-li"></div>
+  <!-- Ashby asks yes/no with buttons. The extension never clicks, so these stay yours. -->
+  <div class="field" aria-required="true"><span>Are you authorized to work in the US? *</span>
+    <button type="button">Yes</button> <button type="button">No</button></div>
+  <p><button type="submit">Submit Application</button></p>
+</form>
+<script>window.__jsaTestBoard = "ashby";</script>
+<script src="harness.js"></script>
+<script src="../../fill.js"></script>
+<script src="../../content.js"></script>
+</body>
+</html>

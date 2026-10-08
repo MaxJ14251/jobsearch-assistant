@@ -116,10 +116,12 @@ class TestTheGuard(Base):
             "/setup/discover": {},
             "/find": {"company": "Acme", "title": "Support Engineer"},
             "/job/1/applied": {"via": "employer", "confirm": "1"},
+            "/extension/connect": {}, "/extension/disconnect": {},
         }
         routes = {r.path.replace("{job_id}", "1").replace("{reply_id}", "1")
                   for r in self.app.routes if "POST" in getattr(r, "methods", set())}
         routes.discard("/import")                       # multipart: tests/test_web_import.py
+        routes.discard("/ext/applied")                  # its own key: tests/test_ext.py
         self.assertEqual(routes, set(bodies), "a POST route is missing from this test")
         with mock.patch("jsa.llm.complete", side_effect=LLMError("no model in tests")), \
              mock.patch("jsa.inbox.settings", return_value=None), \

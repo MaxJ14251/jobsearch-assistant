@@ -8,6 +8,12 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Added
 
+- **A browser extension that fills, and you submit** (`extension/`, loaded
+  unpacked in Chrome): fills Greenhouse, Lever and Ashby applications from
+  your profile, approved documents and answers, outlines what it left for
+  you, and never presses Submit. Pair it from the dashboard's new Extension
+  page ([ADR 0031](docs/decisions/0031-autofill-in-your-browser-you-press-submit.md)).
+
 - **Recruitee boards** (`kind: recruitee` in your companies list), in
   discovery, `jsa verify`, `jsa add <link>` and `jsa find`'s live check,
   with the board's pay field when it gives one. SmartRecruiters and Breezy

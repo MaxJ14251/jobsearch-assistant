@@ -476,6 +476,23 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
     async def guard(request: Request, call_next):
         if not host_allowed(request.headers.get("host", "")):
             return PlainTextResponse("Unrecognised host.", status_code=400)
+        # The browser extension's endpoints (plan 30, ADR 0031): its pairing
+        # key instead of the page token, which the extension never sees. A
+        # web page can't send the custom header without a CORS preflight, and
+        # none is granted. Host and size checks still apply below.
+        extension = request.url.path.startswith("/ext/")
+        if extension:
+            from .. import pairing
+            con = connect()
+            try:
+                paired = pairing.check(con, request.headers.get(pairing.HEADER))
+            finally:
+                con.close()
+            if not paired:
+                return JSONResponse(
+                    {"error": "Not paired. Connect the extension from the "
+                              "dashboard's Extension page and paste its key."},
+                    status_code=401)
         if request.method == "POST":
             kind = request.headers.get("content-type", "").split(";")[0].strip().lower()
             # Every POST is sized BEFORE it is read: this guard holds the
@@ -499,6 +516,10 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             raw = await request.body()
             if len(raw) > limit:  # the header said otherwise
                 return PlainTextResponse("That form is too large.", status_code=413)
+            if extension:
+                if kind != "application/x-www-form-urlencoded":
+                    return JSONResponse({"error": "Send a form."}, status_code=415)
+                return await _finish(request, call_next)
             if kind == "multipart/form-data":
                 sent = multipart_field(raw, request.headers["content-type"], "csrf")
             elif kind in ("application/x-www-form-urlencoded", ""):
@@ -513,6 +534,9 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                 return PlainTextResponse(
                     "This form has expired. Reload the page and try again.",
                     status_code=403)
+        return await _finish(request, call_next)
+
+    async def _finish(request: Request, call_next):
         response = await call_next(request)
         # Not framed by another site's page, so its buttons can't be clicked
         # through an overlay (review R-14).
@@ -731,6 +755,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         routes_add,
         routes_pipeline,
         routes_review,
+        routes_ext,
     )
     routes_matches.register(app, ctx)
     routes_turbo.register(app, ctx)
@@ -741,6 +766,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
     routes_add.register(app, ctx)
     routes_pipeline.register(app, ctx)
     routes_review.register(app, ctx)
+    routes_ext.register(app, ctx)
     return app
 
 

@@ -69,6 +69,18 @@ it:
   name, email, phone, street, ZIP, home city and links removed** locally
   first; it refuses before any network call if one is still in the prompt.
 
+**The browser extension** (`extension/`, only if you load it) reads from
+your own dashboard through `/ext/` endpoints that need a pairing key you make
+on the dashboard's Extension page; only the key's SHA-256 is stored, and
+without one every `/ext/` request is refused. A web page can't send the key's
+header to 127.0.0.1 without a CORS preflight, and none is granted. What it
+gets is what an application form asks (name, email, phone, city, links,
+decided yes/no answers, your written answers, the approved documents), never
+your street, postal code, pay floor or notes, and it goes only into the form
+you are filling, in your own browser. It never submits: there is no
+submit, click or key-press call in its code, and a test reads the files to
+hold it there.
+
 **The model-call ledger** (`model_calls` in the tracker, read by `jsa usage`)
 stores counts only: when, for what, which model, the token counts the
 provider reported, the latency and whether it worked. Never prompt or reply

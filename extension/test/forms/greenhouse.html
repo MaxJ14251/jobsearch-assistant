@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fixture: Greenhouse-shaped form</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 640px; margin: 24px auto; padding: 0 16px;
+         background: #fff; color: #222; }
+  .field { margin: 14px 0; }
+  label { display: block; font-weight: 600; }
+  input[type=text], input[type=email], input[type=tel], textarea, select { width: 100%; padding: 6px; box-sizing: border-box; }
+  .captcha { border: 1px dashed #999; padding: 10px; color: #666; }
+</style>
+</head>
+<body>
+<!-- Field markup in the shape of a Greenhouse application. Fictional; not a copied page. -->
+<h1>Support Engineer</h1>
+<form id="application-form" action="#" onsubmit="document.body.dataset.submitted = 'yes'; return false;">
+  <div class="field"><label for="first_name">First Name *</label><input type="text" id="first_name" name="job_application[first_name]" required></div>
+  <div class="field"><label for="last_name">Last Name *</label><input type="text" id="last_name" name="job_application[last_name]" required></div>
+  <div class="field"><label for="email">Email *</label><input type="email" id="email" name="job_application[email]" required></div>
+  <div class="field"><label for="phone">Phone</label><input type="tel" id="phone" name="job_application[phone]"></div>
+  <div class="field"><label for="location">Location (City) *</label><input type="text" id="location" name="job_application[location]" required></div>
+  <div class="field"><label for="resume">Resume/CV *</label><input type="file" id="resume" name="resume" required></div>
+  <div class="field"><label for="cover_letter">Cover Letter</label><input type="file" id="cover_letter" name="cover_letter"></div>
+  <div class="field"><label for="q1">LinkedIn Profile</label><input type="text" id="q1" name="job_application[answers_attributes][0][text_value]"></div>
+  <div class="field"><label for="q2">Will you now or in the future require visa sponsorship? *</label>
+    <select id="q2" name="job_application[answers_attributes][1][boolean_value]" required><option value="">Select...</option><option value="1">Yes</option><option value="0">No</option></select></div>
+  <div class="field"><label for="q3">Are you legally authorized to work in the United States? *</label>
+    <select id="q3" name="job_application[answers_attributes][2][boolean_value]" required><option value="">Select...</option><option value="1">Yes</option><option value="0">No</option></select></div>
+  <div class="field"><label for="q4">Why do you want to work at Riverton Grid?</label><textarea id="q4" name="job_application[answers_attributes][3][text_value]" rows="4"></textarea></div>
+  <div class="field"><label for="q5">Desired salary</label><input type="text" id="q5" name="job_application[answers_attributes][4][text_value]"></div>
+  <div class="field"><label for="q6">How did you hear about us? *</label><input type="text" id="q6" name="job_application[answers_attributes][5][text_value]" required></div>
+  <div class="captcha">CAPTCHA would be here. The extension never touches it.</div>
+  <p><button type="submit" id="submit_app">Submit Application</button></p>
+</form>
+<script>window.__jsaTestBoard = "greenhouse";</script>
+<script src="harness.js"></script>
+<script src="../../fill.js"></script>
+<script src="../../content.js"></script>
+</body>
+</html>

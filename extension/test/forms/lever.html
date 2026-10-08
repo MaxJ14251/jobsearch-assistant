@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fixture: Lever-shaped form</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 640px; margin: 24px auto; padding: 0 16px;
+         background: #fff; color: #222; }
+  .application-question { margin: 14px 0; }
+  .application-label { font-weight: 600; }
+  input[type=text], input[type=email], textarea { width: 100%; padding: 6px; box-sizing: border-box; }
+</style>
+</head>
+<body>
+<!-- Field markup in the shape of a Lever application. Fictional; not a copied page. -->
+<h1>Support Engineer</h1>
+<form action="#" onsubmit="document.body.dataset.submitted = 'yes'; return false;">
+  <div class="application-question"><div class="application-label">Resume/CV ✱</div><input type="file" name="resume" id="resume-upload-input" required></div>
+  <div class="application-question"><div class="application-label">Full name ✱</div><input type="text" name="name" required></div>
+  <div class="application-question"><div class="application-label">Email ✱</div><input type="email" name="email" required></div>
+  <div class="application-question"><div class="application-label">Phone</div><input type="text" name="phone"></div>
+  <div class="application-question"><div class="application-label">Current location</div><input type="text" name="location"></div>
+  <div class="application-question"><div class="application-label">Current company</div><input type="text" name="org"></div>
+  <div class="application-question"><div class="application-label">LinkedIn URL</div><input type="text" name="urls[LinkedIn]"></div>
+  <div class="application-question"><div class="application-label">GitHub URL</div><input type="text" name="urls[GitHub]"></div>
+  <div class="application-question"><div class="application-label">Portfolio URL</div><input type="text" name="urls[Portfolio]"></div>
+  <fieldset class="application-question"><legend class="application-label">Will you require sponsorship to work in the US?</legend>
+    <label><input type="radio" name="cards[a1][field0]" value="Yes"> Yes</label>
+    <label><input type="radio" name="cards[a1][field0]" value="No"> No</label></fieldset>
+  <fieldset class="application-question"><legend class="application-label">Are you willing to relocate?</legend>
+    <label><input type="radio" name="cards[a1][field1]" value="Yes"> Yes</label>
+    <label><input type="radio" name="cards[a1][field1]" value="No"> No</label></fieldset>
+  <div class="application-question"><div class="application-label">Additional information</div><textarea name="comments" rows="4"></textarea></div>
+  <p><button type="submit">Submit application</button></p>
+</form>
+<script>window.__jsaTestBoard = "lever";</script>
+<script src="harness.js"></script>
+<script src="../../fill.js"></script>
+<script src="../../content.js"></script>
+</body>
+</html>

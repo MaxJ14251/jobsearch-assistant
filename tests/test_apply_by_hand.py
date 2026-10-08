@@ -301,8 +301,11 @@ class TestOnlyThePersonRecordsApplied(unittest.TestCase):
         found = self.calls("set_stage")
         # The dashboard's job routes (jsa/web/routes_job.py since plan 24):
         # register() encloses the two route functions.
-        self.assertEqual(set(found), {"cli.py", "inbox.py", "routes_job.py"})
+        self.assertEqual(set(found), {"cli.py", "inbox.py", "routes_job.py", "routes_ext.py"})
         self.assertEqual(found["routes_job.py"], {"register", "do_stage", "do_applied"})
+        # The extension's "I submitted this" (plan 30): only on the person's
+        # explicit confirm, tested in tests/test_ext.py.
+        self.assertEqual(found["routes_ext.py"], {"register", "ext_applied"})
         self.assertEqual(found["inbox.py"], {"confirm"})
         self.assertEqual(found["cli.py"], {"cmd_status"})
 
