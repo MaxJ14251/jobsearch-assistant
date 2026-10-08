@@ -151,7 +151,7 @@ class TestFill(Ext):
         ident = body["identity"]
         self.assertEqual((ident["first_name"], ident["last_name"]), ("Robin Q", "Example"))
         self.assertEqual(ident["email"], "you@example.com")
-        self.assertEqual(ident["links"]["linkedin"], "https://linkedin.com/in/your-handle")
+        self.assertEqual(ident["links"]["linkedin"], self.profile["links"]["linkedin"])
         self.assertEqual(body["facts"]["sponsorship"], "No")
         self.assertEqual(body["facts"]["work_authorization"],
                          "Authorized to work in the US (fictional)")
