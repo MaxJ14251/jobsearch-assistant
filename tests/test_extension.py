@@ -92,6 +92,78 @@ class TestReachesOnlyItsOwnDashboard(unittest.TestCase):
         self.assertIn("sender.id !== chrome.runtime.id", source)
 
 
+def body_of(source: str, name: str) -> str:
+    """One function's text: from its header to the next function header."""
+    match = re.search(r"(?:async\s+)?function\s+" + name + r"\s*\(|\b" + name +
+                      r"\s*\([^)]*\)\s*\{", source)
+    assert match, name
+    rest = source[match.end():]
+    end = re.search(r"\n\s*(?:async\s+)?function\s+\w+\s*\(|\n  async \w+\(", rest)
+    return rest[:end.start()] if end else rest
+
+
+class TestNeverMovesOnByItself(unittest.TestCase):
+    """The apply session (plan 31): every step to another job is a button."""
+
+    NAV = ("session_submitted", "session_skip", "session_back", "session_end")
+    BUTTONS = ("nextAfterSubmit", "skipNext", "backToCurrent", "endSession")
+
+    def test_only_the_worker_changes_a_pages_address_and_only_in_one_place(self):
+        for path in shipped_scripts():
+            if path.name == "background.js":
+                continue
+            source = code(path)
+            with self.subTest(file=path.name):
+                self.assertNotIn("tabs.update", source)
+                self.assertIsNone(re.search(
+                    r"location\s*(\.href)?\s*=[^=]|location\.(assign|replace)", source))
+        source = code(EXT / "background.js")
+        self.assertEqual(source.count("tabs.update"), 1)
+        navigate = body_of(source, "navigate")
+        self.assertIn("tabs.update", navigate)
+        self.assertIn("Session.isQueued(state, address)", navigate)
+        self.assertIn("BOARD_HOSTS.includes(host)", navigate)
+
+    def test_navigation_is_reached_only_from_the_session_messages(self):
+        source = code(EXT / "background.js")
+        names = set(re.findall(r"(?:async\s+)?function\s+(\w+)\s*\(", source)) | set(
+            re.findall(r"\n  async (\w+)\(", source))
+        callers = {n for n in names if n != "navigate"
+                   and re.search(r"\b(navigate|moveOn)\s*\(", body_of(source, n))}
+        self.assertEqual(callers, {"moveOn", "session_submitted", "session_skip",
+                                   "session_back"})
+
+    def test_no_clock_or_page_event_can_drive_it(self):
+        for name in ("background.js", "session.js"):
+            source = code(EXT / name)
+            for pattern in (r"setTimeout", r"setInterval", r"chrome\.alarms",
+                            r"chrome\.tabs\.on", r"webNavigation", r"addEventListener"):
+                with self.subTest(file=name, pattern=pattern):
+                    self.assertIsNone(re.search(pattern, source))
+
+    def test_the_panel_sends_session_steps_only_from_its_buttons(self):
+        source = code(EXT / "content.js")
+        for kind in self.NAV:
+            self.assertEqual(source.count('"' + kind + '"'), 1, kind)
+            holders = [n for n in self.BUTTONS if '"' + kind + '"' in body_of(source, n)]
+            self.assertEqual(len(holders), 1, kind)
+        for name in self.BUTTONS:
+            uses = re.findall(r"\b" + name + r"\b", source)
+            wired = re.findall(r"button\([^;]*?,\s*" + name + r"\b", source)
+            # Its definition and button(...) wiring only: never called directly.
+            self.assertGreaterEqual(len(wired), 1, name)
+            self.assertEqual(len(uses), 1 + len(wired), name)
+
+    def test_recording_comes_before_moving_on(self):
+        body = body_of(code(EXT / "background.js"), "session_submitted")
+        self.assertLess(body.index("HANDLERS.applied"), body.index("moveOn"))
+        self.assertIn("if (!recorded.ok) return", body)
+
+    def test_skipping_never_records(self):
+        body = body_of(code(EXT / "background.js"), "session_skip")
+        self.assertNotIn("applied", body)
+
+
 class TestManifest(unittest.TestCase):
     def setUp(self):
         self.manifest = json.loads((EXT / "manifest.json").read_text(encoding="utf-8"))
@@ -112,7 +184,7 @@ class TestManifest(unittest.TestCase):
             for pattern in block["matches"]:
                 host = re.match(r"https://([^/]+)/", pattern).group(1)
                 self.assertIn(host, BOARD_HOSTS)
-            self.assertEqual(block["js"], ["fill.js", "content.js"])
+            self.assertEqual(block["js"], ["fill.js", "session.js", "content.js"])
 
     def test_every_file_it_names_exists(self):
         names = ["background.js", "options.html", "options.js"] + [

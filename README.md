@@ -746,7 +746,11 @@ match to a resume you can upload yourself:
   Salary is never filled. You read the form and press its Submit yourself;
   the extension has no way to. "I submitted this" then records the
   application. It reads only from your dashboard, with a key you make on
-  the dashboard's Extension page. Install and use:
+  the dashboard's Extension page. **Start applying (N ready)** on Pipeline
+  runs an apply session: it opens each ready job's form in turn, and after
+  you submit one, "I submitted this, next" records it and opens the next.
+  "Skip, next" moves on without recording. Nothing moves on without your
+  click. Install and use:
   [extension/README.md](extension/README.md); why it never submits:
   [ADR 0031](docs/decisions/0031-autofill-in-your-browser-you-press-submit.md).
 - **Interview prep** page: each question, why it is asked, and your

@@ -29,9 +29,13 @@ def register(app, ctx) -> None:
                 "  FROM applications a JOIN jobs j ON j.id = a.job_id "
                 "  LEFT JOIN companies c ON c.id = j.company_id "
                 " WHERE a.archived_at IS NULL").fetchall()]
-            from .. import inbox, outcomes
+            from .. import applyqueue, inbox, outcomes, pairing
             replies = [dict(r) for r in inbox.pending(con)]
             happened = outcomes.all_outcomes(con)
+            # The apply session (plan 31): what is ready, and whether the
+            # extension that walks it is connected.
+            session = applyqueue.ready_to_apply(con)
+            session["paired"] = pairing.paired_at(con) is not None
         finally:
             con.close()
 
@@ -62,7 +66,7 @@ def register(app, ctx) -> None:
                                   if r["days_out"] is not None and r["days_out"] < 0),
                       replies=replies, mail_ready=inbox.settings() is not None,
                       happened=happened, happened_line=outcomes.summary(happened),
-                      msg=msg, bad=bad)
+                      session=session, msg=msg, bad=bad)
 
     @app.post("/inbox/fetch")
     def inbox_fetch():

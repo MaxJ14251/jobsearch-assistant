@@ -2,6 +2,20 @@
 <h1>Pipeline</h1>
 <p class="sub">{{ total }} live application(s){% if overdue %} · <strong>{{ overdue }} overdue</strong>{% endif %} · moving a stage records that YOU said so</p>
 {% if msg %}<p class="note {{ 'bad' if bad else 'good' }}" role="status">{{ msg }}</p>{% endif %}
+{% set lo = session.left_out %}
+{% if session["items"] or lo.needs_approval or lo.by_hand %}
+<div class="session">
+  {% if session["items"] and session.paired %}
+  <a class="btn" href="{{ session['items'][0].apply_url|safe_url }}#jsa-apply-session" target="_blank" rel="noopener">Start applying ({{ session['items']|length }} ready)</a>
+  <span class="meta">The extension opens each form and fills it; you check it and press its Submit, then move on yourself.</span>
+  {% elif session["items"] %}
+  <span><strong>{{ session['items']|length }} ready to apply.</strong> <a class="plain" href="/extension">Connect the extension first</a> to go through them one after another.</span>
+  {% endif %}
+  {% if lo.needs_approval or lo.by_hand %}<p class="meta">{% if lo.needs_approval %}<a class="plain" href="/review">{{ lo.needs_approval }} need an approved resume</a>{% endif %}{% if lo.needs_approval and lo.by_hand %} · {% endif %}{% if lo.by_hand %}{{ lo.by_hand }} to apply by hand (a board the extension doesn't fill){% endif %}</p>{% endif %}
+</div>
+<style>.session{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:12px 0 4px}
+  .session p{flex-basis:100%;margin:0}</style>
+{% endif %}
 <h2>Replies from your email{% if replies %} · {{ replies|length }}{% endif %}</h2>
 <form method="post" action="/inbox/fetch" class="inline" onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Checking…'">
   <input type="hidden" name="csrf" value="{{ csrf }}">

@@ -115,3 +115,49 @@ the message, not an address the message claims.
   type, go here when it has been done.
 - The extension stays out of the wheel and the Docker image: it is loaded
   from a clone.
+
+## The apply session, 2026-10-07 (plan 31)
+
+The owner asked for a "fully agentic" apply on company-site jobs. Unattended
+submission was declined again, for the reasons above, and because forms
+carry attestations ("I certify that…") that an agent should not sign
+unseen. The owner chose an **apply session**: the tool does everything up to
+Submit, job after job, and the person submits each one.
+
+- **The queue** (`jsa/applyqueue.py`, `GET /ext/queue`, read-only): saved
+  applications still being applied to by hand, on Greenhouse, Lever or
+  Ashby, whose posting is open and which have a resume a person approved.
+  Highest match first; ties go to the resume approved earliest. The rest are
+  counted with a reason: needs an approved resume, a board the extension
+  doesn't fill (apply by hand), or closed.
+- **The form it opens** is always the board's own application page, built
+  from the board token in the source's API address and the posting id;
+  never the employer's careers page. One GET each on 2026-10-07: Rocket Lab
+  and SpaceX on job-boards.greenhouse.io, Shield AI on Lever and Replit on
+  Ashby all answered 200 with no redirect. SpaceX embeds its form on its own
+  site, but the board-hosted page serves it too.
+- **Pipeline** offers "Start applying (N ready)", a link to the first form
+  with `#jsa-apply-session` (a fragment never reaches the employer's server),
+  or "Connect the extension first" when none is paired.
+- **The session** lives in the extension (`session.js`, kept in
+  `chrome.storage.session`, gone when the browser closes). The panel shows
+  "job 3 of 10" and three buttons: **I submitted this, next** (the same
+  confirm, then `/ext/applied`, then the next form), **Skip, next** (records
+  nothing) and **End session**. On another job's page it offers only "Back
+  to job 3" and End session. At the end, a summary and a link to Pipeline.
+- **It never moves on by itself.** Only those buttons advance it: no timer,
+  no page event and no clock. The worker opens only a form that is in this
+  session's queue and on one of the three boards, in the tab that asked, and
+  it records before it moves on. `tests/test_extension.py` holds the files
+  to this, and a planted auto-advance timer and tab listener both failed it.
+  `extension/test/background.test.mjs` runs the worker in Node and checks
+  the order: record, then open; a refused record opens nothing; a skip
+  records nothing.
+- **No new permission.** `chrome.tabs.update` on the asking tab needs none.
+
+Checked on the fixture forms in a browser, 2026-10-07: a three-job session
+started from the fragment, stayed put for three seconds untouched, skipped
+job 1, recorded job 2 and opened job 3, recorded job 3 and ended with "2
+submitted, 1 skipped"; End session ended early; a page that wasn't the
+session's job offered only "Back to job 2". No fixture form was submitted.
+**Not yet tried in the owner's Chrome on real forms.**

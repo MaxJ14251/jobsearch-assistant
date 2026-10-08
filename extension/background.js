@@ -5,6 +5,11 @@
 // anywhere else, and nothing here can submit a form.
 "use strict";
 
+importScripts("session.js");
+const Session = globalThis.JSASession;
+const BOARD_HOSTS = ["boards.greenhouse.io", "job-boards.greenhouse.io",
+                     "jobs.lever.co", "jobs.ashbyhq.com"];
+
 async function settings() {
   const stored = await chrome.storage.local.get({ port: 8765, key: "" });
   const port = Number(stored.port);
@@ -84,7 +89,92 @@ const HANDLERS = {
   async ping() {
     return (await json("/ext/ping")).body;
   },
+
+  // --- the apply session (plan 31) -------------------------------------------
+  // Every step below is a reply to a button you pressed in the panel.
+
+  async session_get() {
+    return { state: await loadSession(), pipeline_url: await pipelineUrl() };
+  },
+  async session_start() {
+    const running = await loadSession();
+    if (running && !running.done) return { state: running, pipeline_url: await pipelineUrl() };
+    const { status, body } = await json("/ext/queue");
+    if (status !== 200) throw new Error("The dashboard would not list the jobs to apply to.");
+    const state = Session.start(body.items);
+    await saveSession(state);
+    return { state, pipeline_url: await pipelineUrl() };
+  },
+  // Records first, then moves on: nothing is skipped past unrecorded.
+  async session_submitted(message, sender) {
+    let state = await loadSession();
+    const now = Session.current(state);
+    if (!now || now.job_id !== Number(message.job_id)) {
+      throw new Error("This is not the job the session is on.");
+    }
+    const recorded = await HANDLERS.applied({ ...message, confirm: "submitted" });
+    if (!recorded.ok) return { recorded };
+    state = Session.submitted(state, now.job_id);
+    await saveSession(state);
+    return { recorded, ...(await moveOn(state, sender)) };
+  },
+  async session_skip(message, sender) {
+    let state = await loadSession();
+    const now = Session.current(state);
+    if (!now || now.job_id !== Number(message.job_id)) {
+      throw new Error("This is not the job the session is on.");
+    }
+    state = Session.skip(state, now.job_id);
+    await saveSession(state);
+    return moveOn(state, sender);
+  },
+  async session_back(message, sender) {
+    const state = await loadSession();
+    const now = Session.current(state);
+    if (!now) return { state, done: true, pipeline_url: await pipelineUrl() };
+    await navigate(state, sender, now.apply_url);
+    return { state };
+  },
+  async session_end() {
+    const state = Session.end(await loadSession());
+    await saveSession(state);
+    return { state, done: true, pipeline_url: await pipelineUrl() };
+  },
 };
+
+async function loadSession() {
+  return (await chrome.storage.session.get({ session: null })).session;
+}
+
+async function saveSession(state) {
+  await chrome.storage.session.set({ session: state });
+}
+
+async function pipelineUrl() {
+  const stored = await chrome.storage.local.get({ port: 8765 });
+  return "http://127.0.0.1:" + Number(stored.port) + "/pipeline";
+}
+
+async function moveOn(state, sender) {
+  const next = Session.current(state);
+  if (!next) return { state, done: true, pipeline_url: await pipelineUrl() };
+  await navigate(state, sender, next.apply_url);
+  return { state };
+}
+
+// The one place the extension changes a page's address: only to a form in
+// this session's queue, on one of the three boards, in the tab that asked.
+async function navigate(state, sender, address) {
+  let host = "";
+  try { host = new URL(address).hostname; } catch (err) { host = ""; }
+  if (!Session.isQueued(state, address) || !BOARD_HOSTS.includes(host)) {
+    throw new Error("Refused: that address is not a job in this session.");
+  }
+  if (!sender || !sender.tab || typeof sender.tab.id !== "number") {
+    throw new Error("No tab to open it in.");
+  }
+  await chrome.tabs.update(sender.tab.id, { url: address });
+}
 
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   // Only this extension's own pages and scripts.

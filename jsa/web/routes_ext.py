@@ -200,6 +200,16 @@ def register(app, ctx) -> None:
             "warnings": warnings,
         }
 
+    @app.get("/ext/queue")
+    def ext_queue():
+        """The apply session's jobs, in order (plan 31). Reads only."""
+        from .. import applyqueue
+        con = connect()
+        try:
+            return applyqueue.ready_to_apply(con)
+        finally:
+            con.close()
+
     @app.get("/ext/document/{document_id}")
     def ext_document(document_id: int):
         """Only a document of a job you are applying to by hand now."""

@@ -28,12 +28,27 @@ yourself; the extension never does. Why, and what it may reach:
 4. Press the page's own **Submit**. Then **I submitted this** in the panel
    records the application in your tracker.
 
+## An apply session
+
+Pipeline's **Start applying (N ready)** opens the first ready job's form:
+saved jobs on these three boards with an approved resume, best match first.
+The panel shows "job 1 of N". Fill, check, press the page's Submit, then:
+
+- **I submitted this, next** records it and opens the next form;
+- **Skip, next** moves on and records nothing;
+- **End session** stops, with a summary.
+
+Nothing moves on without one of those clicks, and the session is forgotten
+when you close the browser.
+
 ## Files
 
 - `manifest.json`: permissions (`storage` only) and hosts (127.0.0.1 and
   the three boards).
 - `background.js`: the only code that makes requests, to your dashboard.
 - `fill.js`: which field gets what (pure functions).
+- `session.js`: the apply session's state (pure functions; only your
+  buttons move it).
 - `content.js`: fills the page and shows the panel.
 - `options.html`, `options.js`: the port and the pairing key.
 - `test/`: `node --test extension/test/*.test.mjs`, and fixture forms you

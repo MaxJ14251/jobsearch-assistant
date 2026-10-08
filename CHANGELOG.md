@@ -13,6 +13,9 @@ version number lives in one place, `jsa/__init__.py`.
   your profile, approved documents and answers, outlines what it left for
   you, and never presses Submit. Pair it from the dashboard's new Extension
   page ([ADR 0031](docs/decisions/0031-autofill-in-your-browser-you-press-submit.md)).
+- **An apply session:** "Start applying (N ready)" on Pipeline walks your
+  ready jobs one form after another; you submit each, and "I submitted this,
+  next" records it and opens the next. It never moves on by itself.
 
 - **Recruitee boards** (`kind: recruitee` in your companies list), in
   discovery, `jsa verify`, `jsa add <link>` and `jsa find`'s live check,

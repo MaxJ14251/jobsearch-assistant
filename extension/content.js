@@ -13,12 +13,15 @@
   if (!F) return;
 
   const host = location.hostname;
+  // The fixture forms in test/forms/ load this file as a page script on a
+  // local server, and say which board and posting they stand for. Installed,
+  // it runs in Chrome's isolated world, where no page can set these, and its
+  // manifest never runs it on a local address anyway.
+  const LOCAL = ["", "localhost", "127.0.0.1"].includes(host);
   const BOARD = host.endsWith("greenhouse.io") ? "greenhouse"
     : host === "jobs.lever.co" ? "lever"
     : host === "jobs.ashbyhq.com" ? "ashby"
-    // The fixture forms in test/forms/ load this file as a page script.
-    // Installed, it runs in Chrome's isolated world, where no page can set this.
-    : ["", "localhost", "127.0.0.1"].includes(host) ? window.__jsaTestBoard || null : null;
+    : LOCAL ? window.__jsaTestBoard || null : null;
   if (!BOARD) return;
 
   const AMBER = "2px solid #d18b00";
@@ -222,9 +225,11 @@
            font: 13px/1.45 system-ui, sans-serif; color: #1f2420; background: #fbfcfa;
            border: 1px solid #c9d0c8; border-radius: 6px; box-shadow: 0 6px 24px rgba(0,0,0,.18);
            padding: 12px 14px; }
+    a { color: #2f6f5e; }
     @media (prefers-color-scheme: dark) {
       .box { color: #e7ebe6; background: #1c211d; border-color: #3a413c; }
       .meta { color: #a3aba4 !important; }
+      a { color: #7cc2ad; }
     }
     h2 { font-size: 14px; margin: 0 0 6px; }
     .meta { color: #5d655f; }
@@ -264,16 +269,134 @@
     if (!panelHost.isConnected) document.documentElement.append(panelHost);
   }
 
-  function intro(message) {
-    show([
-      el("h2", { textContent: "Job Search Assistant" }),
-      el("p", { className: "meta", textContent: message ||
-        "Fill this application from your tracker. You check it and press Submit yourself." }),
+  // --- the apply session (plan 31) ----------------------------------------------
+  // Every step to another job is one of the buttons below; nothing on the
+  // page and no timer moves the session on.
+
+  const S = globalThis.JSASession;
+  const PAGE = S ? S.pageKey(location.href) || (LOCAL ? window.__jsaTestPage || null : null)
+    : null;
+  let session = null;          // {state, pipeline_url} while a session runs
+
+  function sessionJob() {
+    const now = session && S.current(session.state);
+    return now && S.itemKey(now) === PAGE ? now : null;
+  }
+
+  function sessionBar() {
+    const now = S.current(session.state);
+    const n = session.state.index + 1;
+    const total = session.state.items.length;
+    if (sessionJob()) {
+      return [
+        el("p", { className: "meta", textContent: "Apply session · job " + n + " of " + total }),
+        el("div", { className: "row" }, [
+          button("I submitted this, next", nextAfterSubmit),
+          button("Skip, next", skipNext, true),
+          button("End session", endSession, true),
+        ]),
+      ];
+    }
+    return [
+      el("p", { textContent: "Apply session: you are on job " + n + " of " + total + ", " +
+                             now.title + " at " + now.company + "." }),
       el("div", { className: "row" }, [
-        button("Fill this application", run),
-        button("Hide", () => panelHost.remove(), true),
+        button("Back to job " + n, backToCurrent),
+        button("End session", endSession, true),
       ]),
+    ];
+  }
+
+  function doneScreen() {
+    const s = S.summary(session.state);
+    const link = el("a", { href: session.pipeline_url, textContent: "Open Pipeline",
+                           target: "_blank", rel: "noopener" });
+    show([
+      el("h2", { textContent: session.state.ended ? "Session ended" : "Session done" }),
+      el("p", { textContent: s.submitted + " submitted, " + s.skipped + " skipped" +
+                             (s.left ? ", " + s.left + " not reached" : "") + "." }),
+      el("p", {}, [link]),
     ]);
+  }
+
+  function after(answer) {
+    session = { state: answer.state,
+                pipeline_url: answer.pipeline_url || (session && session.pipeline_url) };
+    if (answer.done) doneScreen();
+    else show([el("p", { textContent: "Opening the job…" })]);
+  }
+
+  // Recorded first (with the same confirm as outside a session), then on.
+  async function nextAfterSubmit() {
+    const now = sessionJob();
+    if (!now) return;
+    if (!data) {
+      try { data = await ask({ type: "fill" }); } catch (err) { data = null; }
+    }
+    const docs = (data && data.state === "ready" && data.documents) || {};
+    const resume = attached.resume || docs.resume || null;
+    const what = resume ? " with resume v" + resume.version : " with no resume recorded";
+    if (!window.confirm("Record that you submitted " + now.title + " at " + now.company +
+                        what + "?\n\nOnly do this after you pressed the page's own " +
+                        "Submit. The next job opens after.")) return;
+    const message = { type: "session_submitted", job_id: now.job_id,
+                      resume: resume ? resume.id : "",
+                      cover: attached.cover_letter ? attached.cover_letter.id : "" };
+    try {
+      let answer = await ask(message);
+      if (answer.recorded && answer.recorded.needs === "confirm_unapproved") {
+        if (!window.confirm("That resume is not one you approved. Record it anyway?")) return;
+        answer = await ask({ ...message, confirm_unapproved: true });
+      }
+      if (answer.recorded && !answer.recorded.ok) {
+        show([el("p", { textContent: answer.recorded.error || "Nothing recorded." }),
+              ...sessionBar()]);
+        return;
+      }
+      after(answer);
+    } catch (err) {
+      show([el("p", { textContent: err.message })]);
+    }
+  }
+
+  async function skipNext() {
+    const now = sessionJob();
+    if (!now) return;
+    try { after(await ask({ type: "session_skip", job_id: now.job_id })); }
+    catch (err) { show([el("p", { textContent: err.message })]); }
+  }
+
+  async function backToCurrent() {
+    try { after(await ask({ type: "session_back" })); }
+    catch (err) { show([el("p", { textContent: err.message })]); }
+  }
+
+  async function endSession() {
+    try { after(await ask({ type: "session_end" })); }
+    catch (err) { show([el("p", { textContent: err.message })]); }
+  }
+
+  // --- the panel's screens ----------------------------------------------------
+
+  function intro(message) {
+    const now = session && S.current(session.state);
+    const mine = sessionJob();
+    const head = el("h2", { textContent: mine ? mine.title + " at " + mine.company
+                                              : "Job Search Assistant" });
+    if (now && !mine) {
+      show([head, ...sessionBar()]);
+      return;
+    }
+    const parts = [head, el("p", { className: "meta", textContent: message || (mine
+      ? "Fill the form, check it, press its Submit, then tell the session below."
+      : "Fill this application from your tracker. You check it and press Submit yourself.") })];
+    if (mine && mine.warnings.length) parts.push(list(mine.warnings, "warn"));
+    const row = [];
+    if (hasForm()) row.push(button("Fill this application", run));
+    if (!mine) row.push(button("Hide", () => panelHost.remove(), true));
+    if (row.length) parts.push(el("div", { className: "row" }, row));
+    if (mine) parts.push(...sessionBar());
+    show(parts);
   }
 
   function report(result) {
@@ -298,10 +421,13 @@
                  "this never clicks anything on the page.");
     }
     if (notes.length) parts.push(list(notes, "warn"));
-    parts.push(el("div", { className: "row" }, [
-      button("Undo fill", () => { undoFill(); intro("Fill undone."); }, true),
-      button("I submitted this", submitted),
-    ]));
+    const undoButton = button("Undo fill", () => { undoFill(); intro("Fill undone."); }, true);
+    if (sessionJob()) {
+      parts.push(el("div", { className: "row" }, [undoButton]), ...sessionBar());
+    } else {
+      parts.push(el("div", { className: "row" }, [undoButton,
+                                                  button("I submitted this", submitted)]));
+    }
     show(parts);
   }
 
@@ -337,18 +463,47 @@
     }
   }
 
-  // Application forms render late; offer the panel once one appears.
+  // --- starting up ------------------------------------------------------------
+
+  // Application forms render late; show the panel once one appears (or, on a
+  // session's job, refresh it so the Fill button appears).
   function hasForm() {
     return Boolean(document.querySelector("input[type='file'], input[type='email'], " +
                                           "input[name*='email' i], input[id*='email' i]"));
   }
-  if (hasForm()) {
-    intro();
-  } else {
+
+  function whenFormAppears(then) {
+    if (hasForm()) { then(); return; }
     const watch = new MutationObserver(() => {
-      if (hasForm()) { watch.disconnect(); intro(); }
+      if (hasForm()) { watch.disconnect(); then(); }
     });
     watch.observe(document.documentElement, { childList: true, subtree: true });
     setTimeout(() => watch.disconnect(), 20000);
   }
+
+  async function begin() {
+    const asked = location.hash === "#jsa-apply-session";
+    if (S) {
+      try {
+        session = await ask({ type: "session_get" });
+        if ((!session.state || session.state.done) && asked) {
+          session = await ask({ type: "session_start" });
+          if (session.state.done) { doneScreen(); return; }     // nothing ready
+        }
+        if (!session.state || session.state.done) session = null;
+      } catch (err) {
+        session = null;
+        if (asked) { intro(err.message); return; }
+      }
+    }
+    if (session && sessionJob()) {
+      intro();
+      if (!hasForm()) whenFormAppears(intro);
+      return;
+    }
+    if (session && PAGE) { intro(); return; }   // a job page, but not the session's
+    whenFormAppears(intro);
+  }
+
+  begin();
 })();
