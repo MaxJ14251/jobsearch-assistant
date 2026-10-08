@@ -88,6 +88,15 @@ class TestDetails(unittest.TestCase):
                          ["AWS certification", "CCNA", "CISSP", "CompTIA Security+", "PMP"])
         self.assertEqual(degree.classify("Write Python.").certifications, [])
 
+    def test_lookalikes_are_not_certifications(self):
+        # Found on the owner's tracker, 2026-10-08: "CSM" as Customer
+        # Success Manager, and Six Sigma as a method, not a certificate.
+        self.assertEqual(degree.certifications(
+            "The Customer Success Manager (CSM) owns renewals. Knowledge of Lean, "
+            "Six Sigma and root cause analysis."), [])
+        self.assertEqual(degree.certifications("Six Sigma Green Belt; Certified ScrumMaster"),
+                         ["Certified ScrumMaster", "Six Sigma"])
+
     def test_columns_and_the_degree_question(self):
         cols = degree.columns("Bachelor's degree in Physics required. CISSP preferred.")
         self.assertEqual(cols["degree_level"], "bachelors")

@@ -36,7 +36,8 @@ certifications:
   - name: PMP
     patterns: ['\bpmp\b', 'project management professional']
   - name: Certified ScrumMaster
-    patterns: ['\bcsm\b', 'scrum ?master certifi', 'certified scrum']
+    # Not "CSM" alone: postings use it for Customer Success Manager.
+    patterns: ['scrum ?master certifi', 'certified scrum']
   - name: ITIL
     patterns: ['\bitil\b']
   - name: Salesforce certification
@@ -48,7 +49,9 @@ certifications:
   - name: CPA
     patterns: ['\bcpa\b']
   - name: Six Sigma
-    patterns: ['six sigma']
+    # A belt or a certificate: "knowledge of Lean, Six Sigma" is a method.
+    patterns: ['six sigma (green|black|yellow|white) belt', 'six sigma certifi',
+               '\b(green|black) belt\b']
   - name: FAA certificate (A&P)
     patterns: ['\ba&p\b', 'airframe and powerplant']
   - name: NICET
