@@ -184,13 +184,15 @@ class TestDiscovery(unittest.TestCase):
         with mock.patch.dict(os.environ, {"MUSE_API_KEY": "m"}):
             self.assertEqual(discover._with_context({"kind": "themuse"}, prefs)["api_key"], "m")
 
-    def test_the_shipped_entry_waits_for_a_real_run(self):
+    def test_the_shipped_entry_holds_no_settings(self):
+        # Verified with a real key on 2026-10-09; like The Muse, it is skipped
+        # without one, so shipping it verified costs a fresh clone nothing.
         from jsa.config import SEED_COMPANIES
         import yaml
         entries = yaml.safe_load(SEED_COMPANIES.read_text(encoding="utf-8"))["sources"]
         usajobs = [e for e in entries if e.get("kind") == "usajobs"]
         self.assertEqual(len(usajobs), 1)
-        self.assertIs(usajobs[0]["verified"], False)
+        self.assertIs(usajobs[0]["verified"], True)
         self.assertNotIn("api_key", usajobs[0])
         self.assertNotIn("email", usajobs[0])
 

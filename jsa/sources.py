@@ -792,9 +792,9 @@ def fetch_themuse(entry: dict[str, Any]) -> FetchResult:
 # status line, an exception or the ledger.
 
 USAJOBS_BASE = "https://data.usajobs.gov/api/search"
-# Per city per run, 100 a page. Not yet measured against a real key (plan 29
-# step 3 waits for one); 200 of the newest per city is the same order as The
-# Muse's 100, and far under the 10,000-row query cap.
+# Per city per run, 100 a page. Measured 2026-10-09 (ADR 0013): 15 cities read
+# 663 distinct postings and 5 passed min_score; every page of the 9 cities
+# over 200 would about double the requests for under 1% kept, so 2 stays.
 USAJOBS_MAX_PAGES = 2
 USAJOBS_PAGE_SIZE = 100
 _USAJOBS_PERIODS = {"PA": "year", "PH": "hour"}

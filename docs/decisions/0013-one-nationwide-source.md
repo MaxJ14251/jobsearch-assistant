@@ -122,8 +122,28 @@ It is shaped like The Muse: per city, bounded (`USAJOBS_MAX_PAGES = 2`
 pages of 100), skipped without settings, one row across cities, and the
 agency as the employer, so `find_duplicate` works as before.
 
-**Not yet measured.** The key belongs to the owner and has not been
-requested yet, so the coverage numbers (per city: postings, local, remote,
-agencies, how many pass `min_score`), whether `Keyword` from target titles
-helps, and the page bound are still to be set from one real run. Until then
-the shipped entry is `verified: false` and discovery does not poll it.
+### Measured, 2026-10-09
+
+One run with the owner's key over the owner's 15 cities (counts only; the
+cities are not named here):
+
+- **663 distinct postings, 73 agencies.** One city returned none. The others
+  matched 63 to 636 postings each; 9 matched more than the 200 the bound
+  reads. Neighbouring cities return almost the same set, so 15 cities read
+  663 postings, not 15 × 200.
+- **Per city, of what was read:** 32–34 remote (the same nationwide remote
+  postings in every city), 24–78 telework-eligible, 7–142 on-site.
+- **5 of 663 pass `min_score`** (1–4 per city). `jsa discover` the same day
+  kept 5 and filtered 658. Federal titles rarely use the words in a tech or
+  sales profile's target titles.
+- **`Keyword` from the first 3 target titles:** 5 postings matched in all
+  15 cities together; 1 passed `min_score`, and it was not in the plain
+  read. One more keeper for 45 more requests, and a search that would hide
+  every federal posting worded differently from the profile. Not used.
+- **The page bound stays at 2.** Reading every page of the 9 capped cities
+  would roughly double the requests for postings that pass at under 1%.
+
+For this profile USAJOBS is a small source: a handful of keepers a run.
+For a profile whose roles federal agencies hire for (analysts, IT
+specialists, technicians), it would be a large one, which is why it stays
+shipped and verified. Without a key it is skipped, like The Muse.

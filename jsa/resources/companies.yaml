@@ -49,16 +49,15 @@ sources:
   # them, discovery reports it as skipped. Each posting links to its USAJOBS
   # page, where you apply; the API terms ask for exactly that.
   #
-  # Not yet verified: nobody has run it with a real key. Once you have set
-  # both values, run `jsa verify` and, if it returns listings, set this to
-  # true (or `jsa verify --write`).
+  # Verified 2026-10-09 with a real key: 663 listings over the owner's
+  # cities (ADR 0013). Without your own key it is skipped, not failed.
   - company: USAJOBS
     slug: usajobs
     kind: usajobs
     careers_url: https://www.usajobs.gov
     hq: nationwide
     priority: 1
-    verified: false
+    verified: true          # 663 listings
 
 
   # ==========================================================================

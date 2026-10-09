@@ -41,10 +41,10 @@ about your own locations. It needs a free key and the email address you
 requested it with, in `.env` as `USAJOBS_API_KEY` and `USAJOBS_EMAIL`
 (request one at [developer.usajobs.gov](https://developer.usajobs.gov/APIRequest/)).
 USAJOBS asks for that email in every request; it goes there and nowhere else.
-Each posting links to its USAJOBS page, which is where you apply. The shipped
-entry stays unverified until someone runs it with a real key: after setting
-both values, run `jsa verify`, and if USAJOBS returns listings, set its
-`verified:` to `true` (or `jsa verify --write`). You can still add employers
+Each posting links to its USAJOBS page, which is where you apply. Without
+the two settings it is skipped. How many postings it finds depends on your
+roles: for a tech and sales profile over 15 cities, 5 of 663 passed the
+score ([ADR 0013](docs/decisions/0013-one-nationwide-source.md)). You can still add employers
 near you to [jsa/resources/companies.yaml](jsa/resources/companies.yaml) and run
 `python -m jsa verify`; see
 [ADR 0009](docs/decisions/0009-what-the-shipped-feed-list-is.md) for why the
