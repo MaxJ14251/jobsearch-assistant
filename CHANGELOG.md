@@ -8,6 +8,10 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Added
 
+- **About this company and role** in the browser extension's panel: the
+  posting's and the company's education asks and the role's nationwide mix,
+  reading the company's own board at most weekly when needed
+  ([ADR 0031](docs/decisions/0031-autofill-in-your-browser-you-press-submit.md)).
 - **Who holds this kind of job, nationwide**: the education mix of workers
   in a posting's occupation (BLS table 5.3, titles mapped with O*NET), on
   job pages and Turbo cards, with an About this data page

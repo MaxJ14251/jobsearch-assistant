@@ -184,7 +184,8 @@ class TestManifest(unittest.TestCase):
             for pattern in block["matches"]:
                 host = re.match(r"https://([^/]+)/", pattern).group(1)
                 self.assertIn(host, BOARD_HOSTS)
-            self.assertEqual(block["js"], ["fill.js", "session.js", "content.js"])
+            self.assertEqual(block["js"], ["fill.js", "session.js", "research.js",
+                                           "content.js"])
 
     def test_every_file_it_names_exists(self):
         names = ["background.js", "options.html", "options.js"] + [

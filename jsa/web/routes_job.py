@@ -107,7 +107,23 @@ def register(app, ctx) -> None:
                 "evidence": row["degree_evidence"],
                 "certs": _json_list(row["certs_named"]),
                 "company": profile.line() if profile and profile.n else "",
+                "board": _board_line(row),
                 "caveat": degree.CAVEAT}
+
+    def _board_line(row) -> str:
+        """The company's whole board, when the extension's research read it
+        (plan 34): the tracker holds only the postings that matched."""
+        from .. import research
+        from ..applyqueue import board_of
+        con = connect()
+        try:
+            source = con.execute("SELECT kind, url FROM sources WHERE id = ?",
+                                 (row["source_id"],)).fetchone()
+            board = board_of(source["kind"], source["url"]) if source else None
+            snap = research.snapshot(con, source["kind"], board) if board else None
+        finally:
+            con.close()
+        return research._profile_from_snapshot(snap).line() if snap else ""
 
     def _role(row) -> dict | None:
         """Who holds this kind of job, nationwide (plan 33), or None."""

@@ -769,7 +769,10 @@ match to a resume you can upload yourself:
   runs an apply session: it opens each ready job's form in turn, and after
   you submit one, "I submitted this, next" records it and opens the next.
   "Skip, next" moves on without recording. Nothing moves on without your
-  click. Install and use:
+  click. Its panel also shows **About this company and role**: what the
+  posting and the company's postings ask for, and who holds the role
+  nationwide, reading the company's own job board once a week at most when
+  it isn't in your tracker. Install and use:
   [extension/README.md](extension/README.md); why it never submits:
   [ADR 0031](docs/decisions/0031-autofill-in-your-browser-you-press-submit.md).
 - **Interview prep** page: each question, why it is asked, and your

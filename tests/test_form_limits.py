@@ -122,6 +122,7 @@ class TestTheGuard(Base):
                   for r in self.app.routes if "POST" in getattr(r, "methods", set())}
         routes.discard("/import")                       # multipart: tests/test_web_import.py
         routes.discard("/ext/applied")                  # its own key: tests/test_ext.py
+        routes.discard("/ext/research/refresh")         # its own key: tests/test_research.py
         self.assertEqual(routes, set(bodies), "a POST route is missing from this test")
         with mock.patch("jsa.llm.complete", side_effect=LLMError("no model in tests")), \
              mock.patch("jsa.inbox.settings", return_value=None), \

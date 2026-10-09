@@ -240,6 +240,9 @@
              border: 1px solid #2f6f5e; background: #2f6f5e; color: #fff; }
     button.quiet { background: transparent; color: inherit; border-color: currentColor; }
     button:focus-visible { outline: 2px solid #d18b00; outline-offset: 2px; }
+    details.about { margin-top: 10px; border-top: 1px solid #c9d0c8; padding-top: 8px; }
+    details.about summary { cursor: pointer; font-weight: 600; }
+    details.about p { margin: 6px 0; }
   `;
   const box = document.createElement("div");
   box.className = "box";
@@ -266,7 +269,63 @@
 
   function show(children) {
     box.replaceChildren(...children);
+    if (aboutShown) box.append(aboutBox);
     if (!panelHost.isConnected) document.documentElement.append(panelHost);
+    // Only once the panel is on screen: a page you never see the panel on
+    // never asks, and so never has its board read.
+    if (PAGE || LOCAL) loadAbout();
+  }
+
+  // --- about this company and role (plan 34) -------------------------------------
+  // Read-only: what this posting asks for, the company's postings, and who
+  // holds this kind of job nationwide. Collapsed until you open it. The
+  // dashboard reads the company's board only when it says it should, once.
+
+  const R = globalThis.JSAResearch;
+  const aboutBox = document.createElement("details");
+  aboutBox.className = "about";
+  let aboutShown = false;
+  let aboutAsked = false;
+
+  function renderAbout(data, status) {
+    const line = R.summary(data);
+    const parts = [el("summary", { textContent: "About this company and role" +
+                                                (line ? ": " + line : "") })];
+    if (status) parts.push(el("p", { className: "meta", textContent: status }));
+    for (const part of R.sections(data)) {
+      parts.push(el("p", {}, [el("strong", { textContent: part.heading + ": " }),
+                              document.createTextNode(part.text)]));
+      if (part.note) parts.push(el("p", { className: "meta", textContent: part.note }));
+    }
+    aboutBox.replaceChildren(...parts);
+  }
+
+  async function loadAbout() {
+    if (!R || aboutAsked) return;
+    aboutAsked = true;
+    let data;
+    try {
+      data = await ask({ type: "research" });
+    } catch (err) {
+      return;                                  // not paired, or no dashboard: say nothing
+    }
+    if (!data || data.state === "unsupported") return;
+    aboutShown = true;
+    renderAbout(data);
+    box.append(aboutBox);
+    if (!R.shouldRefresh(data)) return;
+    const name = data.board ? data.board.board : "the company";
+    renderAbout(data, "Checking " + name + "'s job board…");
+    try {
+      const fresh = await ask({ type: "research_refresh" });
+      if (fresh.state === "failed") {
+        renderAbout(data, fresh.message || "Couldn't reach the board just now.");
+      } else {
+        renderAbout(fresh);
+      }
+    } catch (err) {
+      renderAbout(data, "Couldn't reach the board just now.");   // no retry
+    }
   }
 
   // --- the apply session (plan 31) ----------------------------------------------

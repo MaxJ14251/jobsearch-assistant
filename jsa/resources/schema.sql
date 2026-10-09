@@ -522,3 +522,24 @@ SELECT ap.id           AS approval_id,
   FROM approvals ap
  WHERE ap.decision = 'pending'
  ORDER BY ap.requested_at;
+
+-- ---------------------------------------------------------------------------
+-- What a company's whole public board asks for in education (plan 34): read
+-- once by the browser extension's research, at most weekly per board, and
+-- classified with no model. Its postings are NOT added to jobs: research is
+-- not discovery. One row per board.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS company_degree_snapshots (
+    id              INTEGER PRIMARY KEY,
+    board_kind      TEXT NOT NULL,
+    board           TEXT NOT NULL,
+    company         TEXT NOT NULL,
+    fetched_at      TEXT NOT NULL,
+    n               INTEGER NOT NULL,              -- postings with enough text to read
+    unreadable      INTEGER NOT NULL DEFAULT 0,    -- too short to read
+    certs_any       INTEGER NOT NULL DEFAULT 0,
+    counts_json     TEXT NOT NULL,                 -- {level: count}
+    certs_json      TEXT NOT NULL,                 -- [[name, count], ...] top 5
+    postings_json   TEXT NOT NULL,                 -- {external_id: {title, level, evidence, certs}}
+    UNIQUE (board_kind, board)
+);

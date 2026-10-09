@@ -90,6 +90,23 @@ const HANDLERS = {
     return (await json("/ext/ping")).body;
   },
 
+  // "About this company and role" (plan 34), for the page that asked.
+  async research(message, sender) {
+    const url = (sender && sender.url) || "";
+    return (await json("/ext/research?url=" + encodeURIComponent(url))).body;
+  },
+  // Only when the dashboard said the board needs reading; it reads it,
+  // from the board's own host, and keeps the limits.
+  async research_refresh(message, sender) {
+    const form = new URLSearchParams();
+    form.set("url", (sender && sender.url) || "");
+    return (await json("/ext/research/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    })).body;
+  },
+
   // --- the apply session (plan 31) -------------------------------------------
   // Every step below is a reply to a button you pressed in the panel.
 

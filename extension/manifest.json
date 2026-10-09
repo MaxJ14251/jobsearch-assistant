@@ -22,7 +22,7 @@
         "https://jobs.lever.co/*",
         "https://jobs.ashbyhq.com/*"
       ],
-      "js": ["fill.js", "session.js", "content.js"],
+      "js": ["fill.js", "session.js", "research.js", "content.js"],
       "all_frames": true,
       "run_at": "document_idle"
     }

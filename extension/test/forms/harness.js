@@ -76,6 +76,29 @@
                          return { state, done: true, pipeline_url: PIPELINE }; },
   };
 
+  // "About this company and role": the first answer says the board hasn't
+  // been read, the refresh comes back read, as the dashboard would.
+  const CAVEATS = {
+    posting: "What postings ask for, not who gets hired: dropping a degree requirement " +
+             "often changes actual hiring little.",
+    role: "People in this role nationwide, not this company's hires.",
+  };
+  const ROLE = { line: "Software developers (15-1252): 3% high school or less · 11% some " +
+                       "college or associate's · 52% bachelor's · 34% graduate degree.",
+                 caveat: CAVEATS.role };
+  const POSTING = { label: "bachelor's or equivalent experience", level: "bachelors_or_equiv",
+                    evidence: "Bachelor's degree in computer science or equivalent experience.",
+                    certs: [], from: "board" };
+  SESSION.research = () => ({ state: "missing", can_refresh: true, caveats: CAVEATS,
+                              board: { kind: "greenhouse", board: "riverton" },
+                              posting: POSTING, company: null, role: ROLE });
+  SESSION.research_refresh = () => ({
+    state: "ready", can_refresh: false, caveats: CAVEATS, posting: POSTING, role: ROLE,
+    board: { kind: "greenhouse", board: "riverton" },
+    company: { line: "Riverton Grid, 64 open postings on its job board: 9% bachelor's " +
+                     "required, 61% bachelor's or equivalent experience, 30% no degree " +
+                     "mentioned.", from: "board" } });
+
   const log = (window.__jsaCalls = []);
   window.chrome = {
     runtime: {

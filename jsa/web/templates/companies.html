@@ -26,6 +26,13 @@
 {% else %}
 <p class="empty">No company has {{ minimum }} open postings in your tracker yet.</p>
 {% endif %}
+{% if boards %}
+<h2>Job boards read while applying</h2>
+<p class="meta">Each company's whole public board, read once by the browser extension's "About this company" (at most weekly). Its postings are not in your tracker.</p>
+<ul class="boards">{% for p, kind, board, fresh in boards %}
+  <li>{{ p.line() }} <span class="meta">{{ kind|title }} board <code>{{ board }}</code>{% if not fresh %} · over a week old{% endif %}</span></li>
+{% endfor %}</ul>
+{% endif %}
 <p class="meta">"Open to equivalent experience" counts postings that name no degree, ask for an associate's, or accept experience instead of a bachelor's. Each posting's own reading, with the sentence it came from, is on its job page. CLI: <code>jsa companies --sort open|certs</code>. <a class="plain" href="/about-data">About this data</a>.</p>
 <style>.tablewrap{overflow-x:auto}
   table.companies{border-collapse:collapse;width:100%;font-size:14px}

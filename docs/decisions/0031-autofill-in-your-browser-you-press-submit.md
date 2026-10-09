@@ -161,3 +161,37 @@ job 1, recorded job 2 and opened job 3, recorded job 3 and ended with "2
 submitted, 1 skipped"; End session ended early; a page that wasn't the
 session's job offered only "Back to job 2". No fixture form was submitted.
 **Not yet tried in the owner's Chrome on real forms.**
+
+## About this company and role, 2026-10-08 (plan 34)
+
+The owner asked that, while applying, the extension pull up the company and
+"do the research live". The panel now has a collapsed section, "About this
+company and role", built from ADR 0032 and 0033:
+
+- **This posting:** what it asks for in education, with its sentence and
+  any certifications it names.
+- **This company:** what its postings ask for: its whole public board when
+  that was read in the last week, else its postings in the tracker.
+- **This role, nationwide:** who holds the occupation the title matches.
+- Each with its caveat: what postings ask for, not who gets hired; who
+  holds the role nationwide, not this company's hires.
+
+"Live" is one thing only. `GET /ext/research` (reads only) says whether the
+company's board was read in the last 7 days. When it wasn't, the extension
+asks once, `POST /ext/research/refresh`, and the dashboard reads **that
+board's own public API**, through the allowlist-guarded fetch `jsa find`
+uses, classifies each posting locally with no model, and keeps a summary in
+`company_degree_snapshots`. Its postings are not added to the tracker:
+research is not discovery, and unscored jobs don't belong in Matches.
+
+- At most one read per board per 7 days, and 5 a day in all.
+- Only once the panel is on screen: a page where the panel never appears
+  never asks.
+- A failure says "Couldn't reach the board just now" and nothing retries.
+- No other site is searched, and no person or employee data is read.
+
+The Companies page lists the boards read, and a job page shows its whole
+board's reading beside the tracker's. Checked on the fixture form in a
+browser: the section asked once, the board was "read" once, filling worked
+as before, and nothing was submitted. **Not yet tried in the owner's
+Chrome**, on a company in the tracker and one that isn't.

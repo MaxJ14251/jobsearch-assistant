@@ -210,6 +210,29 @@ def register(app, ctx) -> None:
         finally:
             con.close()
 
+    @app.get("/ext/research")
+    def ext_research(url: str = ""):
+        """About this company and role (plan 34). Reads only."""
+        from .. import research
+        con = connect()
+        try:
+            return research.research(con, url)
+        finally:
+            con.close()
+
+    @app.post("/ext/research/refresh")
+    def ext_research_refresh(url: str = Form("")):
+        """Read this page's board once, when the panel found nothing recent.
+        The board's own host only; at most weekly per board, a few a day."""
+        from .. import research
+        con = connect()
+        try:
+            return research.refresh(con, url)
+        except research.ResearchError as exc:
+            return JSONResponse({"state": "failed", "message": str(exc)}, status_code=200)
+        finally:
+            con.close()
+
     @app.get("/ext/document/{document_id}")
     def ext_document(document_id: int):
         """Only a document of a job you are applying to by hand now."""

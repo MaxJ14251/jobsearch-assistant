@@ -17,13 +17,16 @@ def register(app, ctx) -> None:
         from .. import companies
         from ..degree import CAVEAT
         sort = sort if sort in ("open", "certs") else "open"
+        from .. import research
         con = connect()
         try:
             profiles = companies.all_profiles(con, sort=sort)
+            boards = research.all_snapshots(con)
         finally:
             con.close()
         return render("companies", "companies", title="Companies", profiles=profiles,
-                      sort=sort, caveat=CAVEAT, minimum=companies.MIN_FOR_SHARES)
+                      sort=sort, caveat=CAVEAT, minimum=companies.MIN_FOR_SHARES,
+                      boards=boards)
 
     @app.get("/about-data", response_class=HTMLResponse)
     def about_data():

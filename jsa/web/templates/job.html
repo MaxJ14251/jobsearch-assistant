@@ -179,6 +179,7 @@ document.querySelectorAll('button.copy').forEach(function (b) {
 {% if education %}<div class="education">
   <p><strong>This posting asks for:</strong> {{ education.label }}{% if education.certs %} · names {{ education.certs|join(", ") }}{% endif %}{% if education.evidence %}<br><span class="meta">“{{ education.evidence }}”</span>{% endif %}</p>
   {% if education.company %}<p><strong>This company:</strong> {{ education.company }} <a class="plain" href="/companies">All companies</a></p>{% endif %}
+  {% if education.board %}<p><strong>Its whole job board:</strong> {{ education.board }}</p>{% endif %}
   <p class="meta">{{ education.caveat }}</p>
 </div>{% endif %}
 {% if job.enrichment_note %}<p class="sub">{{ job.enrichment_note }}</p>{% endif %}
