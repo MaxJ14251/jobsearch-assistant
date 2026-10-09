@@ -46,6 +46,10 @@ version number lives in one place, `jsa/__init__.py`.
 
 - A tracker made before a newer source kind is now rebuilt for it (with a
   backup first); the check used to look for one kind's name only.
+- `jsa verify --write` changes only the `verified:` values in
+  `companies.yaml`, keeping every comment, and a feed that fails one run is
+  reported and left verified. It used to rewrite the whole file without its
+  comments and switch off any board that failed once.
 
 ## [0.2.0] - 2026-10-05
 

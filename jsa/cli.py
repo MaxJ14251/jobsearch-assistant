@@ -15,8 +15,6 @@ import sqlite3
 import sys
 from pathlib import Path
 
-import yaml
-
 from . import approvals, db, discover
 from .config import COMPANIES_PATH, DB_PATH, ConfigError, Preferences, load_profile
 
@@ -378,16 +376,17 @@ def cmd_verify(args: argparse.Namespace) -> int:
     print(f"\n{len(working)}/{len(reports)} feeds returned listings.")
 
     if args.write:
-        data = yaml.safe_load(COMPANIES_PATH.read_text(encoding="utf-8"))
-        by_company = {r.company: r for r in reports}
-        for entry in data["sources"]:
-            r = by_company.get(entry["company"])
-            entry["verified"] = bool(r and r.status == "ok" and r.fetched > 0)
-        COMPANIES_PATH.write_text(
-            yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8"
-        )
-        print(f"updated `verified` flags in {COMPANIES_PATH.name}")
-        print("NOTE: this rewrite drops the comments from companies.yaml.")
+        try:
+            turned_on, kept = discover.record_verified(COMPANIES_PATH, reports)
+        except ValueError as exc:
+            print(f"not written: {exc}", file=sys.stderr)
+            return 1
+        print(f"{COMPANIES_PATH.name}: {len(turned_on)} newly verified"
+              + (f" ({', '.join(turned_on)})" if turned_on else "")
+              + "; nothing else in the file changed")
+        for company in kept:
+            print(f"  {company} failed this run and was left verified: run it again, "
+                  "or set `verified: false` by hand if it stays broken")
     else:
         print("re-run with --write to record these results in companies.yaml")
     return 0

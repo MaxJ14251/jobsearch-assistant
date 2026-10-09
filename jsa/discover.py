@@ -50,6 +50,62 @@ def verify_sources(entries: list[dict[str, Any]] | None = None) -> list[SourceRe
     return reports
 
 
+def record_verified(path: Path, reports: list[SourceReport]) -> tuple[list[str], list[str]]:
+    """Write `jsa verify`'s results into companies.yaml, changing only the
+    `verified:` values, so every comment and line around them stays as it
+    was. Returns (now verified, failed but left verified).
+
+    A feed that returns listings becomes verified. One that fails stays as
+    it was: a single bad run (a timeout, a rate limit) is not a reason to
+    stop polling a board that worked, and a person reads the report. A
+    disabled entry is not touched.
+    """
+    import re
+    import yaml
+
+    text = path.read_bytes().decode("utf-8")      # keeps \r\n, which read_text would not
+    entries = (yaml.safe_load(text) or {}).get("sources") or []
+    lines = text.splitlines(keepends=True)
+    starts = [i for i, line in enumerate(lines) if re.match(r"\s*- company:", line)]
+    if len(starts) != len(entries):
+        raise ValueError(f"{path.name}: found {len(starts)} `- company:` lines for "
+                         f"{len(entries)} entries; edit the flags by hand")
+    by_company = {r.company: r for r in reports}
+    turned_on: list[str] = []
+    kept: list[str] = []
+    inserts: list[tuple[int, str]] = []
+    for n, (start, entry) in enumerate(zip(starts, entries)):
+        r = by_company.get(entry["company"])
+        if r is None or r.status == "disabled" or entry.get("enabled") is False:
+            continue
+        works = r.status == "ok" and r.fetched > 0
+        if not works:
+            if entry.get("verified"):
+                kept.append(entry["company"])
+            continue
+        if entry.get("verified") is True:
+            continue
+        end = starts[n + 1] if n + 1 < len(starts) else len(lines)
+        for i in range(start, end):
+            m = re.match(r"(\s*)verified:\s*\S+(.*)", lines[i].rstrip("\r\n"))
+            if m:
+                eol = lines[i][len(lines[i].rstrip("\r\n")):]
+                lines[i] = f"{m.group(1)}verified: true{m.group(2)}{eol}"
+                break
+        else:
+            first = lines[start]
+            indent = " " * (len(first) - len(first.lstrip()) + 2)
+            eol = first[len(first.rstrip("\r\n")):] or "\n"
+            inserts.append((start + 1, f"{indent}verified: true{eol}"))
+        turned_on.append(entry["company"])
+    for at, line in reversed(inserts):
+        lines.insert(at, line)
+    new = "".join(lines)
+    if new != text:
+        path.write_bytes(new.encode("utf-8"))
+    return turned_on, kept
+
+
 def _slug(name: str) -> str:
     """A company slug from a name, so an aggregator's "SpaceX" lands on the
     same row as the SpaceX board already in companies.yaml."""
