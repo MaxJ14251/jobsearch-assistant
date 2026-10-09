@@ -112,7 +112,8 @@ class TestDetails(unittest.TestCase):
                              ("none", [], ""))
 
     def test_no_model_and_no_network(self):
-        source = (degree.__file__ and open(degree.__file__, encoding="utf-8").read())
+        from pathlib import Path
+        source = Path(degree.__file__).read_text(encoding="utf-8")
         for word in ("llm", "httpx", "requests", "urllib"):
             self.assertNotIn(f"import {word}", source)
             self.assertNotIn(f"from .{word}", source)
