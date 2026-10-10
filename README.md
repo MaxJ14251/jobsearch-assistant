@@ -606,8 +606,9 @@ attempt is counted (retries and fallbacks too), with its purpose (tailor,
 letter, prep, answers, enrich, resume-import, outreach), model, tokens in and
 out, and whether it worked. Set `JSA_PRICE_IN_PER_MTOK` and
 `JSA_PRICE_OUT_PER_MTOK` in `.env` to see an estimated cost; without them
-only counts are shown. If your provider doesn't report token counts, it says
-so and counts calls. Turbo's status strip shows today's calls, `jsa daily`
+only counts are shown. NVIDIA's API reports token counts (checked
+2026-10-09: 19 in, 3 out for a one-line prompt); if your provider doesn't,
+it says so and counts calls. Turbo's status strip shows today's calls, `jsa daily`
 reports yesterday's, and `jsa doctor` mentions a day over 200. Only counts
 are kept, never the text of a prompt or a reply.
 
