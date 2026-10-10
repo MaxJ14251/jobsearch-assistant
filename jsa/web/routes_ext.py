@@ -147,14 +147,16 @@ def register(app, ctx) -> None:
                         "message": "This job is not in your tracker. Add it from the "
                                    "dashboard's Add page, then save it."}
             job = answers.job_row(con, job_id)
-            application = con.execute("SELECT status FROM applications WHERE job_id = ?",
-                                      (job_id,)).fetchone()
+            application = con.execute("SELECT status, applied_at FROM applications "
+                                      "WHERE job_id = ?", (job_id,)).fetchone()
             summary = {"id": job_id, "title": job["title"], "company": job["company"]}
             if application is None:
                 return {"state": "not_saved", "job": summary, "job_url": f"/job/{job_id}",
                         "message": "Save this job in the dashboard first."}
             if application["status"] not in APPLY_BY_HAND_STAGES:
                 return {"state": "past", "job": summary, "job_url": f"/job/{job_id}",
+                        "status": application["status"],
+                        "applied_at": application["applied_at"],
                         "message": f"This application is already "
                                    f"{application['status'].replace('_', ' ')}."}
             if prof is None:
@@ -352,9 +354,16 @@ def register(app, ctx) -> None:
 
     @app.post("/ext/applied")
     def ext_applied(job_id: int = Form(...), resume: str = Form(""), cover: str = Form(""),
-                    confirm: str = Form(""), confirm_unapproved: str = Form("")):
+                    confirm: str = Form(""), confirm_unapproved: str = Form(""),
+                    how: str = Form("")):
         """The panel's "I submitted this": the person's own statement, recorded
-        as the job page's "I applied" records it. The extension never submits."""
+        as the job page's "I applied" records it. The extension never submits.
+
+        `how=confirmation_prompt` (plan 36) says the click was on the prompt
+        the board's own "application received" page brought up; it is noted,
+        and is the same click by the same person."""
+        note = ("recorded from the confirmation-page prompt"
+                if how == "confirmation_prompt" else None)
         if confirm != "submitted":
             return JSONResponse({"ok": False, "error": "Nothing recorded: confirm that "
                                  "you submitted it."}, status_code=400)
@@ -370,7 +379,8 @@ def register(app, ctx) -> None:
                                      "approved one. Confirm to record it anyway."},
                                     status_code=409)
             application_id, previous = approvals.set_stage(
-                con, job_id, "applied", via="employer", resume=resume_id, cover=cover_id)
+                con, job_id, "applied", via="employer", resume=resume_id, cover=cover_id,
+                note=note)
             sent = approvals.submitted(con, application_id)
             con.commit()
         except approvals.ApprovalError as exc:

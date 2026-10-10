@@ -231,8 +231,39 @@
       .slice(0, 300);
   }
 
+  // --- the board's "application received" page (plan 36) ------------------------
+  // It only brings up a question in the panel; recording is still your click.
+
+  const RECEIVED = /\bthanks? (you )?for (applying|your application)\b|\b(your )?application (was |has been )?(successfully )?(submitted|received|sent)\b|\bwe ?('ve|have) received your application\b/;
+
+  // page: {host, path, headings, formPresent}. Headings are the page's h1-h3
+  // and status/alert texts. Never true while the form is still there: an
+  // error banner beside the form ("application could not be submitted")
+  // is not a confirmation.
+  function looksSubmitted(page) {
+    if (!page || page.formPresent) return false;
+    const host = String(page.host || "");
+    const path = String(page.path || "").toLowerCase();
+    if (host === "jobs.lever.co" && /\/thanks\/?$/.test(path)) return true;
+    if (/(^|\.)greenhouse\.io$/.test(host) && /\/confirmation\/?$/.test(path)) return true;
+    return (page.headings || []).some((h) => {
+      const text = normalize(String(h).slice(0, 200));
+      return RECEIVED.test(text) && !/\b(not|could ?n.?t|unable|failed|error)\b/.test(text);
+    });
+  }
+
+  const FILL_MEMORY_MS = 2 * 60 * 60 * 1000;   // a fill counts for 2 hours
+
+  // The fill this tab remembers, if it is for this posting and recent.
+  function rememberedFor(memory, pageKey, now) {
+    if (!memory || !pageKey || memory.page_key !== pageKey) return null;
+    const age = Number(now) - Number(memory.filled_at);
+    return age >= 0 && age <= FILL_MEMORY_MS ? memory : null;
+  }
+
   const api = { normalize, keyForLabel, keyFor, valueFor, chooseYesNo, isRequired,
                 isOpenEnded, isQuestionLike, questionKey, questionText, REFUSED,
+                looksSubmitted, rememberedFor, FILL_MEMORY_MS,
                 RULES, BOARD_FIELDS };
   if (typeof module !== "undefined" && module.exports) {
     module.exports = api;

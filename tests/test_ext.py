@@ -279,6 +279,26 @@ class TestApplied(Ext):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(self.status()["status"], "applied")
 
+    def test_the_confirmation_page_prompt_is_noted_and_is_still_your_record(self):
+        # Plan 36: the same route, the same person; the note says where the
+        # click was. Without confirm=submitted it still records nothing.
+        resume = self.doc()
+        r = self.post("/ext/applied", {"job_id": 1, "resume": resume,
+                                       "how": "confirmation_prompt"})
+        self.assertEqual(r.status_code, 400)
+        r = self.post("/ext/applied", {"job_id": 1, "resume": resume, "confirm": "submitted",
+                                       "how": "confirmation_prompt"})
+        self.assertTrue(r.json()["ok"])
+        self.assertEqual(tuple(self.status()), ("applied", "employer"))
+        event = self.con.execute(
+            "SELECT actor, note FROM application_events WHERE application_id = ? "
+            "AND to_status = 'applied'", (self.app_id,)).fetchone()
+        self.assertEqual(event["actor"], "human")
+        self.assertIn("recorded from the confirmation-page prompt", event["note"])
+        past = self.get("/ext/fill", url=GREENHOUSE).json()
+        self.assertEqual((past["state"], past["status"]), ("past", "applied"))
+        self.assertTrue(past["applied_at"])
+
     def test_json_is_refused(self):
         r = self.client.post("/ext/applied", json={"job_id": 1, "confirm": "submitted"},
                              headers={pairing.HEADER: self.key})

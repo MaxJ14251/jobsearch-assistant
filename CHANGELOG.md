@@ -8,6 +8,10 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Added
 
+- **"Record it as applied?"** in the browser extension: after you submit,
+  the board's "application received" page brings up the question, and one
+  click records it as "I submitted this" does
+  ([ADR 0031](docs/decisions/0031-autofill-in-your-browser-you-press-submit.md)).
 - **Suggested answers** in the browser extension's panel: the open
   questions a fill left empty, three checked options for one when you press
   Suggest (20 a day), inserted only when you pick one, and your submitted

@@ -215,7 +215,21 @@
         q.els.forEach((el) => mark(el, AMBER));
       }
     }
+    rememberFill();
     return { data, filled, missing, skipped };
+  }
+
+  // What this tab filled, for the confirmation page's question (plan 36).
+  function rememberFill() {
+    if (!PAGE || !data || data.state !== "ready") return;
+    const docs = data.documents || {};
+    const resume = attached.resume || docs.resume || null;
+    const cover = attached.cover_letter || null;
+    ask({ type: "fill_memory_set", entry: {
+      job_id: data.job.id, page_key: PAGE, title: data.job.title, company: data.job.company,
+      resume_id: resume ? resume.id : null, resume_version: resume ? resume.version : null,
+      cover_id: cover ? cover.id : null, cover_version: cover ? cover.version : null,
+      filled_at: Date.now() } }).catch(() => {});
   }
 
   function undoFill() {
@@ -670,13 +684,111 @@
     show(parts);
   }
 
+  let lastReport = null;
+
   async function run() {
     show([el("p", { textContent: "Filling from your tracker…" })]);
     try {
-      report(await fillForm());
+      lastReport = await fillForm();
+      report(lastReport);
+      watchForConfirmation();
     } catch (err) {
       intro(err.message);
     }
+  }
+
+  // --- "Record it as applied?" (plan 36) -----------------------------------------
+  // When the board shows its own "application received" page, the panel asks.
+  // Watching the page only ever shows the question; recording is your click
+  // on Record as applied, the same record "I submitted this" makes.
+
+  let promptShown = false;
+  let watching = false;
+  let pending = null;          // the remembered fill the question is about
+
+  function pageFacts() {
+    const heads = Array.from(document.querySelectorAll("h1, h2, h3, [role='alert'], [role='status']"),
+                             (n) => text(n).slice(0, 200)).slice(0, 30);
+    return { host: location.hostname, path: location.pathname, headings: heads,
+             formPresent: hasForm() };
+  }
+
+  // Ashby swaps the form for its thank-you text in place.
+  function watchForConfirmation() {
+    if (watching) return;
+    watching = true;
+    const watch = new MutationObserver(() => {
+      if (F.looksSubmitted(pageFacts())) {
+        watch.disconnect();
+        offerRecord();
+      }
+    });
+    watch.observe(document.documentElement, { childList: true, subtree: true,
+                                              characterData: true });
+  }
+
+  async function offerRecord() {
+    if (promptShown || !PAGE) return;
+    promptShown = true;
+    let memory = null;
+    try {
+      memory = F.rememberedFor(await ask({ type: "fill_memory_get" }), PAGE, Date.now());
+    } catch (err) {
+      memory = null;
+    }
+    if (!memory) {                           // nothing filled here lately: nothing to ask
+      if (session && S.current(session.state)) intro();
+      return;
+    }
+    let state = null;
+    try { state = await ask({ type: "fill" }); } catch (err) { state = null; }
+    const head = el("h2", { textContent: memory.title + " at " + memory.company });
+    if (state && state.state === "past") {
+      show([head, el("p", { textContent: state.status === "applied" && state.applied_at
+        ? "Already recorded as applied on " + state.applied_at.slice(0, 10) + "."
+        : state.message || "Already recorded." }),
+            ...(sessionJob() ? sessionBar() : [])]);
+      return;
+    }
+    pending = memory;
+    const docs = memory.resume_version
+      ? "resume v" + memory.resume_version +
+        (memory.cover_version ? " and cover letter v" + memory.cover_version : "")
+      : "no resume recorded";
+    const row = sessionJob()
+      ? [button("Record as applied, next", nextAfterSubmit), button("Not yet", notYet, true)]
+      : [button("Record as applied", recordFromPrompt), button("Not yet", notYet, true)];
+    show([head,
+          el("p", { textContent: "Looks like your application went through. Record it as " +
+                                 "applied, with " + docs + "?" }),
+          el("div", { className: "row" }, row)]);
+  }
+
+  async function recordFromPrompt() {
+    const m = pending;
+    if (!m) return;
+    await rememberAnswers();
+    const message = { type: "applied", job_id: m.job_id, confirm: "submitted",
+                      how: "confirmation_prompt", resume: m.resume_id || "",
+                      cover: m.cover_id || "" };
+    try {
+      let answer = await ask(message);
+      if (answer.needs === "confirm_unapproved") {
+        if (!window.confirm("That resume is not one you approved. Record it anyway?")) return;
+        answer = await ask({ ...message, confirm_unapproved: true });
+      }
+      pending = null;
+      show([el("p", { textContent: answer.ok ? "Recorded. It's in your Pipeline as applied."
+                                             : answer.error || "Nothing recorded." })]);
+    } catch (err) {
+      show([el("p", { textContent: err.message })]);
+    }
+  }
+
+  function notYet() {
+    pending = null;
+    if (lastReport) report(lastReport);
+    else panelHost.remove();
   }
 
   // Recorded only after you say so, twice if the resume isn't approved.
@@ -723,6 +835,9 @@
 
   async function begin() {
     const asked = location.hash === "#jsa-apply-session";
+    // A board's own "application received" page (Lever's /thanks,
+    // Greenhouse's /confirmation): ask about the fill this tab remembers.
+    const received = !hasForm() && F.looksSubmitted(pageFacts());
     if (S) {
       try {
         session = await ask({ type: "session_get" });
@@ -736,6 +851,7 @@
         if (asked) { intro(err.message); return; }
       }
     }
+    if (received) { offerRecord(); return; }
     if (session && sessionJob()) {
       intro();
       if (!hasForm()) whenFormAppears(intro);

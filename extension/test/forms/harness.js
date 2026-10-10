@@ -128,6 +128,13 @@
         note: "your own words, for Acme Fictional, 2026-10-01",
         text: "The ticket I'm proudest of was a billing bug I traced end to end. (Fictional.)" }]])),
   });
+  // What this tab filled (plan 36), kept across the fixture pages.
+  SESSION.fill_memory_set = (m) => {
+    sessionStorage.setItem("jsa-fill-memory", JSON.stringify(m.entry));
+    return { ok: true };
+  };
+  SESSION.fill_memory_get = () => JSON.parse(sessionStorage.getItem("jsa-fill-memory") || "null");
+
   window.__jsaRemembered = [];
   SESSION.remember = (m) => { window.__jsaRemembered.push(m); return { ok: true, id: 1 }; };
 
@@ -137,12 +144,23 @@
       sendMessage: async (message) => {
         log.push(message);
         if (SESSION[message.type]) return { ok: true, result: SESSION[message.type](message) };
-        if (message.type === "fill") return { ok: true, result: FILL };
+        if (message.type === "fill") {
+          const recorded = sessionStorage.getItem("jsa-recorded");
+          return { ok: true, result: recorded
+            ? { state: "past", status: "applied", applied_at: recorded, job: FILL.job,
+                message: "This application is already applied." }
+            : FILL };
+        }
         if (message.type === "document") {
           return { ok: true, result: { data: btoa("PK fixture " + message.id),
                                        type: "application/octet-stream" } };
         }
         if (message.type === "applied") {
+          // As background.js does: a recorded fill is forgotten.
+          if (message.confirm === "submitted") {
+            sessionStorage.setItem("jsa-recorded", "2026-10-09T12:00:00Z");
+            sessionStorage.removeItem("jsa-fill-memory");
+          }
           return { ok: true, result: { ok: true, message: "Recorded (fixture)." } };
         }
         return { ok: false, error: "unknown message" };

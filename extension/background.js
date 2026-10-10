@@ -72,19 +72,44 @@ const HANDLERS = {
     return { data: toBase64(await response.arrayBuffer()),
              type: response.headers.get("content-type") || "" };
   },
-  async applied(message) {
+  async applied(message, sender) {
     const form = new URLSearchParams();
     form.set("job_id", String(Number(message.job_id)));
     form.set("resume", message.resume ? String(Number(message.resume)) : "");
     form.set("cover", message.cover ? String(Number(message.cover)) : "");
     form.set("confirm", message.confirm === "submitted" ? "submitted" : "");
     if (message.confirm_unapproved) form.set("confirm_unapproved", "1");
+    if (message.how === "confirmation_prompt") form.set("how", "confirmation_prompt");
     const { status, body } = await json("/ext/applied", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: form.toString(),
     });
+    if (body.ok) await forgetFill(sender);       // recorded: nothing left to ask
     return { status, ...body };
+  },
+
+  // What this tab filled (plan 36), so the board's "application received"
+  // page can ask whether to record it. Kept for this browser session only.
+  async fill_memory_set(message, sender) {
+    const tab = sender && sender.tab && sender.tab.id;
+    if (typeof tab !== "number") return { ok: false };
+    const entry = message.entry || {};
+    const fills = (await chrome.storage.session.get({ fills: {} })).fills;
+    fills[String(tab)] = {
+      job_id: Number(entry.job_id), page_key: String(entry.page_key || ""),
+      title: String(entry.title || ""), company: String(entry.company || ""),
+      resume_id: Number(entry.resume_id) || null, resume_version: Number(entry.resume_version) || null,
+      cover_id: Number(entry.cover_id) || null, cover_version: Number(entry.cover_version) || null,
+      filled_at: Number(entry.filled_at) || 0,
+    };
+    await chrome.storage.session.set({ fills });
+    return { ok: true };
+  },
+  async fill_memory_get(message, sender) {
+    const tab = sender && sender.tab && sender.tab.id;
+    const fills = (await chrome.storage.session.get({ fills: {} })).fills;
+    return typeof tab === "number" ? fills[String(tab)] || null : null;
   },
   async ping() {
     return (await json("/ext/ping")).body;
@@ -172,7 +197,7 @@ const HANDLERS = {
     if (!now || now.job_id !== Number(message.job_id)) {
       throw new Error("This is not the job the session is on.");
     }
-    const recorded = await HANDLERS.applied({ ...message, confirm: "submitted" });
+    const recorded = await HANDLERS.applied({ ...message, confirm: "submitted" }, sender);
     if (!recorded.ok) return { recorded };
     state = Session.submitted(state, now.job_id);
     await saveSession(state);
@@ -201,6 +226,14 @@ const HANDLERS = {
     return { state, done: true, pipeline_url: await pipelineUrl() };
   },
 };
+
+async function forgetFill(sender) {
+  const tab = sender && sender.tab && sender.tab.id;
+  if (typeof tab !== "number") return;
+  const fills = (await chrome.storage.session.get({ fills: {} })).fills;
+  delete fills[String(tab)];
+  await chrome.storage.session.set({ fills });
+}
 
 async function loadSession() {
   return (await chrome.storage.session.get({ session: null })).session;

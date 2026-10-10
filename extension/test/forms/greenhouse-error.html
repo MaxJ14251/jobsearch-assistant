@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fixture: a form still on the page, with an error</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 640px; margin: 24px auto; padding: 0 16px;
+         background: #fff; color: #222; }
+  .field { margin: 14px 0; }
+  label { display: block; font-weight: 600; }
+  input { width: 100%; padding: 6px; box-sizing: border-box; }
+  [role=alert] { color: #a00; }
+</style>
+</head>
+<body>
+<!-- The form is still here: this must NOT bring up "Record it as applied?". -->
+<h1>Support Engineer</h1>
+<h2 role="alert">Your application could not be submitted. Thank you for applying again once fixed.</h2>
+<form action="#" onsubmit="return false;">
+  <div class="field"><label for="email">Email *</label><input type="email" id="email" name="job_application[email]" required></div>
+</form>
+<script>window.__jsaTestBoard = "greenhouse"; window.__jsaTestPage = "greenhouse:4012345";</script>
+<script src="harness.js"></script>
+<script src="../../fill.js"></script>
+<script src="../../session.js"></script>
+<script src="../../research.js"></script>
+<script src="../../content.js"></script>
+</body>
+</html>

@@ -106,3 +106,10 @@ CHECK would force a table rebuild.
 - A test parses `jsa/` and pins every caller of `mark_applied` and
   `set_stage` to the person's own commands and routes.
 
+## The confirmation-page prompt, 2026-10-09 (plan 36)
+
+Still only the person records "applied". When a board shows its own
+"application received" page after a fill, the browser extension asks
+"Record it as applied?"; nothing is recorded until the person clicks Record
+as applied, and the event's note says the click was on that prompt. Seeing
+a thank-you page is not taken as proof; it is a reason to ask. See ADR 0031.

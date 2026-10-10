@@ -205,3 +205,31 @@ in the field for you to edit; nothing else writes a suggestion into the page,
 and nothing submits. What you put in those questions is kept at "I submitted
 this" and offered again for the same question. The rules, the untrusted
 question and the daily limit: [ADR 0034](0034-suggested-answers.md).
+
+## "Record it as applied?", 2026-10-09 (plan 36)
+
+The owner asked whether the Pipeline could switch to "applied" by itself
+when they apply with the extension. It can't (ADR 0012: only the person
+records "applied", and pressing Submit is no proof it went through), so the
+board's own "application received" page now **asks**: "Looks like your
+application went through. Record it as applied, with resume v3?", with
+**Record as applied** and **Not yet**.
+
+- At fill time the tab remembers which job it filled and with which
+  documents (`chrome.storage.session`, gone when the browser closes, and
+  forgotten once recorded). A confirmation page asks only about a fill of
+  the same posting in the last 2 hours.
+- A page counts as a confirmation when the form is gone and either the
+  address says so (Lever `/thanks`, Greenhouse `/confirmation`) or a heading
+  does ("Thank you for applying", "application submitted/received"). Never
+  while the form is on the page, and never on an error ("could not be
+  submitted"). Ashby swaps its form for the thank-you text in place, so the
+  page is watched after a fill; watching only shows the question.
+- **Record as applied** sends the same record as "I submitted this" (same
+  route, same documents, actor human), noted as "recorded from the
+  confirmation-page prompt". Already recorded: it says so instead of asking.
+  In an apply session it records and opens the next job, as "I submitted
+  this, next" does.
+- The confirmation pages' real addresses and headings were not checked on
+  a real submission when this was written; the owner's next one is the
+  check.

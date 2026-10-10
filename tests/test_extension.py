@@ -199,13 +199,52 @@ class TestSuggestionsWaitForYou(unittest.TestCase):
     def test_answers_are_remembered_only_after_you_say_you_submitted(self):
         self.assertEqual(self.source.count('type: "remember"'), 1)
         self.assertIn('type: "remember"', body_of(self.source, "rememberAnswers"))
-        holders = [n for n in ("submitted", "nextAfterSubmit")
+        holders = [n for n in ("submitted", "nextAfterSubmit", "recordFromPrompt")
                    if "rememberAnswers()" in body_of(self.source, n)]
-        self.assertEqual(sorted(holders), ["nextAfterSubmit", "submitted"])
-        self.assertEqual(len(re.findall(r"\brememberAnswers\b", self.source)), 3)
-        for name in holders:
+        self.assertEqual(sorted(holders), ["nextAfterSubmit", "recordFromPrompt", "submitted"])
+        self.assertEqual(len(re.findall(r"\brememberAnswers\b", self.source)), 4)
+        for name in ("submitted", "nextAfterSubmit"):
             body = body_of(self.source, name)
             self.assertLess(body.index("window.confirm"), body.index("rememberAnswers()"))
+
+
+class TestRecordingIsYourClick(unittest.TestCase):
+    """Plan 36: the board's "application received" page brings up a
+    question; only a button records the application."""
+
+    def setUp(self):
+        self.source = code(EXT / "content.js")
+
+    def test_the_applied_message_is_sent_only_from_two_buttons(self):
+        holders = [n for n in ("submitted", "recordFromPrompt")
+                   if 'type: "applied"' in body_of(self.source, n)]
+        self.assertEqual(holders, ["submitted", "recordFromPrompt"])
+        self.assertEqual(self.source.count('type: "applied"'), 2)
+        for name in ("submitted", "recordFromPrompt"):
+            # Wired to a button, and never called: its only "name(" is its definition.
+            wired = re.findall(r"button\([^;]*?,\s*" + name + r"\)", self.source)
+            calls = re.findall(r"(?<![.\w])" + name + r"\s*\(", self.source)
+            self.assertGreaterEqual(len(wired), 1, name)
+            self.assertEqual(len(calls), 1, name)
+
+    def test_watching_the_page_only_shows_the_question(self):
+        for name in ("watchForConfirmation", "offerRecord", "pageFacts"):
+            body = body_of(self.source, name)
+            with self.subTest(function=name):
+                self.assertNotIn('type: "applied"', body)
+                self.assertNotIn("rememberAnswers", body)
+                self.assertNotRegex(body, r"\b(recordFromPrompt|nextAfterSubmit)\s*\(")
+                self.assertNotIn("session_submitted", body)
+        # The observer's only act is to ask whether to show the question.
+        watch = body_of(self.source, "watchForConfirmation")
+        self.assertIn("MutationObserver", watch)
+        self.assertIn("offerRecord()", watch)
+
+    def test_the_fill_memory_is_cleared_once_recorded(self):
+        background = code(EXT / "background.js")
+        applied = body_of(background, "applied")
+        self.assertIn("if (body.ok) await forgetFill(sender)", applied)
+        self.assertNotRegex(background, r"setTimeout|setInterval")
 
 
 class TestManifest(unittest.TestCase):

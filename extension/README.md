@@ -28,6 +28,15 @@ yourself; the extension never does. Why, and what it may reach:
 4. Press the page's own **Submit**. Then **I submitted this** in the panel
    records the application in your tracker.
 
+## Record it as applied
+
+After you submit, when the board shows its own "application received" page,
+the panel asks: "Looks like your application went through. Record it as
+applied?" **Record as applied** records it, exactly as "I submitted this"
+does; **Not yet** leaves it. It asks only about a form this tab filled in
+the last two hours, never while the form is still on the page, and nothing
+is recorded without your click.
+
 ## An apply session
 
 Pipeline's **Start applying (N ready)** opens the first ready job's form:
