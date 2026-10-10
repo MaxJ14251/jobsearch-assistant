@@ -543,3 +543,36 @@ CREATE TABLE IF NOT EXISTS company_degree_snapshots (
     postings_json   TEXT NOT NULL,                 -- {external_id: {title, level, evidence, certs}}
     UNIQUE (board_kind, board)
 );
+
+-- ---------------------------------------------------------------------------
+-- Suggested answers to a form's open-ended questions (plan 35). One row per
+-- "Suggest" press: it is what the daily limit counts. The options are kept
+-- for the record; the question is the label text only, cleaned and capped.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS suggest_requests (
+    id              INTEGER PRIMARY KEY,
+    job_id          INTEGER REFERENCES jobs(id) ON DELETE SET NULL,
+    question_key    TEXT NOT NULL,
+    requested_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    options_json    TEXT NOT NULL,
+    model           TEXT
+);
+
+-- Answers the person used and submitted, offered again for the same question.
+-- 'yours' is text the person wrote or edited: their own words, re-offered as
+-- they were (company name aside), never re-checked or sent to a model. The
+-- old company's name is stored as {company}.
+CREATE TABLE IF NOT EXISTS answer_bank (
+    id              INTEGER PRIMARY KEY,
+    question_text   TEXT NOT NULL,
+    question_key    TEXT NOT NULL,
+    body            TEXT NOT NULL,
+    source          TEXT NOT NULL CHECK (source IN ('model','composed','yours')),
+    company         TEXT,
+    job_id          INTEGER REFERENCES jobs(id) ON DELETE SET NULL,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    last_used_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    use_count       INTEGER NOT NULL DEFAULT 1,
+    archived_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_answer_bank_key ON answer_bank(question_key);

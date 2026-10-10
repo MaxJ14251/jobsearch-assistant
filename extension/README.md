@@ -41,6 +41,19 @@ The panel shows "job 1 of N". Fill, check, press the page's Submit, then:
 Nothing moves on without one of those clicks, and the session is forgotten
 when you close the browser.
 
+## Questions to answer
+
+After a fill, the panel lists the open questions it left empty ("What
+excites you about …?"). Press **Suggest** on one for three answers to pick
+from: one about the role, one about a project of yours, one about the
+company. Each is checked against your profile or made from your own
+sentences, and says which. **Use this** puts it in the field for you to
+edit; nothing goes in by itself. Each Suggest is one model call, up to 20 a
+day. Salary and demographic questions are never suggested. When you press
+**I submitted this**, what you wrote is kept and offered again the next time
+a form asks the same question. Why it works this way:
+[ADR 0034](../docs/decisions/0034-suggested-answers.md).
+
 ## About this company and role
 
 Under the panel's buttons, a collapsed section shows what this posting asks

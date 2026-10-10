@@ -160,16 +160,23 @@ def evidence(con: sqlite3.Connection, job: dict[str, Any],
                           job.get("track") or "engineering", title=job.get("title") or "")
 
 
-def check(text: str, profile: dict[str, Any], job: dict[str, Any]) -> list[str]:
-    """Everything wrong with one answer. Empty means it may be used."""
+def check(text: str, profile: dict[str, Any], job: dict[str, Any], *,
+          min_words: int = MIN_WORDS, max_words: int = MAX_WORDS,
+          max_chars: int | None = None) -> list[str]:
+    """Everything wrong with one answer. Empty means it may be used.
+
+    The bounds default to this module's; a form field with a `maxlength`
+    passes tighter ones (plan 35)."""
     from .letter import ongoing_verbs, unsupported_words
     from .prep import DegreeClaimError, assert_no_degree_claim
     from .tailor import do_not_claim, term_pattern
 
     problems = []
     n = len(text.split())
-    if not MIN_WORDS <= n <= MAX_WORDS:
-        problems.append(f"{n} words, outside {MIN_WORDS}-{MAX_WORDS}")
+    if not min_words <= n <= max_words:
+        problems.append(f"{n} words, outside {min_words}-{max_words}")
+    if max_chars is not None and len(text) > max_chars:
+        problems.append(f"{len(text)} characters, over the field's {max_chars}")
     try:
         assert_no_degree_claim(text)
     except DegreeClaimError as exc:

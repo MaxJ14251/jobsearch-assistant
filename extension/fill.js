@@ -165,7 +165,74 @@
       /[*\u2731]\s*$/.test(String(field.label || ""));
   }
 
+  // --- open-ended questions (plan 35) -----------------------------------------
+  // The ones left empty after a fill, offered in the panel for suggestions.
+
+  // Yours to answer, never suggested. The same list is in jsa/suggest.py.
+  const REFUSED = new RegExp(
+    "\\b(salary|compensation|pay expectations?|desired pay|expected pay|pay range" +
+    "|gender|race|racial|ethnicity|ethnic|hispanic|latino|veteran|disabilit(y|ies)" +
+    "|sexual orientation|transgender|pronouns?|date of birth|how old|your age" +
+    "|how did you (hear|learn|find out) about)\\b", "i");
+
+  // Answered from the profile, a yes/no, a file, or never: not a question to
+  // write an answer to.
+  const CLOSED_KEYS = ["salary", "cover_letter", "resume", "preferred_name", "first_name",
+    "last_name", "full_name", "email", "phone", "linkedin", "github", "portfolio",
+    "website", "sponsorship", "relocation", "authorized", "location"];
+
+  const QUESTION_START = /^(what|why|how|describe|tell|explain|share|give an example|walk us|in your own words)\b/;
+
+  function isQuestionLike(label) {
+    const raw = String(label || "").replace(/[*✱\s]+$/, "");
+    return /\?$/.test(raw) || QUESTION_START.test(normalize(raw));
+  }
+
+  // field: {type, label, maxlength, empty, key}. A textarea, or a long text
+  // input whose label asks something, left empty, that nothing else answers.
+  function isOpenEnded(field) {
+    if (!field || !field.empty) return false;
+    if (field.type !== "textarea" && field.type !== "text") return false;
+    if (field.key && CLOSED_KEYS.includes(field.key)) return false;
+    const text = normalize(field.label);
+    if (!text || REFUSED.test(text) || /\bcover letter\b/.test(text)) return false;
+    if (field.type === "text") {
+      if (field.maxlength > 0 && field.maxlength < 200) return false;
+      if (!isQuestionLike(field.label)) return false;
+    }
+    return true;
+  }
+
+  // One normalization for matching a question to an earlier answer, shared
+  // with jsa/suggest.py (question_key); test/question_cases.json holds both.
+  function words(text) {
+    return String(text || "").toLowerCase().replace(/[‘’']/g, "")
+      .replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  function escapeRegExp(text) {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function questionKey(text, company) {
+    let key = words(text);
+    const name = words(company);
+    if (name) {
+      key = key.replace(new RegExp("(?<![a-z0-9])" + escapeRegExp(name) + "(?![a-z0-9])", "g"),
+                        "{company}");
+    }
+    return key.replace(/^(please |briefly |in a few sentences |tell us |in 2 3 sentences )+/, "")
+      .trim();
+  }
+
+  // The label as the panel shows it: no trailing required-asterisk.
+  function questionText(label) {
+    return String(label || "").replace(/[*✱\s]+$/, "").replace(/\s+/g, " ").trim()
+      .slice(0, 300);
+  }
+
   const api = { normalize, keyForLabel, keyFor, valueFor, chooseYesNo, isRequired,
+                isOpenEnded, isQuestionLike, questionKey, questionText, REFUSED,
                 RULES, BOARD_FIELDS };
   if (typeof module !== "undefined" && module.exports) {
     module.exports = api;

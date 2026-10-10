@@ -164,6 +164,50 @@ class TestNeverMovesOnByItself(unittest.TestCase):
         self.assertNotIn("applied", body)
 
 
+class TestSuggestionsWaitForYou(unittest.TestCase):
+    """Plan 35: a suggestion is drafted only when you press Suggest, and goes
+    into a field only when you press Use this."""
+
+    def setUp(self):
+        self.source = code(EXT / "content.js")
+
+    def test_use_option_is_reached_only_from_its_button(self):
+        uses = re.findall(r"\buseOption\b", self.source)
+        wired = re.findall(r'button\("Use this", \(\) => useOption\(', self.source)
+        self.assertEqual(len(wired), 1)
+        self.assertEqual(len(uses), 1 + len(wired))       # its definition and the button
+
+    def test_only_use_option_writes_a_suggestion_into_the_page(self):
+        for name in ("card", "showOptions", "suggestFor", "suggestAll", "loadEarlier",
+                     "questionsSection", "rememberAnswers"):
+            with self.subTest(function=name):
+                self.assertNotIn("native(", body_of(self.source, name))
+        self.assertIn("native(field", body_of(self.source, "useOption"))
+
+    def test_a_paid_suggestion_is_asked_for_only_from_a_button(self):
+        self.assertEqual(self.source.count('type: "suggest"'), 1)
+        self.assertIn('type: "suggest"', body_of(self.source, "suggestFor"))
+        callers = re.findall(r"\bsuggestFor\b", self.source)
+        # Its definition, the Suggest button, and Suggest for all's loop.
+        self.assertEqual(len(callers), 3)
+        self.assertIn('button("Suggest", () => suggestFor(q))', self.source)
+        self.assertIn("for (const q of openQuestions) await suggestFor(q)",
+                      body_of(self.source, "suggestAll"))
+        self.assertEqual(len(re.findall(r"\bsuggestAll\b", self.source)), 2)
+        self.assertIn("window.confirm", body_of(self.source, "suggestAll"))
+
+    def test_answers_are_remembered_only_after_you_say_you_submitted(self):
+        self.assertEqual(self.source.count('type: "remember"'), 1)
+        self.assertIn('type: "remember"', body_of(self.source, "rememberAnswers"))
+        holders = [n for n in ("submitted", "nextAfterSubmit")
+                   if "rememberAnswers()" in body_of(self.source, n)]
+        self.assertEqual(sorted(holders), ["nextAfterSubmit", "submitted"])
+        self.assertEqual(len(re.findall(r"\brememberAnswers\b", self.source)), 3)
+        for name in holders:
+            body = body_of(self.source, name)
+            self.assertLess(body.index("window.confirm"), body.index("rememberAnswers()"))
+
+
 class TestManifest(unittest.TestCase):
     def setUp(self):
         self.manifest = json.loads((EXT / "manifest.json").read_text(encoding="utf-8"))

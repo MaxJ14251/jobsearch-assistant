@@ -195,3 +195,13 @@ board's reading beside the tracker's. Checked on the fixture form in a
 browser: the section asked once, the board was "read" once, filling worked
 as before, and nothing was submitted. **Not yet tried in the owner's
 Chrome**, on a company in the tracker and one that isn't.
+
+## Questions to answer, 2026-10-09 (plan 35)
+
+After a fill, the panel lists the open questions it left empty, and offers
+three answers for one when you press its Suggest: drafted and checked, or
+made from your own sentences, each labelled. "Use this" puts the one you pick
+in the field for you to edit; nothing else writes a suggestion into the page,
+and nothing submits. What you put in those questions is kept at "I submitted
+this" and offered again for the same question. The rules, the untrusted
+question and the daily limit: [ADR 0034](0034-suggested-answers.md).

@@ -26,10 +26,13 @@
 
   const AMBER = "2px solid #d18b00";
   const GREEN = "2px solid rgba(47, 111, 94, 0.55)";
+  const BLUE = "2px dashed #3b6fb6";        // an answer you chose: review it
 
   let data = null;           // the dashboard's /ext/fill answer
   let undo = [];             // what to put back
   let attached = { resume: null, cover_letter: null };
+  let openQuestions = [];    // {el, label, maxlength, required, box, status}
+  const inserted = new Map(); // label -> {text, source} you chose with Use this
 
   function ask(message) {
     return chrome.runtime.sendMessage(message).then((answer) => {
@@ -175,6 +178,7 @@
     data = await ask({ type: "fill" });
     if (data.state !== "ready") return { data, filled: [], missing: [], skipped: [] };
     const filled = [], missing = [], skipped = [];
+    openQuestions = [];
     for (const q of questions()) {
       const key = F.keyFor({ board: BOARD, id: q.id, name: q.name, label: q.label });
       const required = F.isRequired(q);
@@ -195,9 +199,17 @@
       } else if (value) {
         done = apply(q, value);
       }
+      const first = q.els[0];
+      const cap = first.maxLength > 0 ? first.maxLength : null;
       if (done) {
         filled.push({ name, source: value.source });
         q.els.forEach((el) => mark(el, GREEN));
+      } else if (F.isOpenEnded({ type: q.type, label: q.label, maxlength: cap, key,
+                                 empty: !String(first.value || "").trim() })) {
+        // Listed under "Questions to answer", with suggestions on request.
+        openQuestions.push({ el: first, label: F.questionText(q.label), maxlength: cap,
+                             required });
+        if (required) mark(first, AMBER);
       } else if (required) {
         missing.push(name);
         q.els.forEach((el) => mark(el, AMBER));
@@ -211,6 +223,7 @@
       try { step.restore(); } catch (err) { /* the page removed the field */ }
     }
     undo = [];
+    inserted.clear();
   }
 
   // --- the panel --------------------------------------------------------------
@@ -220,8 +233,9 @@
   const style = document.createElement("style");
   style.textContent = `
     :host { all: initial; }
-    .box { position: fixed; right: 16px; bottom: 16px; z-index: 2147483646; width: 340px;
-           max-width: calc(100vw - 32px); max-height: 70vh; overflow: auto;
+    .box { position: fixed; right: 16px; bottom: 16px; z-index: 2147483646;
+           width: min(380px, calc(100vw - 16px)); max-height: 80vh; overflow: auto;
+           box-sizing: border-box; overflow-wrap: anywhere;
            font: 13px/1.45 system-ui, sans-serif; color: #1f2420; background: #fbfcfa;
            border: 1px solid #c9d0c8; border-radius: 6px; box-shadow: 0 6px 24px rgba(0,0,0,.18);
            padding: 12px 14px; }
@@ -243,6 +257,29 @@
     details.about { margin-top: 10px; border-top: 1px solid #c9d0c8; padding-top: 8px; }
     details.about summary { cursor: pointer; font-weight: 600; }
     details.about p { margin: 6px 0; }
+    details.questions { margin-top: 10px; border-top: 1px solid #c9d0c8; padding-top: 8px; }
+    details.questions > summary { cursor: pointer; font-weight: 600; }
+    .question { margin: 10px 0 4px; }
+    .question > p { margin: 0 0 4px; }
+    .card { border: 1px solid #c9d0c8; border-radius: 4px; padding: 8px; margin: 6px 0; }
+    .card p { margin: 4px 0; }
+    .answer { white-space: pre-wrap; }
+    .clamp { display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical;
+             overflow: hidden; }
+    .chip { display: inline-block; padding: 0 6px; border-radius: 9px; font-size: 12px;
+            border: 1px solid currentColor; }
+    .chip.model { color: #2f6f5e; }
+    .chip.composed, .chip.yours { color: #5d655f; }
+    @media (prefers-color-scheme: dark) {
+      .card, details.questions { border-color: #3a413c; }
+      .chip.model { color: #7cc2ad; }
+      .chip.composed, .chip.yours { color: #a3aba4; }
+    }
+    @media (max-width: 600px) {
+      .box { left: 8px; right: 8px; bottom: 8px; width: auto; max-height: 60vh; }
+      button { min-height: 44px; }
+      .card .row button { flex: 1 1 100%; }
+    }
   `;
   const box = document.createElement("div");
   box.className = "box";
@@ -398,6 +435,7 @@
     if (!window.confirm("Record that you submitted " + now.title + " at " + now.company +
                         what + "?\n\nOnly do this after you pressed the page's own " +
                         "Submit. The next job opens after.")) return;
+    await rememberAnswers();          // before the page moves on
     const message = { type: "session_submitted", job_id: now.job_id,
                       resume: resume ? resume.id : "",
                       cover: attached.cover_letter ? attached.cover_letter.id : "" };
@@ -433,6 +471,147 @@
   async function endSession() {
     try { after(await ask({ type: "session_end" })); }
     catch (err) { show([el("p", { textContent: err.message })]); }
+  }
+
+  // --- questions to answer (plan 35) --------------------------------------------
+  // The open-ended questions the fill left empty. Nothing is asked for when
+  // the section appears except your earlier answers (no model). Suggest is
+  // one paid model call, from its button only; an option goes into the field
+  // only from its Use this button; nothing here submits.
+
+  const SOURCE_LABEL = { model: "drafted and checked", composed: "from your own sentences",
+                         yours: "your own words" };
+  let questionsHead = null;  // the section's summary line
+  let left = null;           // {left_today, limit}
+
+  function headText() {
+    return "Questions to answer (" + openQuestions.length + ")" +
+      (left ? " · " + left.left_today + " of " + left.limit + " suggestions left today" : "");
+  }
+
+  function card(q, option) {
+    const kind = SOURCE_LABEL[option.source] ? option.source : "composed";
+    const body = el("p", { className: "answer clamp", textContent: option.text });
+    const more = button("Show all", () => {
+      body.classList.toggle("clamp");
+      more.textContent = body.classList.contains("clamp") ? "Show all" : "Show less";
+    }, true);
+    const parts = [
+      el("p", {}, [el("strong", { textContent: option.angle }), document.createTextNode(" "),
+                   el("span", { className: "chip " + kind, textContent: SOURCE_LABEL[kind] })]),
+      body,
+    ];
+    if (option.note && option.note !== SOURCE_LABEL[kind]) {
+      parts.push(el("p", { className: "meta", textContent: option.note }));
+    }
+    parts.push(el("div", { className: "row" }, [button("Use this", () => useOption(q, option)),
+                                                 more]));
+    return el("div", { className: "card" }, parts);
+  }
+
+  // The one way a suggestion reaches the page: your click on Use this.
+  function useOption(q, option) {
+    const field = q.el;
+    if (!field.isConnected) return;
+    const now = String(field.value || "");
+    if (now.trim() && now !== option.text &&
+        !window.confirm("Replace what's in this field with this answer?")) return;
+    native(field, "value", option.text);
+    undo.push({ restore: () => native(field, "value", now) });
+    inserted.set(q.label, { text: option.text, source: option.source });
+    mark(field, BLUE);
+    q.status.textContent = "Inserted. Review it and make it sound like you before you submit.";
+  }
+
+  function showOptions(q, answer) {
+    if (answer.left_today !== undefined) {
+      left = { left_today: answer.left_today, limit: answer.limit };
+      if (questionsHead) questionsHead.textContent = headText();
+    }
+    if (answer.state !== "ok") {
+      q.status.textContent = answer.message || "No suggestions.";
+      return;
+    }
+    q.status.textContent = "Pick one to put in the field; you can edit it there.";
+    q.box.replaceChildren(...answer.options.map((o) => card(q, o)));
+    if ((answer.earlier || []).length) {
+      q.box.append(el("p", { className: "meta", textContent: "You answered this before:" }),
+                   ...answer.earlier.map((o) => card(q, o)));
+    }
+  }
+
+  async function suggestFor(q) {
+    q.status.textContent = "Drafting three options…";
+    try {
+      showOptions(q, await ask({ type: "suggest", question: q.label, maxlength: q.maxlength }));
+    } catch (err) {
+      q.status.textContent = err.message;
+    }
+  }
+
+  async function suggestAll() {
+    const n = openQuestions.length;
+    const budget = left ? " of your " + left.left_today + " left today" : "";
+    if (!window.confirm("Suggest answers for all " + n + " questions? This uses " + n +
+                        " suggestion(s)" + budget + ", one model call each.")) return;
+    for (const q of openQuestions) await suggestFor(q);
+  }
+
+  async function loadEarlier() {
+    let answer;
+    try {
+      answer = await ask({ type: "suggest_earlier",
+                           questions: openQuestions.map((q) => ({ question: q.label,
+                                                                  maxlength: q.maxlength })) });
+    } catch (err) {
+      return;
+    }
+    left = { left_today: answer.left_today, limit: answer.limit };
+    if (questionsHead) questionsHead.textContent = headText();
+    for (const q of openQuestions) {
+      const hits = (answer.earlier || {})[q.label] || [];
+      if (!hits.length || q.box.childElementCount) continue;
+      q.box.replaceChildren(el("p", { className: "meta", textContent: "You answered this before:" }),
+                            ...hits.map((o) => card(q, o)));
+    }
+  }
+
+  function questionsSection() {
+    if (!openQuestions.length) return [];
+    questionsHead = el("summary", { textContent: headText() });
+    const parts = [questionsHead,
+      el("p", { className: "meta", textContent: "Suggest drafts three options from your " +
+        "profile, each checked or made from your own sentences. Salary and demographic " +
+        "questions are yours to answer." })];
+    if (openQuestions.length > 1) {
+      parts.push(el("div", { className: "row" },
+                    [button("Suggest for all (" + openQuestions.length + ")", suggestAll, true)]));
+    }
+    for (const q of openQuestions) {
+      q.status = el("p", { className: "meta" });
+      q.box = el("div");
+      parts.push(el("div", { className: "question" }, [
+        el("p", {}, [el("strong", { textContent: q.label }),
+                     document.createTextNode(q.required ? " (required)" : "")]),
+        el("div", { className: "row" }, [button("Suggest", () => suggestFor(q))]),
+        q.status, q.box]));
+    }
+    loadEarlier();
+    return [el("details", { className: "questions", open: true }, parts)];
+  }
+
+  // At "I submitted this": what you put in each question, for next time.
+  // Your text is stored on your dashboard and never sent to a model.
+  async function rememberAnswers() {
+    for (const q of openQuestions) {
+      const value = String(q.el.value || "").trim();
+      if (!value) continue;
+      const put = inserted.get(q.label);
+      const source = put && put.text.trim() === value ? put.source : "yours";
+      try {
+        await ask({ type: "remember", question: q.label, body: value, source });
+      } catch (err) { /* recording the application matters more */ }
+    }
   }
 
   // --- the panel's screens ----------------------------------------------------
@@ -480,6 +659,7 @@
                  "this never clicks anything on the page.");
     }
     if (notes.length) parts.push(list(notes, "warn"));
+    parts.push(...questionsSection());
     const undoButton = button("Undo fill", () => { undoFill(); intro("Fill undone."); }, true);
     if (sessionJob()) {
       parts.push(el("div", { className: "row" }, [undoButton]), ...sessionBar());
@@ -507,6 +687,7 @@
     if (!window.confirm("Record that you submitted " + data.job.title + " at " +
                         data.job.company + what + "?\n\nOnly do this after you pressed " +
                         "the page's own Submit.")) return;
+    await rememberAnswers();
     const message = { type: "applied", job_id: data.job.id, confirm: "submitted",
                       resume: resume ? resume.id : "",
                       cover: attached.cover_letter ? attached.cover_letter.id : "" };

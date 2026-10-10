@@ -123,6 +123,8 @@ class TestTheGuard(Base):
         routes.discard("/import")                       # multipart: tests/test_web_import.py
         routes.discard("/ext/applied")                  # its own key: tests/test_ext.py
         routes.discard("/ext/research/refresh")         # its own key: tests/test_research.py
+        for route in ("/ext/suggest", "/ext/suggest/earlier", "/ext/remember"):
+            routes.discard(route)                       # its own key: tests/test_suggest.py
         self.assertEqual(routes, set(bodies), "a POST route is missing from this test")
         with mock.patch("jsa.llm.complete", side_effect=LLMError("no model in tests")), \
              mock.patch("jsa.inbox.settings", return_value=None), \

@@ -8,6 +8,11 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Added
 
+- **Suggested answers** in the browser extension's panel: the open
+  questions a fill left empty, three checked options for one when you press
+  Suggest (20 a day), inserted only when you pick one, and your submitted
+  answers offered again for the same question
+  ([ADR 0034](docs/decisions/0034-suggested-answers.md)).
 - **About this company and role** in the browser extension's panel: the
   posting's and the company's education asks and the role's nationwide mix,
   reading the company's own board at most weekly when needed

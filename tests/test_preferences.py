@@ -153,7 +153,7 @@ class TestPayIsWiredDeliberately(unittest.TestCase):
         scoring makes no model call, and nothing that builds a prompt reads
         the floor."""
         for module in ("tailor.py", "prep.py", "outreach.py", "enrich.py", "salary.py",
-                       "letter.py", "answers.py", "facts.py"):
+                       "letter.py", "answers.py", "facts.py", "suggest.py"):
             source = (ROOT / "jsa" / module).read_text(encoding="utf-8")
             self.assertNotIn("compensation_floor", source, module)
         scoring_src = (ROOT / "jsa" / "scoring.py").read_text(encoding="utf-8")

@@ -1,0 +1,14 @@
+[
+  {"text": "What excites you about Riverton Grid?", "company": "Riverton Grid",
+   "key": "what excites you about {company}"},
+  {"text": "Why do you want to work at Acme?", "company": "Acme",
+   "key": "why do you want to work at {company}"},
+  {"text": "Please briefly tell us why you're interested in this role.", "company": "Acme",
+   "key": "why youre interested in this role"},
+  {"text": "  Describe a project you’re proud of *", "company": "",
+   "key": "describe a project youre proud of"},
+  {"text": "In a few sentences, what makes acme different?", "company": "ACME",
+   "key": "what makes {company} different"},
+  {"text": "What would you build at Acme Labs?", "company": "Acme",
+   "key": "what would you build at {company} labs"}
+]

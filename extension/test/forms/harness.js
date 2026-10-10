@@ -99,6 +99,38 @@
                      "required, 61% bachelor's or equivalent experience, 30% no degree " +
                      "mentioned.", from: "board" } });
 
+  // Suggested answers (plan 35): three fictional options per press, an
+  // earlier answer for one question, and remembered answers logged.
+  let suggestLeft = 20;
+  SESSION.suggest = (m) => {
+    suggestLeft -= 1;
+    return { state: "ok", question: m.question, left_today: suggestLeft, limit: 20, earlier: [],
+      options: [
+        { angle: "about the role", source: "model", note: "drafted and checked",
+          text: "I want this support role because I spend my days answering customers' " +
+                "hardest questions and turning them into fixes. (Fictional option.)" },
+        { angle: "about your project", source: "composed",
+          note: "from your own sentences; the drafted answer was refused: says words " +
+                "your profile does not: phd",
+          text: "I built a triage tool that sorts incoming tickets by urgency. I have spent " +
+                "three years in customer support. ".repeat(3) + "(Fictional option.)" },
+        { angle: "about the company", source: "composed", note: "from your own sentences; " +
+          "composed only (see ADR 0027)",
+          text: "I'd like to work at Riverton Grid. I have spent three years in customer " +
+                "support. (Fictional option.)" },
+      ] };
+  };
+  SESSION.suggest_earlier = (m) => ({
+    state: "ok", left_today: suggestLeft, limit: 20,
+    earlier: Object.fromEntries((m.questions || [])
+      .filter((q) => /support ticket/.test(q.question))
+      .map((q) => [q.question, [{ angle: "you answered this before", source: "yours",
+        note: "your own words, for Acme Fictional, 2026-10-01",
+        text: "The ticket I'm proudest of was a billing bug I traced end to end. (Fictional.)" }]])),
+  });
+  window.__jsaRemembered = [];
+  SESSION.remember = (m) => { window.__jsaRemembered.push(m); return { ok: true, id: 1 }; };
+
   const log = (window.__jsaCalls = []);
   window.chrome = {
     runtime: {

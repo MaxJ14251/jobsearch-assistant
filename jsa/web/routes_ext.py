@@ -233,6 +233,106 @@ def register(app, ctx) -> None:
         finally:
             con.close()
 
+    # --- suggested answers (plan 35) ---------------------------------------------
+
+    def applying_to(con: sqlite3.Connection, url: str) -> tuple[dict | None, dict | None]:
+        """The job this page is the application for, if you are applying to
+        it now; else (None, the reason as the panel shows it)."""
+        from .. import answers, db, intake
+        link = intake.parse_link(url)
+        if link is None or link.kind not in ("greenhouse", "lever", "ashby"):
+            return None, {"state": "unsupported", "message": "Not an application page "
+                          "the extension knows."}
+        job_id = db.job_for_link(con, link)
+        application = job_id and con.execute(
+            "SELECT status FROM applications WHERE job_id = ?", (job_id,)).fetchone()
+        if not application or application["status"] not in APPLY_BY_HAND_STAGES:
+            return None, {"state": "not_ready", "message": "Suggestions are for a job you "
+                          "saved and are applying to now."}
+        return answers.job_row(con, job_id), None
+
+    def maxlength_of(value: str) -> int | None:
+        return int(value) if value.strip().isdigit() and int(value) > 0 else None
+
+    @app.post("/ext/suggest")
+    def ext_suggest(url: str = Form(""), question: str = Form(""),
+                    maxlength: str = Form("")):
+        """One Suggest press: one model call, three checked options."""
+        from .. import llm, suggest
+        from ..tailor import IdentityLeakError
+        prof = profile()
+        if prof is None:
+            return {"state": "no_profile", "message": "No profile: run `jsa init`."}
+        con = connect()
+        try:
+            job, refusal = applying_to(con, url)
+            if refusal:
+                return refusal
+            try:
+                result = suggest.suggest(con, prof, job, question, maxlength_of(maxlength))
+            except (llm.LLMError, IdentityLeakError) as exc:
+                return {"state": "failed", "message": f"No suggestions: {exc}"}
+            con.commit()
+            return result
+        finally:
+            con.close()
+
+    @app.post("/ext/suggest/earlier")
+    def ext_suggest_earlier(url: str = Form(""), question: list[str] = Form([]),
+                            maxlength: list[str] = Form([])):
+        """Answers you gave before to these questions, and how many
+        suggestions are left today. Reads only; no model."""
+        from .. import suggest
+        prof = profile() or {}
+        con = connect()
+        try:
+            job, refusal = applying_to(con, url)
+            left = suggest.left_today(con, prof)
+            found = {}
+            if not refusal:
+                for i, raw in enumerate(question[:40]):
+                    try:
+                        q = suggest.clean_question(raw)
+                    except suggest.SuggestError:
+                        continue
+                    if suggest.refused_topic(q):
+                        continue
+                    cap = maxlength_of(maxlength[i]) if i < len(maxlength) else None
+                    hits = suggest.earlier(con, q, prof, job, cap)
+                    if hits:
+                        found[raw] = hits
+            return {"state": refusal["state"] if refusal else "ok",
+                    "left_today": left, "limit": suggest.daily_limit(prof),
+                    "earlier": found}
+        finally:
+            con.close()
+
+    @app.post("/ext/remember")
+    def ext_remember(url: str = Form(""), question: str = Form(""), body: str = Form(""),
+                     source: str = Form("yours")):
+        """At "I submitted this": the answer you submitted, kept for the same
+        question next time. Your text: stored, never sent to a model."""
+        from .. import suggest
+        con = connect()
+        try:
+            job, refusal = applying_to(con, url)
+            if refusal:
+                # Recorded as applied already: the page still names the job.
+                from .. import answers, db, intake
+                link = intake.parse_link(url)
+                job_id = link and db.job_for_link(con, link)
+                if not job_id:
+                    return refusal
+                job = answers.job_row(con, job_id)
+            try:
+                entry = suggest.remember(con, question, body, source, job)
+            except suggest.SuggestError as exc:
+                return {"ok": False, "message": str(exc)}
+            con.commit()
+            return {"ok": True, "id": entry}
+        finally:
+            con.close()
+
     @app.get("/ext/document/{document_id}")
     def ext_document(document_id: int):
         """Only a document of a job you are applying to by hand now."""

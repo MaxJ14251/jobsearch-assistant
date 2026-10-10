@@ -107,6 +107,49 @@ const HANDLERS = {
     })).body;
   },
 
+  // --- suggested answers (plan 35) --------------------------------------------
+  // Only a question's own label text goes, capped; never the page's markup
+  // or any other field. One "suggest" is one paid model call: the panel sends
+  // it only from your Suggest button.
+  async suggest(message, sender) {
+    const form = new URLSearchParams();
+    form.set("url", (sender && sender.url) || "");
+    form.set("question", String(message.question || "").slice(0, 300));
+    form.set("maxlength", message.maxlength > 0 ? String(Number(message.maxlength)) : "");
+    return (await json("/ext/suggest", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    })).body;
+  },
+  async suggest_earlier(message, sender) {
+    const form = new URLSearchParams();
+    form.set("url", (sender && sender.url) || "");
+    for (const q of (message.questions || []).slice(0, 40)) {
+      form.append("question", String(q.question || "").slice(0, 300));
+      form.append("maxlength", q.maxlength > 0 ? String(Number(q.maxlength)) : "");
+    }
+    return (await json("/ext/suggest/earlier", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    })).body;
+  },
+  // At "I submitted this": what you answered, for the same question next time.
+  async remember(message, sender) {
+    const form = new URLSearchParams();
+    form.set("url", (sender && sender.url) || "");
+    form.set("question", String(message.question || "").slice(0, 300));
+    form.set("body", String(message.body || "").slice(0, 4000));
+    form.set("source", ["model", "composed", "yours"].includes(message.source)
+      ? message.source : "yours");
+    return (await json("/ext/remember", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    })).body;
+  },
+
   // --- the apply session (plan 31) -------------------------------------------
   // Every step below is a reply to a button you pressed in the panel.
 

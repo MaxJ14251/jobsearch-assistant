@@ -81,6 +81,17 @@ you are filling, in your own browser. It never submits: there is no
 submit, click or key-press call in its code, and a test reads the files to
 hold it there.
 
+Its **Suggest** button (ADR 0034) sends one question's label text, cleaned
+and capped at 300 characters, to your dashboard, which sends it with a
+2,000-character excerpt of the posting and your profile's summary and
+bullets to the model API. Never the page's markup or any other field,
+never your identity (the prompt is refused before the call if it carries
+any), pay floor, rejection feedback or notes. The question goes inside a
+block the model is told is data, not instructions, and no word of it is
+ever treated as something you can claim. At "I submitted this", what you
+put in each open question is kept in the tracker's `answer_bank`, to be
+offered again for the same question; it is never sent to a model.
+
 **The model-call ledger** (`model_calls` in the tracker, read by `jsa usage`)
 stores counts only: when, for what, which model, the token counts the
 provider reported, the latency and whether it worked. Never prompt or reply

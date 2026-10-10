@@ -135,7 +135,8 @@ class TestNeverInAPrompt(unittest.TestCase):
         self.assertEqual(offenders, [])
 
     def test_the_prompt_builders_never_read_the_reason(self):
-        for name in ("tailor.py", "letter.py", "outreach.py", "prep.py", "llm.py"):
+        for name in ("tailor.py", "letter.py", "outreach.py", "prep.py", "llm.py",
+                     "suggest.py"):
             text = (ROOT / "jsa" / name).read_text(encoding="utf-8")
             self.assertNotRegex(text, r"reject_reason|REJECT_REASONS|wrong_bullets", name)
 
