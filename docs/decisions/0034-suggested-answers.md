@@ -73,8 +73,27 @@ their text comes from someone else's web page.
 - The posting excerpt helps the model aim, and its words still fail the
   check unless the profile supports them. That is deliberate: loosening the
   verifier to raise the pass rate is a separate decision.
-- **Not yet measured.** Plan 35 step 4 counts, on about 10 real questions
-  from saved jobs (paid calls, with the owner's OK), how often each angle's
-  drafted option passes. If role and project pass under 30%, that is said
-  here and in the panel, and a check that knows who each sentence is about
-  (ADR 0010's suggestion) becomes its own plan.
+### Measured, 2026-10-09
+
+Ten questions over the owner's four jobs ready to apply to, one press each
+(20 model calls with the retries, run on a copy of the tracker). The two
+Greenhouse forms' public question lists had no open-ended question (only
+contact fields, files, dropdowns and salary), so one question is the one the
+owner saw on a real form ("What excites you about <company>?") and nine are
+typical open questions of the same kind.
+
+| Option | Drafted and passed | Composed |
+|---|---|---|
+| About the role | 0 of 10 | 10 |
+| About your project | 1 of 10 | 9 |
+| About the company | composed only | 10 |
+
+Of the 20 refusals (first tries and retries counted by their final reason),
+18 were words the profile doesn't contain, 1 the word count, 1 a finished
+form of ongoing work.
+
+**Under the 30% the plan set**, so: the options work, but almost all of them
+are composed variants of the person's own sentences, and the panel says so.
+The verifier is not loosened. A check that knows who each sentence is about
+(ADR 0010: "I like that Vercel ships fast" is about the employer and claims
+nothing about the person) is the fix worth planning on its own.

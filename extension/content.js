@@ -594,9 +594,10 @@
     if (!openQuestions.length) return [];
     questionsHead = el("summary", { textContent: headText() });
     const parts = [questionsHead,
-      el("p", { className: "meta", textContent: "Suggest drafts three options from your " +
-        "profile, each checked or made from your own sentences. Salary and demographic " +
-        "questions are yours to answer." })];
+      el("p", { className: "meta", textContent: "Suggest gives three options from your " +
+        "profile. Most are made from your own sentences: drafted ones rarely pass the " +
+        "check against your profile (1 of 20 when measured), so edit the one you pick " +
+        "into an answer. Salary and demographic questions are yours to answer." })];
     if (openQuestions.length > 1) {
       parts.push(el("div", { className: "row" },
                     [button("Suggest for all (" + openQuestions.length + ")", suggestAll, true)]));
