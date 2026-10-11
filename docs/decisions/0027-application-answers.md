@@ -50,3 +50,10 @@ into each employer's form. Most of them are facts the profile already holds.
 certifications in 2026" whatever the profile held, and `gap_answer` named
 one fixed date. Both are now built from the profile (`jsa/facts.py`): a
 completed degree is stated as written, and no gap means no gap drill.
+
+## A subject-aware check, 2026-10-10 (plan 37)
+
+ADR 0035 can check written answers sentence by sentence, letting sentences
+about the employer use the posting's words. It is off until measured; why
+this company stays composed-only unless that measurement shows 7 of 10 drafts
+passing with no claim about the person getting through.

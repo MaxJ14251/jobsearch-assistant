@@ -147,3 +147,54 @@ def check(case: dict[str, Any], got: Plan) -> Result:
 def run_all(weights: dict[str, float] | None = None) -> list[Result]:
     prof = profile()
     return [check(case, plan(case, prof, weights)) for case in cases()]
+
+
+# --- the subject-aware check (plan 37) ---------------------------------------------
+
+
+def verifier_cases() -> list[dict[str, Any]]:
+    """Cases from verifier/*.yaml, each with its file's defaults filled in."""
+    out = []
+    for path in sorted((HERE / "verifier").glob("*.yaml")):
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        defaults = data.get("defaults") or {}
+        for case in data.get("cases") or []:
+            out.append({**defaults, **case, "name": f"{path.stem}: {case['name']}"})
+    return out
+
+
+def check_verifier(case: dict[str, Any], prof: dict[str, Any] | None = None) -> Result:
+    """Run one text through answers.check with the posting given (the
+    question, if any, goes nowhere: it must never be a word source)."""
+    from jsa import answers, subject
+    prof = prof or profile()
+    job = {"title": case.get("title"), "company": case.get("company"), "location": None}
+    problems = answers.check(" ".join(str(case["text"]).split()), prof, job,
+                             min_words=1, max_words=400,
+                             posting_text=str(case.get("posting") or ""))
+    ident = prof.get("identity") or {}
+    found = [s.kind for s in subject.sort(case["text"], job["company"],
+                                          [ident.get("full_name") or ""])]
+    expect = case.get("expect") or {}
+    result = Result(case["name"])
+
+    def record(name: str, ok: bool, expected: Any, actual: Any) -> None:
+        result.checks.append((name, ok))
+        if not ok:
+            result.misses.append(Miss(case["name"], name, expected, actual))
+
+    verdict = "pass" if not problems else "refuse"
+    record("verdict", verdict == expect.get("verdict"), expect.get("verdict"),
+           f"{verdict}: {problems}")
+    if "kinds" in expect:
+        record("kinds", found == list(expect["kinds"]), list(expect["kinds"]), found)
+    if "reason_contains" in expect:
+        said = " | ".join(problems).lower()
+        record("reason", str(expect["reason_contains"]).lower() in said,
+               expect["reason_contains"], problems)
+    return result
+
+
+def run_verifier() -> list[Result]:
+    prof = profile()
+    return [check_verifier(case, prof) for case in verifier_cases()]

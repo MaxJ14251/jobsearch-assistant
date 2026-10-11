@@ -8,6 +8,10 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Added
 
+- **A check that knows who each sentence is about** (written answers and
+  suggestions; off until measured): sentences about the employer may use the
+  posting's words, everything about you is checked as before
+  ([ADR 0035](docs/decisions/0035-who-each-sentence-is-about.md)).
 - **"Record it as applied?"** in the browser extension: after you submit,
   the board's "application received" page brings up the question, and one
   click records it as "I submitted this" does

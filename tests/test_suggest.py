@@ -129,6 +129,34 @@ class TestOptions(Press):
         self.assertEqual(self.by_angle(long)["about the role"]["source"], "composed")
 
 
+class TestSubjectAwareSwitch(Press):
+    """Plan 37: off, nothing changes; on, a sentence about the employer may
+    use the posting's words, and nothing about the person gets looser."""
+
+    EMPLOYER = "Riverton Grid builds microgrid orchestration software for utilities. "
+
+    def setUp(self):
+        super().setUp()
+        self.con.execute("UPDATE jobs SET description = ? WHERE id = 1",
+                         ("Riverton Grid builds microgrid orchestration software for utilities. " * 20,))
+        self.con.commit()
+
+    def test_off_by_default_and_the_posting_word_fails(self):
+        from jsa import answers
+        self.assertFalse(answers.SUBJECT_AWARE)
+        result, _ = self.press([{"role": self.EMPLOYER + GOOD, "project": GOOD}] * 2)
+        self.assertEqual(self.by_angle(result)["about the role"]["source"], "composed")
+
+    def test_on_the_employer_sentence_passes_and_a_claim_still_fails(self):
+        with mock.patch("jsa.answers.SUBJECT_AWARE", True):
+            result, _ = self.press([{"role": self.EMPLOYER + GOOD,
+                                     "project": GOOD + " I built microgrid orchestration "
+                                                       "software for utilities."}] * 2)
+        got = self.by_angle(result)
+        self.assertEqual(got["about the role"]["source"], "model")
+        self.assertEqual(got["about your project"]["source"], "composed")
+
+
 class TestUntrustedQuestion(Press):
     def test_an_injection_stays_fenced_and_a_degree_claim_is_refused(self):
         claim = GOOD + " I have a PhD in computer science."

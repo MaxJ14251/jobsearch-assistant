@@ -117,3 +117,10 @@ should be measured against these nine before and after, not argued about.
 - Contacts are third parties who did not ask to be in anybody's database. The
   trial used invented contacts in a sandbox tracker outside the repository,
   and the real tracker was never written to.
+
+## The fix this asked for, 2026-10-10 (plan 37)
+
+"A check that knows who each sentence is about" is ADR 0035: built, behind a
+switch, for written answers and suggestions. Outreach does not use it yet;
+plan 38 first closes outreach's own holes (its tech stack and the
+recipient's words were allowed in any sentence).

@@ -37,6 +37,10 @@ QUESTIONS = {
 # composed-only under half. See ADR 0027.
 COMPOSED_ONLY: frozenset[str] = frozenset({"why_company"})
 
+# The sentence-by-sentence word check (plan 37, ADR 0035). Off until its
+# measurement passes: no claim about the person may get through.
+SUBJECT_AWARE = False
+
 
 @dataclass
 class Answer:
@@ -160,13 +164,22 @@ def evidence(con: sqlite3.Connection, job: dict[str, Any],
                           job.get("track") or "engineering", title=job.get("title") or "")
 
 
+def subject_aware(posting_text: str | None) -> str | None:
+    """The posting text the subject-aware check may use, or None when the
+    whole-text check applies (the switch is off, or there is no posting)."""
+    return posting_text if SUBJECT_AWARE and posting_text is not None else None
+
+
 def check(text: str, profile: dict[str, Any], job: dict[str, Any], *,
           min_words: int = MIN_WORDS, max_words: int = MAX_WORDS,
-          max_chars: int | None = None) -> list[str]:
+          max_chars: int | None = None, posting_text: str | None = None) -> list[str]:
     """Everything wrong with one answer. Empty means it may be used.
 
     The bounds default to this module's; a form field with a `maxlength`
-    passes tighter ones (plan 35)."""
+    passes tighter ones (plan 35). With `posting_text` (and SUBJECT_AWARE
+    on), the word check goes sentence by sentence (plan 37, ADR 0035):
+    sentences about the employer or role may use the posting's words;
+    everything about the person is checked exactly as before."""
     from .letter import ongoing_verbs, unsupported_words
     from .prep import DegreeClaimError, assert_no_degree_claim
     from .tailor import do_not_claim, term_pattern
@@ -196,6 +209,10 @@ def check(text: str, profile: dict[str, Any], job: dict[str, Any], *,
     for term in do_not_claim(profile):
         if term and term_pattern(term).search(text.lower()):
             problems.append(f"claims {term!r}, which is on your do-not-claim list")
+    if posting_text is not None:
+        from .letter import sentence_problems
+        problems += sentence_problems(text, profile, job, posting_text)
+        return problems
     new = unsupported_words(text, profile, job)
     if new:
         problems.append("says words your profile does not: " + ", ".join(new[:8]))
@@ -252,12 +269,15 @@ def write(con: sqlite3.Connection, job_id: int, profile: dict[str, Any],
 
     model, failure = "", ""
     wanted = [k for k in QUESTIONS if k not in COMPOSED_ONLY]
+    from .posting import visible
+    posting_text = subject_aware(visible(job.get("description")).text)
 
     def problems_of(drafted: dict[str, Any]) -> dict[str, list[str]]:
         found = {}
         for key in wanted:
             text = " ".join(str(drafted.get(key) or "").split())
-            found[key] = check(text, profile, job) if text else ["no answer came back"]
+            found[key] = (check(text, profile, job, posting_text=posting_text) if text
+                          else ["no answer came back"])
         return found
 
     drafted: dict[str, Any] = {}
@@ -274,10 +294,10 @@ def write(con: sqlite3.Connection, job_id: int, profile: dict[str, Any],
         if refused:
             # One retry that says what failed, as the cover letter does
             # (letter.write): re-rolling blind repeats the same words.
-            from .letter import unsupported_words
+            from .letter import refused_words
             banned = sorted({w for k in refused
-                             for w in unsupported_words(str(drafted.get(k) or ""),
-                                                        profile, job)})
+                             for w in refused_words(str(drafted.get(k) or ""),
+                                                    profile, job, posting_text)})
             retry = (prompt + "\n\nYour previous answers were refused: "
                      + "; ".join(f"{k}: {', '.join(p[:2])}" for k, p in refused.items())
                      + ".\nRewrite only those keys" + (", without these words: "

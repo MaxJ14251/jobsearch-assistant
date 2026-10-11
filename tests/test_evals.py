@@ -39,6 +39,21 @@ class TestDraftingEvals(unittest.TestCase):
         self.assertLess(weights["systems"], weights["commissioning"])
 
 
+class TestVerifierEvals(unittest.TestCase):
+    """Plan 37: the subject-aware check, passes and red-team refusals."""
+
+    def test_every_verdict_holds(self):
+        results = harness.run_verifier()
+        misses = [str(m) for r in results for m in r.misses]
+        self.assertEqual(misses, [], "\n" + "\n".join(misses))
+        self.assertGreaterEqual(len(results), 15)
+
+    def test_every_case_says_why(self):
+        for case in harness.verifier_cases():
+            self.assertTrue(str((case.get("expect") or {}).get("why") or "").strip(),
+                            case["name"])
+
+
 class TestTheProfileIsFiction(unittest.TestCase):
     @unittest.skipUnless(has_a_personal_profile(), "no personal profile to compare against")
     def test_it_shares_nothing_with_a_personal_profile(self):

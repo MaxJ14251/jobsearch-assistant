@@ -124,3 +124,12 @@ cost a rewrite, not the letter.
   is not obvious from its other columns.
 - The word lists are a judgment call, and the first two real letters are the
   only evidence behind their current contents.
+
+## Posting words in sentences about the employer, 2026-10-10 (plan 37)
+
+Decision 3 stands for every sentence about the person. ADR 0035 adds a
+sentence-by-sentence check in which a sentence that is positively about the
+employer or the role may also use the words of the posting the drafter was
+given. It applies to written answers and suggestions only, behind a switch
+that is off until measured. Cover letters still use this ADR's whole-text
+rule.

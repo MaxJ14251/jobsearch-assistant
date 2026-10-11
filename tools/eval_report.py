@@ -17,7 +17,7 @@ from tests.evals import harness  # noqa: E402
 
 
 def main() -> int:
-    results = harness.run_all()
+    results = harness.run_all() + harness.run_verifier()
     total = sum(len(r.checks) for r in results)
     passed = sum(ok for r in results for _, ok in r.checks)
     width = max(len(r.case) for r in results)

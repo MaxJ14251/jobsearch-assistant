@@ -97,3 +97,9 @@ are composed variants of the person's own sentences, and the panel says so.
 The verifier is not loosened. A check that knows who each sentence is about
 (ADR 0010: "I like that Vercel ships fast" is about the employer and claims
 nothing about the person) is the fix worth planning on its own.
+
+## The decision this left open, 2026-10-10 (plan 37)
+
+"Loosening the verifier … is a separate decision": ADR 0035 is that
+decision, for sentences about the employer only, behind a switch that is off
+until measured on these same ten questions.

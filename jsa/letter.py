@@ -188,6 +188,83 @@ def unsupported_words(text: str, profile: dict[str, Any],
     return sorted({w for w in _words(text) if _stem(w) not in allowed})
 
 
+# At most this share of a draft's sentences may be about the employer, and
+# at least one must be about the person: an answer still has to say why the
+# person fits (plan 37). Set from the measurement in ADR 0035.
+MAX_EMPLOYER_SHARE = 0.6
+
+
+def checked_sentences(text: str, profile: dict[str, Any], job: dict[str, Any],
+                      posting_text: str, attitude_frame: bool | None = None
+                      ) -> list[dict[str, Any]]:
+    """The draft sentence by sentence (plan 37, ADR 0035): who each is about,
+    and what in it nothing supports.
+
+    A sentence about the person, mixed or unclear is held to exactly what
+    `unsupported_words` holds the whole draft to. A sentence about the
+    employer or the role may also use the words of `posting_text`, the
+    posting the drafter was given (never a form's question, never a banked
+    answer), and must not negate anything or state a number the posting
+    doesn't. Degree words and do-not-claim terms are refused whole-draft by
+    the callers, whoever a sentence is about.
+    """
+    from . import subject
+
+    allowed = allowed_stems(profile, job)
+    posting_stems = {_stem(w) for w in _words(posting_text or "")}
+    posting_numbers = set(subject.numbers(posting_text or ""))
+    ident = profile.get("identity") or {}
+    person = [str(ident.get(k) or "") for k in ("full_name", "preferred_name")]
+    out = []
+    for i, s in enumerate(subject.sort(text, job.get("company"), person, attitude_frame), 1):
+        problems: list[str] = []
+        if s.kind == "employer":
+            refused = sorted({w for w in _words(s.body)
+                              if _stem(w) not in allowed and _stem(w) not in posting_stems})
+            if refused:
+                problems.append(f"employer sentence {i}: {', '.join(refused[:8])} "
+                                "not in your profile or the posting")
+            if subject.negated(s.body):
+                problems.append(f"employer sentence {i}: says what the employer doesn't "
+                                "do or have")
+            stray = [n for n in subject.numbers(s.body) if n not in posting_numbers]
+            if stray:
+                problems.append(f"employer sentence {i}: the number {stray[0]} is not in "
+                                "the posting")
+        else:
+            refused = sorted({w for w in _words(s.body) if _stem(w) not in allowed})
+            if refused:
+                problems.append(f"sentence {i} ({s.why}): {', '.join(refused[:8])} "
+                                "not in your profile")
+        out.append({"index": i, "text": s.text, "kind": s.kind, "why": s.why,
+                    "refused": refused, "problems": problems})
+    return out
+
+
+def sentence_problems(text: str, profile: dict[str, Any], job: dict[str, Any],
+                      posting_text: str, attitude_frame: bool | None = None) -> list[str]:
+    """Everything the subject-aware word check refuses, as readable reasons."""
+    sentences = checked_sentences(text, profile, job, posting_text, attitude_frame)
+    problems = [p for s in sentences for p in s["problems"]]
+    employer = sum(1 for s in sentences if s["kind"] == "employer")
+    if sentences and employer:
+        if employer == len(sentences):
+            problems.append("every sentence is about the employer; say why you fit")
+        elif employer / len(sentences) > MAX_EMPLOYER_SHARE:
+            problems.append(f"{employer} of {len(sentences)} sentences are about the "
+                            "employer; say more about why you fit")
+    return problems
+
+
+def refused_words(text: str, profile: dict[str, Any], job: dict[str, Any],
+                  posting_text: str | None = None) -> list[str]:
+    """The words a retry should avoid, under whichever check is in use."""
+    if posting_text is None:
+        return unsupported_words(text, profile, job)
+    return sorted({w for s in checked_sentences(text, profile, job, posting_text)
+                   for w in s["refused"]})
+
+
 def ongoing_verbs(profile: dict[str, Any]) -> set[str]:
     """Finished forms of the verbs that describe unfinished work.
 

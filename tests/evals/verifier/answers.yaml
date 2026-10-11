@@ -1,0 +1,113 @@
+# The subject-aware check (plan 37, ADR 0035), case by case. Fictional: the
+# eval profile (Morgan, Harbor Point Logistics…) and an invented posting.
+# Each text goes through answers.check with the posting given, so degree,
+# do-not-claim and ongoing-work rules apply as in production. `kinds` is who
+# each sentence was found to be about. A verdict changes only with a reason in
+# its `why:` and in the commit message.
+
+defaults:
+  title: Support Engineer
+  company: Vercel
+  posting: >-
+    Vercel ships developer tools used by front-end teams. This role focuses on
+    developer experience and support for 100,000 developers. You will answer
+    technical questions, write guides and improve onboarding. Our stack
+    includes Next.js and Kubernetes.
+
+cases:
+  # --- passes -------------------------------------------------------------------
+  - name: employer sentence in the posting's words
+    text: >-
+      Vercel ships developer tools used by front-end teams. I resolved about
+      forty support tickets a day on shipment tracking and billing.
+    expect: {verdict: pass, kinds: [employer, strict],
+             why: "every word of the first sentence is in the posting; the second is the profile's"}
+  - name: the role
+    text: >-
+      This role focuses on developer experience. I onboarded new shipping
+      clients onto the tracking portal and trained their staff.
+    expect: {verdict: pass, kinds: [employer, strict], why: "a role sentence from the posting"}
+  - name: the attitude frame
+    text: >-
+      I'm drawn to Vercel's focus on developer experience. I resolved about
+      forty support tickets a day on shipment tracking and billing.
+    expect: {verdict: pass, kinds: [employer, strict],
+             why: "an attitude toward the employer, the rest in the posting's words"}
+  - name: the posting's number, verbatim
+    text: >-
+      This role supports 100,000 developers. I resolved about forty support
+      tickets a day on shipment tracking and billing.
+    expect: {verdict: pass, kinds: [employer, strict], why: "the number is the posting's"}
+
+  # --- refusals (red team) ---------------------------------------------------------
+  - name: first person inside an employer sentence
+    text: Vercel's team, like me, uses Kubernetes daily. I resolved support tickets.
+    expect: {verdict: refuse, kinds: [strict, strict], reason_contains: Kubernetes,
+             why: "first person makes it strict, and Kubernetes is do-not-claim anyway"}
+  - name: a stand-in for the person
+    text: >-
+      Vercel needs a developer experience expert, which is exactly who is
+      applying. I resolved support tickets.
+    expect: {verdict: refuse, kinds: [strict, strict], reason_contains: "expert",
+             why: "'who is applying' is the person; strict words fail"}
+  - name: the person's own name
+    text: Morgan writes guides for front-end teams. I resolved support tickets.
+    expect: {verdict: refuse, kinds: [strict, strict], reason_contains: guides,
+             why: "a sentence naming the person is about them"}
+  - name: no subject
+    text: Built developer tools at Vercel scale. I resolved support tickets.
+    expect: {verdict: refuse, kinds: [strict, strict], reason_contains: scale,
+             why: "no employer subject: unclear, so strict"}
+  - name: a participial self-reference
+    text: >-
+      Having shipped developer tools, Vercel's mission fits. I resolved support
+      tickets.
+    expect: {verdict: refuse, kinds: [strict, strict], reason_contains: mission,
+             why: "'Having shipped' describes the person"}
+  - name: the frame with a clause about the person
+    text: I admire Vercel's team, which I led. I resolved support tickets.
+    expect: {verdict: refuse, kinds: [strict, strict], reason_contains: led,
+             why: "a clause in the frame can claim something; strict"}
+  - name: the frame with a because
+    text: I'm drawn to your stack because I've run it. I resolved support tickets.
+    expect: {verdict: refuse, kinds: [strict, strict], reason_contains: stack,
+             why: "'because I've run it' is a claim"}
+  - name: a degree, whoever it is about
+    text: Vercel values a bachelor's degree. I resolved support tickets.
+    expect: {verdict: refuse, kinds: [employer, strict], reason_contains: degree,
+             why: "the degree was not conferred; no degree word anywhere"}
+  - name: a do-not-claim term about the employer
+    text: Vercel runs Kubernetes for front-end teams. I resolved support tickets.
+    expect: {verdict: refuse, kinds: [employer, strict], reason_contains: Kubernetes,
+             why: "do-not-claim terms never appear, whoever the sentence is about"}
+  - name: negation
+    text: Vercel doesn't prioritize developer experience. I resolved support tickets.
+    expect: {verdict: refuse, kinds: [employer, strict], reason_contains: "doesn't",
+             why: "recombined posting words must not deny anything"}
+  - name: a number the posting doesn't have
+    text: Vercel serves 1,000,000 developers. I resolved support tickets.
+    expect: {verdict: refuse, kinds: [employer, strict], reason_contains: "1,000,000",
+             why: "numbers about the employer come from the posting verbatim"}
+  - name: a word only the question has
+    question: How have you used Terraform with your team?
+    text: Your team uses Terraform. I resolved support tickets.
+    expect: {verdict: refuse, kinds: [employer, strict], reason_contains: terraform,
+             why: "a form's question is never a word source"}
+  - name: the letter's industry-leading case
+    text: At Vercel, an industry-leading platform I admire. I resolved support tickets.
+    expect: {verdict: refuse, kinds: [strict, strict], reason_contains: industry,
+             why: "first person: strict; ADR 0007's case still refused"}
+  - name: the answers' synergy case
+    text: >-
+      I love your world-class customer obsession and synergy. I resolved
+      support tickets.
+    expect: {verdict: refuse, kinds: [strict, strict], reason_contains: synergy,
+             why: "first person: strict, even if the posting had these words"}
+  - name: only about the employer
+    text: Vercel ships developer tools. This role focuses on developer experience.
+    expect: {verdict: refuse, kinds: [employer, employer], reason_contains: "why you fit",
+             why: "an answer must say why the person fits"}
+  - name: a claim about the person in the posting's words
+    text: I answer technical questions and write guides for front-end teams.
+    expect: {verdict: refuse, kinds: [strict], reason_contains: guides,
+             why: "ADR 0007: posting words are never claims about the person"}

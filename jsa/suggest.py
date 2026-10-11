@@ -205,18 +205,21 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
             models: list[str] | None = None) -> tuple[list[dict[str, Any]], str]:
     """Three options for one question, each checked or composed. Returns
     (options, model)."""
-    from .letter import unsupported_words
+    from .letter import refused_words
     from .posting import OUTREACH_CHARS, visible
     from .tailor import scrub_prompt
 
     least, most, max_chars = bounds(maxlength)
     job = {k: job.get(k) for k in ("id", "title", "company", "location", "track",
                                    "description")}           # never the question
+    excerpt = visible(job.get("description"), budget=OUTREACH_CHARS).text
+    # The posting the prompt shows is the only extra word source, and only
+    # for sentences about the employer (plan 37; off until measured).
+    posting_text = answers.subject_aware(excerpt)
     prompt = PROMPT.format(
         title=job.get("title") or "the role", company=job.get("company") or "the company",
         question=_fence(question),
-        posting=_fence(visible(job.get("description"), budget=OUTREACH_CHARS).text)
-        or "(none)",
+        posting=_fence(excerpt) or "(none)",
         summary=answers._summary(profile, job) or "(none)",
         bullets="\n".join(f"- {b.text}" for b in bullets) or "(none)",
         min_words=least, max_words=most,
@@ -227,7 +230,7 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
         if not text:
             return ["no answer came back"]
         return answers.check(text, profile, job, min_words=least, max_words=most,
-                             max_chars=max_chars)
+                             max_chars=max_chars, posting_text=posting_text)
 
     drafted: dict[str, str] = {}
     found: dict[str, list[str]] = {}
@@ -243,7 +246,7 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
         refused = {k: p for k, p in found.items() if p}
         if refused:
             banned = sorted({w for k in refused for w in
-                             unsupported_words(drafted[k], profile, job)})
+                             refused_words(drafted[k], profile, job, posting_text)})
             retry = (prompt + "\n\nYour previous answers were refused: "
                      + "; ".join(f"{k}: {', '.join(p[:2])}" for k, p in refused.items())
                      + ".\nRewrite only those keys" + (", without these words: "
