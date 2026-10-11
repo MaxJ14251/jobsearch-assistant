@@ -196,6 +196,10 @@ class TestSuggestionsWaitForYou(unittest.TestCase):
         self.assertEqual(len(re.findall(r"\bsuggestAll\b", self.source)), 2)
         self.assertIn("window.confirm", body_of(self.source, "suggestAll"))
 
+    def test_the_dashboards_note_is_shown_as_text(self):
+        body = body_of(self.source, "loadEarlier")
+        self.assertIn("questionsNote.textContent = answer.note", body)
+
     def test_answers_are_remembered_only_after_you_say_you_submitted(self):
         self.assertEqual(self.source.count('type: "remember"'), 1)
         self.assertIn('type: "remember"', body_of(self.source, "rememberAnswers"))

@@ -181,8 +181,11 @@ class TestUntrustedQuestion(Press):
                          "decided_by, feedback, reason) VALUES ('document', 99, 's', "
                          "'rejected', 'human', 'TOO-GENERIC-FEEDBACK', 'wrong_bullets')")
         self.con.execute("UPDATE applications SET notes = 'PRIVATE-NOTE' WHERE job_id = 1")
-        _, seen = self.press({"role": GOOD, "project": GOOD})
-        sent = seen[0]
+        # A refused first draft, so the retry prompt is checked too (plan 39).
+        _, seen = self.press([{"role": GOOD + " I led forty engineers at Google.",
+                               "project": GOOD}, {"role": GOOD, "project": GOOD}])
+        self.assertEqual(len(seen), 2)
+        sent = "\n".join(seen)
         ident = self.profile["identity"]
         for value in (ident["full_name"], ident.get("email"), ident.get("phone"),
                       str(FLOOR), f"{FLOOR:,}", "TOO-GENERIC-FEEDBACK", "wrong_bullets",
@@ -288,6 +291,19 @@ class TestRoutes(Press):
                                                   "jobs/999", "question": "Why us, really?"})
         self.assertEqual(r.json()["state"], "not_ready")
         call.assert_not_called()
+
+    def test_the_panel_note_follows_the_switch(self):
+        body = {"url": GREENHOUSE, "question": ["Why us, really?"], "maxlength": [""]}
+        self.assertEqual(self.post("/ext/suggest/earlier", body).json()["note"],
+                         suggest.PANEL_NOTE_OFF)
+        with mock.patch("jsa.answers.SUBJECT_AWARE", True), \
+                mock.patch("jsa.suggest.PANEL_NOTE_ON", "Most are drafted and checked."):
+            self.assertEqual(self.post("/ext/suggest/earlier", body).json()["note"],
+                             "Most are drafted and checked.")
+        with mock.patch("jsa.answers.SUBJECT_AWARE", True), \
+                mock.patch("jsa.suggest.PANEL_NOTE_ON", ""):
+            self.assertEqual(self.post("/ext/suggest/earlier", body).json()["note"],
+                             suggest.PANEL_NOTE_OFF)
 
     def test_remember_then_earlier(self):
         r = self.post("/ext/remember", {"url": GREENHOUSE, "question": TestEarlierAnswers.Q,

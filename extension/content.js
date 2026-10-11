@@ -496,6 +496,7 @@
   const SOURCE_LABEL = { model: "drafted and checked", composed: "from your own sentences",
                          yours: "your own words" };
   let questionsHead = null;  // the section's summary line
+  let questionsNote = null;  // what the options are, in the dashboard's words
   let left = null;           // {left_today, limit}
 
   function headText() {
@@ -582,6 +583,9 @@
     }
     left = { left_today: answer.left_today, limit: answer.limit };
     if (questionsHead) questionsHead.textContent = headText();
+    if (questionsNote && typeof answer.note === "string" && answer.note) {
+      questionsNote.textContent = answer.note;
+    }
     for (const q of openQuestions) {
       const hits = (answer.earlier || {})[q.label] || [];
       if (!hits.length || q.box.childElementCount) continue;
@@ -593,11 +597,13 @@
   function questionsSection() {
     if (!openQuestions.length) return [];
     questionsHead = el("summary", { textContent: headText() });
-    const parts = [questionsHead,
-      el("p", { className: "meta", textContent: "Suggest gives three options from your " +
-        "profile. Most are made from your own sentences: drafted ones rarely pass the " +
-        "check against your profile (1 of 20 when measured), so edit the one you pick " +
-        "into an answer. Salary and demographic questions are yours to answer." })];
+    // The dashboard sends the current wording (plan 39); this is the fallback
+    // for an older dashboard.
+    questionsNote = el("p", { className: "meta", textContent: "Suggest gives three options " +
+      "from your profile. Most are made from your own sentences: drafted ones rarely pass " +
+      "the check against your profile (1 of 20 when measured), so edit the one you pick " +
+      "into an answer. Salary and demographic questions are yours to answer." });
+    const parts = [questionsHead, questionsNote];
     if (openQuestions.length > 1) {
       parts.push(el("div", { className: "row" },
                     [button("Suggest for all (" + openQuestions.length + ")", suggestAll, true)]));

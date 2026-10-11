@@ -1,24 +1,30 @@
-"""Measure the subject-aware check on real drafts (plan 37). Run by hand.
+"""Measure the subject-aware check on real drafts (plans 37 and 39). Run by hand.
 
-    .venv/Scripts/python tools/measure_verifier.py --questions FILE
+    .venv/Scripts/python tools/measure_verifier.py --questions FILE [--prompt split|old]
+    .venv/Scripts/python tools/measure_verifier.py --questions-from SAVED.json [...]
     .venv/Scripts/python tools/measure_verifier.py --recheck SAVED.json
+    add --written 421,484 to also draft those jobs' written answers
 
-`--questions` makes PAID model calls: one per question, plus one retry when
-a draft fails the new check. FILE has one `job_id | question` per line, for
-jobs in your tracker. Each call drafts three answers (about the role, about
-a project, about the company) from the same prompt the extension's Suggest
-uses, with the company angle added. The drafts are your material: they are
+`--questions` / `--questions-from` make PAID model calls: one per question
+(three angles: about the role, about a project, about the company), plus one
+retry when a draft fails the new check; `--written` one per job plus one
+retry. FILE has one `job_id | question` per line; `--questions-from` takes
+the pairs from an earlier saved run. The prompts are production's own
+(`suggest.build`, `answers.build`): `--prompt split` (the default) asks for
+sentences about the employer kept apart from sentences about you (plan 39),
+`--prompt old` is the plan 37 prompt. The drafts are your material: they are
 saved to logs/verifier-measure-<date>.json beside the tracker (gitignored)
 and never committed.
 
-Every draft is checked four ways: the old whole-text check, and the new
-sentence-by-sentence check with the attitude frame on and off, plus the new
-check after one retry. Then the drafts that pass ONLY under the new check
-are printed in full, for you to read: any that says something about you
-that isn't in your profile is a leak, and the switch stays off.
+Every draft is checked the old way (whole text) and the new way (sentence by
+sentence), with the attitude frame on and off, before and after the retry;
+length-only refusals are counted apart; and every sentence of every first
+draft is counted by shape (about the employer, about you, mixed, unclear).
+Then the drafts that pass ONLY under the new check are printed in full, for
+you to read: any that says something about you that isn't in your profile is
+a leak, and the switch stays off.
 
-`--recheck` re-runs the checks on a saved file, with no model call (after a
-fix to the sorter).
+`--recheck` re-runs the checks on a saved file, with no model call.
 """
 
 from __future__ import annotations
@@ -33,150 +39,210 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from jsa import answers, config, db, ledger, llm, suggest  # noqa: E402
+from jsa import answers, config, db, ledger, letter, llm, suggest  # noqa: E402
 from jsa.config import load_profile  # noqa: E402
-from jsa.posting import OUTREACH_CHARS, visible  # noqa: E402
 
 ANGLES = ("role", "project", "company")
-
-THREE = '''Write three different answers to the question, each {min_words}-{max_words} words:
-- "role": from what the notes show they do, tied to this role.
-- "project": built around one specific project or job from the notes, what it
-  does and what part they did.
-- "company": why this employer, from what the posting says about it, and what
-  in the notes fits it.
-
-Return JSON: {{"role": "...", "project": "...", "company": "..."}}'''
+WRITTEN = ("why_role", "relevant_project", "why_company")
 
 
-def prompt_for(profile, job, bullets, question):
-    """The Suggest prompt, asking for the company angle too."""
-    base = suggest.PROMPT.split("Write two different answers")[0]
-    excerpt = visible(job.get("description"), budget=OUTREACH_CHARS).text
-    text = (base + THREE).format(
-        title=job.get("title") or "the role", company=job.get("company") or "the company",
-        question=suggest._fence(question), posting=suggest._fence(excerpt) or "(none)",
-        summary=answers._summary(profile, job) or "(none)",
-        bullets="\n".join(f"- {b.text}" for b in bullets) or "(none)",
-        min_words=answers.MIN_WORDS, max_words=answers.MAX_WORDS)
-    return text, excerpt
+def prompt_for(profile, job, bullets, question, split=False):
+    """The Suggest prompt with all three angles (old: plan 37's text)."""
+    prompt, system, excerpt = suggest.build(job, profile, bullets, question, angles=ANGLES,
+                                            split=split)
+    return prompt, excerpt, system
+
+
+def _check(text, profile, job, excerpt, frame=True):
+    from jsa import subject
+    before = subject.ATTITUDE_FRAME
+    subject.ATTITUDE_FRAME = frame
+    try:
+        return answers.check(text, profile, job, posting_text=excerpt)
+    finally:
+        subject.ATTITUDE_FRAME = before
 
 
 def verdicts(text, profile, job, excerpt):
-    from jsa import subject
-    out = {"old": answers.check(text, profile, job)}
-    for frame in (True, False):
-        before = subject.ATTITUDE_FRAME
-        subject.ATTITUDE_FRAME = frame
-        try:
-            out["new" if frame else "new_no_frame"] = answers.check(
-                text, profile, job, posting_text=excerpt)
-        finally:
-            subject.ATTITUDE_FRAME = before
+    return {"old": answers.check(text, profile, job),
+            "new": _check(text, profile, job, excerpt, True),
+            "new_no_frame": _check(text, profile, job, excerpt, False)}
+
+
+def length_only(problems):
+    return bool(problems) and all("words, outside" in p or "characters, over" in p
+                                  for p in problems)
+
+
+def shapes(text, profile, job, excerpt):
+    """Each sentence: employer, about you, mixed, or unclear."""
+    company = job.get("company") or ""
+    out = Counter()
+    for s in letter.checked_sentences(text, profile, job, excerpt):
+        if s["kind"] == "employer":
+            out["employer"] += 1
+        elif suggest._mixed(s, company):
+            out["mixed"] += 1
+        elif s["why"].startswith("unclear"):
+            out["unclear"] += 1
+        else:
+            out["about you"] += 1
     return out
 
 
-def draft(profile, con, rows):
-    from jsa.letter import refused_words
+def _call(prompt, system, profile, job, excerpt, keys, split):
+    """One draft and at most one retry, production's rule."""
     from jsa.tailor import scrub_prompt
+    scrub_prompt(prompt, profile)
+    data, _ = llm.complete_json(prompt, system=system, purpose="suggest", max_tokens=1200,
+                                temperature=0.4, thinking=False, attempts=2)
+    first = {k: " ".join(str((data or {}).get(k) or "").split()) for k in keys}
+    retried = dict(first)
+    failing = {k: _check(t, profile, job, excerpt) for k, t in first.items()}
+    failing = {k: p for k, p in failing.items() if p}
+    if failing:
+        retry = suggest.retry_text(prompt, first, failing, profile, job, excerpt, split)
+        scrub_prompt(retry, profile)
+        again, _ = llm.complete_json(retry, system=system, purpose="suggest", max_tokens=1200,
+                                     temperature=0.3, thinking=False, attempts=2)
+        for k in failing:
+            text = " ".join(str((again or {}).get(k) or "").split())
+            if text:
+                retried[k] = text
+    return first, retried
+
+
+def _job(con, job_id):
+    job = answers.job_row(con, job_id)
+    if job is None:
+        return None
+    return {k: job.get(k) for k in ("id", "title", "company", "location", "track",
+                                    "description")}
+
+
+def draft(profile, con, rows, split=True):
     saved = []
     for job_id, question in rows:
-        job = answers.job_row(con, job_id)
+        job = _job(con, job_id)
         if job is None:
             print(f"no job {job_id}; skipped")
             continue
-        job = {k: job.get(k) for k in ("id", "title", "company", "location", "track",
-                                       "description")}
         bullets = answers.evidence(con, job, profile)
-        prompt, excerpt = prompt_for(profile, job, bullets, suggest.clean_question(question))
-        scrub_prompt(prompt, profile)
-        data, _ = llm.complete_json(prompt, system=suggest.SYSTEM, purpose="suggest",
-                                    max_tokens=1200, temperature=0.4, thinking=False,
-                                    attempts=2)
-        first = {a: " ".join(str((data or {}).get(a) or "").split()) for a in ANGLES}
-        retried = dict(first)
-        failing = {a: answers.check(t, profile, job, posting_text=excerpt)
-                   for a, t in first.items()}
-        failing = {a: p for a, p in failing.items() if p}
-        if failing:
-            banned = sorted({w for a in failing
-                             for w in refused_words(first[a], profile, job, excerpt)})
-            retry = (prompt + "\n\nYour previous answers were refused: "
-                     + "; ".join(f"{a}: {', '.join(p[:2])}" for a, p in failing.items())
-                     + ".\nRewrite only those keys" + (", without these words: "
-                     + ", ".join(banned[:30]) if banned else "")
-                     + ". Say only what the notes say.")
-            again, _ = llm.complete_json(retry, system=suggest.SYSTEM, purpose="suggest",
-                                         max_tokens=1200, temperature=0.3, thinking=False,
-                                         attempts=2)
-            for a in failing:
-                text = " ".join(str((again or {}).get(a) or "").split())
-                if text:
-                    retried[a] = text
+        prompt, excerpt, system = prompt_for(profile, job, bullets,
+                                             suggest.clean_question(question), split)
+        first, retried = _call(prompt, system, profile, job, excerpt, ANGLES, split)
         saved.append({"job_id": job_id, "question": question, "job": job,
-                      "excerpt": excerpt, "first": first, "retried": retried})
+                      "excerpt": excerpt, "first": first, "retried": retried,
+                      "prompt": "split" if split else "old"})
         print(f"drafted {job_id}: {question[:50]}")
     return saved
 
 
+def draft_written(profile, con, job_ids):
+    saved = []
+    for job_id in job_ids:
+        job = _job(con, job_id)
+        if job is None:
+            print(f"no job {job_id}; skipped")
+            continue
+        bullets = answers.evidence(con, job, profile)
+        prompt, system, excerpt = answers.build(job, profile, bullets, keys=WRITTEN,
+                                                split=True)
+        first, retried = _call(prompt, system, profile, job, excerpt, WRITTEN, True)
+        saved.append({"job_id": job_id, "question": "(written answers)", "job": job,
+                      "excerpt": excerpt, "first": first, "retried": retried,
+                      "prompt": "split", "written": True})
+        print(f"drafted the written answers of {job_id}")
+    return saved
+
+
 def report(profile, saved):
-    counts = {a: Counter() for a in ANGLES}
+    keys = sorted({k for item in saved for k in item["first"]},
+                  key=lambda k: (ANGLES + WRITTEN).index(k) if k in ANGLES + WRITTEN else 99)
+    counts = {k: Counter() for k in keys}
+    shape = Counter()
     newly = []
     for item in saved:
         job, excerpt = item["job"], item["excerpt"]
-        for a in ANGLES:
-            first = item["first"][a]
-            v = verdicts(first, profile, job, excerpt)
-            counts[a]["drafts"] += 1
-            for name, problems in v.items():
-                counts[a][name] += int(not problems)
-            after = item["retried"][a]
-            counts[a]["new_after_retry"] += int(
-                not answers.check(after, profile, job, posting_text=excerpt))
-            for label, text, verdict in (("first", first, v),
-                                         ("retry", after, verdicts(after, profile, job,
-                                                                   excerpt))):
+        for k in item["first"]:
+            first, after = item["first"][k], item["retried"][k]
+            v, w = verdicts(first, profile, job, excerpt), verdicts(after, profile, job, excerpt)
+            c = counts[k]
+            c["drafts"] += 1
+            for name in ("old", "new", "new_no_frame"):
+                c[name] += int(not v[name])
+                c[name + "_after"] += int(not w[name])
+            c["length_only"] += int(length_only(v["new"]))
+            shape += shapes(first, profile, job, excerpt)
+            for label, text, verdict in (("first", first, v), ("retry", after, w)):
                 if verdict["old"] and not verdict["new"]:
-                    newly.append((item["job_id"], a, label, text))
-    print("\nPer angle (drafts passing):")
-    for a in ANGLES:
-        c = counts[a]
-        print(f"  {a:8} old {c['old']}/{c['drafts']}  new {c['new']}/{c['drafts']}  "
-              f"new without the frame {c['new_no_frame']}/{c['drafts']}  "
-              f"new after one retry {c['new_after_retry']}/{c['drafts']}")
+                    newly.append((item["job_id"], k, label, text))
+    print("\nPer angle (drafts passing): old / new / new without the frame, "
+          "first draft -> after one retry")
+    for k, c in counts.items():
+        print(f"  {k:16} old {c['old']}->{c['old_after']}/{c['drafts']}  "
+              f"new {c['new']}->{c['new_after']}/{c['drafts']}  "
+              f"no frame {c['new_no_frame']}->{c['new_no_frame_after']}/{c['drafts']}  "
+              f"refused only for length {c['length_only']}")
+    total = sum(shape.values())
+    print(f"\nSentences in the first drafts ({total}): "
+          + ", ".join(f"{name} {shape[name]}" for name in
+                      ("employer", "about you", "mixed", "unclear")))
     print(f"\nPass ONLY under the new check: {len(newly)}. Read each; any that says "
           "something about you that isn't in your profile is a leak.\n")
-    for job_id, a, label, text in newly:
-        print(f"--- job {job_id}, {a}, {label} ---\n{text}\n")
-    return counts, newly
+    for job_id, k, label, text in newly:
+        print(f"--- job {job_id}, {k}, {label} ---\n{text}\n")
+    return counts, newly, shape
+
+
+def _rows_from(path):
+    saved = json.loads(Path(path).read_text(encoding="utf-8"))
+    seen, rows = set(), []
+    for item in saved:
+        if item.get("written"):
+            continue
+        pair = (int(item["job_id"]), item["question"])
+        if pair not in seen:
+            seen.add(pair)
+            rows.append(pair)
+    return rows
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--questions", help="file of `job_id | question` lines (paid calls)")
+    group.add_argument("--questions-from", help="the questions of a saved run (paid calls)")
     group.add_argument("--recheck", help="a saved measure file; no model call")
+    parser.add_argument("--prompt", choices=["split", "old"], default="split")
+    parser.add_argument("--written", default="", help="job ids for written answers, e.g. 421,484")
     args = parser.parse_args()
     config.load_dotenv()
     profile = load_profile()
     if args.recheck:
-        saved = json.loads(Path(args.recheck).read_text(encoding="utf-8"))
-        report(profile, saved)
+        report(profile, json.loads(Path(args.recheck).read_text(encoding="utf-8")))
         return 0
-    rows = []
-    for line in Path(args.questions).read_text(encoding="utf-8").splitlines():
-        if "|" in line and not line.lstrip().startswith("#"):
-            job_id, question = line.split("|", 1)
-            rows.append((int(job_id.strip()), question.strip()))
+    if args.questions_from:
+        rows = _rows_from(args.questions_from)
+    else:
+        rows = []
+        for line in Path(args.questions).read_text(encoding="utf-8").splitlines():
+            if "|" in line and not line.lstrip().startswith("#"):
+                job_id, question = line.split("|", 1)
+                rows.append((int(job_id.strip()), question.strip()))
+    written = [int(x) for x in args.written.split(",") if x.strip()]
     con = db.connect(config.DB_PATH)
     previous = ledger.install(config.DB_PATH)
     try:
-        saved = draft(profile, con, rows)
+        saved = draft(profile, con, rows, split=args.prompt == "split")
+        saved += draft_written(profile, con, written)
     finally:
         llm.recorder = previous
         con.close()
     out = config.HOME / "logs" / f"verifier-measure-{dt.date.today().isoformat()}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
+    if out.exists():
+        out = out.with_name(out.stem + f"-{dt.datetime.now():%H%M%S}.json")
     out.write_text(json.dumps(saved, indent=1), encoding="utf-8")
     print(f"saved the drafts to {out} (gitignored; yours, never committed)")
     report(profile, saved)

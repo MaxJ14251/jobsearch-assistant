@@ -305,7 +305,7 @@ def register(app, ctx) -> None:
                         found[raw] = hits
             return {"state": refusal["state"] if refusal else "ok",
                     "left_today": left, "limit": suggest.daily_limit(prof),
-                    "earlier": found}
+                    "earlier": found, "note": suggest.panel_note()}
         finally:
             con.close()
 

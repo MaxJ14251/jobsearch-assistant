@@ -27,13 +27,40 @@ class TestReport(unittest.TestCase):
                               "company": "I built microgrid orchestration software. " + GOOD}}]
         out = io.StringIO()
         with redirect_stdout(out):
-            counts, newly = measure_verifier.report(ready(), saved)
+            counts, newly, shape = measure_verifier.report(ready(), saved)
         self.assertEqual((counts["role"]["old"], counts["role"]["new"]), (0, 1))
         self.assertEqual((counts["project"]["old"], counts["project"]["new"]), (1, 1))
         self.assertEqual(counts["company"]["new"], 0)        # a claim stays refused
         self.assertEqual([(a, label) for _, a, label, _ in newly],
                          [("role", "first"), ("role", "retry")])
         self.assertIn("Pass ONLY under the new check: 2", out.getvalue())
+        self.assertEqual(shape["employer"], 1)          # the role draft's first sentence
+
+    def test_questions_from_a_saved_run(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        path = Path(tempfile.mkdtemp()) / "saved.json"
+        path.write_text(json.dumps([
+            {"job_id": 421, "question": "Why us?"}, {"job_id": 421, "question": "Why us?"},
+            {"job_id": 484, "question": "A project?"},
+            {"job_id": 484, "question": "(written answers)", "written": True}]),
+            encoding="utf-8")
+        self.assertEqual(measure_verifier._rows_from(path),
+                         [(421, "Why us?"), (484, "A project?")])
+
+    def test_sentence_shapes_and_length_only_refusals(self):
+        job = {"title": "Support Engineer", "company": "Riverton Grid", "location": None}
+        got = measure_verifier.shapes(
+            EMPLOYER + "My work mirrors Riverton Grid's software. Shipped it. " + GOOD,
+            ready(), job, POSTING)
+        self.assertEqual(got["employer"], 1)
+        self.assertEqual(got["mixed"], 1)
+        self.assertEqual(got["unclear"], 1)
+        self.assertGreaterEqual(got["about you"], 1)
+        self.assertTrue(measure_verifier.length_only(["16 words, outside 40-150"]))
+        self.assertFalse(measure_verifier.length_only(["16 words, outside 40-150",
+                                                       "mentions a degree"]))
 
     def test_the_drafts_go_to_the_gitignored_logs_folder(self):
         source = (ROOT / "tools" / "measure_verifier.py").read_text(encoding="utf-8")
