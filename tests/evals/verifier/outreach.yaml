@@ -1,0 +1,52 @@
+# Outreach's sentence-by-sentence check (plan 38), on the fictional eval
+# profile. The posting's tech stack and the recipient's title and company may
+# be used only in a sentence about the recipient; the degree check is the full
+# one; with no job the message is still held to the profile.
+
+defaults:
+  channel: linkedin_dm
+  title: Support Engineer
+  company: Vercel
+  stack: [Zendesk, Linear]
+  recipient: {name: Priya Okafor, title: Senior Engineer, company_name: Globex}
+
+cases:
+  - name: the stack in a sentence about them
+    text: >-
+      Hi Priya, I resolved about forty support tickets a day on shipment
+      tracking. Your support team uses Zendesk.
+    expect: {verdict: pass, kinds: [strict, recipient],
+             why: "the stack is theirs to have, said about them"}
+  - name: their company and team
+    text: Hi Priya, your team at Globex uses Zendesk. I resolved support tickets.
+    expect: {verdict: pass, kinds: [recipient, strict],
+             why: "the recipient's company in a sentence about the recipient"}
+  - name: the stack claimed by the sender
+    text: Hi Priya, I have used Zendesk for years.
+    expect: {verdict: refuse, kinds: [strict], reason_contains: zendesk,
+             why: "hole 1: the stack used to be allowed in any sentence"}
+  - name: the recipient's job claimed by the sender
+    text: I worked at Globex as a Senior Engineer.
+    expect: {verdict: refuse, kinds: [strict], reason_contains: globex,
+             why: "hole 2: the recipient's title and company were allowed anywhere"}
+  - name: a degree in other words
+    text: Hi Priya, I completed my CS degree.
+    expect: {verdict: refuse, reason_contains: degree,
+             why: "hole 3: three literal phrases missed this"}
+  - name: a graduate opener
+    text: As a CS graduate, I resolved support tickets.
+    expect: {verdict: refuse, reason_contains: degree,
+             why: "hole 3: the full degree rule; the degree was not conferred"}
+  - name: no job, an invented team
+    no_job: true
+    text: I led a team of twelve engineers.
+    expect: {verdict: refuse, reason_contains: led,
+             why: "hole 4: with no job there was no word check at all"}
+  - name: no job, the profile's own words
+    no_job: true
+    text: Hi Priya, I resolved about forty support tickets a day.
+    expect: {verdict: pass, why: "the profile still speaks for itself"}
+  - name: a number about them they never gave
+    text: Hi Priya, your 40 engineers use Zendesk. I resolved support tickets.
+    expect: {verdict: refuse, reason_contains: "40",
+             why: "numbers about the recipient only from their own details"}

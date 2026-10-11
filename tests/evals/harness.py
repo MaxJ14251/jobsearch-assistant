@@ -165,16 +165,30 @@ def verifier_cases() -> list[dict[str, Any]]:
 
 def check_verifier(case: dict[str, Any], prof: dict[str, Any] | None = None) -> Result:
     """Run one text through answers.check with the posting given (the
-    question, if any, goes nowhere: it must never be a word source)."""
-    from jsa import answers, subject
+    question, if any, goes nowhere: it must never be a word source), or,
+    for a case with a `channel`, through outreach.verify_message."""
+    import json
+    from jsa import answers, outreach, subject
+    from jsa.tailor import FabricationError
     prof = prof or profile()
     job = {"title": case.get("title"), "company": case.get("company"), "location": None}
-    problems = answers.check(" ".join(str(case["text"]).split()), prof, job,
-                             min_words=1, max_words=400,
-                             posting_text=str(case.get("posting") or ""))
-    ident = prof.get("identity") or {}
-    found = [s.kind for s in subject.sort(case["text"], job["company"],
-                                          [ident.get("full_name") or ""])]
+    text = " ".join(str(case["text"]).split())
+    if case.get("channel"):
+        job = None if case.get("no_job") else dict(
+            job, tech_stack=json.dumps(case.get("stack") or []))
+        contact = case.get("recipient")
+        try:
+            outreach.verify_message(text, prof, job=job, contact=contact)
+            problems = []
+        except FabricationError as exc:
+            problems = [str(exc)]
+        found = [s["kind"] for s in outreach.checked_sentences(text, prof, job, contact)]
+    else:
+        problems = answers.check(text, prof, job, min_words=1, max_words=400,
+                                 posting_text=str(case.get("posting") or ""))
+        ident = prof.get("identity") or {}
+        found = [s.kind for s in subject.sort(case["text"], job["company"],
+                                              [ident.get("full_name") or ""])]
     expect = case.get("expect") or {}
     result = Result(case["name"])
 

@@ -49,7 +49,8 @@ STAND_IN_PHRASES = ("a person", "the writer", "this hire", "yours truly",
 SELF_OPENERS = ("having", "as someone", "as a", "as an", "after years", "since joining",
                 "with years", "coming from")
 
-LEADING = ("and", "also", "plus", "at", "today", "right now", "currently")
+LEADING = ("and", "also", "plus", "at", "today", "right now", "currently",
+           "hi", "hello", "hey", "dear")
 
 ROLE_SUBJECTS = ("the role", "this role", "the position", "this position", "the team",
                  "this team", "the company", "this company", "the job", "this job",
@@ -121,13 +122,18 @@ def _company_words(company: str | None) -> list[str]:
     return tokens(company or "")
 
 
-def _employer_start(words: list[str], company: str | None, previous_employer: bool) -> bool:
-    """Whether these words start with something that is the employer or the role."""
+def _employer_start(words: list[str], company: str | None, previous_employer: bool,
+                    others: list[str] | None = None) -> bool:
+    """Whether these words start with something that is the employer or the
+    role (or, for outreach, one of `others`: the recipient's name and
+    company)."""
     words = _skip_leading(list(words))
     if not words:
         return False
-    name = _company_words(company)
-    if name:
+    for subject_name in [company, *(others or [])]:
+        name = _company_words(subject_name)
+        if not name:
+            continue
         head = words[:len(name)]
         if len(head) == len(name):
             last = head[-1]
@@ -174,7 +180,7 @@ def _disqualified(words: list[str], person: set[str]) -> str:
 
 
 def _frame(sentence: str, company: str | None, person: set[str],
-           previous_employer: bool) -> str | None:
+           previous_employer: bool, others: list[str] | None = None) -> str | None:
     """The part after an attitude frame, if the sentence is one we accept."""
     lowered = sentence.lower().replace("’", "'")
     words = tokens(lowered)
@@ -183,7 +189,7 @@ def _frame(sentence: str, company: str | None, person: set[str],
         if not n:
             continue
         rest = words[n:]
-        if not rest or not _employer_start(rest, company, previous_employer):
+        if not rest or not _employer_start(rest, company, previous_employer, others):
             return None
         if _disqualified(rest, person):
             return None
@@ -199,9 +205,12 @@ def _frame(sentence: str, company: str | None, person: set[str],
 
 
 def sort(text: str, company: str | None = None, person: list[str] | None = None,
-         attitude_frame: bool | None = None) -> list[Sentence]:
+         attitude_frame: bool | None = None,
+         others: list[str] | None = None) -> list[Sentence]:
     """Every sentence of `text`, sorted. `person` is the person's own names
-    (full and preferred), which in a sentence make it about them."""
+    (full and preferred), which in a sentence make it about them. `others`
+    are further subjects that count as the employer side (outreach: the
+    recipient's name and company)."""
     use_frame = ATTITUDE_FRAME if attitude_frame is None else attitude_frame
     names = _person_names(person)
     out: list[Sentence] = []
@@ -209,7 +218,7 @@ def sort(text: str, company: str | None = None, person: list[str] | None = None,
     for sentence in split(text):
         words = tokens(sentence)
         if use_frame:
-            rest = _frame(sentence, company, names, previous_employer)
+            rest = _frame(sentence, company, names, previous_employer, others)
             if rest is not None:
                 out.append(Sentence(sentence, "employer", "an attitude toward the employer",
                                     rest))
@@ -220,7 +229,7 @@ def sort(text: str, company: str | None = None, person: list[str] | None = None,
             out.append(Sentence(sentence, "strict", reason, sentence))
             previous_employer = False
             continue
-        if _employer_start(words, company, previous_employer):
+        if _employer_start(words, company, previous_employer, others):
             out.append(Sentence(sentence, "employer", "starts with the employer or role",
                                 sentence))
             previous_employer = True

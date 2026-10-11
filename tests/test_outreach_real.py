@@ -121,10 +121,15 @@ class TestVerifyMessageActuallyVerifies(unittest.TestCase):
         self.assertEqual(
             outreach.unsupported_words(body, PROFILE, self.job, contact), [])
 
-    def test_the_posting_s_stack_may_be_named(self):
-        body = "Hi Sam, I commissioned alarm panels. I have read about Zendesk."
+    def test_the_posting_s_stack_may_be_named_about_them_only(self):
+        # Plan 38, decided by the owner 2026-10-10: the stack used to be
+        # allowed in any sentence, so "I have used Zendesk" passed. Now only
+        # a sentence about the recipient may name it.
+        about_them = "Hi Sam, I commissioned alarm panels. Your support team uses Zendesk."
         self.assertNotIn("zendesk",
-                         outreach.unsupported_words(body, PROFILE, self.job))
+                         outreach.unsupported_words(about_them, PROFILE, self.job))
+        about_me = "Hi Sam, I commissioned alarm panels. I have read about Zendesk."
+        self.assertIn("zendesk", outreach.unsupported_words(about_me, PROFILE, self.job))
 
     def test_the_postings_prose_is_not_a_licence_to_claim_it(self):
         """The description is shown to the model, never added to the allowed

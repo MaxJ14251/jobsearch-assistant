@@ -201,34 +201,36 @@ def add_contact(
     return int(cur.lastrowid)
 
 
-def allowed_vocabulary(profile: dict[str, Any], job: dict[str, Any] | None,
-                       contact: Any = None) -> set[str]:
-    """Every word stem an outreach message may use.
+def _names(profile: dict[str, Any], contact: Any) -> list[str]:
+    """The sender's names (they sign the message) and the recipient's (you
+    address them): allowed in any sentence."""
+    ident = profile.get("identity") or {}
+    names = [str(ident[k]) for k in ("preferred_name", "full_name") if ident.get(k)]
+    if contact is not None and _has(contact, "name") and contact["name"]:
+        names.append(str(contact["name"]))
+    return names
 
-    letter.allowed_stems covers the profile, the connectives allowlist, and
-    the job's title, company and location. Outreach needs two more sources,
-    and leaving them out is what would make a correct message fail:
 
-      the recipient    you address them by name and role
-      the tech stack   the enrichment already read it off this posting
-
-    The posting's prose is deliberately NOT included, exactly as in a cover
-    letter: allowing it would let the model quote the employer's description
-    of the job back as a description of the candidate.
-    """
+def strict_vocabulary(profile: dict[str, Any], job: dict[str, Any] | None,
+                      contact: Any = None) -> set[str]:
+    """Every stem a sentence about the sender (or an unclear one) may use:
+    the profile, the job's title, company and location, the connectives,
+    and the two people's names. Nothing about the recipient's job or the
+    posting's stack (plan 38)."""
     from . import letter
 
     stems = letter.allowed_stems(profile, job or {})
     stems |= {letter._stem(w) for w in OUTREACH_CONNECTIVES}
-    # The sender signs their own message. Their name is not in the bullets,
-    # so without this the signature fails the check that was added to protect
-    # them -- caught by a test, after a live run passed only because the name
-    # happened to collide with a connective.
+    for value in _names(profile, contact):
+        stems |= {letter._stem(w) for w in letter._words(value)}
+    return stems
+
+
+def _about_them(job: dict[str, Any] | None, contact: Any) -> str:
+    """What a sentence about the recipient, their team or company may also
+    say: the recipient's title and company, and the posting's tech stack
+    (the enrichment read it off the posting)."""
     extra: list[str] = []
-    ident = profile.get("identity") or {}
-    for key in ("preferred_name", "full_name"):
-        if ident.get(key):
-            extra.append(str(ident[key]))
     if job:
         raw = job["tech_stack"] if _has(job, "tech_stack") else None
         if raw:
@@ -238,12 +240,67 @@ def allowed_vocabulary(profile: dict[str, Any], job: dict[str, Any] | None,
             except (ValueError, TypeError):
                 pass
     if contact is not None:
-        for key in ("name", "title", "company_name"):
+        for key in ("title", "company_name"):
             if _has(contact, key) and contact[key]:
                 extra.append(str(contact[key]))
-    for value in extra:
-        stems |= {letter._stem(w) for w in letter._words(value)}
-    return stems
+    return " ".join(extra)
+
+
+def allowed_vocabulary(profile: dict[str, Any], job: dict[str, Any] | None,
+                       contact: Any = None) -> set[str]:
+    """Every word stem any sentence of an outreach message may use: the
+    strict vocabulary, plus what only sentences about the recipient may say.
+
+    The posting's prose is deliberately NOT included, exactly as in a cover
+    letter: allowing it would let the model quote the employer's description
+    of the job back as a description of the candidate (ADR 0007, 0010).
+    """
+    from . import letter
+
+    return strict_vocabulary(profile, job, contact) | {
+        letter._stem(w) for w in letter._words(_about_them(job, contact))}
+
+
+def checked_sentences(body: str, profile: dict[str, Any], job: dict[str, Any] | None,
+                      contact: Any = None) -> list[dict[str, Any]]:
+    """The message sentence by sentence (plan 38, ADR 0010).
+
+    A sentence about the recipient, their team or company (it starts with
+    their name, "you", "your", or the recipient's or job's company) may also
+    use the recipient's title and company and the posting's stack, but no
+    first person, nothing standing in for the sender, no negation, and no
+    number those don't contain. Every other sentence is about the sender, or
+    unclear, and is held to the strict vocabulary.
+    """
+    from . import letter, subject
+
+    strict = strict_vocabulary(profile, job, contact)
+    source = _about_them(job, contact)
+    about = strict | {letter._stem(w) for w in letter._words(source)}
+    others = [str(contact[k]) for k in ("name", "company_name")
+              if contact is not None and _has(contact, k) and contact[k]]
+    if contact is not None and _has(contact, "name") and contact["name"]:
+        others.append(salutation(str(contact["name"])))      # "Hi Dana, your team…"
+    ident = profile.get("identity") or {}
+    person = [str(ident.get(k) or "") for k in ("full_name", "preferred_name")]
+    out = []
+    for i, s in enumerate(subject.sort(body, (job or {}).get("company") if job else None,
+                                       person, attitude_frame=False, others=others), 1):
+        words = letter._words(s.body)
+        problems: list[str] = []
+        if s.kind == "employer":
+            refused = sorted({w for w in words if not _supported(w, about)})
+            if subject.negated(s.body):
+                problems.append(f"sentence {i} says what they don't do or have")
+            stray = [n for n in subject.numbers(s.body) if n not in subject.numbers(source)]
+            if stray:
+                problems.append(f"sentence {i}: the number {stray[0]} is not theirs to state")
+        else:
+            refused = sorted({w for w in words if not _supported(w, strict)})
+        out.append({"index": i, "text": s.text,
+                    "kind": "recipient" if s.kind == "employer" else "strict",
+                    "refused": refused, "problems": problems})
+    return out
 
 
 def _has(row: Any, key: str) -> bool:
@@ -256,14 +313,19 @@ def _has(row: Any, key: str) -> bool:
 def unsupported_words(body: str, profile: dict[str, Any],
                       job: dict[str, Any] | None,
                       contact: Any = None) -> list[str]:
-    """The message's own words that nothing supports. Empty means it may go."""
-    if job is None:
-        return []
-    from . import letter
+    """The message's own words that nothing supports. Empty means it may go.
 
-    allowed = allowed_vocabulary(profile, job, contact)
-    return sorted({w for w in letter._words(body)
-                   if not _supported(w, allowed)})
+    Sentence by sentence (plan 38): the stack and the recipient's title and
+    company only in sentences about the recipient. With no job there is no
+    posting and no stack, but the message is still held to the profile."""
+    return sorted({w for s in checked_sentences(body, profile, job, contact)
+                   for w in s["refused"]})
+
+
+def rule_problems(body: str, profile: dict[str, Any], job: dict[str, Any] | None,
+                  contact: Any = None) -> list[str]:
+    """What a sentence about the recipient may not do: deny, or count."""
+    return [p for s in checked_sentences(body, profile, job, contact) for p in s["problems"]]
 
 
 def _supported(word: str, allowed: set[str]) -> bool:
@@ -313,15 +375,31 @@ def verify_message(body: str, profile: dict[str, Any],
             raise FabricationError(
                 f"outreach draft implies a conferred degree ({phrase!r})"
             )
+    # The same pair the written answers use (plan 38): the three phrases
+    # above missed "I completed my CS degree".
+    from .facts import _edu, claims_a_degree
+    from .letter import _DEGREE
+    from .prep import DegreeClaimError, assert_no_degree_claim
+    try:
+        assert_no_degree_claim(body)
+    except DegreeClaimError as exc:
+        raise FabricationError(f"outreach draft implies a degree ({exc})") from exc
+    held = claims_a_degree(" ".join(str(_edu(profile).get("credential") or "").split()))
+    if not held and _DEGREE.search(body):
+        raise FabricationError("outreach draft mentions a degree, and your profile "
+                               "has none that was conferred")
 
-    if job is not None:
-        new = unsupported_words(body, profile, job, contact)
-        if new:
-            raise FabricationError(
-                "outreach draft uses words nothing supports — neither your "
-                "profile, this posting, nor the recipient: "
-                + ", ".join(new[:10])
-            )
+    new = unsupported_words(body, profile, job, contact)
+    if new:
+        raise FabricationError(
+            "outreach draft uses words nothing supports — neither your "
+            "profile, this posting, nor the recipient: "
+            + ", ".join(new[:10])
+        )
+    rules = rule_problems(body, profile, job, contact)
+    if rules:
+        raise FabricationError("outreach draft says something about the recipient it "
+                               "can't know: " + "; ".join(rules[:3]))
     return body
 
 
@@ -428,9 +506,16 @@ def draft(
                 break
             body = shorter
 
-        unsupported = unsupported_words(body, profile, job_row, contact)
-        if not unsupported:
+        found = checked_sentences(body, profile, job_row, contact)
+        unsupported = sorted({w for s in found for w in s["refused"]})
+        rules = [p for s in found for p in s["problems"]]
+        if not unsupported and not rules:
             break
+        # Which sentence, too (plan 38): "zendesk" is fine about them and not
+        # about you, so the word alone doesn't say what to fix.
+        where = "; ".join(
+            f"sentence {s['index']} (\"{s['text'][:60]}\"): {', '.join(s['refused'][:6])}"
+            for s in found if s["refused"])
         # Name the words rather than re-rolling blind, exactly as a cover
         # letter does. Every real draft of the first run tripped on ordinary
         # words like "quick" and "worth"; the ones worth failing over are
@@ -440,8 +525,14 @@ def draft(
             prompt + "\n\nYour previous draft was rejected for using words "
             "that nothing in the facts above supports. Do not use any of "
             "these words: " + ", ".join(unsupported)
+            + (". Where they were: " + where if where else "")
+            + (". Also: " + "; ".join(rules[:3]) if rules else "")
             + ".\nRewrite it, saying only what the facts above say.")
 
+    if rules and not unsupported:
+        raise FabricationError(
+            "The draft kept saying something about the recipient it can't know: "
+            + "; ".join(rules[:3]) + ". Write this one yourself.")
     if unsupported:
         # This reads like a tool failure and usually is not one. Measured on
         # the first real run: the words the model kept reaching for on a

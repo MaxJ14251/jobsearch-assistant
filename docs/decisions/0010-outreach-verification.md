@@ -124,3 +124,37 @@ should be measured against these nine before and after, not argued about.
 switch, for written answers and suggestions. Outreach does not use it yet;
 plan 38 first closes outreach's own holes (its tech stack and the
 recipient's words were allowed in any sentence).
+
+## Four holes closed, 2026-10-10 (plan 38)
+
+Outreach's check was looser than the written answers' and the letter's in
+four ways, each letting a claim about the sender through:
+
+1. The posting's tech stack was allowed in any sentence, so "I have used
+   Zendesk for years" passed when Zendesk was in the stack.
+2. The recipient's title and company were allowed in any sentence, so "I
+   worked at Globex as a Senior Engineer" passed when writing to a Globex
+   Senior Engineer.
+3. The degree check was three literal phrases; "I completed my CS degree"
+   got past them.
+4. With no job there was no word check at all.
+
+Now the message is checked sentence by sentence (ADR 0035's sorter). A
+sentence about the recipient, their team or company (it starts with their
+name, "you", "your", or their or the job's company) may also use their
+title and company and the stack, with no first person, no stand-in for the
+sender, no negation, and no number they didn't give. Every other sentence is
+held to the profile, the job's title, company and location, the connectives
+and the two names. The degree check is the written answers' pair (the
+negation-aware claim check, and no degree word at all when none was
+conferred). With no job, the message is held to the profile. The retry
+names the sentence as well as the words.
+
+One existing test relied on hole 1 ("I have read about Zendesk" passing);
+the owner decided to flip it (2026-10-10): a sentence about the recipient
+may name the stack, one about the sender may not. The posting's prose is
+still not allowed in outreach.
+
+**Not yet measured** on real drafts (3 postings × 3 channels, with the
+owner's OK). Expect passes to stay low or drop: that is the cost of closing
+the holes.

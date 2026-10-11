@@ -8,6 +8,10 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Added
 
+- Outreach's check no longer lets a claim about you through: the posting's
+  stack and the recipient's title and company only in sentences about the
+  recipient, the full degree check, and a word check even with no job
+  ([ADR 0010](docs/decisions/0010-outreach-verification.md)).
 - **A check that knows who each sentence is about** (written answers and
   suggestions; off until measured): sentences about the employer may use the
   posting's words, everything about you is checked as before
