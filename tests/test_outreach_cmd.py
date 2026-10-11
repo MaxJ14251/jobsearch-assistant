@@ -35,6 +35,15 @@ from tests.test_prep_cmd import PROFILE
 
 JSA = ROOT / "jsa"
 
+
+def own_words(profile):
+    """A message in the profile's own words: its first bullet."""
+    for section in ("experience", "projects"):
+        for entry in profile.get(section) or []:
+            for bullet in entry.get("bullets") or []:
+                return " ".join(str(bullet.get("text", "")).split())
+    raise AssertionError("the profile has no bullet")
+
 # Anything that could put a message on a wire. urllib and httpx are handled
 # separately: the LLM client legitimately needs one of them.
 SENDING = {
@@ -309,9 +318,11 @@ class TestMessageVerification(unittest.TestCase):
                                    PROFILE)
 
     def test_an_honest_message_passes(self):
-        verify_message(
-            "I build cloud-native Python pipelines with Claude and Gemini.",
-            PROFILE)
+        # Honest for whichever profile is loaded: its own first bullet. It
+        # named tools only the author's profile has, and passed with the
+        # shipped example only because a message with no job had no word
+        # check (plan 38, hole 4).
+        verify_message(own_words(PROFILE), PROFILE)
 
 
 class TestScannerCoversContactData(unittest.TestCase):
@@ -401,6 +412,8 @@ class TestAThinPostingWarns(unittest.TestCase):
                 ("jsa.outreach.llm.complete",
                  {"return_value": mock.Mock(text="A short note.", model="test/model")}),
                 ("jsa.outreach.unsupported_words", {"return_value": []}),
+                # The drafting loop checks sentence by sentence (plan 38).
+                ("jsa.outreach.checked_sentences", {"return_value": []}),
                 ("jsa.outreach.verify_message", {"return_value": None}),
                 ("jsa.cli.load_profile", {"return_value": PROFILE})):
             patcher = mock.patch(target, **kwargs)

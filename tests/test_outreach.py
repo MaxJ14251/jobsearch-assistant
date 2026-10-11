@@ -136,8 +136,11 @@ class TestMessageVerification(unittest.TestCase):
                     verify_message(phrase, PROFILE)
 
     def test_honest_message_passes(self):
-        body = ("I build LLM automation pipelines in Python with Claude and "
-                "Gemini, and spent three years in technical sales before that.")
+        # Honest for whichever profile is loaded (plan 38, hole 4: with no
+        # job there used to be no word check, so tools only the author's
+        # profile names passed with the shipped example too).
+        from tests.test_outreach_cmd import own_words
+        body = own_words(PROFILE)
         self.assertEqual(verify_message(body, PROFILE), body)
 
 
