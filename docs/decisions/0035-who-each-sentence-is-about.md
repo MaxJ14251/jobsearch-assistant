@@ -1,6 +1,6 @@
 # ADR 0035 — A check that knows who each sentence is about
 
-Status: accepted; switched off until measured
+Status: accepted; measured, switched off
 Date: 2026-10-10
 Relates to: ADR 0007 (the letter's word check; decision 3, posting words),
 ADR 0010 (why sentences about an employer fail), ADR 0027 (written answers),
@@ -90,8 +90,38 @@ Vercel.
 - ADR 0007 decision 3 holds for every sentence about the person; posting
   words are allowed only in sentences about the employer, and so far only
   in written answers and suggestions, and only once switched on.
-- **Not yet measured**; `SUBJECT_AWARE` is False. The measurement and the
-  owner's reading of the newly passing drafts decide.
+- **Measured 2026-10-10, and left off** (below).
 - Cover letters would need this ADR's switch, a dated amendment to ADR 0007,
   and the posting passed to the dashboard's letter re-check, which has none
   today. Outreach would need the same, and is tightened first (plan 38).
+
+## Measured, 2026-10-10
+
+The ten questions of ADR 0034's run, over the owner's four ready jobs: one
+draft per question with all three angles, one retry for each angle the new
+check refused (`tools/measure_verifier.py`; 20 model calls; drafts kept
+locally, never committed).
+
+| Angle | Old check | New check | New, frame off | New, after one retry |
+|---|---|---|---|---|
+| About the role | 0 of 10 | 0 of 10 | 0 of 10 | 2 of 10 |
+| About your project | 0 of 10 | 0 of 10 | 0 of 10 | 2 of 10 |
+| About the company | 0 of 10 | 0 of 10 | 0 of 10 | 0 of 10 |
+
+No draft passed only under the new check, so there was nothing for the
+owner to read and no leak. The retry's passes pass the old check too.
+
+**Why the new check didn't help:** of the 143 sentences in the 30 first
+drafts, 110 had a first-person word and 31 no clear subject; only 2 were
+about the employer. The model writes "My work on X mirrors <company>'s…",
+mixing the person and the employer in one sentence, and such a sentence is
+checked strictly, as it must be. The refused words were the person's
+("reliable", "verification", "critical", "mirrors"…), not the employer's.
+
+**Decision:** under the plan's bar (role at least 5 of 10), so
+`SUBJECT_AWARE` stays False and the company angle stays composed-only. The
+sorter is right; the drafts don't separate who each sentence is about. The
+next step, if wanted, is a prompt that asks for sentences about the
+employer to start with its name and stay apart from sentences about the
+person: a prompt change, so its own plan, measured on the same questions
+(the saved drafts can be re-checked with `--recheck`).

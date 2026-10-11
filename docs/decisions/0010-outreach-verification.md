@@ -155,6 +155,10 @@ the owner decided to flip it (2026-10-10): a sentence about the recipient
 may name the stack, one about the sender may not. The posting's prose is
 still not allowed in outreach.
 
-**Not yet measured** on real drafts (3 postings × 3 channels, with the
-owner's OK). Expect passes to stay low or drop: that is the cost of closing
-the holes.
+**Measured, 2026-10-10:** 3 of the owner's jobs × 3 channels (LinkedIn
+connection note, LinkedIn message, email), referral asks, a fictional
+contact, on a copy of the tracker, 2 attempts each: 18 model drafts. **0
+passed the old check and 0 the new**; no message was produced. So closing
+the holes cost no message on this run, and nothing passed for the owner to
+read. The drafts fail on the person's own words before any hole matters,
+as the first run of this ADR found.
