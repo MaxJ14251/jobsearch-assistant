@@ -30,7 +30,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-ATTITUDE_FRAME = True
+# Off since 2026-10-11 (owner's choice): measured with the split prompts it
+# added no pass (ADR 0035), so the narrow exception is dropped and every
+# first-person sentence is checked strictly. True brings it back.
+ATTITUDE_FRAME = False
 
 FIRST_PERSON = frozenset("""
 i i'm i've i'd i'll im ive me my mine myself we we're we've we'd we'll us our ours

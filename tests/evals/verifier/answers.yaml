@@ -31,8 +31,8 @@ cases:
     text: >-
       I'm drawn to Vercel's focus on developer experience. I resolved about
       forty support tickets a day on shipment tracking and billing.
-    expect: {verdict: pass, kinds: [employer, strict],
-             why: "an attitude toward the employer, the rest in the posting's words"}
+    expect: {verdict: refuse, kinds: [strict, strict], reason_contains: experience,
+             why: "the attitude frame is off since 2026-10-11 (it added no pass, ADR 0035): a first-person sentence is strict"}
   - name: the posting's number, verbatim
     text: >-
       This role supports 100,000 developers. I resolved about forty support

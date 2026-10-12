@@ -192,3 +192,12 @@ drafts kept locally and never committed.
 company angle is drafted (7 of 10 against a bar of 7), in a separate commit
 that can be reverted alone; the panel note says most options are drafted and
 checked (26 of 30 when measured).
+
+## The attitude frame, off, 2026-10-11
+
+Measured with the split prompts, the frame made no difference: every
+option's numbers were the same with it on and off. The owner chose to drop
+the exception: `subject.ATTITUDE_FRAME = False`, so "I'm drawn to Vercel's
+focus on…" is checked strictly, like every sentence with a first-person
+word. The mechanism and its tests stay (with the frame passed explicitly);
+True brings it back. The eval case for it now expects a refusal.

@@ -84,19 +84,28 @@ class TestStrict(unittest.TestCase):
 
 
 class TestTheAttitudeFrame(unittest.TestCase):
+    """Off by default since 2026-10-11 (it added no pass, ADR 0035); these
+    hold the mechanism to its rules for if it is turned back on."""
+
+    def test_off_by_default_so_an_attitude_is_strict(self):
+        self.assertFalse(subject.ATTITUDE_FRAME)
+        (s,) = subject.sort("I'm drawn to Vercel's focus on developer experience.", "Vercel",
+                            PERSON)
+        self.assertEqual(s.kind, "strict")
+
     def test_an_attitude_toward_the_employer(self):
         for text in ("I'm drawn to Vercel's focus on developer experience.",
                      "I admire Vercel's focus on developer tools.",
                      "What excites me about Vercel is its developer tools.",
                      "I appreciate your focus on developer experience."):
             with self.subTest(text=text):
-                (s,) = subject.sort(text, "Vercel", PERSON)
+                (s,) = subject.sort(text, "Vercel", PERSON, attitude_frame=True)
                 self.assertEqual(s.kind, "employer")
                 self.assertNotIn("drawn", s.body.lower().split()[:1])
 
     def test_the_rest_is_what_gets_checked(self):
         (s,) = subject.sort("I'm drawn to Vercel's focus on developer experience.", "Vercel",
-                            PERSON)
+                            PERSON, attitude_frame=True)
         self.assertEqual(s.body, "Vercel's focus on developer experience.")
 
     def test_any_clause_that_could_be_about_the_person_breaks_it(self):
@@ -109,7 +118,7 @@ class TestTheAttitudeFrame(unittest.TestCase):
                      "I like developer tools.",              # not about the employer
                      "I admire Morgan's work at Vercel."):
             with self.subTest(text=text):
-                self.assertEqual(kinds(text), ["strict"])
+                self.assertEqual(kinds(text, frame=True), ["strict"])
 
     def test_it_can_be_switched_off(self):
         self.assertEqual(kinds("I'm drawn to Vercel's focus on developer experience.",
