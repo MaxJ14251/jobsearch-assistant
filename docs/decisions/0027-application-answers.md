@@ -57,3 +57,14 @@ ADR 0035 can check written answers sentence by sentence, letting sentences
 about the employer use the posting's words. It is off until measured; why
 this company stays composed-only unless that measurement shows 7 of 10 drafts
 passing with no claim about the person getting through.
+
+## Written answers with the split prompts, 2026-10-11 (plan 39)
+
+With the subject-aware switch on (ADR 0035), the written answers' prompt
+includes the fenced 2,000-character posting excerpt, asks for sentences about
+the employer kept apart from sentences about the person, and the check lets
+only the employer sentences use the excerpt's words. Measured on the owner's
+four ready jobs: why this role 3 of 4, a relevant project 4 of 4, why this
+company 3 of 4 after one retry (0 of 4 each under the old check). **why_company
+is drafted again**, with the same fallback to the person's own sentences;
+with the switch off it is composed-only, as before.

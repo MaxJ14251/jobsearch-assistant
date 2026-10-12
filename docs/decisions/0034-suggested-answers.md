@@ -103,3 +103,12 @@ nothing about the person) is the fix worth planning on its own.
 "Loosening the verifier … is a separate decision": ADR 0035 is that
 decision, for sentences about the employer only, behind a switch that is off
 until measured on these same ten questions.
+
+## The split prompts, 2026-10-11 (plan 39)
+
+Suggestions now draft about the role 10 of 10, about your project 9 of 10
+and about the company 7 of 10 after one retry (ADR 0035), against 1 of 20
+before. The company option is drafted too. The panel says: "Most are drafted
+and checked against your profile and the posting (26 of 30 when measured);
+the rest are made from your own sentences and labelled." The wording comes
+from the dashboard (`suggest.panel_note`), so it follows the switch.

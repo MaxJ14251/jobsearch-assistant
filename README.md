@@ -775,8 +775,9 @@ match to a resume you can upload yourself:
   nationwide, reading the company's own job board once a week at most when
   it isn't in your tracker. Open questions the fill left empty ("What
   excites you about …?") are listed with **Suggest**: three answers to
-  pick from, each checked against your profile or made from your own
-  sentences, inserted only when you choose one, 20 suggestions a day
+  pick from, most drafted and checked (what they say about you against
+  your profile, about the employer against the posting), the rest made from
+  your own sentences, inserted only when you choose one, 20 suggestions a day
   ([ADR 0034](docs/decisions/0034-suggested-answers.md)). Install and use:
   [extension/README.md](extension/README.md); why it never submits:
   [ADR 0031](docs/decisions/0031-autofill-in-your-browser-you-press-submit.md).

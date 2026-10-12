@@ -30,11 +30,10 @@ QUESTIONS = {
     "relevant_project": "Tell us about a relevant project or accomplishment.",
     "why_company": "Why do you want to work at {company}?",
 }
-# why_company is built from the person's own sentences only, never drafted.
-# ADR 0010 measured sentences ABOUT an employer failing a bag-of-words check
-# (1 of 9); measured here on 5 of the owner's saved jobs (2026-10-04), with
-# one retry naming the refused words: 0 of 5 passed. The plan's rule was
-# composed-only under half. See ADR 0027.
+# Keys built from the person's own sentences only, never drafted. why_company
+# was one: ADR 0010 measured sentences ABOUT an employer failing a
+# bag-of-words check (1 of 9), and on 5 of the owner's saved jobs
+# (2026-10-04) 0 of 5 passed (ADR 0027).
 # Drafted since 2026-10-11 (plan 39): with the split prompts and the
 # subject-aware check, about the company passed 7 of 10 suggestions and 3 of 4
 # written answers, and the owner found no claim about them in any. Put
@@ -47,6 +46,7 @@ def composed_only() -> frozenset[str]:
     the switch off, why_company is one of them: the old prompt can't draft it,
     so off is the old behaviour whole."""
     return COMPOSED_ONLY if SUBJECT_AWARE else COMPOSED_ONLY | {"why_company"}
+
 
 # The sentence-by-sentence word check (plan 37) and the prompts that keep
 # the two kinds of sentence apart (plan 39), one switch for both (ADR 0035).

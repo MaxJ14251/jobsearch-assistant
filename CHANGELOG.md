@@ -12,8 +12,13 @@ version number lives in one place, `jsa/__init__.py`.
   stack and the recipient's title and company only in sentences about the
   recipient, the full degree check, and a word check even with no job
   ([ADR 0010](docs/decisions/0010-outreach-verification.md)).
+- **Drafting prompts that keep sentences about the employer apart** from
+  sentences about you, switched on with the sentence-by-sentence check:
+  suggestions now pass 26 of 30 when measured (was 1 of 20), and the company
+  answer is drafted again
+  ([ADR 0035](docs/decisions/0035-who-each-sentence-is-about.md)).
 - **A check that knows who each sentence is about** (written answers and
-  suggestions; off until measured): sentences about the employer may use the
+  suggestions): sentences about the employer may use the
   posting's words, everything about you is checked as before
   ([ADR 0035](docs/decisions/0035-who-each-sentence-is-about.md)).
 - **"Record it as applied?"** in the browser extension: after you submit,
