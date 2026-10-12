@@ -67,7 +67,12 @@ PANEL_NOTE_OFF = (
     "sentences: drafted ones rarely pass the check against your profile (1 of 20 "
     "when measured), so edit the one you pick into an answer. Salary and "
     "demographic questions are yours to answer.")
-PANEL_NOTE_ON = ""
+PANEL_NOTE_ON = (
+    "Suggest gives three options from your profile. About the role and about your "
+    "project are drafted and checked against your profile and the posting (10 and 9 "
+    "of 10 when measured); about the company is made from your own sentences. Edit "
+    "the one you pick into an answer. Salary and demographic questions are yours to "
+    "answer.")
 
 
 def panel_note() -> str:

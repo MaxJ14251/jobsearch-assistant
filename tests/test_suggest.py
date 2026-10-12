@@ -141,10 +141,10 @@ class TestSubjectAwareSwitch(Press):
                          ("Riverton Grid builds microgrid orchestration software for utilities. " * 20,))
         self.con.commit()
 
-    def test_off_by_default_and_the_posting_word_fails(self):
-        from jsa import answers
-        self.assertFalse(answers.SUBJECT_AWARE)
-        result, _ = self.press([{"role": self.EMPLOYER + GOOD, "project": GOOD}] * 2)
+    def test_off_the_posting_word_fails(self):
+        # On since 2026-10-11 (ADR 0035); off still means the old check.
+        with mock.patch("jsa.answers.SUBJECT_AWARE", False):
+            result, _ = self.press([{"role": self.EMPLOYER + GOOD, "project": GOOD}] * 2)
         self.assertEqual(self.by_angle(result)["about the role"]["source"], "composed")
 
     def test_on_the_employer_sentence_passes_and_a_claim_still_fails(self):
@@ -294,8 +294,11 @@ class TestRoutes(Press):
 
     def test_the_panel_note_follows_the_switch(self):
         body = {"url": GREENHOUSE, "question": ["Why us, really?"], "maxlength": [""]}
+        with mock.patch("jsa.answers.SUBJECT_AWARE", False):
+            self.assertEqual(self.post("/ext/suggest/earlier", body).json()["note"],
+                             suggest.PANEL_NOTE_OFF)
         self.assertEqual(self.post("/ext/suggest/earlier", body).json()["note"],
-                         suggest.PANEL_NOTE_OFF)
+                         suggest.PANEL_NOTE_ON)                  # on, by default now
         with mock.patch("jsa.answers.SUBJECT_AWARE", True), \
                 mock.patch("jsa.suggest.PANEL_NOTE_ON", "Most are drafted and checked."):
             self.assertEqual(self.post("/ext/suggest/earlier", body).json()["note"],

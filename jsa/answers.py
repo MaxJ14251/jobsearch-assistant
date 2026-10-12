@@ -37,9 +37,13 @@ QUESTIONS = {
 # composed-only under half. See ADR 0027.
 COMPOSED_ONLY: frozenset[str] = frozenset({"why_company"})
 
-# The sentence-by-sentence word check (plan 37, ADR 0035). Off until its
-# measurement passes: no claim about the person may get through.
-SUBJECT_AWARE = False
+# The sentence-by-sentence word check (plan 37) and the prompts that keep
+# the two kinds of sentence apart (plan 39), one switch for both (ADR 0035).
+# On since 2026-10-11: with the split prompts, about the role passed 10 of 10
+# after the retry (was 0), and the owner read every draft that passed only
+# under the new check and found no claim about them. False restores the old
+# prompts and check byte for byte.
+SUBJECT_AWARE = True
 
 
 @dataclass

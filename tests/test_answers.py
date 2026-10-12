@@ -173,11 +173,22 @@ class TestWritten(Base):
         self.assertIn("the model call failed", got["why_role"].note)
 
     def test_the_prompt_has_no_identity_and_no_floor(self):
-        _, prompt = self.write({"why_role": GOOD, "relevant_project": GOOD, "why_company": GOOD})
+        # Off (the old prompt): no posting at all.
+        with mock.patch("jsa.answers.SUBJECT_AWARE", False):
+            _, prompt = self.write({"why_role": GOOD, "relevant_project": GOOD,
+                                    "why_company": GOOD})
         self.assertNotIn("Pat Example", prompt)
         self.assertNotIn("95000", prompt)
         self.assertNotIn("95,000", prompt)
         self.assertNotIn("Kubernetes", prompt)       # the posting isn't sent
+        # On (plan 39, ADR 0035): the posting is sent, only inside its fence.
+        with mock.patch("jsa.answers.SUBJECT_AWARE", True):
+            _, prompt = self.write({"why_role": GOOD, "relevant_project": GOOD,
+                                    "why_company": GOOD})
+        for value in ("Pat Example", "95000", "95,000"):
+            self.assertNotIn(value, prompt)
+        fence = prompt[prompt.index("<posting_excerpt>"):prompt.index("</posting_excerpt>")]
+        self.assertEqual(prompt.count("Kubernetes"), fence.count("Kubernetes"))
 
     def test_regenerate_archives_the_old_set(self):
         self.write({"why_role": GOOD, "relevant_project": GOOD, "why_company": GOOD})
