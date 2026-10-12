@@ -84,8 +84,17 @@ class TestTheQuestion(unittest.TestCase):
 
 
 class TestOptions(Press):
+    def test_the_company_one_is_drafted_with_the_switch_on(self):
+        # Plan 39, 2026-10-11: 7 of 10 company drafts passed, no leak.
+        result, seen = self.press({"role": GOOD, "project": GOOD.replace("this", "the"),
+                                   "company": GOOD.replace("this", "a")})
+        got = self.by_angle(result)
+        self.assertEqual(got["about the company"]["source"], "model")
+        self.assertIn('"company"', seen[0])
+
     def test_good_drafts_are_kept_and_the_company_one_is_composed(self):
-        result, seen = self.press({"role": GOOD, "project": GOOD.replace("this", "the")})
+        with mock.patch("jsa.answers.SUBJECT_AWARE", False):
+            result, seen = self.press({"role": GOOD, "project": GOOD.replace("this", "the")})
         self.assertEqual(result["state"], "ok")
         got = self.by_angle(result)
         self.assertEqual(set(got), {"about the role", "about your project",

@@ -35,7 +35,18 @@ QUESTIONS = {
 # (1 of 9); measured here on 5 of the owner's saved jobs (2026-10-04), with
 # one retry naming the refused words: 0 of 5 passed. The plan's rule was
 # composed-only under half. See ADR 0027.
-COMPOSED_ONLY: frozenset[str] = frozenset({"why_company"})
+# Drafted since 2026-10-11 (plan 39): with the split prompts and the
+# subject-aware check, about the company passed 7 of 10 suggestions and 3 of 4
+# written answers, and the owner found no claim about them in any. Put
+# "why_company" back here to return to the person's own sentences only.
+COMPOSED_ONLY: frozenset[str] = frozenset()
+
+
+def composed_only() -> frozenset[str]:
+    """The keys built from the person's own sentences, never drafted. With
+    the switch off, why_company is one of them: the old prompt can't draft it,
+    so off is the old behaviour whole."""
+    return COMPOSED_ONLY if SUBJECT_AWARE else COMPOSED_ONLY | {"why_company"}
 
 # The sentence-by-sentence word check (plan 37) and the prompts that keep
 # the two kinds of sentence apart (plan 39), one switch for both (ADR 0035).
@@ -333,7 +344,8 @@ def write(con: sqlite3.Connection, job_id: int, profile: dict[str, Any],
         raise ValueError(f"save job {job_id} first: `jsa save {job_id}`")
     bullets = evidence(con, job, profile)
     model, failure = "", ""
-    wanted = [k for k in QUESTIONS if k not in COMPOSED_ONLY]
+    composed = composed_only()
+    wanted = [k for k in QUESTIONS if k not in composed]
     split = SUBJECT_AWARE
     prompt, system, excerpt = build(job, profile, bullets, keys=tuple(wanted), split=split)
     scrub_prompt(prompt, profile)          # fails closed before any network call
@@ -385,7 +397,7 @@ def write(con: sqlite3.Connection, job_id: int, profile: dict[str, Any],
     for key, question in QUESTIONS.items():
         question = question.format(company=job.get("company") or "this company")
         text = " ".join(str(drafted.get(key) or "").split())
-        if key in COMPOSED_ONLY:
+        if key in composed:
             problems = ["composed only (see ADR 0027)"]
         elif failure and key not in found:
             problems = [failure]

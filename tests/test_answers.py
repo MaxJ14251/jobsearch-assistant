@@ -145,12 +145,20 @@ class TestWritten(Base):
         self.assertEqual(got["why_role"].source, "model")
         self.assertEqual(got["why_role"].body, GOOD)
 
-    def test_why_company_is_composed_only(self):
-        got, prompt = self.write({"why_role": GOOD, "relevant_project": GOOD,
-                                  "why_company": GOOD})
+    def test_why_company_is_composed_only_with_the_switch_off(self):
+        with mock.patch("jsa.answers.SUBJECT_AWARE", False):
+            got, prompt = self.write({"why_role": GOOD, "relevant_project": GOOD,
+                                      "why_company": GOOD})
         self.assertEqual(got["why_company"].source, "composed")
         self.assertIn("composed only", got["why_company"].note)
         self.assertNotIn("why_company", prompt)
+
+    def test_why_company_is_drafted_with_the_switch_on(self):
+        # Plan 39, 2026-10-11: 3 of 4 written company answers passed, no leak.
+        got, prompt = self.write({"why_role": GOOD, "relevant_project": GOOD,
+                                  "why_company": GOOD})
+        self.assertIn('"why_company"', prompt)
+        self.assertEqual(got["why_company"].source, "model")
 
     def test_each_failure_falls_back_with_a_note(self):
         invented = GOOD + " I led a team of forty engineers at Google."

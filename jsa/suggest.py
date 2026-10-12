@@ -68,11 +68,10 @@ PANEL_NOTE_OFF = (
     "when measured), so edit the one you pick into an answer. Salary and "
     "demographic questions are yours to answer.")
 PANEL_NOTE_ON = (
-    "Suggest gives three options from your profile. About the role and about your "
-    "project are drafted and checked against your profile and the posting (10 and 9 "
-    "of 10 when measured); about the company is made from your own sentences. Edit "
-    "the one you pick into an answer. Salary and demographic questions are yours to "
-    "answer.")
+    "Suggest gives three options from your profile. Most are drafted and checked "
+    "against your profile and the posting (26 of 30 when measured); the rest are "
+    "made from your own sentences and labelled. Edit the one you pick into an "
+    "answer. Salary and demographic questions are yours to answer.")
 
 
 def panel_note() -> str:
@@ -439,7 +438,7 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
     # The company angle is drafted only when the written answers draft theirs
     # (one constant governs both, plan 39); while composed-only, not asked for.
     drafted_angles = ("role", "project") + (
-        () if "why_company" in answers.COMPOSED_ONLY else ("company",))
+        () if "why_company" in answers.composed_only() else ("company",))
     prompt, system, excerpt = build(job, profile, bullets, question, maxlength=maxlength,
                                     angles=drafted_angles, split=split)
     # The posting the prompt shows is the only extra word source, and only
