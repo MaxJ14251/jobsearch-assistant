@@ -106,6 +106,23 @@ class TestMatching(unittest.TestCase):
         self.assertEqual(roles.occupation_for("Account Executive").soc, "41-3091")
         self.assertEqual(roles.occupation_for("Site Reliability Engineer").soc, "15-1299")
 
+    def test_operations_plus_one_word_names_no_occupation(self):
+        # The owner's spot check (ADR 0033): O*NET files these under airfield
+        # work and industrial engineers; postings mean something else.
+        for title in ("People Operations Coordinator", "Operations Engineer (Production)",
+                      "AI Operations Engineer, Partnerships", "Operations Specialist",
+                      "Network Operations Engineer", "Operations Technician"):
+            with self.subTest(title=title):
+                self.assertIsNone(roles.occupation_for(title))
+        # The general ones still match, and longer titles are untouched.
+        self.assertEqual(roles.occupation_for("Operations Manager").soc, "11-1021")
+        self.assertEqual(roles.occupation_for("Operations Research Analyst").soc, "15-2031")
+        self.assertEqual(roles.occupation_for("Logistics Operations Manager").soc, "11-3071")
+
+    def test_technical_support_engineer_is_support_not_electronics(self):
+        got = roles.occupation_for("Technical Support Engineer - (Cloud)")
+        self.assertEqual((got.soc, got.matched), ("15-1231", "support engineer"))
+
     def test_word_matches_need_the_same_last_word(self):
         got = roles.occupation_for("Camera Software Engineer, Consumer Devices")
         self.assertEqual(got.soc, "15-1252")

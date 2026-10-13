@@ -69,6 +69,28 @@ _EXPAND = {
 }
 
 
+# Table titles that name a function, not an occupation: O*NET files each
+# under one industry's job, and a posting means something else. "Operations"
+# plus one word is airfield work (coordinator, specialist, agent, officer),
+# industrial engineering (engineer), nuclear technicians (technician) or
+# brokerage clerks (clerk, representative); the owner's spot check of 30
+# titles (ADR 0033, 2026-10-13) found five such matches, none right. These
+# never match, so a posting with them gets nothing rather than a wrong
+# line. The general ones a posting means as written stay.
+_OPERATIONS_KEPT = {"manager", "director", "general manager", "vice president"}
+# O*NET files this under electronics engineers; postings mean software support.
+# Without it, "Technical Support Engineer" ends with "support engineer"
+# (computer network support specialists).
+_AMBIGUOUS = {"technical support engineer"}
+
+
+def _ambiguous(table_title: str) -> bool:
+    first, _, rest = table_title.partition(" ")
+    if first in ("operation", "operations") and len(rest.split()) == 1:
+        return rest not in _OPERATIONS_KEPT
+    return table_title in _AMBIGUOUS
+
+
 def normalize(title: str | None) -> str:
     """'Sr. Software Engineer II (Starlink) - Remote' -> 'software engineer'."""
     text = (title or "").lower()
@@ -161,6 +183,8 @@ def _titles() -> tuple[dict[str, tuple[str, int]], dict[str, list[str]]]:
     exact: dict[str, tuple[str, int]] = {}
     index: dict[str, list[str]] = {}
     for r in _rows(TITLES_FILE):
+        if _ambiguous(r["title"]):
+            continue
         exact[r["title"]] = (r["soc"], int(r["weight"]))
         for word in _tokens(r["title"]):
             index.setdefault(word, []).append(r["title"])

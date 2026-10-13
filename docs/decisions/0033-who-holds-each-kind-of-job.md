@@ -82,6 +82,35 @@ titles ("reliability engineer" under logisticians, "development engineer"
 under chemical engineers, "evaluation engineer" under electronics
 engineers). The plan's spot check of 30 by the owner is still owed.
 
+## The owner's spot check, 2026-10-13
+
+30 distinct open titles with a confident match, drawn at random, judged
+blind by the owner (`right / close enough / wrong / not sure`):
+
+| answer | titles |
+|---|---|
+| right | 22 |
+| close enough | 1 |
+| wrong | 0 |
+| not sure | 7 |
+
+Of the 23 the owner judged, 22 were right and 1 close. Six of the seven
+"not sure" were one shape: O*NET files "operations" plus one word under a
+single industry's job (operations coordinator and specialist under airfield
+operations specialists, operations engineer under industrial engineers), and
+"technical support engineer" under electronics engineers. Postings mean
+something else by them.
+
+**Fix (`roles._ambiguous`):** table titles of "operations" plus one word never
+match, except operations manager, director, general manager and vice
+president; "technical support engineer" never matches, so such a title falls
+to "support engineer" (computer network support specialists). Longer titles
+("operations research analyst", "logistics operations manager") are
+untouched. On the open titles, 15 of 648 normalized titles changed: 12 now
+show nothing, 3 move to a computer support occupation. Matched: 1,087 of
+1,491 distinct open titles (73%, from 74%). Of the sample, 5 of the 7 "not
+sure" now show nothing, and no title the owner marked right changed.
+
 ## Consequences
 
 - BLS publishes a new table yearly; rebuilding means saving the page again.
