@@ -35,6 +35,12 @@
   const inserted = new Map(); // label -> {text, source} you chose with Use this
 
   function ask(message) {
+    // After the extension is reloaded, a tab opened before it keeps this
+    // script but loses its line to the extension: say so plainly.
+    if (!globalThis.chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
+      return Promise.reject(new Error("The extension was reloaded since this page " +
+                                      "opened. Refresh the page (F5), then try again."));
+    }
     return chrome.runtime.sendMessage(message).then((answer) => {
       if (!answer || !answer.ok) throw new Error((answer && answer.error) || "No answer.");
       return answer.result;
