@@ -23,6 +23,23 @@ const READY = {
                cover_letter: null },
 };
 
+test("a follow-up question is never filled", () => {
+  for (const label of [
+    "If you selected international, what location(s)?",
+    "If yes, please explain",
+    "If other, please specify your location",
+    "Please specify",
+    "If so, which city?",
+    "Where are you located? If you selected other, tell us",
+  ]) {
+    assert.equal(fill.keyForLabel(label), null, label);
+  }
+  assert.equal(fill.keyForLabel("If yes, what are your salary expectations?"), "salary");
+  // The ordinary fields still match.
+  assert.equal(fill.keyForLabel("Current Location"), "location");
+  assert.equal(fill.keyForLabel("Location (City) *"), "location");
+});
+
 test("labels map to keys", () => {
   const cases = {
     "First Name *": "first_name", "Last name": "last_name", "Full name": "full_name",

@@ -70,9 +70,18 @@
     },
   };
 
+  // A follow-up whose answer depends on another one ("If you selected
+  // international, what location(s)?", "If yes, please explain") is never
+  // filled: the profile can't know what was picked above it. Found on a real
+  // Lever form, where the city went into the international follow-up.
+  const FOLLOW_UP = /^(if\b|please (specify|explain|describe|list)\b|other\b.*\bspecify\b)|\bif (you|yes|so|no|other|applicable|selected)\b/;
+
   function keyForLabel(label) {
     const text = normalize(label);
     if (!text) return null;
+    if (FOLLOW_UP.test(text)) {
+      return RULES[0][1].test(text) ? "salary" : null;     // salary still flagged, never filled
+    }
     const exclusive = EXCLUSIVE.filter((k) => RULES.find((r) => r[0] === k)[1].test(text));
     if (exclusive.length > 1) return null;
     for (const [key, pattern] of RULES) {
