@@ -324,10 +324,32 @@
     return b;
   }
 
+  // Some boards (Greenhouse's job-boards pages) rebuild the whole document
+  // once their script loads, which throws out the panel a moment after it
+  // appears. While you haven't closed it, put it back. This only re-attaches
+  // the panel: it reads nothing and sends nothing.
+  let panelWanted = false;
+  let keeper = null;
+
+  function keepPanel() {
+    if (keeper) return;
+    keeper = new MutationObserver(() => {
+      if (panelWanted && !panelHost.isConnected) document.documentElement.append(panelHost);
+    });
+    keeper.observe(document, { childList: true, subtree: true });
+  }
+
+  function hidePanel() {
+    panelWanted = false;
+    panelHost.remove();
+  }
+
   function show(children) {
     box.replaceChildren(...children);
     if (aboutShown) box.append(aboutBox);
+    panelWanted = true;
     if (!panelHost.isConnected) document.documentElement.append(panelHost);
+    keepPanel();
     // Only once the panel is on screen: a page you never see the panel on
     // never asks, and so never has its board read.
     if (PAGE || LOCAL) loadAbout();
@@ -658,7 +680,7 @@
     if (mine && mine.warnings.length) parts.push(list(mine.warnings, "warn"));
     const row = [];
     if (hasForm()) row.push(button("Fill this application", run));
-    if (!mine) row.push(button("Hide", () => panelHost.remove(), true));
+    if (!mine) row.push(button("Hide", hidePanel, true));
     if (row.length) parts.push(el("div", { className: "row" }, row));
     if (mine) parts.push(...sessionBar());
     show(parts);
@@ -801,7 +823,7 @@
   function notYet() {
     pending = null;
     if (lastReport) report(lastReport);
-    else panelHost.remove();
+    else hidePanel();
   }
 
   // Recorded only after you say so, twice if the resume isn't approved.
