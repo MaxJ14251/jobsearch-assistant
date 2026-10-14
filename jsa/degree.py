@@ -70,9 +70,14 @@ _NAMED_DEGREE_IN = re.compile(
 _ANY_DEGREE = re.compile(r"\bdegree\b|\bdiploma\b", re.I)
 
 # Equivalent experience accepted instead. "Or related experience" right after
-# a degree is the same offer in other words.
+# a degree is the same offer in other words. "Or equivalent engineering
+# discipline" or "an equivalent degree" names another degree, not experience;
+# "3+ years of experience ..., OR bachelor's degree" offers it the other way
+# round (both found in the owner's 50 labels, ADR 0032).
 _EQUIVALENT = re.compile(
-    r"\bor (?:an? )?equivalent\b|\bequivalent (?:practical |work |professional |relevant |"
+    r"\bor (?:an? )?equivalent\b(?!(?:\s+[\w-]+){0,3}?\s+(?:discipline|field|major|degree)s?\b)|"
+    r"\bexperience\b[^.;]{0,60}\bor (?:an? )?(?:bachelor|associate|degree)|"
+    r"\bequivalent (?:practical |work |professional |relevant |"
     r"industry |military )?(?:experience|combination)|\bin lieu of\b|"
     r"\bor (?:relevant|related|comparable|commensurate) (?:work |professional |industry )?"
     r"experience\b|\bor \d+\+? years? of (?:relevant |related |professional )?experience\b|"
@@ -80,7 +85,8 @@ _EQUIVALENT = re.compile(
 # Wanted, not required.
 _PREFERRED = re.compile(
     r"\bpreferred\b|\bpreferably\b|\bnice to have\b|\ba plus\b|\bbonus\b|\bideally\b|"
-    r"\bdesired\b|\bdesirable\b|\bis an asset\b|\bhighly valued\b", re.I)
+    r"\bdesired\b|\bdesirable\b|\bis an asset\b|\bhighly valued\b|\ban advantage\b|"
+    r"\badvantageous\b", re.I)
 # Said outright: no degree needed.
 _NO_DEGREE = re.compile(
     r"\bno (?:college |university |4-year |four-year )?degree (?:is )?(?:required|needed|necessary)\b|"

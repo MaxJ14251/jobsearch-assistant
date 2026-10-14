@@ -38,6 +38,9 @@ class TestLevels(unittest.TestCase):
         "Bachelor's degree or an equivalent combination of education and experience.":
             "bachelors_or_equiv",
         "Master's degree preferred.": "bachelors_or_equiv",
+        # Experience first, the degree as the alternative (the owner's labels).
+        ("3+ years of professional wire harnessing experience or similar environment, "
+         "OR bachelor's degree in engineering or a similar field"): "bachelors_or_equiv",
         # a bachelor's, required
         "Bachelor's degree in Electrical Engineering.": "bachelors",
         "B.S. in Mechanical Engineering required.": "bachelors",
@@ -51,6 +54,13 @@ class TestLevels(unittest.TestCase):
         "Requirements:\nBachelor's in Engineering\nPreferred qualifications:\nMaster's degree":
             "masters_preferred",
         "BS or MS in Computer Science.": "masters_preferred",
+        # "Equivalent discipline" names another degree, not experience.
+        ("Basic qualifications:\nBachelor's degree in electrical engineering\n"
+         "Preferred skills and experience:\n"
+         "Master's degree in electrical engineering or equivalent engineering discipline"):
+            "masters_preferred",
+        ("Bachelor's degree in Business; an MBA or equivalent advanced degree is an "
+         "advantage."): "masters_preferred",
         # a graduate degree, required
         "PhD in Machine Learning or a related field.": "masters",
         "Master's degree in Statistics required.": "masters",

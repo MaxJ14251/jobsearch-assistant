@@ -82,11 +82,51 @@ On the owner's tracker (1,807 stored postings), against the model's
   the text: 28 of 30 right at first; the two misses (a medical degree, a law
   degree) led to the professional-degree rule, and all 30 are right now.
 - SpaceX by hand: 10 random postings, all 10 read correctly.
-- **Still owed:** the plan's 50 postings hand-labelled by the owner.
+- **Still owed:** the plan's 50 postings hand-labelled by the owner (done
+  2026-10-13, below).
 
 Open postings by level after this: 709 no degree mentioned, 477 open to
 equivalent experience, 254 bachelor's required, 161 bachelor's required with
 a graduate degree preferred, 38 graduate degree required, 6 associate's.
+
+## The owner's 50 labels, 2026-10-13
+
+50 random readable open postings, labelled blind by the owner (the
+classifier's reading hidden): 45 given a level, 5 "not sure" (all five read
+by the classifier as no degree).
+
+| | at first | after the fixes below |
+|---|---|---|
+| same level (of 45) | 35 | 35 |
+| same answer to "a bachelor's or more is required" (of 45) | 39 (87%) | **41 (91%)** |
+
+Two of the six disagreements on "required" were classifier errors, now
+fixed in `_EQUIVALENT`:
+- "Master's degree in electrical engineering **or equivalent engineering
+  discipline**" was read as accepting experience. "Or equivalent" followed
+  within three words by discipline, field, major or degree now names another
+  degree, not experience.
+- "3+ years of experience …, **OR** bachelor's degree" (experience first) was
+  read as requiring the degree. It now opens the requirement.
+
+Checking those changes across every stored posting found a third: "an MBA
+or equivalent advanced degree **is an advantage**" became a required graduate
+degree, so "an advantage" and "advantageous" now mark a preference. In all,
+10 of 1,895 stored postings change level (6 from open to equivalent
+experience to bachelor's required with a graduate degree preferred, 2 from
+bachelor's required to open, 1 to graduate required for a law degree, 1 to
+a preferred MBA). `jsa rescore` stores the new readings.
+
+The 91% is measured on the same 50 postings the fixes came from, so it
+flatters the classifier a little. The four disagreements left read, against
+the posting text and this ADR's definitions: two postings that offer
+experience in place of the degree (SpaceX's "in lieu of" clause, a
+"Bachelor's degree (or equivalent practical experience)") labelled as
+requiring it, one bachelor's under "Basic qualifications" labelled as open,
+and one with an advanced degree in an unheaded list, which could be read
+either way. The other six level differences don't cross that line: three
+on whether a graduate degree is preferred, required or absent, three between
+no degree, an associate's and open to experience.
 
 ## Consequences
 
