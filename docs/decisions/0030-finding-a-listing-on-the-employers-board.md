@@ -97,6 +97,16 @@ Planning this found two small bugs, fixed in their own commit:
 
 The owner's own check, three listings seen on LinkedIn, is still to come.
 
+**The owner's three LinkedIn listings, 2026-10-15:** 0 same, 0 possible, 3
+not found. None of the three employers is in the tracker or the company
+list, so each answer came from guessed boards (3 to 6 requests each, within
+the budget of 9). Two employers answered on none of Greenhouse, Lever or
+Ashby under their own names. The third was typed with a trailing word its
+board doesn't use; typed without it, a guessed Ashby board with postings
+answered, but no posting matched the title. Trailing descriptive words
+beyond the stripped list (`inc`, `labs`, `ai` …) are a known limit of the
+guess: the operator can retry with a shorter name.
+
 ## Consequences
 
 - An operator who sees a job on LinkedIn finds out in seconds whether to
