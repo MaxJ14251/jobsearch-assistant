@@ -268,7 +268,7 @@ def check_tracker(con: sqlite3.Connection | None, profile: dict[str, Any],
                    "Run `jsa backup`: it is the only record of your applications.")
     elif age > backup.BACKUP_STALE_DAYS:
         report.add(False, f"The newest backup is {age:.0f} days old",
-                   "Run `jsa backup`.")
+                   "Run `jsa backup` to take a fresh, verified copy.")
 
     # `jsa daily` (plan 18): only once one has ever run.
     import json as _json
