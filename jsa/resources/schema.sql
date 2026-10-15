@@ -576,3 +576,10 @@ CREATE TABLE IF NOT EXISTS answer_bank (
     archived_at     TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_answer_bank_key ON answer_bank(question_key);
+
+-- Resumes drafted from the extension's panel, for its daily limit (prepare.py).
+CREATE TABLE IF NOT EXISTS ext_drafts (
+    id              INTEGER PRIMARY KEY,
+    job_id          INTEGER REFERENCES jobs(id) ON DELETE SET NULL,
+    requested_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);

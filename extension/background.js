@@ -132,6 +132,23 @@ const HANDLERS = {
     })).body;
   },
 
+  // --- add, save and draft a resume ---------------------------------------------
+  // Only from the panel's own button. The dashboard reads the posting from the
+  // board's API, saves the job and drafts one resume (one model call); the
+  // resume waits in Review for you to read and approve there.
+  async prepare(message, sender) {
+    const form = new URLSearchParams();
+    form.set("url", (sender && sender.url) || "");
+    form.set("confirm", message.confirm === "draft" ? "draft" : "");
+    const body = (await json("/ext/prepare", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    })).body;
+    if (body.review_url) body.review_url = (await dashboardBase()) + "/review";
+    return body;
+  },
+
   // --- suggested answers (plan 35) --------------------------------------------
   // Only a question's own label text goes, capped; never the page's markup
   // or any other field. One "suggest" is one paid model call: the panel sends
@@ -243,9 +260,13 @@ async function saveSession(state) {
   await chrome.storage.session.set({ session: state });
 }
 
-async function pipelineUrl() {
+async function dashboardBase() {
   const stored = await chrome.storage.local.get({ port: 8765 });
-  return "http://127.0.0.1:" + Number(stored.port) + "/pipeline";
+  return "http://127.0.0.1:" + Number(stored.port);
+}
+
+async function pipelineUrl() {
+  return (await dashboardBase()) + "/pipeline";
 }
 
 async function moveOn(state, sender) {

@@ -28,6 +28,16 @@ yourself; the extension never does. Why, and what it may reach:
 4. Press the page's own **Submit**. Then **I submitted this** in the panel
    records the application in your tracker.
 
+## A job that isn't ready yet
+
+On an application page for a job that isn't in your tracker, or that you
+haven't saved, **Fill this application** offers **Add, save and draft a
+resume** instead. One press reads the posting from the board's own API (never
+from the page), saves the job and drafts one resume: one model call, at most
+10 a day (`extension.daily_drafts` in your profile). It never approves: read
+and approve the resume in the dashboard's Review, then reload the page and
+fill. A posting with almost no text is saved but not drafted.
+
 ## Record it as applied
 
 After you submit, when the board shows its own "application received" page,

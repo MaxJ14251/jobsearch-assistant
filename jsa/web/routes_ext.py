@@ -47,6 +47,15 @@ def identity(profile: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def drafts_left(con: sqlite3.Connection, prof: dict[str, Any] | None) -> int | None:
+    """Resumes the panel may still draft today, or None on an older tracker."""
+    from .. import prepare
+    try:
+        return prepare.left_today(con, prof)
+    except sqlite3.OperationalError:
+        return None
+
+
 def register(app, ctx) -> None:
     """Add this area's routes to `app`; shared helpers come from `ctx`."""
     connect = ctx.connect
@@ -144,6 +153,7 @@ def register(app, ctx) -> None:
             job_id = db.job_for_link(con, link)
             if job_id is None:
                 return {"state": "unknown", "add_url": "/add",
+                        "drafts_left": drafts_left(con, prof),
                         "message": "This job is not in your tracker. Add it from the "
                                    "dashboard's Add page, then save it."}
             job = answers.job_row(con, job_id)
@@ -152,6 +162,7 @@ def register(app, ctx) -> None:
             summary = {"id": job_id, "title": job["title"], "company": job["company"]}
             if application is None:
                 return {"state": "not_saved", "job": summary, "job_url": f"/job/{job_id}",
+                        "drafts_left": drafts_left(con, prof),
                         "message": "Save this job in the dashboard first."}
             if application["status"] not in APPLY_BY_HAND_STAGES:
                 return {"state": "past", "job": summary, "job_url": f"/job/{job_id}",
@@ -334,6 +345,25 @@ def register(app, ctx) -> None:
             return {"ok": True, "id": entry}
         finally:
             con.close()
+
+    @app.post("/ext/prepare")
+    def ext_prepare(url: str = Form(""), confirm: str = Form("")):
+        """The panel's "Add, save and draft a resume" button: at most one
+        model call. Never approves; the resume waits in Review."""
+        from .. import prepare
+        if confirm != "draft":
+            return {"state": "failed", "message": "Nothing done: the request was not "
+                                                  "confirmed from the panel's button."}
+        prof = profile()
+        if prof is None:
+            return {"state": "no_profile", "message": "No profile: run `jsa init`."}
+        con = connect()
+        try:
+            result = prepare.prepare(con, url, prof)
+        finally:
+            con.close()
+        result["review_url"] = "/review"
+        return result
 
     @app.get("/ext/document/{document_id}")
     def ext_document(document_id: int):

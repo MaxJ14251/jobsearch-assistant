@@ -233,3 +233,25 @@ application went through. Record it as applied, with resume v3?", with
 - The confirmation pages' real addresses and headings were not checked on
   a real submission when this was written; the owner's next one is the
   check.
+
+## Add, save and draft from the panel, 2026-10-15
+
+The owner asked to draft the resume from the extension rather than switch to
+the dashboard. On a page whose job is unknown or not saved, the panel offers
+**Add, save and draft a resume** (`POST /ext/prepare`, `jsa/prepare.py`):
+
+- The posting comes from the board's own API (`intake.add_link`), never
+  from the page; no enrichment call. The save is the person's act (actor
+  human), as the Save button records it. One resume is drafted by the same
+  `draft_document` as the dashboard's button, with every check.
+- **Approval stays in the dashboard.** Review is where the resume can be
+  read; a one-click approve in a small panel would make an unread resume
+  easy to send. The panel links to Review; after approving, a reload fills
+  the form with it.
+- Not drafted, saved only: a posting with almost no text (as Turbo), undecided
+  preferences or no API key, and past `EXT_DRAFT_DAILY = 10` resumes in 24
+  hours (`extension.daily_drafts`). A job with a resume already, or one
+  already applied to, is left alone.
+- The message is sent only from that button's click (`tests/test_prepare.py`
+  reads `content.js`), with `confirm=draft`, the key, and the page address
+  from Chrome.

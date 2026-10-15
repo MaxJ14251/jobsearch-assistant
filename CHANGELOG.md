@@ -8,6 +8,9 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Added
 
+- **Add, save and draft a resume from the extension's panel** for a job not
+  yet in your tracker or not saved: one model call, up to 10 a day; you still
+  approve it in Review ([ADR 0031](docs/decisions/0031-autofill-in-your-browser-you-press-submit.md)).
 - Outreach's check no longer lets a claim about you through: the posting's
   stack and the recipient's title and company only in sentences about the
   recipient, the full degree check, and a word check even with no job

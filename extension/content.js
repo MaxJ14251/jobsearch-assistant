@@ -688,6 +688,10 @@
 
   function report(result) {
     const { data: d, filled, missing, skipped } = result;
+    if ((d.state === "unknown" || d.state === "not_saved") && !sessionJob()) {
+      offerPrepare(d);
+      return;
+    }
     if (d.state !== "ready") {
       intro(d.message || "Nothing to fill here.");
       return;
@@ -717,6 +721,44 @@
                                                   button("I submitted this", submitted)]));
     }
     show(parts);
+  }
+
+  // --- add, save and draft a resume ----------------------------------------------
+  // For a job that isn't ready: one button does what the dashboard's Add,
+  // Save and resume buttons do. Approving stays in the dashboard's Review,
+  // where the resume can be read; this never approves or submits anything.
+
+  function offerPrepare(d) {
+    const left = typeof d.drafts_left === "number" ? " (" + d.drafts_left + " left today)" : "";
+    show([
+      el("h2", { textContent: d.job ? d.job.title + " at " + d.job.company
+                                    : "Not in your tracker yet" }),
+      el("p", { textContent: (d.state === "unknown" ? "This job isn't in your tracker yet. "
+                                                    : "You haven't saved this job yet. ") +
+        "The panel can add it from the job board, save it and draft a resume for you " +
+        "to read and approve in Review. Drafting is one model call" + left + "." }),
+      el("div", { className: "row" }, [
+        button("Add, save and draft a resume", prepareJob),
+        button("Hide", hidePanel, true),
+      ]),
+    ]);
+  }
+
+  async function prepareJob() {
+    show([el("p", { textContent: "Adding, saving and drafting a resume. This can take " +
+                                 "up to a minute…" })]);
+    try {
+      const answer = await ask({ type: "prepare", confirm: "draft" });
+      const parts = [el("p", { textContent: answer.message || "Nothing was done." })];
+      if (answer.review_url && (answer.state === "drafted" || answer.state === "exists")) {
+        parts.push(el("p", {}, [el("a", { href: answer.review_url, textContent: "Open Review",
+                                          target: "_blank", rel: "noopener" })]));
+      }
+      parts.push(el("div", { className: "row" }, [button("Hide", hidePanel, true)]));
+      show(parts);
+    } catch (err) {
+      show([el("p", { textContent: err.message })]);
+    }
   }
 
   let lastReport = null;
