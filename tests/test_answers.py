@@ -89,6 +89,11 @@ class TestFactAnswers(unittest.TestCase):
         stated = self.by_key(profile, {"salary_min": 90000, "salary_max": 120000,
                                        "salary_period": "year"})["salary"].body
         self.assertEqual(stated, "Your call. The posting states $90,000–$120,000 per year.")
+        # The figures win over the words around them.
+        hourly = self.by_key(profile, {
+            "salary_min": 75, "salary_max": 75, "salary_period": "hour",
+            "salary_text": "Software Developer Expert Remote · Contract · $75/hr Job"})
+        self.assertEqual(hourly["salary"].body, "Your call. The posting states $75 per hour.")
         none = self.by_key(profile, {})["salary"].body
         self.assertEqual(none, "Your call. The posting states no pay.")
         everything = " ".join(a.body + a.note for a in answers.fact_answers(profile, {}))

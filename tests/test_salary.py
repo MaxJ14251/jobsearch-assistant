@@ -527,3 +527,11 @@ class TestSalaryStaysExtracted(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTheSnippetStaysOnItsLine(unittest.TestCase):
+    def test_a_title_or_heading_above_the_pay_is_left_out(self):
+        text = "Software Developer Expert\nRemote · Contract · $75/hr\n\nJob Description\nBuild."
+        found = salary.extract(text)
+        self.assertEqual((found.minimum, found.period), (75, "hour"))
+        self.assertEqual(found.text, "Remote · Contract · $75/hr")

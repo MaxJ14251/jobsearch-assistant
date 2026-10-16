@@ -246,11 +246,18 @@ def _singles(text: str, taken: list[tuple[int, int]]):
 
 
 def _snippet(text: str, start: int, end: int) -> str:
+    """The pay figure with a little of its own line around it. Never across a
+    line break: a posting's title or a heading above the pay is not part of
+    it ("Software Developer Expert Remote · Contract · $75/hr Job ...")."""
     begin = max(0, start - 60)
     head = text[begin:start]
-    if begin and " " in head:
+    cut = head.rfind("\n")
+    if cut >= 0:
+        head = head[cut + 1:]
+    elif begin and " " in head:
         head = head.split(" ", 1)[1]      # begin on a whole word
-    return " ".join((head + text[start:end + 20]).split())
+    tail = text[end:end + 20].split("\n", 1)[0]
+    return " ".join((head + text[start:end] + tail).split())
 
 
 def extract(text: str | None) -> Salary | None:
