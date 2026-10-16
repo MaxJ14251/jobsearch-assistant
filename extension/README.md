@@ -28,6 +28,12 @@ yourself; the extension never does. Why, and what it may reach:
 4. Press the page's own **Submit**. Then **I submitted this** in the panel
    records the application in your tracker.
 
+## The panel went away?
+
+Click the extension's toolbar icon (pin it from Chrome's puzzle-piece menu)
+on a Greenhouse, Lever or Ashby page to bring the panel back. It only shows
+the panel; nothing is filled or sent until you press a button in it.
+
 ## A job that isn't ready yet
 
 On an application page for a job that isn't in your tracker, or that you

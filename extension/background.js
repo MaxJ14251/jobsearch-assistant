@@ -290,6 +290,14 @@ async function navigate(state, sender, address) {
   await chrome.tabs.update(sender.tab.id, { url: address });
 }
 
+// The toolbar icon brings the panel back on a board's page. Showing it is
+// all this does: nothing is filled or sent until you press a button in it.
+chrome.action.onClicked.addListener((tab) => {
+  if (tab && typeof tab.id === "number") {
+    chrome.tabs.sendMessage(tab.id, { type: "show_panel" }).catch(() => {});
+  }
+});
+
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   // Only this extension's own pages and scripts.
   if (!sender || sender.id !== chrome.runtime.id) return false;

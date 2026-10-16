@@ -296,3 +296,25 @@ class TestNotShipped(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTheToolbarIcon(unittest.TestCase):
+    """The toolbar icon only brings the panel back; it fills and sends nothing."""
+
+    def test_the_icon_only_asks_for_the_panel(self):
+        background = code(EXT / "background.js")
+        clicked = background[background.index("chrome.action.onClicked"):]
+        clicked = clicked[:clicked.index("});") + 3]
+        self.assertIn('{ type: "show_panel" }', clicked)
+        self.assertNotRegex(clicked, r"\bfetch\b|\bjson\(|\bcall\(|tabs\.update|HANDLERS")
+
+    def test_the_panel_listener_only_shows(self):
+        content = code(EXT / "content.js")
+        body = body_of(content, "showAgain")
+        self.assertIn('message.type !== "show_panel"', body)
+        self.assertNotRegex(body, r"\bask\(|\brun\(|\bprepareJob\b|\bsubmitted\b|native\(")
+
+    def test_no_popup_and_no_new_permission(self):
+        manifest = json.loads((EXT / "manifest.json").read_text(encoding="utf-8"))
+        self.assertNotIn("default_popup", manifest["action"])
+        self.assertEqual(manifest["permissions"], ["storage"])

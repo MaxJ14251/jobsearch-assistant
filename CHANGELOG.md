@@ -8,6 +8,8 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Added
 
+- **The extension's toolbar icon brings the panel back** on an application
+  page, after it was hidden or didn't appear.
 - **Add, save and draft a resume from the extension's panel** for a job not
   yet in your tracker or not saved: one model call, up to 10 a day; you still
   approve it in Review ([ADR 0031](docs/decisions/0031-autofill-in-your-browser-you-press-submit.md)).

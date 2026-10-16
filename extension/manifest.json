@@ -11,6 +11,9 @@
     "https://jobs.lever.co/*",
     "https://jobs.ashbyhq.com/*"
   ],
+  "action": {
+    "default_title": "Show the Job Search Assistant panel"
+  },
   "background": {
     "service_worker": "background.js"
   },

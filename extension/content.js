@@ -938,5 +938,19 @@
     whenFormAppears(intro);
   }
 
+  // The toolbar icon (background.js) asks for the panel again, after it was
+  // hidden or never appeared. It only shows the panel.
+  function showAgain(message) {
+    if (!message || message.type !== "show_panel") return;
+    if (hasForm()) intro();
+    else if (window.top === window) {
+      intro("No application form on this page yet. Open the application, then " +
+            "press the toolbar icon again.");
+    }
+  }
+  if (globalThis.chrome && chrome.runtime && chrome.runtime.onMessage) {
+    chrome.runtime.onMessage.addListener(showAgain);
+  }
+
   begin();
 })();

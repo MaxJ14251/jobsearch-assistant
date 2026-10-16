@@ -27,6 +27,7 @@ function worker({ appliedStatus = 200, appliedBody = { ok: true } } = {}) {
     set: async (values) => { Object.assign(stores[name], values); },
   });
   let listener = null;
+  let clicked = null;
   const respond = (status, body) => ({
     status, ok: status < 400, headers: { get: () => "application/json" },
     json: async () => body, arrayBuffer: async () => new ArrayBuffer(0),
@@ -37,7 +38,9 @@ function worker({ appliedStatus = 200, appliedBody = { ok: true } } = {}) {
     chrome: {
       runtime: { id: "me", onMessage: { addListener: (fn) => { listener = fn; } } },
       storage: { local: area("local"), session: area("session") },
-      tabs: { update: async (tabId, props) => { events.push(["navigate", tabId, props.url]); } },
+      action: { onClicked: { addListener: (fn) => { clicked = fn; } } },
+      tabs: { update: async (tabId, props) => { events.push(["navigate", tabId, props.url]); },
+              sendMessage: async (tabId, message) => { events.push(["tab", tabId, message]); } },
     },
     fetch: async (address, init) => {
       const path = address.replace("http://127.0.0.1:8765", "");
@@ -56,7 +59,8 @@ function worker({ appliedStatus = 200, appliedBody = { ok: true } } = {}) {
   const send = (message, from = sender) => new Promise((resolve) => {
     listener(message, from, resolve);
   });
-  return { send, events, stores };
+  const click = (tab) => clicked(tab);
+  return { send, events, stores, click };
 }
 
 test("starting fetches the queue and opens nothing", async () => {
@@ -132,4 +136,11 @@ test("messages from anything but this extension are ignored", async () => {
   await new Promise((r) => setImmediate(r));
   assert.equal(answered, false);
   assert.deepEqual(w.events, []);
+});
+
+test("the toolbar icon only asks the page to show its panel", async () => {
+  const w = worker();
+  w.click({ id: 9 });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(JSON.stringify(w.events), JSON.stringify([["tab", 9, { type: "show_panel" }]]));
 });
