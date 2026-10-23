@@ -91,3 +91,15 @@ COUNTS here (never subjects, senders or text).
 ## Note, 2026-10-03
 
 The owner may schedule `jsa daily` (ADR 0028), which runs this among its steps. The tool itself still never creates or runs a schedule.
+
+## Note, 2026-10-23
+
+A real "Thank you for applying to … at …" receipt was read as an interview:
+its body described what comes next, in words the interview rule matches.
+The owner had set the application to rejected from the next day's email, so
+nothing moved. Now a receipt's **subject** wins over the softer interview
+phrases (scheduling a call, "your availability", a phone screen, next steps
+in the hiring process). A rejection, an offer, a booking link (Calendly,
+GoodTime) or "invite you to an interview" still wins over the subject.
+Receipts, and any reply with no stage to suggest, get "Got it" on the new
+Replies page: noted, no stage moves.

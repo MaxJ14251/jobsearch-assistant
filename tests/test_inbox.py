@@ -184,6 +184,25 @@ class TestClassification(unittest.TestCase):
             "Application received", "Thank you for applying. If selected for an "
             "interview, a recruiter will contact you.")[0], "received")
 
+    def test_a_receipt_subject_wins_over_talk_of_what_comes_next(self):
+        """Found 2026-10-23: a "Thank you for applying to ..." receipt read as
+        an interview from its body's account of the process."""
+        subject = "Thank you for applying to Forward Deployed Engineer at Northwind"
+        for body in ("If your background is a fit, we'll reach out to schedule a call.",
+                     "Here are the next steps in our hiring process.",
+                     "Our team may ask for your availability for a phone screen."):
+            with self.subTest(body=body):
+                self.assertEqual(inbox.classify(subject, body), ("received", "receipt-subject"))
+        # A real invitation, a rejection or an offer still wins.
+        self.assertEqual(inbox.classify(subject, "Book a time: https://calendly.com/x")[0],
+                         "interview")
+        self.assertEqual(inbox.classify(subject, "We'd like to invite you to an interview.")[0],
+                         "interview")
+        self.assertEqual(inbox.classify(subject, "We have decided not to move forward.")[0],
+                         "rejection")
+        # Without a receipt subject, the softer phrases are still an interview.
+        self.assertEqual(inbox.classify("Next steps", "Can we schedule a call?")[0], "interview")
+
     def test_a_conditional_not_selected_is_not_a_rejection(self):
         """Found on the first real fetch: a receipt that says what happens IF."""
         self.assertEqual(inbox.classify(

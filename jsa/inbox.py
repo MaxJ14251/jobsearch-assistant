@@ -60,8 +60,11 @@ NEXT_AFTER_INTERVIEW = {"applied": "phone_screen", "phone_screen": "technical",
 
 # Ordered: the first that matches wins. Rejection first, because rejections
 # usually also say "thank you for applying" and often mention interviews.
-RULES: list[tuple[str, str, re.Pattern[str]]] = [
-    (kind, name, re.compile(pattern, re.I)) for kind, name, pattern in (
+_RECEIPT = (r"received your application|thank you for applying|thanks for applying"
+            r"|application (?:has been )?received")
+# (kind, rule name, pattern, where it is looked for: the subject, or all).
+RULES: list[tuple[str, str, re.Pattern[str], str]] = [
+    (kind, name, re.compile(pattern, re.I), where) for kind, name, pattern, where in (
         ("rejection", "not-moving-forward",
          r"not (?:be )?moving forward|move forward with other candidates"
          r"|moving forward with other candidates|decided not to (?:proceed|move)"
@@ -70,16 +73,22 @@ RULES: list[tuple[str, str, re.Pattern[str]]] = [
          # not selected for this position, keep an eye on our jobs page"
          # (found on the first real fetch, 2026-10-02).
          r"|will not be (?:moving|proceeding)|(?:have|has|had|were|was) not (?:been )?selected"
-         r"|pursue other candidates|unable to offer you"),
-        ("offer", "offer", r"pleased to offer|offer letter|extend (?:you )?an offer"),
+         r"|pursue other candidates|unable to offer you", "all"),
+        ("offer", "offer", r"pleased to offer|offer letter|extend (?:you )?an offer", "all"),
+        # A booking link or an outright invitation is an interview, whatever
+        # the subject says.
+        ("interview", "invitation-link",
+         r"invite you to (?:an? )?(?:interview|call|chat|conversation)"
+         r"|calendly\.com|goodtime\.io", "all"),
+        # A receipt's subject wins over the softer phrases its body uses for
+        # what comes later ("we'll reach out to schedule a call", "next steps in
+        # our hiring process"): a real receipt was read as an interview that
+        # way (2026-10-23).
+        ("received", "receipt-subject", _RECEIPT, "subject"),
         ("interview", "invitation",
          r"your availability|schedule (?:a|an|your|some) (?:time|call|chat|interview|conversation)"
-         r"|invite you to (?:an? )?(?:interview|call|chat|conversation)"
-         r"|phone screen|next steps? in (?:the|our) (?:interview|hiring) process"
-         r"|calendly\.com|goodtime\.io"),
-        ("received", "receipt",
-         r"received your application|thank you for applying|thanks for applying"
-         r"|application (?:has been )?received"),
+         r"|phone screen|next steps? in (?:the|our) (?:interview|hiring) process", "all"),
+        ("received", "receipt", _RECEIPT, "all"),
     )
 ]
 
@@ -349,8 +358,8 @@ def match(head: dict[str, Any], text: str,
 def classify(subject: str, text: str) -> tuple[str, str]:
     """(kind, rule name). The first rule that matches wins; else 'other'."""
     blob = f"{subject}\n{text}"
-    for kind, name, pattern in RULES:
-        if pattern.search(blob):
+    for kind, name, pattern, where in RULES:
+        if pattern.search(subject if where == "subject" else blob):
             return kind, name
     return "other", ""
 
