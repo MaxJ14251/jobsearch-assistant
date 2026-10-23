@@ -45,8 +45,12 @@ POST that is neither a form nor that upload is refused.
 it:
 
 - `jsa discover` and `jsa verify` read public job boards (GET requests;
-  Workday boards take their search as a POST body). Nothing about you is in
-  those requests, except that the nationwide sources are asked about the
+  Workday boards take their search as a POST body). Each request's User-Agent
+  carries a contact address, as job boards ask of automated traffic:
+  `JSA_CONTACT_EMAIL` if you set it, otherwise your profile's email, otherwise
+  none. Set `JSA_CONTACT_EMAIL` to another address (or leave the profile's
+  email empty) to keep yours out of those requests. Nothing else about you is
+  in them, except that the nationwide sources are asked about the
   cities in your profile, and USAJOBS (only if you set it up) receives the
   email address you requested its key with, in the User-Agent header its
   terms require. The key and that email stay in `.env` and are never printed

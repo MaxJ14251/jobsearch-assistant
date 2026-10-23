@@ -102,7 +102,7 @@ cd "C:\path\to\jobsearch-assistant"
 |---|--------|-------|
 | 1 | Master profile | **Done** — [master_profile.example.yaml](jsa/resources/master_profile.example.yaml) |
 | 2 | Tracker DB schema | **Done** — [schema.sql](jsa/resources/schema.sql), validated on SQLite |
-| 3 | Job discovery | **Done** — 50 verified feeds; national employers plus AI labs |
+| 3 | Job discovery | **Done** — 50 verified feeds (47 employer boards, 3 remote-job RSS feeds), plus The Muse and USAJOBS |
 | 3b | LLM enrichment | **Done** — degree/clearance/stack facts the filter can't see |
 | 4 | Resume/cover tailoring | **Done** — verifier, scrubber, ATS-safe .docx, provenance |
 | 5 | Review dashboard | **Done** — `jsa serve`, loopback only |
@@ -875,9 +875,12 @@ match 45%, location 25%, keyword overlap 20%, seniority 10% — and every point 
 attributed to a reason string stored in `jobs.match_reasons` and shown in the CLI. The
 model's job starts at tailoring, where judgment actually earns its cost.
 
-**Hard rejects** (score 0, regardless of everything else): a senior/staff/principal/lead
-title, a people-management title, a required security clearance, a stated requirement
-above 3 years of experience, or a location outside the US.
+**Hard rejects** (score 0, regardless of everything else): a word from
+`exclude_keywords` in the title, a senior/staff/principal/lead title, a
+people-management title, a stated requirement above `max_years_experience`
+(only with `years_filter: reject`), a location outside the US, or stated pay
+whose top figure is below your floor. A required security clearance is not a
+reject: enrichment shows it as a flag on the job.
 
 "Manager" is handled by position, not presence: as the head noun ("Manager, Software
 Engineering") it's a people-management job and rejected; trailing ("Technical Account
@@ -915,8 +918,9 @@ the employer's own token from 10 February 2027, after which its boards report
 a 401 rather than listings. SmartRecruiters and Breezy HR were checked and
 are not read ([ADR 0020](docs/decisions/0020-postings-the-tool-may-not-read.md)).
 
-`jsa/resources/companies.yaml` holds 55 sources: 50 employer feeds and aggregators,
-the nationwide source, and four employers kept for reference with no public
+`jsa/resources/companies.yaml` holds 56 sources: 50 employer feeds and aggregators
+(47 employer boards, 3 RSS feeds), the two sources asked about your own cities
+(The Muse and USAJOBS), and four employers kept for reference with no public
 feed. They are grouped below by the kind of employer. Where a company is
 headquartered is not where its jobs are: SpaceX's own board supplies
 postings in Washington and Texas as well as California, and Shield AI's in
@@ -1009,7 +1013,9 @@ drafts stay, and discovery will not overwrite the text. See
 
 ## Test coverage
 
-888 tests, **80% line coverage**, reported as measured rather than tuned.
+About 1,760 Python tests and 40 extension tests (`node --test extension/test/*.test.mjs`)
+as of October 2026. Line coverage was **80%** when last measured, at 888 tests; it
+has not been re-measured since, so the table below is from that run.
 
 The distribution is the interesting part. The code that decides what reaches a
 document is well covered; the thin parts are network adapters that need live
@@ -1093,7 +1099,7 @@ like.
 
 Worth knowing before you rely on this.
 
-- **Feed coverage is partial and decays.** 50 of 54 configured sources work. Eightfold
+- **Feed coverage is partial and decays.** 52 of 56 configured sources work. Eightfold
   boards (Qualcomm, Dexcom) return 403 to any automated client, and Cloudflare-fronted
   boards return 403 too. Board tokens also change without notice — run `jsa verify`
   periodically, not just once.
@@ -1188,7 +1194,7 @@ jobsearch/
   extension/                    # the Chrome extension: fills a form, never submits
   tools/build_map_data.py       # rebuilds jsa/resources/data/ from its public sources
   tools/build_role_data.py      # rebuilds the role education data (BLS, O*NET)
-  tests/                        # 888 tests
+  tests/                        # about 1,760 tests
 ```
 
 ## Configure it for yourself

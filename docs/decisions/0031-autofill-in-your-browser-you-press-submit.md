@@ -255,3 +255,15 @@ the dashboard. On a page whose job is unknown or not saved, the panel offers
 - The message is sent only from that button's click (`tests/test_prepare.py`
   reads `content.js`), with `confirm=draft`, the key, and the page address
   from Chrome.
+
+## Used on real applications, 2026-10-23
+
+The "not yet tried" and "not yet measured" lines above are out of date. The
+owner has since used the extension on real application forms: two Ashby
+forms (filled, one also through "Add, save and draft a resume"), and a
+Greenhouse application that was recorded from the confirmation-page prompt
+(its event note reads "recorded from the confirmation-page prompt"). Two
+problems found that way were fixed: a follow-up field ("If you selected
+international, what location(s)?") was filled with the home city, and the
+panel disappeared on Greenhouse's document rebuild. Not yet tried on a real
+form: Lever, and the apply session that walks several jobs in a row.
