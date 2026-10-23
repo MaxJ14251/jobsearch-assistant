@@ -149,7 +149,8 @@ def pages(job_ids=range(1, 7)) -> list[tuple[str, str, dict | None]]:
              ("setup", "/setup", None), ("setup_status", "/setup/discover/status", None),
              ("add", "/add", None), ("add_prefill", "/add?company=Globex&title=Analyst", None),
              ("import", "/import", None), ("prep", "/prep/1", None),
-             ("pipeline", "/pipeline", None), ("review", "/review", None),
+             ("pipeline", "/pipeline", None), ("replies", "/replies", None),
+             ("review", "/review", None),
              ("preview", "/document/1/preview", None), ("missing_job", "/job/9999", None),
              ("find", "/find", {"company": "Northwind Supply", "title": "Support Engineer",
                                 "city": "Austin, TX"})]

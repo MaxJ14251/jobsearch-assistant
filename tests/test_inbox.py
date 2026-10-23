@@ -363,7 +363,7 @@ class TestConfirmAndDismiss(InboxCase):
 
 
 class TestTheDashboard(unittest.TestCase):
-    """The Replies section on /pipeline: confirm and dismiss, token-guarded."""
+    """The Replies page: confirm, note and dismiss, token-guarded."""
 
     def setUp(self):
         from tests.test_web_documents import Sandbox, make_client
@@ -389,8 +389,8 @@ class TestTheDashboard(unittest.TestCase):
             con.close()
 
     def test_the_pending_reply_is_shown_with_its_suggestion(self):
-        page = self.client.get("/pipeline").text
-        self.assertIn("Replies from your email", page)
+        page = self.client.get("/replies").text
+        self.assertIn("Replies to your applications", page)
         self.assertIn("Acme: next steps", page)
         self.assertIn('action="/inbox/7/confirm"', page)
         self.assertRegex(page, r'<option value="phone_screen"\s+selected')
@@ -404,18 +404,64 @@ class TestTheDashboard(unittest.TestCase):
         actor = con.execute("SELECT actor FROM application_events ORDER BY id DESC").fetchone()[0]
         con.close()
         self.assertEqual(actor, "human")
-        self.assertNotIn('action="/inbox/7/confirm"', self.client.get("/pipeline").text)
+        self.assertNotIn('action="/inbox/7/confirm"', self.client.get("/replies").text)
 
     def test_dismiss_changes_nothing_else(self):
         self.client.post("/inbox/7/dismiss", data={"csrf": self.csrf}, follow_redirects=False)
         self.assertEqual(self.status(), "applied")
-        self.assertIn("No replies waiting on you", self.client.get("/pipeline").text)
+        self.assertIn("No replies waiting on you", self.client.get("/replies").text)
 
     def test_every_inbox_route_needs_the_token(self):
-        for url in ("/inbox/fetch", "/inbox/7/confirm", "/inbox/7/dismiss"):
+        for url in ("/inbox/fetch", "/inbox/7/confirm", "/inbox/7/dismiss",
+                    "/inbox/7/acknowledge", "/inbox/receipts/acknowledge"):
             with self.subTest(url=url):
                 self.assertEqual(self.client.post(url, data={"stage": "rejected"}).status_code, 403)
         self.assertEqual(self.status(), "applied")
+
+    def add_receipt(self, reply_id, application_id=1):
+        con = self.box.connect()
+        con.execute("INSERT INTO inbox_replies (id, message_id, application_id, received_at, "
+                    "sender_domain, subject, kind, rule) VALUES (?, ?, ?, "
+                    "'2026-10-02T15:00:00Z', 'acme.test', 'Thank you for applying', "
+                    "'received', 'receipt')", (reply_id, f"<r{reply_id}@x>", application_id))
+        con.commit()
+        con.close()
+
+    def state(self, reply_id):
+        con = self.box.connect()
+        try:
+            return con.execute("SELECT state FROM inbox_replies WHERE id = ?",
+                               (reply_id,)).fetchone()[0]
+        finally:
+            con.close()
+
+    def test_a_receipt_offers_got_it_and_moves_nothing(self):
+        self.add_receipt(8)
+        page = self.client.get("/replies").text
+        self.assertIn('action="/inbox/8/acknowledge"', page)
+        self.assertIn("Got it, all 1 receipt(s)", page)
+        r = self.client.post("/inbox/8/acknowledge", data={"csrf": self.csrf},
+                             follow_redirects=False)
+        self.assertEqual(r.status_code, 303)
+        self.assertEqual(self.state(8), "confirmed")
+        self.assertEqual(self.status(), "applied")
+        self.assertEqual(self.state(7), "pending")      # the interview reply waits
+
+    def test_all_receipts_at_once_leave_the_rest(self):
+        self.add_receipt(8)
+        self.add_receipt(9)
+        self.add_receipt(10, application_id=None)      # unclear which: left for you
+        self.client.post("/inbox/receipts/acknowledge", data={"csrf": self.csrf},
+                         follow_redirects=False)
+        self.assertEqual([self.state(i) for i in (7, 8, 9, 10)],
+                         ["pending", "confirmed", "confirmed", "pending"])
+        self.assertEqual(self.status(), "applied")
+
+    def test_the_tab_and_the_pipeline_pointer(self):
+        self.assertIn('href="/replies"', self.client.get("/").text)
+        pipeline = self.client.get("/pipeline").text
+        self.assertNotIn("Check email", pipeline)
+        self.assertIn("1 email repl(ies) waiting on you", pipeline)
 
     def test_check_email_without_settings_says_how_to_set_up(self):
         from unittest import mock

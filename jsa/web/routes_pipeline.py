@@ -1,20 +1,28 @@
-"""The pipeline and the inbox's suggested replies.
+"""The pipeline, and the Replies page: the inbox's suggested replies.
 
-Moved from jsa/web.py without change (plan 24); see register()."""
+Moved from jsa/web.py without change (plan 24); see register(). Replies got
+their own page on 2026-10-23, with "Got it" for receipts that move nothing."""
 
 from __future__ import annotations
 
 from fastapi import Form
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from .. import approvals, db
 
 
 def register(app, ctx) -> None:
     """Add this area's routes to `app`; shared helpers come from `ctx`."""
-    back_to_pipeline = ctx.back_to_pipeline
     connect = ctx.connect
     render = ctx.render
+
+    def back_to_replies(msg: str, bad: bool) -> RedirectResponse:
+        from urllib.parse import urlencode
+        return RedirectResponse("/replies?" + urlencode({"msg": msg, "bad": int(bad)}),
+                                status_code=303)
+
+    def said(exc: Exception) -> str:
+        return str(exc)[:1].upper() + str(exc)[1:]
 
     @app.get("/pipeline", response_class=HTMLResponse)
     def pipeline(msg: str = "", bad: int = 0):
@@ -29,8 +37,7 @@ def register(app, ctx) -> None:
                 "  FROM applications a JOIN jobs j ON j.id = a.job_id "
                 "  LEFT JOIN companies c ON c.id = j.company_id "
                 " WHERE a.archived_at IS NULL").fetchall()]
-            from .. import applyqueue, inbox, outcomes, pairing
-            replies = [dict(r) for r in inbox.pending(con)]
+            from .. import applyqueue, outcomes, pairing
             happened = outcomes.all_outcomes(con)
             # The apply session (plan 31): what is ready, and whether the
             # extension that walks it is connected.
@@ -64,9 +71,21 @@ def register(app, ctx) -> None:
                       total=len(live), stages=list(approvals.STAGES),
                       overdue=sum(1 for r in live
                                   if r["days_out"] is not None and r["days_out"] < 0),
-                      replies=replies, mail_ready=inbox.settings() is not None,
                       happened=happened, happened_line=outcomes.summary(happened),
                       session=session, msg=msg, bad=bad)
+
+    @app.get("/replies", response_class=HTMLResponse)
+    def replies_page(msg: str = "", bad: int = 0):
+        from .. import inbox
+        con = connect()
+        try:
+            replies = [dict(r) for r in inbox.pending(con)]
+        finally:
+            con.close()
+        receipts = sum(1 for r in replies if r["kind"] == "received" and r["application_id"])
+        return render("replies", "replies", replies=replies, receipts=receipts,
+                      stages=list(approvals.STAGES),
+                      mail_ready=inbox.settings() is not None, msg=msg, bad=bad)
 
     @app.post("/inbox/fetch")
     def inbox_fetch():
@@ -76,12 +95,12 @@ def register(app, ctx) -> None:
         try:
             report = inbox.fetch(con)
         except inbox.InboxError as exc:
-            return back_to_pipeline(str(exc)[:1].upper() + str(exc)[1:], True)
+            return back_to_replies(said(exc), True)
         except OSError as exc:
-            return back_to_pipeline(f"Could not reach the mailbox: {exc}", True)
+            return back_to_replies(f"Could not reach the mailbox: {exc}", True)
         finally:
             con.close()
-        return back_to_pipeline(
+        return back_to_replies(
             f"Checked {report.user}: {report.searched} message(s) looked at, "
             f"{report.stored} new repl(ies) about your applications.", False)
 
@@ -95,12 +114,38 @@ def register(app, ctx) -> None:
             con.commit()
             hint = prep.suggestion(con, done.application_id, done.stage)
         except (inbox.InboxError, approvals.ApprovalError) as exc:
-            return back_to_pipeline(str(exc)[:1].upper() + str(exc)[1:], True)
+            return back_to_replies(said(exc), True)
         finally:
             con.close()
-        return back_to_pipeline(
+        return back_to_replies(
             f"Moved from {done.previous.replace('_', ' ')} to "
             f"{done.stage.replace('_', ' ')}." + (f" {hint}." if hint else ""), False)
+
+    @app.post("/inbox/receipts/acknowledge")
+    def inbox_acknowledge_receipts():
+        """Every pending "thank you for applying": seen, no stage moves."""
+        from .. import inbox
+        con = connect()
+        try:
+            n = inbox.acknowledge_receipts(con)
+            con.commit()
+        finally:
+            con.close()
+        return back_to_replies(f"Noted {n} receipt(s). No stage moved.", False)
+
+    @app.post("/inbox/{reply_id}/acknowledge")
+    def inbox_acknowledge(reply_id: int):
+        """Noted, and nothing moves: a reply with no stage to suggest."""
+        from .. import inbox
+        con = connect()
+        try:
+            inbox.acknowledge(con, reply_id)
+            con.commit()
+        except inbox.InboxError as exc:
+            return back_to_replies(said(exc), True)
+        finally:
+            con.close()
+        return back_to_replies("Noted. No stage moved.", False)
 
     @app.post("/inbox/{reply_id}/dismiss")
     def inbox_dismiss(reply_id: int):
@@ -110,7 +155,7 @@ def register(app, ctx) -> None:
             inbox.dismiss(con, reply_id)
             con.commit()
         except inbox.InboxError as exc:
-            return back_to_pipeline(str(exc)[:1].upper() + str(exc)[1:], True)
+            return back_to_replies(said(exc), True)
         finally:
             con.close()
-        return back_to_pipeline("Dismissed. Nothing else changed.", False)
+        return back_to_replies("Dismissed. Nothing else changed.", False)

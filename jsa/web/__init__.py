@@ -343,6 +343,14 @@ def _pending_count(con: sqlite3.Connection) -> int:
         "SELECT COUNT(*) FROM approvals WHERE decision='pending'").fetchone()[0]
 
 
+def _replies_count(con: sqlite3.Connection) -> int:
+    try:
+        return con.execute(
+            "SELECT COUNT(*) FROM inbox_replies WHERE state = 'pending'").fetchone()[0]
+    except sqlite3.OperationalError:          # an older tracker: no table yet
+        return 0
+
+
 def _decode(row: sqlite3.Row) -> dict[str, Any]:
     d = dict(row)
     d["reasons"] = json.loads(d.get("match_reasons") or "[]")
@@ -560,6 +568,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         con = connect()
         try:
             ctx.setdefault("pending_count", _pending_count(con))
+            ctx.setdefault("replies_count", _replies_count(con))
             if page in ("matches", "pipeline") and name != "preview":
                 ctx.setdefault("daily", daily_banner(con))
                 ctx.setdefault("page_path", "/" if page == "matches" else "/pipeline")

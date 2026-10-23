@@ -1316,6 +1316,16 @@ def cmd_inbox(args: argparse.Namespace) -> int:
             if hint:
                 print(f"  {hint}")
             return 0
+        if action == "ack":
+            if args.reply_id is None:
+                n = inbox.acknowledge_receipts(con)
+                con.commit()
+                print(f"noted {n} receipt(s); no stage moved")
+            else:
+                inbox.acknowledge(con, args.reply_id)
+                con.commit()
+                print(f"noted reply {args.reply_id}; no stage moved")
+            return 0
         if action == "dismiss":
             inbox.dismiss(con, args.reply_id)
             con.commit()
@@ -1927,6 +1937,10 @@ def main(argv: list[str] | None = None) -> int:
     p_ic.add_argument("reply_id", type=int)
     p_ic.add_argument("--stage", choices=list(approvals.STAGES), metavar="STAGE",
                       help="a different stage than the one suggested")
+    p_ia = inbox_sub.add_parser(
+        "ack", help="note a reply that moves nothing (a 'thank you for applying'); "
+                    "with no number, every pending receipt")
+    p_ia.add_argument("reply_id", type=int, nargs="?")
     p_id = inbox_sub.add_parser("dismiss", help="ignore this reply")
     p_id.add_argument("reply_id", type=int)
     p_inbox.set_defaults(func=cmd_inbox)

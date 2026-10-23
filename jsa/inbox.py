@@ -473,6 +473,23 @@ def confirm(con: sqlite3.Connection, reply_id: int, stage: str | None = None) ->
     return Confirmed(row["job_id"], previous, stage, row["application_id"], row["kind"])
 
 
+def acknowledge(con: sqlite3.Connection, reply_id: int) -> None:
+    """Noted, and nothing moves: for a reply with no stage to suggest, such as
+    a "thank you for applying" receipt. Counted as seen, not as hearing back
+    (outcomes leaves receipts out)."""
+    cur = con.execute("UPDATE inbox_replies SET state = 'confirmed' "
+                      "WHERE id = ? AND state = 'pending'", (reply_id,))
+    if cur.rowcount != 1:
+        raise InboxError(f"there is no pending reply {reply_id}")
+
+
+def acknowledge_receipts(con: sqlite3.Connection) -> int:
+    """Every pending receipt matched to one application, noted at once.
+    No stage moves. Returns how many."""
+    return con.execute("UPDATE inbox_replies SET state = 'confirmed' WHERE state = 'pending' "
+                       "AND kind = 'received' AND application_id IS NOT NULL").rowcount
+
+
 def dismiss(con: sqlite3.Connection, reply_id: int) -> None:
     cur = con.execute("UPDATE inbox_replies SET state = 'dismissed' "
                       "WHERE id = ? AND state = 'pending'", (reply_id,))

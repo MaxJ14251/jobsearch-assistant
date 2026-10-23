@@ -8,6 +8,9 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Added
 
+- **Replies have their own tab**, and a "thank you for applying" receipt
+  gets **Got it** (one, or all at once): noted, no stage moves. Also
+  `jsa inbox ack [reply#]`.
 - **The extension's toolbar icon brings the panel back** on an application
   page, after it was hidden or didn't appear.
 - **Add, save and draft a resume from the extension's panel** for a job not

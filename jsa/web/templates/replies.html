@@ -1,0 +1,59 @@
+{% extends "base" %}{% block body %}
+<h1>Replies</h1>
+<p class="sub">Replies to your applications, from your email{% if replies %} · {{ replies|length }} waiting{% endif %} · nothing moves until you say so</p>
+{% if msg %}<p class="note {{ 'bad' if bad else 'good' }}" role="status">{{ msg }}</p>{% endif %}
+<div class="inline">
+<form method="post" action="/inbox/fetch" class="inline" onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Checking…'">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <button class="ghost" type="submit" {{ '' if mail_ready else 'disabled' }}>Check email</button>
+  <span class="meta">{% if mail_ready %}Reads your mailbox read-only: nothing is marked read, nothing is sent, and nothing moves until you confirm.{% else %}Not set up: add a Gmail app password to .env (`jsa init` creates it from the template).{% endif %}</span>
+</form>
+{% if receipts %}
+<form method="post" action="/inbox/receipts/acknowledge" class="inline">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <button class="ghost" type="submit">Got it, all {{ receipts }} receipt(s)</button>
+  <span class="meta">"Thank you for applying" messages: marked as seen, no stage moves.</span>
+</form>
+{% endif %}
+</div>
+{% for r in replies %}
+<div class="card">
+  <div class="row1">
+    <span class="flag {{ 'warn' if r.kind == 'rejection' else ('ok' if r.kind in ('interview','offer') else '') }}">{{ 'receipt' if r.kind == 'received' else r.kind }}</span>
+    {% if r.application_id %}<span class="title"><a class="plain" href="/job/{{ r.job_id }}">{{ r.title }}</a></span>
+    <span class="co">{{ r.company }} · now {{ r.status|replace('_',' ') }}</span>
+    {% else %}<span class="title">Unclear which application</span>{% endif %}
+  </div>
+  <div class="meta">{{ (r.received_at or '')[:10] }} · {{ r.sender_domain }} · {{ r.subject }}</div>
+  <div class="inline">
+    {% if r.application_id and r.suggested_stage %}
+    <form method="post" action="/inbox/{{ r.id }}/confirm" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <select name="stage" aria-label="Stage for {{ r.title }}">
+        {% for s in stages %}<option value="{{ s }}" {{ 'selected' if s == r.suggested_stage }}>{{ s|replace('_',' ') }}</option>{% endfor %}
+      </select>
+      <button type="submit">Confirm</button>
+    </form>
+    {% elif r.application_id %}
+    <form method="post" action="/inbox/{{ r.id }}/acknowledge" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button type="submit">Got it</button>
+    </form>
+    <details class="inline"><summary class="meta">Move its stage instead</summary>
+    <form method="post" action="/inbox/{{ r.id }}/confirm" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <select name="stage" aria-label="Stage for {{ r.title }}">
+        {% for s in stages %}<option value="{{ s }}" {{ 'selected' if s == r.status }}>{{ s|replace('_',' ') }}</option>{% endfor %}
+      </select>
+      <button type="submit">Confirm</button>
+    </form>
+    </details>
+    {% endif %}
+    <form method="post" action="/inbox/{{ r.id }}/dismiss" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="ghost" type="submit">Dismiss</button>
+    </form>
+  </div>
+</div>
+{% else %}<p class="empty">No replies waiting on you.</p>{% endfor %}
+{% endblock %}
