@@ -624,6 +624,17 @@ def set_stage(
         "SELECT status FROM applications WHERE id = ?", (application_id,)
     ).fetchone()["status"]
     if stage == "applied":
+        already = con.execute("SELECT applied_at FROM applications WHERE id = ?",
+                              (application_id,)).fetchone()["applied_at"]
+        if already and previous != "applied" and resume is None and cover is None:
+            # Moved back to applied after the stage was moved away (a "thank
+            # you for applying" reply confirmed as "saved", 2026-10-13): the
+            # submission is already recorded and stays exactly as it was.
+            # mark_applied refused this as a second application.
+            record_event(con, application_id, "applied", actor="human", note=note or (
+                f"back to applied; submitted {db.local_time(already)}, "
+                "record of what was sent unchanged"))
+            return application_id, previous
         mark_applied(con, job_id, via=via, resume=resume, cover=cover)
         if note:
             con.execute(

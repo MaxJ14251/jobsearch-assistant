@@ -75,6 +75,28 @@ class TestWalkingAnApplication(unittest.TestCase):
              ("onsite", "offer")])
         self.assertTrue(all(actor == "human" for _, _, actor in self.events()))
 
+    def test_moved_back_to_applied_keeps_the_original_record(self):
+        """Found 2026-10-24: an applied job moved to 'saved' by confirming a
+        receipt could not be moved back; it was refused as a second
+        application."""
+        approvals.set_stage(self.con, 1, "applied")
+        first = self.con.execute("SELECT applied_at FROM applications").fetchone()[0]
+        sent = self.con.execute("SELECT COUNT(*) FROM submitted_documents").fetchone()[0]
+        approvals.set_stage(self.con, 1, "saved")
+        approvals.set_stage(self.con, 1, "applied")
+        self.assertEqual(self.status(), "applied")
+        self.assertEqual(self.con.execute("SELECT applied_at FROM applications").fetchone()[0],
+                         first)
+        self.assertEqual(self.con.execute("SELECT COUNT(*) FROM submitted_documents")
+                         .fetchone()[0], sent)
+        last = self.con.execute("SELECT note, actor FROM application_events "
+                                "ORDER BY id DESC").fetchone()
+        self.assertEqual(last["actor"], "human")
+        self.assertIn("record of what was sent unchanged", last["note"])
+        # Still at applied: moving there again is still refused, not doubled.
+        with self.assertRaises(approvals.ApprovalError):
+            approvals.set_stage(self.con, 1, "applied")
+
     def test_last_activity_comes_from_the_trigger_not_app_code(self):
         approvals.set_stage(self.con, 1, "phone_screen")
         row = self.con.execute(
