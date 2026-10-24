@@ -402,7 +402,7 @@ def enrich(con: sqlite3.Connection, job_id: int) -> str:
         llm.api_key()
     except llm.LLMError:
         return "not checked for degree or clearance requirements: no API key set"
-    row = con.execute("SELECT title, description, description_hash FROM jobs "
+    row = con.execute("SELECT title, description, description_hash, degree_level FROM jobs "
                       "WHERE id = ?", (job_id,)).fetchone()
     try:
         result = enrich_mod.enrich_one(row["title"], row["description"])
@@ -411,8 +411,12 @@ def enrich(con: sqlite3.Connection, job_id: int) -> str:
     enrich_mod.save(con, job_id, result, enrich_mod.ENRICH_MODELS[0],
                     row["description_hash"])
     facts = []
-    if result.degree_required:
-        facts.append("asks for a degree")
+    # The degree comes from the posting's own text (degree.py), not the
+    # model's degree_required, which misreads "or equivalent" (ADR 0032).
+    from . import degree
+    dflag = degree.flag(row["degree_level"])
+    if dflag and not dflag[1]:
+        facts.append(dflag[0])
     if result.clearance_required:
         facts.append("CLEARANCE REQUIRED")
     if result.years_required:

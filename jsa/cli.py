@@ -450,6 +450,7 @@ def _profile_or_none():
 
 
 def cmd_matches(args: argparse.Namespace) -> int:
+    from . import degree
     # One large board (SpaceX posts 2,300 reqs) otherwise fills the whole page
     # and buries every other company. Cap per company, then take the top N.
     clauses = []
@@ -510,8 +511,10 @@ def cmd_matches(args: argparse.Namespace) -> int:
         print(f"       {row['location'] or 'location not stated'} ({row['remote']})")
         print(f"       {row['url']}")
         flags = []
-        if row["degree_required"] == 1:
-            flags.append("asks for a degree")
+        # From the posting's text (ADR 0032), not the model's degree_required.
+        dflag = degree.flag(row.get("degree_level"))
+        if dflag:
+            flags.append(dflag[0])
         if row["clearance_required"] == 1:
             flags.append("CLEARANCE REQUIRED")
         if row["years_required"] is not None:
@@ -568,7 +571,9 @@ def cmd_enrich(args: argparse.Namespace) -> int:
     for e in report.errors:
         print(f"      {e}")
     if report.succeeded:
-        print(f"\n  require a degree    : {report.degree_required}"
+        # The model's reading: unreliable on "or equivalent experience"
+        # (ADR 0032); cards show the reading from the posting's text instead.
+        print(f"\n  model: degree needed: {report.degree_required}"
               f"  ({100*report.degree_required/report.succeeded:.0f}%)")
         print(f"  require a clearance : {report.clearance_required}")
         print("\nThese are flagged, not filtered — a degree line is often boilerplate.")

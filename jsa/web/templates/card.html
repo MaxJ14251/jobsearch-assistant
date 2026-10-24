@@ -12,8 +12,7 @@
     {%- if r.variant_count and r.variant_count > 1 %} · +{{ r.variant_count - 1 }} more location(s){% endif %}<span class="eta"></span></div>
   <div class="flags">
     {% if r.track == 'sales' %}<span class="flag">sales track</span>{% endif %}
-    {% if r.degree_required == 1 %}<span class="flag" title="Shown so you know, never used to hide or rank a job">asks for a degree</span>
-    {% elif r.degree_required == 0 %}<span class="flag ok">no degree needed</span>{% endif %}
+    {% set dflag = degree_flag(r.degree_level) %}{% if dflag %}<span class="flag {{ dflag[1] }}" title="Read from the posting's text. Shown so you know, never used to hide or rank a job">{{ dflag[0] }}</span>{% endif %}
     {% if r.clearance_required == 1 %}<span class="flag warn">clearance</span>{% endif %}
     {% if r.years_required is not none %}<span class="flag">{{ r.years_required }}+ yrs</span>{% endif %}
     {% for t in r.stack %}<span class="flag">{{ t }}</span>{% endfor %}

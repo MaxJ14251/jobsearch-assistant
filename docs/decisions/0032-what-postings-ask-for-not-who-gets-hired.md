@@ -144,3 +144,38 @@ no degree, an associate's and open to experience.
 - **A model for the classification.** The measurement above shows the model
   answering against its own instructions on this exact question; the rules
   are checkable sentence by sentence.
+
+## Every degree flag from the posting's text, 2026-10-23
+
+Cards (Matches, Turbo, Pipeline), the job page, `jsa matches`, the message
+after adding a job and the Matches filter showed the model's
+`degree_required`. On the 1,695 open postings measured that day:
+
+| `degree_level` | model said required | model said not | no model reading |
+|---|---|---|---|
+| no degree mentioned | 10 | 1 | 710 |
+| associate's | 0 | 0 | 6 |
+| bachelor's or equivalent experience | 209 | 20 | 260 |
+| bachelor's required | 94 | 0 | 179 |
+| bachelor's required, graduate preferred | 45 | 0 | 121 |
+| graduate degree required | 5 | 0 | 35 |
+
+So 219 of 363 "asks for a degree" flags were wrong by this ADR's own
+definitions, and 1,311 postings (77%) showed no flag at all. Every surface
+now reads `degree_level` (`degree.flag`): "no degree mentioned", "asks for
+an associate's", "degree or equivalent experience", "asks for a bachelor's",
+"asks for a graduate degree". Filter: "Asks for a bachelor's or more"
+(`degree=yes`) and "Open to equivalent experience" (`degree=open`); the old
+"Not required" (`degree=no`) now means the same as open, so old links still
+work. In the top 50 matches, 16 cards went from "asks for a degree" to
+"degree or equivalent experience", and every card now has a degree line
+(25 had none); five changed cards were checked against their text, all
+right (two are SpaceX's "in lieu of a degree" clause).
+
+That check found the job page showing no sentence for those clauses: when
+the alternative sits in its own clause, the evidence is now the degree line
+(238 postings gained one; no level changed).
+
+`degree_required` is still stored and enrichment still asks for it; nothing
+shows it. Dropping it from the enrichment prompt (fewer tokens, one less
+wrong field) is a possible follow-up, not done here.

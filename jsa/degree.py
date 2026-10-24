@@ -34,6 +34,28 @@ LABELS = {
     "masters_preferred": "bachelor's required, graduate degree preferred",
     "masters": "graduate degree required",
 }
+# The short flag on a card, from the reading above (ADR 0032, 2026-10-23):
+# (text, "ok" when no bachelor's is required, "" otherwise). The model's
+# degree_required said "asks for a degree" for 209 open postings that accept
+# experience instead, so no card shows it any more.
+FLAGS = {
+    "none": ("no degree mentioned", "ok"),
+    "associate": ("asks for an associate's", "ok"),
+    "bachelors_or_equiv": ("degree or equivalent experience", "ok"),
+    "bachelors": ("asks for a bachelor's", ""),
+    "masters_preferred": ("asks for a bachelor's", ""),
+    "masters": ("asks for a graduate degree", ""),
+}
+# The Matches filter: a bachelor's or more, required (the old degree=yes).
+REQUIRED_LEVELS = ("bachelors", "masters_preferred", "masters")
+OPEN_LEVELS = ("none", "associate", "bachelors_or_equiv")
+
+
+def flag(level: str | None) -> tuple[str, str] | None:
+    """The card's degree flag for a stored degree_level, or None if unread."""
+    return FLAGS.get(level or "")
+
+
 CAVEAT = ("What postings ask for, not who gets hired: dropping a degree requirement "
           "often changes actual hiring little.")
 MAX_EVIDENCE = 160
@@ -235,7 +257,11 @@ def classify(description: str | None) -> DegreeFacts:
         facts.level, key = "associate", "associate"
     else:
         facts.level, key = "none", "no_degree"
-    facts.evidence = _clip(evidence.get(key, ""))
+    # Opened by an alternative in its own clause ("...; OR 2+ years ... in lieu
+    # of a degree"), the degree line was recorded as required: show that line.
+    facts.evidence = _clip(evidence.get(key) or (
+        evidence.get("bachelor_req") or evidence.get("graduate_req") or ""
+        if facts.level == "bachelors_or_equiv" else ""))
     return facts
 
 

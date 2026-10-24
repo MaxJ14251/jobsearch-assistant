@@ -78,6 +78,14 @@ def safe_url(url: Any) -> str:
 
 env.filters["safe_url"] = safe_url
 env.filters["localdate"] = lambda stamp: str(db.local_date(stamp) or stamp or "")
+# The degree flag on cards comes from the posting's own text (ADR 0032), never
+# the model's degree_required.
+env.globals["degree_flag"] = lambda level: _degree_flag(level)
+
+
+def _degree_flag(level: Any) -> tuple[str, str] | None:
+    from .. import degree
+    return degree.flag(level)
 
 
 # How far the slider goes. Below five miles a radius is a postcode, not a
@@ -301,7 +309,7 @@ def _pipeline_rows(con: sqlite3.Connection, where: list[str],
         "SELECT m.id AS job_id, c.name AS company, m.title, m.location, "
         "       m.remote, m.match_score, m.match_reasons, m.url, m.track, "
         "       m.discovered_at, 1 AS variant_count, NULL AS dedup_key, "
-        "       m.degree_required, m.clearance_required, m.years_required, "
+        "       m.degree_required, m.degree_level, m.clearance_required, m.years_required, "
         "       m.tech_stack, m.enrichment_note, m.enriched_at, "
         "       m.salary_min, m.salary_max, m.salary_period, m.salary_currency, "
         "       a.status AS stage "
@@ -651,14 +659,15 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             # function is registered by match_connect.
             where.append("title_matches(m.title, :q) = 1")
             params["q"] = q
+        # Both read from the posting's text, no model (plan 32, ADR 0032): the
+        # model's degree_required was wrong on most postings that accept
+        # experience instead. "no" is the old "Not required", kept so old
+        # links still filter; it now means the same as "open".
         if degree == "yes":
-            where.append("m.degree_required = 1")
-        elif degree == "no":
-            where.append("(m.degree_required = 0 OR m.degree_required IS NULL)")
-        elif degree == "open":
-            # Open to someone without a bachelor's, as the posting is written
-            # (plan 32): no degree named, an associate's, or a degree with
-            # equivalent experience accepted. Read from the text, no model.
+            where.append("m.degree_level IN ('bachelors', 'masters_preferred', 'masters')")
+        elif degree in ("no", "open"):
+            # Open to someone without a bachelor's, as the posting is written:
+            # no degree named, an associate's, or equivalent experience accepted.
             where.append("m.degree_level IN ('none', 'associate', 'bachelors_or_equiv')")
         if remote == "remote":
             where.append("m.remote = 'remote'")

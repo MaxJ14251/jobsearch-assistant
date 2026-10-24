@@ -6,6 +6,14 @@ version number lives in one place, `jsa/__init__.py`.
 
 ## [Unreleased]
 
+### Changed
+
+- **Degree flags read the posting's own text** on cards, the job page and
+  `jsa matches`: "degree or equivalent experience" instead of the model's
+  "asks for a degree", which was wrong on 219 of 363 postings. The Matches
+  filter is now "Asks for a bachelor's or more" / "Open to equivalent
+  experience" ([ADR 0032](docs/decisions/0032-what-postings-ask-for-not-who-gets-hired.md)).
+
 ### Added
 
 - **Replies have their own tab**, and a "thank you for applying" receipt
