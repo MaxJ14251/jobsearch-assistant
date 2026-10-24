@@ -26,7 +26,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["httpx2>=2.13"]
+test = ["httpx2>=2.13", "coverage>=7.6"]
 
 [project.scripts]
 jsa = "jsa.cli:main"

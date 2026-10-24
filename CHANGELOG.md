@@ -91,6 +91,11 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Fixed
 
+- **The README can't silently drift from the code** on what can be counted:
+  source counts, supported boards and link hosts, scoring weights, hard
+  rejects, commands and settings it names, and the test count
+  (`tests/test_docs_agree.py`). The weights sentence now includes pay's 10%.
+  Line coverage re-measured: 89% (was 80% at 888 tests).
 - **The model fallback chain had gone stale.** Of six drafting models, only
   the first still answered on NVIDIA (two 410 Gone, one 404, two timeouts).
   The chain is now the three that answered when probed on 2026-10-24

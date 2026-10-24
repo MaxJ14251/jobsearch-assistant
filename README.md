@@ -877,8 +877,9 @@ because a word boundary cannot sit between `+` and a space. C++ was silently
 undetectable as a banned claim, and so were C#, F# and .NET.
 
 **Scoring is deliberately not an LLM call.** Running a model over thousands of listings
-is slow, expensive, and unauditable. The filter is a transparent weighted score — title
-match 45%, location 25%, keyword overlap 20%, seniority 10% — and every point is
+is slow, expensive, and unauditable. The filter is a transparent weighted score — fit
+(title match 45%, location 25%, keyword overlap 20%, seniority 10%) makes up 90% of it
+and stated pay the other 10% — and every point is
 attributed to a reason string stored in `jobs.match_reasons` and shown in the CLI. The
 model's job starts at tailoring, where judgment actually earns its cost.
 
@@ -1020,30 +1021,31 @@ drafts stay, and discovery will not overwrite the text. See
 
 ## Test coverage
 
-About 1,760 Python tests and 40 extension tests (`node --test extension/test/*.test.mjs`)
-as of October 2026. Line coverage was **80%** when last measured, at 888 tests; it
-has not been re-measured since, so the table below is from that run.
+About 1,790 Python tests and 40 extension tests (`node --test extension/test/*.test.mjs`).
+Line coverage **89%**, measured 2026-10-24 with `coverage run --source=jsa -m
+unittest discover -s tests -t .` (80% at the 888-test run before it), reported as
+measured rather than tuned.
 
 The distribution is the interesting part. The code that decides what reaches a
-document is well covered; the thin parts are network adapters that need live
+document is well covered; the thinnest parts are network adapters that need live
 endpoints to exercise, and argument plumbing over modules that are themselves
 tested:
 
 | Module | Coverage | Why |
 |---|---|---|
 | `render.py` | 99% | Generated documents must be right |
-| `tailor.py` | 98% | The fabrication verifier |
+| `tailor.py` | 99% | The fabrication verifier |
 | `letter.py` | 98% | Cover letter wording, checked word by word |
-| `prep.py` | 98% | Degree and gap drills |
+| `salary.py` | 98% | Pay read out of prose |
+| `review.py` | 98% | What the dashboard says a draft changed |
+| `prep.py` | 97% | Degree and gap drills |
 | `scoring.py` | 97% | Every filter decision |
-| `salary.py` | 96% | Pay read out of prose |
-| `review.py` | 96% | What the dashboard says a draft changed |
-| `approvals.py` | 95% | The human-approval gate |
-| `doctor.py` | 94% | What will not work yet |
-| `web/` | 90% | Dashboard routes |
-| `llm.py` | 60% | Error paths need a live provider to reach |
-| `cli.py` | 42% | Argument plumbing over tested modules |
-| `sources.py` | 27% | Live ATS endpoints; exercised by `jsa verify` |
+| `approvals.py` | 96% | The human-approval gate |
+| `doctor.py` | 93% | What will not work yet |
+| `web/` | 93% | Dashboard routes |
+| `llm.py` | 89% | Some error paths need a live provider to reach |
+| `sources.py` | 77% | Live job-board endpoints; exercised by `jsa verify` |
+| `cli.py` | 65% | Argument plumbing over tested modules |
 
 `jsa verify` and `tools/fabrication_demo.py` cover the network paths against real
 endpoints, which unit tests deliberately do not touch.
@@ -1201,7 +1203,7 @@ jobsearch/
   extension/                    # the Chrome extension: fills a form, never submits
   tools/build_map_data.py       # rebuilds jsa/resources/data/ from its public sources
   tools/build_role_data.py      # rebuilds the role education data (BLS, O*NET)
-  tests/                        # about 1,760 tests
+  tests/                        # about 1,790 tests
 ```
 
 ## Configure it for yourself
