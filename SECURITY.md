@@ -46,11 +46,10 @@ it:
 
 - `jsa discover` and `jsa verify` read public job boards (GET requests;
   Workday boards take their search as a POST body). Each request's User-Agent
-  carries a contact address, as job boards ask of automated traffic:
-  `JSA_CONTACT_EMAIL` if you set it, otherwise your profile's email, otherwise
-  none. Set `JSA_CONTACT_EMAIL` to another address (or leave the profile's
-  email empty) to keep yours out of those requests. Nothing else about you is
-  in them, except that the nationwide sources are asked about the
+  names the tool and links to its project page. It carries a contact address
+  only if you set `JSA_CONTACT_EMAIL`; your profile's email is never sent
+  (until 2026-10-23 it was, when that setting was empty). Nothing else about
+  you is in them, except that the nationwide sources are asked about the
   cities in your profile, and USAJOBS (only if you set it up) receives the
   email address you requested its key with, in the User-Agent header its
   terms require. The key and that email stay in `.env` and are never printed

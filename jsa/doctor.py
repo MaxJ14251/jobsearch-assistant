@@ -425,6 +425,18 @@ def check_usajobs(report: Report) -> None:
                    "requested it with. Until both are in .env, discovery skips it.")
 
 
+def check_contact(report: Report) -> None:
+    """Which contact job boards receive, masked. Not a finding either way."""
+    import os
+
+    from .inbox import mask
+
+    contact = os.environ.get("JSA_CONTACT_EMAIL", "").strip()
+    report.checked.append(
+        f"job boards receive contact {mask(contact)} (JSA_CONTACT_EMAIL)" if contact
+        else "job boards receive no contact address, only the tool's name and link")
+
+
 def check_api_key(report: Report) -> None:
     """Whether a key is configured. Never what it is."""
     from . import llm
@@ -513,5 +525,6 @@ def run(profile: dict[str, Any] | None,
     check_basemap(report)
     check_api_key(report)
     check_usajobs(report)
+    check_contact(report)
     check_secrets(report)
     return report

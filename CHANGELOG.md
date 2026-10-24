@@ -8,6 +8,10 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Changed
 
+- **Job boards no longer receive your email.** Discovery's requests name the
+  tool and link to the project; a contact address is added only if you set
+  `JSA_CONTACT_EMAIL`. Until now your profile's email was sent when that
+  setting was empty. `jsa doctor` says which contact is sent.
 - **Degree flags read the posting's own text** on cards, the job page and
   `jsa matches`: "degree or equivalent experience" instead of the model's
   "asks for a degree", which was wrong on 219 of 363 postings. The Matches

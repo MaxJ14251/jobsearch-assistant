@@ -409,6 +409,30 @@ class TestConfigurability(unittest.TestCase):
         finally:
             os.environ.pop("JSA_CONTACT_EMAIL", None)
 
+    def test_user_agent_never_carries_the_profile_email(self):
+        """Owner's decision, 2026-10-23: no contact unless JSA_CONTACT_EMAIL."""
+        import os
+        from unittest import mock
+        from jsa import config
+        from jsa.config import PROJECT_URL, user_agent
+        os.environ.pop("JSA_CONTACT_EMAIL", None)
+        profile = {"identity": {"email": "robin.example@example.com"}}
+        with mock.patch.object(config, "load_profile", return_value=profile):
+            agent = user_agent()
+        self.assertNotIn("robin.example@example.com", agent)
+        self.assertNotIn("contact", agent)
+        self.assertIn(PROJECT_URL, agent)
+
+    def test_requests_to_boards_send_that_agent(self):
+        import os
+        from unittest import mock
+        from jsa import config, sources
+        os.environ.pop("JSA_CONTACT_EMAIL", None)
+        profile = {"identity": {"email": "robin.example@example.com"}}
+        with mock.patch.object(config, "load_profile", return_value=profile):
+            with sources._client() as client:
+                self.assertNotIn("robin.example", client.headers["User-Agent"])
+
     def test_years_filter_reject_rank_off(self):
         """The operator's choice: drop, keep lower, or ignore."""
         j = job(title="Engineer", description="Requires 6 years of experience.")

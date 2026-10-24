@@ -83,20 +83,15 @@ PROJECT_URL = "https://github.com/MaxJ14251/jobsearch-assistant"
 
 
 def user_agent() -> str:
-    """User-Agent sent to job boards.
+    """User-Agent sent to job boards: the tool's name and its project link.
 
-    Job boards reasonably want a contact address on automated traffic, but the
-    contact must be whoever is *running* the tool — never a value baked into
-    the source. Resolution order: JSA_CONTACT_EMAIL, then the profile's
-    identity.email, then no contact at all.
+    A contact address is added only when JSA_CONTACT_EMAIL is set. The
+    profile's email is never used here (owner's decision, 2026-10-23): no
+    board's recorded terms ask for a contact, the project link already names
+    the client, and the profile email went to every board on every run.
+    USAJOBS is separate: its terms require USAJOBS_EMAIL, sent only there.
     """
     contact = os.environ.get("JSA_CONTACT_EMAIL", "").strip()
-    if not contact:
-        try:
-            profile = load_profile()
-            contact = ((profile.get("identity") or {}).get("email") or "").strip()
-        except Exception:  # noqa: BLE001 — a missing profile must not break a fetch
-            contact = ""
     suffix = f"; contact {contact}" if contact else ""
     from . import __version__
     return f"jobsearch-assistant/{__version__} (+{PROJECT_URL}{suffix})"

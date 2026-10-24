@@ -1251,6 +1251,6 @@ named always wins whatever the mileage, and a posting whose location cannot
 be placed is scored on everything else and reported by `jsa doctor` rather
 than guessed at. Measured 2026-09-26 over 1,224 open postings: 91.2% are
 usable by a radius. See
-[ADR 0014](docs/decisions/0014-distance-not-place-names.md). The User-Agent sent to job boards resolves
-`JSA_CONTACT_EMAIL`, then your profile's email, then no contact — never a value baked
-into the source.
+[ADR 0014](docs/decisions/0014-distance-not-place-names.md). The User-Agent sent to job boards names the tool and
+links to this project; it adds a contact address only if you set
+`JSA_CONTACT_EMAIL`, and never sends your profile's email.
