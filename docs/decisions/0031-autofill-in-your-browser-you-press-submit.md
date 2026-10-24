@@ -267,3 +267,24 @@ problems found that way were fixed: a follow-up field ("If you selected
 international, what location(s)?") was filled with the home city, and the
 panel disappeared on Greenhouse's document rebuild. Not yet tried on a real
 form: Lever, and the apply session that walks several jobs in a row.
+
+## Checked on real pages with the owner, 2026-10-24 (G5)
+
+- **Lever fill** (a saved job's real application form, after "Add, save and
+  draft a resume" from the panel and approval in Review): name, email,
+  phone and links filled, the approved resume attached; job-specific
+  questions left for the owner. Suggest offered drafts for "When would you
+  be able to start work?", which the profile can't answer: start date,
+  availability and notice period are now refused like salary (8dbddf0).
+- **Apply session** (three ready jobs: Ashby, Greenhouse, Lever): opened in
+  score order, the panel on every page, nothing moved without a click,
+  "Skip, next" through all three, and the done screen linked back to
+  Pipeline. Before it, one job confirmed as "saved" from a receipt could not
+  be moved back to applied (refused as a second application); fixed in
+  08a1a7b, and the Replies page's "Got it" keeps receipts from moving stages.
+- **About this company and role** for a company not in the tracker
+  (Greenhouse): worked, and its figures matched the board read directly
+  (138 postings; 134 with no degree named, 4 graduate: three PhD
+  internships and one "advanced degree").
+- **Remembered answers** ("You answered this before"): not yet, by the
+  owner's choice; it needs a real application, the next one sent.

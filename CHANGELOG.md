@@ -91,6 +91,11 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Fixed
 
+- **Suggest leaves start date and availability to you**, like salary: "When
+  would you be able to start work?" got drafts about the job instead.
+- **An applied job moved back by mistake can be moved to applied again.**
+  It was refused as a second application; the original record of what was
+  sent is kept as it was.
 - **The README can't silently drift from the code** on what can be counted:
   source counts, supported boards and link hosts, scoring weights, hard
   rejects, commands and settings it names, and the test count
