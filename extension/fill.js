@@ -182,7 +182,11 @@
     "\\b(salary|compensation|pay expectations?|desired pay|expected pay|pay range" +
     "|gender|race|racial|ethnicity|ethnic|hispanic|latino|veteran|disabilit(y|ies)" +
     "|sexual orientation|transgender|pronouns?|date of birth|how old|your age" +
-    "|how did you (hear|learn|find out) about)\\b", "i");
+    "|how did you (hear|learn|find out) about" +
+    // When you can start: yours to answer (jsa/suggest.py says why).
+    "|start date|when (would|could|can|will) you (be able to |be available to )?" +
+    "(start|begin|join)|earliest (start|available)|available to (start|begin)" +
+    "|date available|notice period|availability)\\b", "i");
 
   // Answered from the profile, a yes/no, a file, or never: not a question to
   // write an answer to.

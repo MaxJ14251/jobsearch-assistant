@@ -30,6 +30,9 @@ test("which fields are open-ended questions", () => {
     field({ label: "What is your gender identity?" }),
     field({ label: "Are you a protected veteran?" }),
     field({ label: "How did you hear about us?" }),
+    field({ type: "text", label: "When would you be able to start work?" }),   // Lever, 2026-10-24
+    field({ label: "What is your notice period?" }),
+    field({ label: "Earliest start date" }),
     field({ label: "Cover letter" }),
     field({ type: "text", label: "Why this role?", maxlength: 100 }),   // too short for prose
     field({ type: "text", label: "Current company" }),                  // not a question

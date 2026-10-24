@@ -52,7 +52,13 @@ REFUSED = re.compile(
     r"\b(salary|compensation|pay expectations?|desired pay|expected pay|pay range"
     r"|gender|race|racial|ethnicity|ethnic|hispanic|latino|veteran|disabilit(y|ies)"
     r"|sexual orientation|transgender|pronouns?|date of birth|how old|your age"
-    r"|how did you (hear|learn|find out) about)\b", re.I)
+    r"|how did you (hear|learn|find out) about"
+    # When you can start: a fact only you know, not in the profile. Asked
+    # "When would you be able to start work?" (Lever, 2026-10-24), the model
+    # wrote about the job and the background instead.
+    r"|start date|when (would|could|can|will) you (be able to |be available to )?"
+    r"(start|begin|join)|earliest (start|available)|available to (start|begin)"
+    r"|date available|notice period|availability)\b", re.I)
 
 # Leading words that don't change what is asked.
 _FILLER = re.compile(r"^(please |briefly |in a few sentences |tell us |in 2 3 sentences )+")
@@ -94,8 +100,9 @@ def clean_question(text: str | None) -> str:
 
 def refused_topic(question: str) -> str | None:
     if REFUSED.search(question):
-        return ("This one is yours to answer: salary, demographic and "
-                "\"how did you hear about us\" questions get no suggestions.")
+        return ("This one is yours to answer: salary, start date and availability, "
+                "demographic and \"how did you hear about us\" questions get no "
+                "suggestions.")
     return None
 
 

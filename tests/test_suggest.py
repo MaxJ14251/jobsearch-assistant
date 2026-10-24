@@ -8,6 +8,7 @@ suggested. Fiction only (the Riverton example).
 
 import ast
 import json
+import re
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -64,9 +65,24 @@ class TestTheQuestion(unittest.TestCase):
         for q in ("What are your salary expectations?", "Desired pay range",
                   "Gender identity", "Are you a protected veteran?",
                   "Do you have a disability?", "How did you hear about us?",
-                  "What are your pronouns?"):
+                  "What are your pronouns?",
+                  # Found on a real Lever form, 2026-10-24.
+                  "When would you be able to start work?", "Earliest start date",
+                  "What is your notice period?", "When can you start?",
+                  "Date available", "What is your availability?"):
             self.assertTrue(suggest.refused_topic(q), q)
-        self.assertIsNone(suggest.refused_topic("Why do you want this role?"))
+        for q in ("Why do you want this role?", "What would you start building first?",
+                  "Tell us about a project you started"):
+            self.assertIsNone(suggest.refused_topic(q), q)
+
+    def test_both_refused_lists_are_the_same(self):
+        """The panel never offers what the dashboard would refuse."""
+        js = (ROOT / "extension" / "fill.js").read_text(encoding="utf-8")
+        block = js[js.index("const REFUSED = new RegExp("):]
+        block = block[:block.index('"i");')]
+        js_pattern = "".join(re.findall(r'"((?:[^"\\]|\\.)*)"', re.sub(r"//[^\n]*", "", block)))
+        js_pattern = js_pattern.replace("\\\\", "\\")
+        self.assertEqual(js_pattern, suggest.REFUSED.pattern)
 
     def test_the_key_matches_the_extensions(self):
         cases = json.loads((ROOT / "extension" / "test" / "question_cases.json")
