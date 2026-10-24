@@ -91,6 +91,11 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Fixed
 
+- **The model fallback chain had gone stale.** Of six drafting models, only
+  the first still answered on NVIDIA (two 410 Gone, one 404, two timeouts).
+  The chain is now the three that answered when probed on 2026-10-24
+  (nemotron-3-ultra-550b, gpt-oss-20b, nemotron-3.5-lightning); enrichment
+  drops super-120b (404).
 - A tracker made before a newer source kind is now rebuilt for it (with a
   backup first); the check used to look for one kind's name only.
 - `jsa verify --write` changes only the `verified:` values in

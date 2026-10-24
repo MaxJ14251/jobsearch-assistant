@@ -40,10 +40,10 @@ from typing import Any
 
 from . import db, llm, posting
 
-# Small and cheap: this runs hundreds of times per pass.
+# Small and cheap: this runs hundreds of times per pass. super-120b dropped
+# 2026-10-24: 404 on the owner's account (see llm.DEFAULT_MODELS).
 ENRICH_MODELS = [
     "nvidia/nemotron-3.5-lightning-30b-a3b",
-    "nvidia/nemotron-3-super-120b-a12b",
     "openai/gpt-oss-20b",
 ]
 

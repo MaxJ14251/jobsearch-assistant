@@ -49,13 +49,17 @@ THINKING_SWITCH_ENV = "JSA_LLM_THINKING_SWITCH"
 
 # Ordered by preference. The client walks this list on 404/503/timeout.
 # Regenerate with `python -m jsa models`.
+# Probed 2026-10-24 on the owner's account: of the six listed before, only the
+# first answered (super-120b 404, mistral-nemotron and deepseek-v4-flash 410
+# Gone, llama-3.2-90b timed out). Of ten catalogue candidates, two answered,
+# the two below the first; mistral-large-2, kimi-k2.6, llama-3.1-nemotron
+# 70b/253b and nemotron-4-340b were 404, and deepseek-v4.1-flash and both
+# glm-5.3 timed out at 60 s. A small fallback beats none: every draft is
+# still checked.
 DEFAULT_MODELS = [
     "nvidia/nemotron-3-ultra-550b-a55b",
-    "nvidia/nemotron-3-super-120b-a12b",
-    "mistralai/mistral-nemotron",
     "openai/gpt-oss-20b",
-    "meta/llama-3.2-90b-vision-instruct",
-    "deepseek-ai/deepseek-v4-flash-0731",
+    "nvidia/nemotron-3.5-lightning-30b-a3b",
 ]
 
 RETRY_STATUS = {429, 500, 502, 503, 504}
