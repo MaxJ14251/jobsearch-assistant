@@ -261,9 +261,13 @@ class TestServeUpgradesFirst(unittest.TestCase):
         order = []
         app = mock.Mock()
         app.state.worker.start = lambda: order.append("worker")
+        from jsa import llm
+        # serve() points the model-call ledger at the real tracker; put it
+        # back, or a later test's fake model call is counted there (2026-10-24).
         with mock.patch.object(db, "upgrade", lambda *a, **k: order.append("upgrade") or []), \
                 mock.patch("uvicorn.run", lambda *a, **k: order.append("run")), \
-                mock.patch.object(web, "create_app", lambda *a, **k: app):
+                mock.patch.object(web, "create_app", lambda *a, **k: app), \
+                mock.patch.object(llm, "recorder", None):
             web.serve()
         # Turbo's drafting worker starts after the upgrade, before serving.
         self.assertEqual(order, ["upgrade", "worker", "run"])

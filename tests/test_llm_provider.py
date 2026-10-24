@@ -57,6 +57,12 @@ class Provider(unittest.TestCase):
                 if saved[k] is not None:
                     os.environ[k] = saved[k]
         self.addCleanup(restore)
+        # Never the real ledger: an earlier test in the suite can leave
+        # llm.recorder set, and these calls are fakes (found 2026-10-24, when
+        # six test rows reached the owner's tracker).
+        quiet = mock.patch.object(llm, "recorder", None)
+        quiet.start()
+        self.addCleanup(quiet.stop)
         self.sent = []
 
     def post(self, replies=None):
