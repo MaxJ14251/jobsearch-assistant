@@ -133,8 +133,16 @@ class TestNothingCanSend(unittest.TestCase):
         following = source.split(".post(")
         for chunk in following[1:]:
             head = chunk[:120]
-            self.assertIn("BASE_URL", head,
+            self.assertIn("base_url()", head,
                           f"a POST goes somewhere other than the LLM endpoint: {head!r}")
+        # base_url() is the configured endpoint and nothing else: the
+        # JSA_LLM_BASE_URL setting, else BASE_URL (G3, 2026-10-24).
+        import inspect
+        from jsa import llm
+        body = inspect.getsource(llm.base_url)
+        self.assertIn('os.environ.get("JSA_LLM_BASE_URL"', body)
+        self.assertIn("BASE_URL", body.replace('"JSA_LLM_BASE_URL"', ""))
+        self.assertNotRegex(body, r"https?://")
 
     def test_mark_sent_only_records(self):
         import inspect

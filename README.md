@@ -200,6 +200,13 @@ does. Put your key in `.env`, which step 1 made from the template.
 never leaves that file, and your name, address, phone and email are never sent
 to the model — a check refuses the request if they appear in a prompt.
 
+Another OpenAI-compatible provider works too: set `JSA_LLM_BASE_URL`,
+`JSA_LLM_API_KEY` and `JSA_LLM_MODELS` (its model names, comma-separated, in
+the order to try), and `JSA_LLM_ENRICH_MODELS` for reading postings. The
+template explains each. `jsa env` shows the provider and models in use, and
+`jsa models` checks which answer. Drafting quality was measured on NVIDIA's
+models; another provider's will differ, and every draft is still checked.
+
 **7. Save a job and draft for it** (one model call each). The number is the
 one `matches` prints after the score, `#421` in the example above; yours will
 differ:
@@ -1180,7 +1187,7 @@ jobsearch/
     sources.py                  # Greenhouse/Lever/Ashby/Workday/Workable/Recruitee/RSS/custom
     scoring.py                  # the free deterministic match filter
     discover.py                 # feed -> score -> tracker
-    llm.py                      # OpenAI-compatible client, fallback chain
+    llm.py                      # OpenAI-compatible client (NVIDIA by default), fallback chain
     enrich.py                   # LLM pass over survivors, strictly validated
     posting.py                  # how much of a posting a model may read
     places.py                   # a posting's location -> a point on a map

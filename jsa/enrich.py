@@ -177,7 +177,7 @@ def enrich_one(title: str, description: str) -> Enrichment:
     data, _usage = llm.complete_json(
         prompt,
         system=SYSTEM,
-        models=ENRICH_MODELS,
+        models=llm.enrich_models(),
         max_tokens=500,
         temperature=0.1,
         thinking=False,      # non-negotiable; see the module docstring
@@ -303,7 +303,7 @@ def run(
                     if len(report.errors) < 5:
                         report.errors.append(f"{row['title'][:40]}: {error}")
                 else:
-                    save(con, row["id"], result, ENRICH_MODELS[0],
+                    save(con, row["id"], result, llm.enrich_models()[0],
                          row["description_hash"])
                     con.commit()
                     report.succeeded += 1

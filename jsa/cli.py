@@ -603,21 +603,27 @@ def cmd_env(args: argparse.Namespace) -> int:
     print(f".env file:  {ENV_PATH}")
     print(f"            {'exists' if ENV_PATH.exists() else 'NOT FOUND'}")
 
-    key = os.environ.get(llm.API_KEY_ENV, "")
+    name = llm.key_env()
+    key = os.environ.get(name, "")
     if not key:
-        print(f"\n{llm.API_KEY_ENV}: NOT SET")
-        print(f"  Put it in {ENV_PATH.name}, or set it in your shell.")
+        print(f"\n{llm.API_KEY_ENV} / {llm.GENERIC_KEY_ENV}: NOT SET")
+        print(f"  Put one in {ENV_PATH.name}, or set it in your shell.")
         return 1
     if key.startswith("<"):
-        print(f"\n{llm.API_KEY_ENV}: still the placeholder — replace "
+        print(f"\n{name}: still the placeholder — replace "
               f"<paste-your-nvapi-key-here> with the real key.")
         return 1
 
     # Show only enough to tell two keys apart. Never the whole value.
     masked = f"{key[:9]}...{key[-4:]}" if len(key) > 16 else "(short)"
-    shape = "looks like an nvapi key" if key.startswith("nvapi-") else "UNEXPECTED FORMAT"
-    print(f"\n{llm.API_KEY_ENV}: set  [{masked}]  {len(key)} chars, {shape}")
-    print(f"base URL:   {llm.BASE_URL}")
+    if llm.is_nvidia():
+        shape = "looks like an nvapi key" if key.startswith("nvapi-") else "UNEXPECTED FORMAT"
+    else:
+        shape = "for " + llm.provider_host()
+    print(f"\n{name}: set  [{masked}]  {len(key)} chars, {shape}")
+    print(f"base URL:   {llm.base_url()}")
+    print(f"drafting:   {', '.join(llm.drafting_models())}")
+    print(f"enrichment: {', '.join(llm.enrich_models())}")
     print("\nCheck it works with: python -m jsa models")
     return 0
 
@@ -625,6 +631,7 @@ def cmd_env(args: argparse.Namespace) -> int:
 def cmd_models(args: argparse.Namespace) -> int:
     from . import llm
 
+    print(f"provider: {llm.provider_host()}")
     try:
         results = llm.probe_models()
     except llm.LLMError as exc:

@@ -408,7 +408,7 @@ def enrich(con: sqlite3.Connection, job_id: int) -> str:
         result = enrich_mod.enrich_one(row["title"], row["description"])
     except Exception as exc:  # noqa: BLE001 - the job is stored either way
         return f"not checked for degree or clearance requirements: {exc}"
-    enrich_mod.save(con, job_id, result, enrich_mod.ENRICH_MODELS[0],
+    enrich_mod.save(con, job_id, result, llm.enrich_models()[0],
                     row["description_hash"])
     facts = []
     # The degree comes from the posting's own text (degree.py), not the

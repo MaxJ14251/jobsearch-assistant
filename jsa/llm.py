@@ -1,7 +1,9 @@
 """LLM client.
 
-Targets NVIDIA NIM, which speaks the OpenAI chat-completions shape, so the same
-client works against any OpenAI-compatible endpoint by changing `base_url`.
+Targets NVIDIA NIM by default. It speaks the OpenAI chat-completions shape, so
+another OpenAI-compatible provider works with three .env settings:
+JSA_LLM_BASE_URL, JSA_LLM_API_KEY and JSA_LLM_MODELS (plus
+JSA_LLM_ENRICH_MODELS for reading postings). Unset, nothing changes.
 
 Two things drive the design:
 
@@ -30,8 +32,20 @@ from typing import Any, Callable
 
 import httpx
 
-BASE_URL = os.environ.get("JSA_LLM_BASE_URL", "https://integrate.api.nvidia.com/v1")
+NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
+BASE_URL = os.environ.get("JSA_LLM_BASE_URL", NVIDIA_BASE_URL)
+# The key: JSA_LLM_API_KEY for any provider, else NVIDIA_API_KEY (the
+# original name, so an existing .env keeps working).
 API_KEY_ENV = "NVIDIA_API_KEY"
+GENERIC_KEY_ENV = "JSA_LLM_API_KEY"
+# Model chains, comma-separated, for another provider's names (unset: the
+# lists below and enrich.ENRICH_MODELS).
+MODELS_ENV = "JSA_LLM_MODELS"
+ENRICH_MODELS_ENV = "JSA_LLM_ENRICH_MODELS"
+# NVIDIA's "thinking" switch (chat_template_kwargs) goes only to NVIDIA, or to
+# another endpoint when this is "1": a provider that doesn't know the field
+# may reject the request.
+THINKING_SWITCH_ENV = "JSA_LLM_THINKING_SWITCH"
 
 # Ordered by preference. The client walks this list on 404/503/timeout.
 # Regenerate with `python -m jsa models`.
@@ -88,15 +102,55 @@ class Completion:
     raw: dict[str, Any] = field(default_factory=dict)
 
 
+def base_url() -> str:
+    """The endpoint, read when called so a test or a later .env load counts."""
+    return (os.environ.get("JSA_LLM_BASE_URL", "").strip() or BASE_URL).rstrip("/")
+
+
+def provider_host() -> str:
+    from urllib.parse import urlparse
+    return urlparse(base_url()).hostname or base_url()
+
+
+def is_nvidia() -> bool:
+    return provider_host().endswith("nvidia.com")
+
+
+def _models_from(env: str, default: list[str]) -> list[str]:
+    names = [m.strip() for m in os.environ.get(env, "").split(",") if m.strip()]
+    return names or list(default)
+
+
+def drafting_models() -> list[str]:
+    """The fallback chain for drafting: JSA_LLM_MODELS, else DEFAULT_MODELS."""
+    return _models_from(MODELS_ENV, DEFAULT_MODELS)
+
+
+def enrich_models() -> list[str]:
+    """The chain for reading postings: JSA_LLM_ENRICH_MODELS, else enrich's."""
+    from .enrich import ENRICH_MODELS
+    return _models_from(ENRICH_MODELS_ENV, ENRICH_MODELS)
+
+
+def key_env() -> str:
+    """Which setting the key comes from (its name, never its value)."""
+    return GENERIC_KEY_ENV if os.environ.get(GENERIC_KEY_ENV, "").strip() else API_KEY_ENV
+
+
 def api_key() -> str:
-    key = os.environ.get(API_KEY_ENV, "").strip()
+    key = (os.environ.get(GENERIC_KEY_ENV, "").strip()
+           or os.environ.get(API_KEY_ENV, "").strip())
     if not key:
         raise LLMError(
-            f"{API_KEY_ENV} is not set. Get a key from build.nvidia.com and:\n"
-            f'    setx {API_KEY_ENV} "nvapi-..."\n'
-            "Then open a new shell. Never commit the key or paste it into chat."
+            f"No model API key: set {API_KEY_ENV} (from build.nvidia.com) or, for "
+            f"another provider, {GENERIC_KEY_ENV} in .env.\n"
+            "Never commit the key or paste it into chat."
         )
     return key
+
+
+def _thinking_switch() -> bool:
+    return is_nvidia() or os.environ.get(THINKING_SWITCH_ENV, "").strip() == "1"
 
 
 def _strip_reasoning(text: str) -> str:
@@ -138,7 +192,7 @@ def complete(
 
     `purpose` names the caller in the model-call ledger (plan 26); every
     caller in jsa/ passes one, and a test holds them to it."""
-    chain = models or DEFAULT_MODELS
+    chain = models or drafting_models()
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
@@ -165,7 +219,9 @@ def complete(
             # Reasoning models (nemotron-3.5-lightning) otherwise spend the
             # whole token budget thinking and never emit an answer: 44s and no
             # JSON at 2000 tokens, vs 2.2s and clean JSON with thinking off.
-            payload["chat_template_kwargs"] = {"enable_thinking": thinking}
+            # NVIDIA's field: sent there, or where the operator asks for it.
+            if _thinking_switch():
+                payload["chat_template_kwargs"] = {"enable_thinking": thinking}
 
             for attempt in range(MAX_ATTEMPTS_PER_MODEL):
                 attempts += 1
@@ -173,9 +229,8 @@ def complete(
                 common = {"purpose": purpose or "unspecified", "model": model,
                           "attempt": attempts, "fell_back": index > 0}
                 try:
-                    resp = client.post(
-                        f"{BASE_URL}/chat/completions", headers=headers, json=payload
-                    )
+                    resp = client.post(f"{base_url()}/chat/completions",
+                                       headers=headers, json=payload)
                 except Exception as exc:  # noqa: BLE001
                     errors.append(f"{model}: {type(exc).__name__}")
                     _record(**common, ok=False, error_kind=type(exc).__name__,
@@ -346,7 +401,7 @@ def probe_models(candidates: list[str] | None = None) -> list[tuple[str, bool, s
     The /models catalogue lists far more than a given account may invoke —
     most return 404 'Not found for account'.
     """
-    chain = candidates or DEFAULT_MODELS
+    chain = candidates or drafting_models()
     headers = {"Authorization": f"Bearer {api_key()}"}
     out = []
     with httpx.Client(timeout=60.0) as client:
@@ -354,7 +409,7 @@ def probe_models(candidates: list[str] | None = None) -> list[tuple[str, bool, s
             try:
                 tried = time.time()
                 r = client.post(
-                    f"{BASE_URL}/chat/completions",
+                    f"{base_url()}/chat/completions",
                     headers=headers,
                     json={
                         "model": model,

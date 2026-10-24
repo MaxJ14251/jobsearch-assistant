@@ -448,7 +448,7 @@ def check_api_key(report: Report) -> None:
                    "Discovery, matches and the dashboard work without one. "
                    f"Drafting documents and interview prep need it: add it to "
                    f"{ENV_PATH} (`jsa init` creates that file from the template).")
-    report.checked.append("API key (presence only)")
+    report.checked.append(f"API key (presence only), models from {llm.provider_host()}")
 
 
 def check_basemap(report: Report) -> None:

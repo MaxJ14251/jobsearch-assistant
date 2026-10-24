@@ -8,6 +8,11 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Changed
 
+- **Any OpenAI-compatible model provider**, not only NVIDIA: set
+  `JSA_LLM_BASE_URL`, `JSA_LLM_API_KEY` and `JSA_LLM_MODELS` (and
+  `JSA_LLM_ENRICH_MODELS`). Unset, every request is exactly as before.
+  NVIDIA's "thinking" field is sent only to NVIDIA unless
+  `JSA_LLM_THINKING_SWITCH=1`. `jsa env` shows the provider and models.
 - **Job boards no longer receive your email.** Discovery's requests name the
   tool and link to the project; a contact address is added only if you set
   `JSA_CONTACT_EMAIL`. Until now your profile's email was sent when that
