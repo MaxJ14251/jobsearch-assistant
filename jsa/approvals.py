@@ -626,11 +626,21 @@ def set_stage(
     if stage == "applied":
         already = con.execute("SELECT applied_at FROM applications WHERE id = ?",
                               (application_id,)).fetchone()["applied_at"]
-        if already and previous != "applied" and resume is None and cover is None:
+        if already and previous != "applied":
             # Moved back to applied after the stage was moved away (a "thank
             # you for applying" reply confirmed as "saved", 2026-10-13): the
             # submission is already recorded and stays exactly as it was.
-            # mark_applied refused this as a second application.
+            # mark_applied refused this as a second application, from the
+            # stage form and from the extension, which names the documents.
+            recorded = {s.kind: s.document_id for s in submitted(con, application_id)}
+            named = {"resume": resume, "cover_letter": cover}
+            new = {kind: doc for kind, doc in named.items()
+                   if doc not in (None, NOT_SENT) and recorded.get(kind) != doc}
+            if new:
+                # A document not on the record yet is added; one that differs
+                # from what was recorded is refused there (never changed).
+                mark_applied(con, job_id, via=via, resume=new.get("resume"),
+                             cover=new.get("cover_letter"))
             record_event(con, application_id, "applied", actor="human", note=note or (
                 f"back to applied; submitted {db.local_time(already)}, "
                 "record of what was sent unchanged"))

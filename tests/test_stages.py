@@ -97,6 +97,27 @@ class TestWalkingAnApplication(unittest.TestCase):
         with self.assertRaises(approvals.ApprovalError):
             approvals.set_stage(self.con, 1, "applied")
 
+    def test_the_extension_naming_the_same_resume_moves_it_back_too(self):
+        """The extension's "I submitted this" names the resume it filled."""
+        path = Path(self.path).with_name("r.docx")
+        path.write_bytes(b"PK\x03\x04 fictional")
+        doc = int(self.con.execute(
+            "INSERT INTO documents (job_id,kind,path,version,bullet_ids) "
+            "VALUES (1,'resume',?,1,'[]')", (str(path),)).lastrowid)
+        approvals.set_stage(self.con, 1, "applied", via="employer", resume=doc)
+        approvals.set_stage(self.con, 1, "saved")
+        approvals.set_stage(self.con, 1, "applied", via="employer", resume=doc)
+        self.assertEqual(self.status(), "applied")
+        rows = self.con.execute("SELECT document_id FROM submitted_documents").fetchall()
+        self.assertEqual([r[0] for r in rows], [doc])
+        # A different resume than the one recorded is still refused.
+        other = int(self.con.execute(
+            "INSERT INTO documents (job_id,kind,path,version,bullet_ids) "
+            "VALUES (1,'resume',?,2,'[]')", (str(path),)).lastrowid)
+        approvals.set_stage(self.con, 1, "saved")
+        with self.assertRaises(approvals.ApprovalError):
+            approvals.set_stage(self.con, 1, "applied", via="employer", resume=other)
+
     def test_last_activity_comes_from_the_trigger_not_app_code(self):
         approvals.set_stage(self.con, 1, "phone_screen")
         row = self.con.execute(
