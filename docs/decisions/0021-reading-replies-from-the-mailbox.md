@@ -103,3 +103,26 @@ in the hiring process). A rejection, an offer, a booking link (Calendly,
 GoodTime) or "invite you to an interview" still wins over the subject.
 Receipts, and any reply with no stage to suggest, get "Got it" on the new
 Replies page: noted, no stage moves.
+
+## Precision measured, 2026-10-25 (G6)
+
+Every stored reply (11) was found again in the mailbox by its Message-ID and
+re-read the way `jsa inbox` reads (folder read-only, BODY.PEEK, nothing
+marked read), then classified in memory with today's rules
+(`tools/measure_inbox.py`; email text is never written or printed). The
+owner labelled the same 11 on a local page, blind to the tool's reading:
+8 labelled, 3 "not sure".
+
+| | right, of the 8 labelled |
+|---|---|
+| readings stored when fetched | 7 |
+| today's rules | **8** |
+
+All 8 labelled were receipts. The one miss was the receipt read as an
+interview, fixed by the receipt-subject rule (2026-10-23); no rule changed
+for this measurement. Of the 3 not labelled, two were read as "other" and
+one as a rejection, which the owner had acted on as one (2026-10-13).
+
+The sample is small and holds no real interview or offer yet, so it says
+nothing about those rules beyond the receipt case. Re-run the tool after
+the first of each.
