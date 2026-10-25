@@ -286,5 +286,10 @@ form: Lever, and the apply session that walks several jobs in a row.
   (Greenhouse): worked, and its figures matched the board read directly
   (138 postings; 134 with no degree named, 4 graduate: three PhD
   internships and one "advanced degree").
-- **Remembered answers** ("You answered this before"): not yet, by the
-  owner's choice; it needs a real application, the next one sent.
+- **Remembered answers:** at "I submitted this" on a real form the edited
+  answer was stored (one bank entry) and offered again. Recording that
+  application failed: it had been applied on 2026-10-13 and moved back to
+  "saved" by a confirmed receipt, and the extension's record names the resume,
+  which the first fix (08a1a7b) didn't cover; fixed in e1ace55. Nothing was
+  submitted twice. Two applications were left at "saved" that way; the owner
+  moves them back.
