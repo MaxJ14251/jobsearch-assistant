@@ -28,6 +28,10 @@ PINNED = {
     "answers_system": "80428051fe118a93262657c249b104ecb1c038ba2240eca0f7ac7add0d4e45fa",
     "answers_retry": "e88645014e605a9cc6582ec84db8c50aae71fecc085d40ff0198bdf9b87b3d6b",
     "measure_three": "6c72196811b5841d6dabdea8f90bd674d8894a3c61acb5bb12aa48881e58bf5a",
+    # Captured 2026-10-25, before G7 changed letter.py (letter.SUBJECT_AWARE off).
+    "letter_prompt": "fe52424a87f61fca2e68f5a6bfb3d0d6253c4edd87dcd5f81369f762e3e9e309",
+    "letter_system": "a02934017633301f36c6f463ad428ccbc2e9be314f25af332183fb667e2041cf",
+    "letter_retry": "5ef25927fee068b782a389a917a9995ec3ec701da6d94a4056a1645029f3971e",
 }
 
 
@@ -61,6 +65,22 @@ def capture(case) -> dict:
         answers.write(case.con, 1, case.profile)
         seen["answers_prompt"], seen["answers_system"] = calls[0]
         seen["answers_retry"] = calls[1][0]
+    # Cover letters (G7): their own switch, letter.SUBJECT_AWARE.
+    from types import SimpleNamespace
+    from jsa import letter
+    from jsa.llm import Completion
+    letter_calls = []
+
+    def fake_letter(prompt, **k):
+        letter_calls.append((prompt, k.get("system") or ""))
+        return Completion(text="Dear Hiring Manager,\n" + REFUSED, usage=Usage(model="t"))
+
+    draft = SimpleNamespace(summary=GOOD, bullets=bullets)
+    with mock.patch("jsa.letter.llm.complete", side_effect=fake_letter), \
+            mock.patch.object(letter, "SUBJECT_AWARE", False, create=True):
+        letter.write(job, case.profile, draft)
+    seen["letter_prompt"], seen["letter_system"] = letter_calls[0]
+    seen["letter_retry"] = letter_calls[1][0]
     sys.path.insert(0, str(ROOT / "tools"))
     import measure_verifier
     job = {k: job.get(k) for k in ("id", "title", "company", "location", "track",
