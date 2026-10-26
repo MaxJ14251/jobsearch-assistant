@@ -1,0 +1,71 @@
+# Cover letters under the sentence-by-sentence check (G7, ADR 0007 note,
+# ADR 0035). Fictional: the eval profile and an invented posting. Each text
+# goes through letter.check with the posting given (its structure checks left
+# out: these are passages, not whole letters), so the degree, do-not-claim and
+# ongoing-work rules apply as in production. A verdict changes only with a
+# reason in its `why:` and in the commit message.
+
+defaults:
+  letter: true
+  title: Support Engineer
+  company: Vercel
+  posting: >-
+    Vercel ships developer tools used by front-end teams. This role focuses on
+    developer experience and support for 100,000 developers. You will answer
+    technical questions, write guides and improve onboarding. Ensure SLA
+    adherence and follow safety codes. Our stack includes Next.js and
+    Kubernetes.
+
+cases:
+  # --- passes -------------------------------------------------------------------
+  - name: an employer sentence in the posting's words
+    text: >-
+      Vercel ships developer tools used by front-end teams. I resolved about
+      forty support tickets a day on shipment tracking and billing.
+    expect: {verdict: pass, kinds: [employer, strict],
+             why: "the first sentence is the posting's words about Vercel; the second the profile's"}
+  - name: the role
+    text: >-
+      This role focuses on developer experience. I onboarded new shipping
+      clients onto the tracking portal and trained their staff.
+    expect: {verdict: pass, kinds: [employer, strict], why: "a role sentence from the posting"}
+
+  # --- refusals (red team) ---------------------------------------------------------
+  - name: ADR 0007's SLA claim, now with the words in the posting
+    text: I ensured SLA adherence and followed safety codes for every shipment.
+    expect: {verdict: refuse, kinds: [strict], reason_contains: adherence,
+             why: "the very claim ADR 0007 exists for: posting words are never claims about the person"}
+  - name: the industry-leading praise
+    text: At Vercel, an industry-leading platform I admire. I resolved support tickets.
+    expect: {verdict: refuse, kinds: [strict, strict], reason_contains: industry,
+             why: "first person: strict, and the praise is in no source"}
+  - name: a mixed sentence
+    text: >-
+      My work on support tickets mirrors Vercel's developer experience. I
+      resolved support tickets.
+    expect: {verdict: refuse, kinds: [strict, strict], reason_contains: experience,
+             why: "a mixed sentence is checked strictly"}
+  - name: a degree, whoever it is about
+    text: Vercel values a bachelor's degree. I resolved support tickets.
+    expect: {verdict: refuse, kinds: [employer, strict], reason_contains: degree,
+             why: "the degree was not conferred; no degree word anywhere in a letter"}
+  - name: a do-not-claim term about the employer
+    text: Vercel runs Kubernetes for front-end teams. I resolved support tickets.
+    expect: {verdict: refuse, kinds: [employer, strict], reason_contains: Kubernetes,
+             why: "do-not-claim terms never appear, whoever the sentence is about"}
+  - name: negation
+    text: Vercel doesn't prioritize developer experience. I resolved support tickets.
+    expect: {verdict: refuse, kinds: [employer, strict], reason_contains: "doesn't",
+             why: "recombined posting words must not deny anything"}
+  - name: a number the posting doesn't have
+    text: Vercel serves 1,000,000 developers. I resolved support tickets.
+    expect: {verdict: refuse, kinds: [employer, strict], reason_contains: "1,000,000",
+             why: "numbers about the employer come from the posting verbatim"}
+  - name: only about the employer
+    text: Vercel ships developer tools. This role focuses on developer experience.
+    expect: {verdict: refuse, kinds: [employer, employer], reason_contains: "why you fit",
+             why: "a letter must say why the person fits"}
+  - name: the person's own name
+    text: Morgan writes guides for front-end teams. I resolved support tickets.
+    expect: {verdict: refuse, kinds: [strict, strict], reason_contains: guides,
+             why: "a sentence naming the person is about them"}

@@ -183,6 +183,16 @@ def check_verifier(case: dict[str, Any], prof: dict[str, Any] | None = None) -> 
         except FabricationError as exc:
             problems = [str(exc)]
         found = [s["kind"] for s in outreach.checked_sentences(text, prof, job, contact)]
+    elif case.get("letter"):
+        # A cover letter's checks (G7), minus its structure: these are short
+        # passages, not whole letters.
+        from jsa import letter
+        structure = ("no greeting", "no closing", "does not name")
+        problems = [p for p in letter.check(text, prof, job, str(case.get("posting") or ""))
+                    if not p.startswith(structure) and "words, outside" not in p]
+        ident = prof.get("identity") or {}
+        found = [s.kind for s in subject.sort(case["text"], job["company"],
+                                              [ident.get("full_name") or ""])]
     else:
         problems = answers.check(text, prof, job, min_words=1, max_words=400,
                                  posting_text=str(case.get("posting") or ""))

@@ -600,8 +600,8 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         con = connect()
         try:
             row = con.execute(
-                "SELECT j.id, j.title, j.location, c.name AS company FROM jobs j "
-                "LEFT JOIN companies c ON c.id = j.company_id WHERE j.id = ?",
+                "SELECT j.id, j.title, j.location, j.description, c.name AS company "
+                "FROM jobs j LEFT JOIN companies c ON c.id = j.company_id WHERE j.id = ?",
                 (job_id,)).fetchone()
         finally:
             con.close()
@@ -633,8 +633,11 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             # of words nothing in the profile supports. ADR 0007.
             from .. import letter
             text = chr(10).join(p["text"] for p in info["paragraphs"])
-            info["letter"] = {"problems": letter.check(text, prof,
-                                                       job_row(row["job_id"]))}
+            job = job_row(row["job_id"])
+            # The same excerpt the drafter was shown, when letters use the
+            # sentence-by-sentence check (G7); otherwise the whole-text rule.
+            excerpt = letter.posting_excerpt(job) if letter.SUBJECT_AWARE else None
+            info["letter"] = {"problems": letter.check(text, prof, job, excerpt)}
             return info
         info["compare"] = review.compare(
             info["paragraphs"], _json_list(row["bullet_ids"]), prof)

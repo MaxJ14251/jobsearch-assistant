@@ -16,6 +16,30 @@ POSTING = "Riverton Grid builds microgrid orchestration software for utilities."
 EMPLOYER = "Riverton Grid builds microgrid orchestration software for utilities. "
 
 
+class TestLetterReport(unittest.TestCase):
+    """--letters (G7): the old and new checks on saved cover letters."""
+
+    def test_a_letter_passing_only_the_new_check_is_listed_for_reading(self):
+        from tests.test_letter import GOOD as LETTER, JOB, PROFILE
+        posting = ("Replit builds a browser-based development platform used by "
+                   "millions of developers.")
+        job = dict(JOB, description=posting)
+        with_employer = LETTER.replace("language models.\n",
+                                       "language models. " + posting + "\n", 1)
+        claim = LETTER.replace("language models.\n", "language models. I built a "
+                               "browser-based development platform.\n", 1)
+        saved = [{"job_id": 1, "job": job, "excerpt": posting, "letter": True,
+                  "first": {"letter": with_employer}, "retried": {"letter": with_employer}},
+                 {"job_id": 2, "job": job, "excerpt": posting, "letter": True,
+                  "first": {"letter": claim}, "retried": {"letter": claim}}]
+        out = io.StringIO()
+        with redirect_stdout(out):
+            counts, newly, _ = measure_verifier.report_letters(PROFILE, saved)
+        self.assertEqual((counts["old_first"], counts["new_first"]), (0, 1))
+        self.assertEqual([(j, label) for j, label, _ in newly], [(1, "first"), (1, "after")])
+        self.assertIn("Letters passing ONLY under the new check: 2", out.getvalue())
+
+
 class TestReport(unittest.TestCase):
     def test_counts_and_newly_passing_drafts(self):
         job = {"id": 1, "title": "Support Engineer", "company": "Riverton Grid",

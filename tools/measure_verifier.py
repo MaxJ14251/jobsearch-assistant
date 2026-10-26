@@ -4,6 +4,7 @@
     .venv/Scripts/python tools/measure_verifier.py --questions-from SAVED.json [...]
     .venv/Scripts/python tools/measure_verifier.py --recheck SAVED.json
     add --written 421,484 to also draft those jobs' written answers
+    .venv/Scripts/python tools/measure_verifier.py --letters 421,484 (cover letters, G7)
 
 `--questions` / `--questions-from` make PAID model calls: one per question
 (three angles: about the role, about a project, about the company), plus one
@@ -23,6 +24,13 @@ draft is counted by shape (about the employer, about you, mixed, unclear).
 Then the drafts that pass ONLY under the new check are printed in full, for
 you to read: any that says something about you that isn't in your profile is
 a leak, and the switch stays off.
+
+`--letters` drafts a cover letter for each job with the sentence-split prompt
+(letter.build, switch on): one PAID call per job plus one retry when the new
+check refuses it. Each letter is checked the old way (whole text) and the new
+way (sentence by sentence, against the excerpt the drafter saw), and the
+letters that pass ONLY under the new check are printed for you to read.
+The bullets are the job's approved resume's (else selection's, no model).
 
 `--recheck` re-runs the checks on a saved file, with no model call.
 """
@@ -195,6 +203,77 @@ def report(profile, saved):
     return counts, newly, shape
 
 
+def draft_letters(profile, con, job_ids):
+    """One letter per job, split prompt, production's retry (G7)."""
+    from types import SimpleNamespace
+
+    from jsa.tailor import pick_summary, scrub_prompt
+    saved = []
+    for job_id in job_ids:
+        job = _job(con, job_id)
+        if job is None:
+            print(f"no job {job_id}; skipped")
+            continue
+        summary = pick_summary(profile, job.get("track") or "", job.get("description") or "",
+                               job.get("title") or "")
+        draft = SimpleNamespace(summary=(summary or {}).get("text") or "",
+                                bullets=answers.evidence(con, job, profile))
+        prompt, system, excerpt = letter.build(job, profile, draft, split=True)
+        scrub_prompt(prompt, profile)
+
+        def ask(text, temperature):
+            done = llm.complete(text, system=system, max_tokens=700, temperature=temperature,
+                                thinking=False, purpose="letter")
+            return "\n".join(line.strip() for line in (done.text or "").strip().splitlines())
+
+        first = ask(prompt, 0.4)
+        after = first
+        problems = letter.check(first, profile, job, excerpt)
+        if problems:
+            retry = letter.retry_prompt(prompt, first, problems, profile, job, excerpt)
+            scrub_prompt(retry, profile)
+            after = ask(retry, 0.2)
+        saved.append({"job_id": job_id, "question": "(cover letter)", "job": job,
+                      "excerpt": excerpt, "first": {"letter": first},
+                      "retried": {"letter": after}, "prompt": "split", "letter": True})
+        print(f"drafted the letter of {job_id}")
+    return saved
+
+
+def report_letters(profile, saved):
+    """Old vs new check, first draft and after the retry; the newly passing."""
+    items = [i for i in saved if i.get("letter")]
+    if not items:
+        return None
+    c = Counter()
+    shape = Counter()
+    newly = []
+    for item in items:
+        job, excerpt = item["job"], item["excerpt"]
+        for label, text in (("first", item["first"]["letter"]),
+                            ("after", item["retried"]["letter"])):
+            old = letter.check(text, profile, job)
+            new = letter.check(text, profile, job, excerpt)
+            c[f"old_{label}"] += int(not old)
+            c[f"new_{label}"] += int(not new)
+            if label == "first":
+                c["length_only"] += int(length_only(new))
+                shape += shapes(text, profile, job, excerpt)
+            if old and not new:
+                newly.append((item["job_id"], label, text))
+    n = len(items)
+    print(f"\nCover letters ({n}): old check {c['old_first']}->{c['old_after']}/{n}, "
+          f"new check {c['new_first']}->{c['new_after']}/{n} (first draft -> after one "
+          f"retry); refused only for length {c['length_only']}")
+    print("Sentences in the first drafts: " + ", ".join(
+        f"{name} {shape[name]}" for name in ("employer", "about you", "mixed", "unclear")))
+    print(f"\nLetters passing ONLY under the new check: {len(newly)}. Read each; any "
+          "sentence that says something about you that isn't in your profile is a leak.\n")
+    for job_id, label, text in newly:
+        print(f"--- job {job_id}, {label} ---\n{text}\n")
+    return c, newly, shape
+
+
 def _rows_from(path):
     saved = json.loads(Path(path).read_text(encoding="utf-8"))
     seen, rows = set(), []
@@ -210,20 +289,28 @@ def _rows_from(path):
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    group = parser.add_mutually_exclusive_group(required=True)
+    group = parser.add_mutually_exclusive_group()
     group.add_argument("--questions", help="file of `job_id | question` lines (paid calls)")
     group.add_argument("--questions-from", help="the questions of a saved run (paid calls)")
     group.add_argument("--recheck", help="a saved measure file; no model call")
     parser.add_argument("--prompt", choices=["split", "old"], default="split")
     parser.add_argument("--written", default="", help="job ids for written answers, e.g. 421,484")
+    parser.add_argument("--letters", default="", help="job ids for cover letters, e.g. 421,484")
     args = parser.parse_args()
+    if not (args.questions or args.questions_from or args.recheck or args.letters):
+        parser.error("give --questions, --questions-from, --recheck or --letters")
     config.load_dotenv()
     profile = load_profile()
     if args.recheck:
-        report(profile, json.loads(Path(args.recheck).read_text(encoding="utf-8")))
+        saved = json.loads(Path(args.recheck).read_text(encoding="utf-8"))
+        if any(not i.get("letter") for i in saved):
+            report(profile, [i for i in saved if not i.get("letter")])
+        report_letters(profile, saved)
         return 0
     if args.questions_from:
         rows = _rows_from(args.questions_from)
+    elif not args.questions:
+        rows = []
     else:
         rows = []
         for line in Path(args.questions).read_text(encoding="utf-8").splitlines():
@@ -236,6 +323,8 @@ def main() -> int:
     try:
         saved = draft(profile, con, rows, split=args.prompt == "split")
         saved += draft_written(profile, con, written)
+        saved += draft_letters(profile, con,
+                               [int(x) for x in args.letters.split(",") if x.strip()])
     finally:
         llm.recorder = previous
         con.close()
@@ -245,7 +334,9 @@ def main() -> int:
         out = out.with_name(out.stem + f"-{dt.datetime.now():%H%M%S}.json")
     out.write_text(json.dumps(saved, indent=1), encoding="utf-8")
     print(f"saved the drafts to {out} (gitignored; yours, never committed)")
-    report(profile, saved)
+    if any(not i.get("letter") for i in saved):
+        report(profile, [i for i in saved if not i.get("letter")])
+    report_letters(profile, saved)
     return 0
 
 
