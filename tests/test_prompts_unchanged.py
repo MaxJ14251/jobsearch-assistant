@@ -32,6 +32,10 @@ PINNED = {
     "letter_prompt": "fe52424a87f61fca2e68f5a6bfb3d0d6253c4edd87dcd5f81369f762e3e9e309",
     "letter_system": "a02934017633301f36c6f463ad428ccbc2e9be314f25af332183fb667e2041cf",
     "letter_retry": "5ef25927fee068b782a389a917a9995ec3ec701da6d94a4056a1645029f3971e",
+    # Captured 2026-10-26, before G8 changed outreach.py (outreach.SUBJECT_AWARE off).
+    "outreach_prompt": "d291afd4be85980e62d50672f46b25ba1b5e1c5a702e0ab510542fd3ebaabd91",
+    "outreach_system": "db121d4b9a868eefc63ea94ff1588ff38c0290c335fa6f8800fb15749bc5d318",
+    "outreach_retry": "c9fdf963cc86c143cd9ea892f11e09bf998735142354d714dc8f1cb918777295",
 }
 
 
@@ -81,6 +85,27 @@ def capture(case) -> dict:
         letter.write(job, case.profile, draft)
     seen["letter_prompt"], seen["letter_system"] = letter_calls[0]
     seen["letter_retry"] = letter_calls[1][0]
+    # Outreach (G8): its own switch, outreach.SUBJECT_AWARE. A referral ask on
+    # LinkedIn's message channel, to a fictional contact, refused twice.
+    from jsa import outreach
+    contact_id = outreach.add_contact(case.con, name="Jordan Example",
+                                      title="Engineering Manager", company_id=1)
+    outreach_calls = []
+
+    def fake_outreach(prompt, **k):
+        outreach_calls.append((prompt, k.get("system") or ""))
+        return Completion(text="Hi Jordan, I led synergy initiatives at Google.",
+                          usage=Usage(model="t"))
+
+    with mock.patch("jsa.outreach.llm.complete", side_effect=fake_outreach), \
+            mock.patch.object(outreach, "SUBJECT_AWARE", False, create=True):
+        try:
+            outreach.draft(case.con, case.profile, contact_id=contact_id,
+                           channel="linkedin_dm", job_id=1)
+        except Exception:  # noqa: BLE001 - refused, as intended: the prompts are what count
+            pass
+    seen["outreach_prompt"], seen["outreach_system"] = outreach_calls[0]
+    seen["outreach_retry"] = outreach_calls[1][0]
     sys.path.insert(0, str(ROOT / "tools"))
     import measure_verifier
     job = {k: job.get(k) for k in ("id", "title", "company", "location", "track",
