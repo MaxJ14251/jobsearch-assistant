@@ -133,3 +133,40 @@ employer or the role may also use the words of the posting the drafter was
 given. It applies to written answers and suggestions only, behind a switch
 that is off until measured. Cover letters still use this ADR's whole-text
 rule.
+
+## Decision 3 amended for sentences about the employer, measured, left off, 2026-10-25 (G7)
+
+Approved by the owner before any code: behind `letter.SUBJECT_AWARE`, a
+letter may use the words of the posting excerpt it was shown (the fenced
+2,000 characters suggestions use) in sentences positively about the
+employer or the role (ADR 0035's sorter and limits: no first person or
+stand-in, no negation, numbers only as the posting gives them, at most 60%
+of the sentences, at least one about the candidate). Every sentence about
+the candidate is held exactly as decision 3 holds it, and decision 4's
+degree, unfinished-work and do-not-claim checks cover the whole letter.
+The dashboard's re-check uses the same excerpt. Off, every letter prompt,
+system text and retry is byte-identical (`tests/test_prompts_unchanged.py`).
+
+**Measured** on 10 of the owner's jobs, one letter each with the split
+prompt and one retry when refused (14 model calls,
+`tools/measure_verifier.py --letters`; drafts kept locally):
+
+| check | first draft | after one retry |
+|---|---|---|
+| decision 3 (whole letter) | 0 of 10 | 0 of 10 |
+| sentence by sentence | 1 of 10 | 2 of 10 |
+
+Sentences in the first drafts: 24 about the employer, 55 about the
+candidate, 11 mixed, 23 unclear. After the retry, 17 refusals were
+sentences about the candidate using words the profile doesn't (rewordings),
+2 were sentences about the employer, none was for length. The owner read
+every sentence that passed only because of the change (six, in two
+letters) and found no claim about them. One recast the posting's "you will
+develop..." (the new hire) as "Your team develops...": not a claim about
+the candidate, but a bent reading of the posting.
+
+**Decision:** left off, by the owner. The gain is small (0 to 2 of 10), it
+adds sentences about the employer, and the real limit is the letter
+rewording the candidate's own material. A prompt that keeps sentences about
+the candidate in the profile's words would be its own change, measured the
+same way.

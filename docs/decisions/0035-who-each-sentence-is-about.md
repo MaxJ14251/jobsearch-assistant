@@ -201,3 +201,11 @@ the exception: `subject.ATTITUDE_FRAME = False`, so "I'm drawn to Vercel's
 focus on…" is checked strictly, like every sentence with a first-person
 word. The mechanism and its tests stay (with the frame passed explicitly);
 True brings it back. The eval case for it now expects a refusal.
+
+## Cover letters, 2026-10-25 (G7)
+
+The same sorter and limits, behind `letter.SUBJECT_AWARE`, were measured on
+10 cover letters: 2 of 10 passed after one retry (0 of 10 under the
+whole-letter rule), with no leak in the owner's review. Left off: letters
+fail mostly on sentences about the candidate that reword the profile, which
+this check holds as strictly as before. Details in ADR 0007's dated note.
