@@ -8,6 +8,10 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Changed
 
+- **Outreach drafts keep sentences about the recipient apart from sentences
+  about you**, and keep your facts' own wording: 2 of 9 measured messages
+  passed the unchanged check, against 0 of 18 before
+  ([ADR 0010](docs/decisions/0010-outreach-verification.md)).
 - **Any OpenAI-compatible model provider**, not only NVIDIA: set
   `JSA_LLM_BASE_URL`, `JSA_LLM_API_KEY` and `JSA_LLM_MODELS` (and
   `JSA_LLM_ENRICH_MODELS`). Unset, every request is exactly as before.

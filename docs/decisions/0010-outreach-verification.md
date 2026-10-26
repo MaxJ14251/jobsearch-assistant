@@ -162,3 +162,32 @@ passed the old check and 0 the new**; no message was produced. So closing
 the holes cost no message on this run, and nothing passed for the owner to
 read. The drafts fail on the person's own words before any hole matters,
 as the first run of this ADR found.
+
+## A prompt that keeps the two apart, measured and switched on, 2026-10-26 (G8)
+
+Plan 38's check is unchanged. `outreach.SUBJECT_AWARE` changes only the
+prompt and the retry: two kinds of sentence, never mixed (about the
+recipient: their name, "You", "Your team" or the company, only their title
+and company and the job's stack; about the sender: "I" or "My", the
+profile's facts in their own words), and a retry that asks to split a mixed
+sentence. Off, every prompt is byte-identical (pinned).
+
+**Measured** on the same 3 jobs and 3 channels as 2026-10-10 (referral asks
+to a fictional contact; `tools/measure_verifier.py --outreach`; 27 model
+calls: 17 drafts and retries, 10 shortening; drafts kept locally):
+
+| prompt | passing the full check |
+|---|---|
+| plan 38's, 2026-10-10 (2 attempts each) | 0 of 18 |
+| split, first draft | 1 of 9 |
+| split, after one retry | 2 of 9 |
+
+Both that passed were LinkedIn connection notes; the longer messages and
+emails still reworded the sender's material. The passing notes quote the
+profile's bullets almost word for word, which is what the new "keep their
+words" instruction asks for; the check would have passed them under either
+prompt. Sentences in the first drafts: 11 about the recipient, 37 strict.
+The owner read every passing message and found no claim about them.
+
+**Decision:** switched on by the owner. The check is untouched, so nothing it
+refuses can pass; the cost is messages that lean on quoting the bullets.

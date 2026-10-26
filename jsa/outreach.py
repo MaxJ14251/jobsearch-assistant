@@ -77,11 +77,12 @@ name is added afterwards."""
 
 
 # --- sentences about the recipient kept apart (G8) --------------------------------
-# Off until measured, like answers.SUBJECT_AWARE and letter.SUBJECT_AWARE. It
-# changes the prompt and the retry only: the check (checked_sentences, plan 38)
-# already sorts each sentence and holds the sender's to the profile. Off,
-# every prompt is byte-identical (tests/test_prompts_unchanged.py).
-SUBJECT_AWARE = False
+# It changes the prompt and the retry only: the check (checked_sentences, plan
+# 38) already sorts each sentence and holds the sender's to the profile. Off,
+# every prompt is byte-identical (tests/test_prompts_unchanged.py). On since
+# 2026-10-26: 2 of 9 messages passed against 0 of 18 with the old prompt, and
+# the owner found no claim about them in the passing ones (ADR 0010).
+SUBJECT_AWARE = True
 
 SYSTEM_SPLIT = SYSTEM + (
     " Sentences about the recipient and sentences about the sender are kept "

@@ -1,6 +1,6 @@
-"""Outreach with the split prompt switched on (G8).
+"""Outreach with the split prompt (G8), on since 2026-10-26.
 
-Off (the default), every outreach prompt and retry is byte-identical
+Off, every outreach prompt and retry is byte-identical
 (tests/test_prompts_unchanged.py). On, only the prompt and the retry change:
 the check is plan 38's, untouched, so a claim about the sender in the
 recipient's or the stack's words is still refused.
@@ -85,9 +85,11 @@ class TestTheRetry(Split):
         self.assertEqual((unsupported, rules), ([], []))
 
 
-class TestTheSwitchStartsOff(unittest.TestCase):
-    def test_off_until_measured(self):
-        self.assertIs(outreach.SUBJECT_AWARE, False)
+class TestTheSwitchIsOn(unittest.TestCase):
+    def test_on_since_the_measurement(self):
+        """Switched on 2026-10-26 by the owner after the measurement and leak
+        review (ADR 0010). False brings back the old prompt byte for byte."""
+        self.assertIs(outreach.SUBJECT_AWARE, True)
 
 
 if __name__ == "__main__":
