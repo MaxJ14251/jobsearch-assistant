@@ -76,6 +76,113 @@ career. No claims beyond the facts above. Sign off without a name — the sender
 name is added afterwards."""
 
 
+# --- sentences about the recipient kept apart (G8) --------------------------------
+# Off until measured, like answers.SUBJECT_AWARE and letter.SUBJECT_AWARE. It
+# changes the prompt and the retry only: the check (checked_sentences, plan 38)
+# already sorts each sentence and holds the sender's to the profile. Off,
+# every prompt is byte-identical (tests/test_prompts_unchanged.py).
+SUBJECT_AWARE = False
+
+SYSTEM_SPLIT = SYSTEM + (
+    " Sentences about the recipient and sentences about the sender are kept "
+    "apart, never mixed in one sentence, and the sender's facts keep their own "
+    "wording.")
+
+PROMPT_SPLIT = """Draft a {purpose} message for {channel}.
+
+HARD LIMIT: {limit} characters. Count them. Going over makes the message unusable.
+
+ABOUT THE SENDER — use only these facts, in their own words, and add no others:
+{bullets}
+
+THE ROLE THEY ARE INTERESTED IN:
+{role}
+
+WHAT THE POSTING SAYS (context only: never copy its wording into the message):
+{posting}
+
+ABOUT THE RECIPIENT:
+{recipient}
+
+Two kinds of sentence, never mixed in one sentence:
+- About the recipient, their team or company: it starts with their name, "You",
+  "Your team" or the company's name; it uses only the recipient's title and
+  company and the technologies named under THE ROLE; it never mentions the
+  sender (no I, my, me, we); it never says what they don't do; no numbers.
+- About the sender: it starts with "I" or "My" and says only what the facts
+  above say, keeping their words: don't paraphrase them.
+Never write "my work matches your..." or "like you": write two sentences. At
+most two sentences about the recipient; the rest is about the sender and the
+ask. No flattery. Sign off without a name — the sender's name is added
+afterwards."""
+
+
+def build(profile: dict[str, Any], job: Any, contact: Any, *, channel: str,
+          purpose: str, split: bool | None = None) -> tuple[str, str]:
+    """(prompt, system) for one message. `split` defaults to SUBJECT_AWARE;
+    off, today's prompt byte for byte. Shared by draft() and the measurement
+    tool, so what is measured is what production sends."""
+    split = SUBJECT_AWARE if split is None else split
+    role = (
+        f"{job['title']} at {job['company']}." if job
+        else f"Roles at {contact['company_name'] or 'their company'}."
+    )
+    if job and job["tech_stack"]:
+        import json
+        stack = json.loads(job["tech_stack"])
+        if stack:
+            role += f" The posting centres on {', '.join(stack[:4])}."
+
+    description = job["description"] if job else ""
+    # role_kind(title, track) lets the title decide and falls back to the
+    # track. Hardcoding "engineering" meant the fallback was always wrong for
+    # a posting the tracker had already classified as something else.
+    track = (job["track"] if job and job["track"] else "engineering")
+    bullets = select_bullets(profile, description, track, limit=3,
+                             title=job["title"] if job else "",
+                             # A three-line note is not a resume.
+                             keep_work_history=False, keep_project=False)
+    limit = CHANNEL_LIMITS.get(channel, 2000)
+    prompt = (PROMPT_SPLIT if split else PROMPT).format(
+        purpose=purpose.replace("_", " "), channel=channel.replace("_", " "),
+        limit=limit,
+        bullets="\n".join(f"- {b.text}" for b in bullets),
+        role=role,
+        recipient=f"{contact['name']}, {contact['title'] or 'unknown role'}, "
+                  f"at {contact['company_name'] or 'unknown company'}. "
+                  f"Address them as {salutation(contact['name'])}.",
+        posting=posting_text.visible(description, MAX_POSTING_CHARS).text
+                or "(not available)",
+    )
+    return prompt, (SYSTEM_SPLIT if split else SYSTEM)
+
+
+def retry_prompt(prompt: str, found: list[dict[str, Any]], unsupported: list[str],
+                 rules: list[str], split: bool) -> str:
+    """Name the words, and which sentence they were in, rather than re-rolling
+    blind, exactly as a cover letter does. Every real draft of the first run
+    tripped on ordinary words like "quick" and "worth"; the ones worth failing
+    over are claims like "stakeholders" and "accustomed", and this tells the
+    model which it used."""
+    # Which sentence, too (plan 38): "zendesk" is fine about them and not
+    # about you, so the word alone doesn't say what to fix.
+    where = "; ".join(
+        f"sentence {s['index']} (\"{s['text'][:60]}\"): {', '.join(s['refused'][:6])}"
+        for s in found if s["refused"])
+    retry = (
+        prompt + "\n\nYour previous draft was rejected for using words "
+        "that nothing in the facts above supports. Do not use any of "
+        "these words: " + ", ".join(unsupported)
+        + (". Where they were: " + where if where else "")
+        + (". Also: " + "; ".join(rules[:3]) if rules else "")
+        + ".\nRewrite it, saying only what the facts above say.")
+    if split:
+        retry += (" Keep sentences about the recipient (starting with their name, "
+                  "You, Your team or the company) apart from sentences about the "
+                  "sender (starting with I or My), and keep the facts' own words.")
+    return retry
+
+
 # Telling a model to count characters does not work. Measured on ten real
 # linkedin_connect drafts against the 300-character limit, with "HARD LIMIT:
 # 300 characters. Count them." already prominent in the prompt: min 432,
@@ -416,6 +523,54 @@ def enforce_limit(body: str, channel: str) -> str:
     return body
 
 
+def attempts(prompt: str, system: str, profile: dict[str, Any], job_row: Any,
+             contact: Any, *, limit: int, models: list[str] | None = None,
+             tries: int = VERIFY_ATTEMPTS, split: bool | None = None
+             ) -> tuple[str, list[str], list[str], list[str]]:
+    """Draft, shorten to the limit, check, and retry naming what failed, up to
+    `tries` drafts. Returns (last body, its unsupported words, its rule
+    problems, every body drafted). Shared by draft() and the measurement."""
+    split = SUBJECT_AWARE if split is None else split
+    attempt_prompt = prompt
+    body = ""
+    unsupported: list[str] = []
+    rules: list[str] = []
+    bodies: list[str] = []
+    for attempt in range(tries):
+        result = llm.complete(
+            attempt_prompt, system=system, models=models, max_tokens=600,
+            temperature=0.4 if attempt == 0 else 0.2, thinking=False,
+            purpose="outreach",
+        )
+        body = re.sub(r"\n{3,}", "\n\n", result.text.strip())
+
+        # The model cannot count characters, so measure and hand the number
+        # back. Bounded: if it still cannot get under the limit, that is an
+        # honest failure. Truncating mid-sentence would be worse than none.
+        for _ in range(SHORTEN_ATTEMPTS):
+            if len(body) <= limit:
+                break
+            retry = llm.complete(
+                SHORTEN.format(actual=len(body), limit=limit, body=body),
+                system=system, models=models, max_tokens=600,
+                temperature=0.3, thinking=False, purpose="outreach-shorten",
+            )
+            shorter = re.sub(r"\n{3,}", "\n\n", retry.text.strip())
+            if not shorter:
+                break
+            body = shorter
+
+        bodies.append(body)
+        found = checked_sentences(body, profile, job_row, contact)
+        unsupported = sorted({w for s in found for w in s["refused"]})
+        rules = [p for s in found for p in s["problems"]]
+        if not unsupported and not rules:
+            break
+        attempt_prompt = retry_prompt(prompt, found, unsupported, rules, split)
+        scrub_prompt(attempt_prompt, profile)
+    return body, unsupported, rules, bodies
+
+
 def draft(
     con: sqlite3.Connection, profile: dict[str, Any], *, contact_id: int,
     channel: Channel = "linkedin_connect", purpose: Purpose = "referral_ask",
@@ -438,96 +593,14 @@ def draft(
             (job_id,),
         ).fetchone()
 
-    role = (
-        f"{job['title']} at {job['company']}." if job
-        else f"Roles at {contact['company_name'] or 'their company'}."
-    )
-    if job and job["tech_stack"]:
-        import json
-        stack = json.loads(job["tech_stack"])
-        if stack:
-            role += f" The posting centres on {', '.join(stack[:4])}."
-
-    description = job["description"] if job else ""
-    # role_kind(title, track) lets the title decide and falls back to the
-    # track. Hardcoding "engineering" meant the fallback was always wrong for
-    # a posting the tracker had already classified as something else.
-    track = (job["track"] if job and job["track"] else "engineering")
-    bullets = select_bullets(profile, description, track, limit=3,
-                             title=job["title"] if job else "",
-                             # A three-line note is not a resume.
-                             keep_work_history=False, keep_project=False)
-    limit = CHANNEL_LIMITS.get(channel, 2000)
-
-    prompt = PROMPT.format(
-        purpose=purpose.replace("_", " "), channel=channel.replace("_", " "),
-        limit=limit,
-        bullets="\n".join(f"- {b.text}" for b in bullets),
-        role=role,
-        recipient=f"{contact['name']}, {contact['title'] or 'unknown role'}, "
-                  f"at {contact['company_name'] or 'unknown company'}. "
-                  f"Address them as {salutation(contact['name'])}.",
-        posting=posting_text.visible(description, MAX_POSTING_CHARS).text
-                or "(not available)",
-    )
+    prompt, system = build(profile, job, contact, channel=channel, purpose=purpose)
     scrub_prompt(prompt, profile)
 
     job_row = dict(job) if job else None
-    attempt_prompt = prompt
-    body = ""
-    unsupported: list[str] = []
-    # Accumulated across attempts. Naming only the latest round's words let
-    # the model swap one unsupported word for a different one each time:
-    # measured 0 of 9 real drafts converging, while the FIRST draft of each
-    # had been one or two words away.
-    banned_so_far: set[str] = set()
-
-    for attempt in range(VERIFY_ATTEMPTS):
-        result = llm.complete(
-            attempt_prompt, system=SYSTEM, models=models, max_tokens=600,
-            temperature=0.4 if attempt == 0 else 0.2, thinking=False,
-            purpose="outreach",
-        )
-        body = re.sub(r"\n{3,}", "\n\n", result.text.strip())
-
-        # The model cannot count characters, so measure and hand the number
-        # back. Bounded: if it still cannot get under the limit, that is an
-        # honest failure. Truncating mid-sentence would be worse than none.
-        for _ in range(SHORTEN_ATTEMPTS):
-            if len(body) <= limit:
-                break
-            retry = llm.complete(
-                SHORTEN.format(actual=len(body), limit=limit, body=body),
-                system=SYSTEM, models=models, max_tokens=600,
-                temperature=0.3, thinking=False, purpose="outreach-shorten",
-            )
-            shorter = re.sub(r"\n{3,}", "\n\n", retry.text.strip())
-            if not shorter:
-                break
-            body = shorter
-
-        found = checked_sentences(body, profile, job_row, contact)
-        unsupported = sorted({w for s in found for w in s["refused"]})
-        rules = [p for s in found for p in s["problems"]]
-        if not unsupported and not rules:
-            break
-        # Which sentence, too (plan 38): "zendesk" is fine about them and not
-        # about you, so the word alone doesn't say what to fix.
-        where = "; ".join(
-            f"sentence {s['index']} (\"{s['text'][:60]}\"): {', '.join(s['refused'][:6])}"
-            for s in found if s["refused"])
-        # Name the words rather than re-rolling blind, exactly as a cover
-        # letter does. Every real draft of the first run tripped on ordinary
-        # words like "quick" and "worth"; the ones worth failing over are
-        # claims like "stakeholders" and "accustomed", and this tells the
-        # model which it used.
-        attempt_prompt = (
-            prompt + "\n\nYour previous draft was rejected for using words "
-            "that nothing in the facts above supports. Do not use any of "
-            "these words: " + ", ".join(unsupported)
-            + (". Where they were: " + where if where else "")
-            + (". Also: " + "; ".join(rules[:3]) if rules else "")
-            + ".\nRewrite it, saying only what the facts above say.")
+    limit = CHANNEL_LIMITS.get(channel, 2000)
+    body, unsupported, rules, _ = attempts(
+        prompt, system, profile, job_row, contact, limit=limit, models=models,
+        tries=VERIFY_ATTEMPTS)
 
     if rules and not unsupported:
         raise FabricationError(

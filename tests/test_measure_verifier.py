@@ -40,6 +40,24 @@ class TestLetterReport(unittest.TestCase):
         self.assertIn("Letters passing ONLY under the new check: 2", out.getvalue())
 
 
+class TestOutreachReport(unittest.TestCase):
+    """--outreach (G8): the full check on saved messages, signed as sent."""
+
+    def test_only_messages_passing_the_full_check_are_listed(self):
+        from tests.test_outreach_split import CONTACT, JOB, PROFILE
+        ok = "Hi Jordan, your team at Globex uses Zendesk. I resolved forty customer tickets a day."
+        claim = "I have used Zendesk for years."
+        saved = [{"job_id": 1, "channel": "linkedin_dm", "job": JOB, "contact": CONTACT,
+                  "first": claim, "after": ok, "outreach": True}]
+        out = io.StringIO()
+        with redirect_stdout(out):
+            counts, passing, shape = measure_verifier.report_outreach(PROFILE, saved)
+        self.assertEqual((counts["first"], counts["after"]), (0, 1))
+        self.assertEqual([(j, ch, label) for j, ch, label, _ in passing],
+                         [(1, "linkedin_dm", "after")])
+        self.assertIn("passing the full check 0->1/1", out.getvalue())
+
+
 class TestReport(unittest.TestCase):
     def test_counts_and_newly_passing_drafts(self):
         job = {"id": 1, "title": "Support Engineer", "company": "Riverton Grid",

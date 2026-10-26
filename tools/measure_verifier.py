@@ -5,6 +5,7 @@
     .venv/Scripts/python tools/measure_verifier.py --recheck SAVED.json
     add --written 421,484 to also draft those jobs' written answers
     .venv/Scripts/python tools/measure_verifier.py --letters 421,484 (cover letters, G7)
+    .venv/Scripts/python tools/measure_verifier.py --outreach 421,452,484 (G8)
 
 `--questions` / `--questions-from` make PAID model calls: one per question
 (three angles: about the role, about a project, about the company), plus one
@@ -31,6 +32,13 @@ check refuses it. Each letter is checked the old way (whole text) and the new
 way (sentence by sentence, against the excerpt the drafter saw), and the
 letters that pass ONLY under the new check are printed for you to read.
 The bullets are the job's approved resume's (else selection's, no model).
+
+`--outreach` drafts a referral ask for each job on each channel (LinkedIn
+connection note, LinkedIn message, email) to a fictional contact, with the
+split prompt (outreach.build, switch on) and production's loop for one retry
+(outreach.attempts): PAID calls, one draft per message plus shortening and
+the retry. Each is held to the full check (verify_message), and the passing
+messages are printed for you to read.
 
 `--recheck` re-runs the checks on a saved file, with no model call.
 """
@@ -274,6 +282,77 @@ def report_letters(profile, saved):
     return c, newly, shape
 
 
+CHANNELS = ("linkedin_connect", "linkedin_dm", "email")
+# A fictional recipient: no real person's name goes to the model (G8).
+RECIPIENT = {"name": "Jordan Example", "title": "Engineering Manager"}
+
+
+def draft_outreach(profile, con, job_ids):
+    """Each job x each channel: the split prompt, a first draft and at most
+    one retry (outreach.attempts, production's loop), to a fictional contact."""
+    from jsa import outreach
+    from jsa.tailor import scrub_prompt
+    saved = []
+    for job_id in job_ids:
+        job = answers.job_row(con, job_id)
+        if job is None:
+            print(f"no job {job_id}; skipped")
+            continue
+        contact = dict(RECIPIENT, company_name=job.get("company"))
+        for channel in CHANNELS:
+            prompt, system = outreach.build(profile, job, contact, channel=channel,
+                                            purpose="referral_ask", split=True)
+            scrub_prompt(prompt, profile)
+            limit = outreach.CHANNEL_LIMITS.get(channel, 2000)
+            _, _, _, bodies = outreach.attempts(prompt, system, profile, job, contact,
+                                                limit=limit, tries=2, split=True)
+            keep = {k: job.get(k) for k in ("id", "title", "company", "track",
+                                             "description", "tech_stack")}
+            saved.append({"job_id": job_id, "channel": channel, "job": keep,
+                          "contact": contact, "first": bodies[0], "after": bodies[-1],
+                          "outreach": True})
+            print(f"drafted {channel} for {job_id}")
+    return saved
+
+
+def report_outreach(profile, saved):
+    """Passing the full check (verify_message, signed as production signs),
+    first draft and after one retry; sentence shapes; the passing ones."""
+    from jsa import outreach
+    from jsa.tailor import FabricationError
+    items = [i for i in saved if i.get("outreach")]
+    if not items:
+        return None
+    c = Counter()
+    shape = Counter()
+    passing = []
+    for item in items:
+        job, contact = item["job"], item["contact"]
+        limit = outreach.CHANNEL_LIMITS.get(item["channel"], 2000)
+        for label in ("first", "after"):
+            body = outreach.sign(item[label], profile)
+            try:
+                outreach.verify_message(body, profile, job=job, contact=contact)
+                ok = len(body) <= limit
+            except FabricationError:
+                ok = False
+            c[label] += int(ok)
+            if ok:
+                passing.append((item["job_id"], item["channel"], label, item[label]))
+        for s in outreach.checked_sentences(item["first"], profile, job, contact):
+            shape[s["kind"]] += 1
+    n = len(items)
+    print(f"\nOutreach ({n} messages): passing the full check {c['first']}->{c['after']}/{n} "
+          "(first draft -> after one retry)")
+    print("Sentences in the first drafts: " + ", ".join(
+        f"{k} {shape[k]}" for k in ("recipient", "strict")))
+    print(f"\nPassing messages: {len(passing)}. Read each; any sentence that says "
+          "something about you that isn't in your profile is a leak.\n")
+    for job_id, channel, label, body in passing:
+        print(f"--- job {job_id}, {channel}, {label} ---\n{body}\n")
+    return c, passing, shape
+
+
 def _rows_from(path):
     saved = json.loads(Path(path).read_text(encoding="utf-8"))
     seen, rows = set(), []
@@ -296,16 +375,20 @@ def main() -> int:
     parser.add_argument("--prompt", choices=["split", "old"], default="split")
     parser.add_argument("--written", default="", help="job ids for written answers, e.g. 421,484")
     parser.add_argument("--letters", default="", help="job ids for cover letters, e.g. 421,484")
+    parser.add_argument("--outreach", default="", help="job ids for outreach, e.g. 421,452")
     args = parser.parse_args()
-    if not (args.questions or args.questions_from or args.recheck or args.letters):
-        parser.error("give --questions, --questions-from, --recheck or --letters")
+    if not (args.questions or args.questions_from or args.recheck or args.letters
+            or args.outreach):
+        parser.error("give --questions, --questions-from, --recheck, --letters or --outreach")
     config.load_dotenv()
     profile = load_profile()
     if args.recheck:
         saved = json.loads(Path(args.recheck).read_text(encoding="utf-8"))
-        if any(not i.get("letter") for i in saved):
-            report(profile, [i for i in saved if not i.get("letter")])
+        plain = [i for i in saved if not i.get("letter") and not i.get("outreach")]
+        if plain:
+            report(profile, plain)
         report_letters(profile, saved)
+        report_outreach(profile, saved)
         return 0
     if args.questions_from:
         rows = _rows_from(args.questions_from)
@@ -325,6 +408,8 @@ def main() -> int:
         saved += draft_written(profile, con, written)
         saved += draft_letters(profile, con,
                                [int(x) for x in args.letters.split(",") if x.strip()])
+        saved += draft_outreach(profile, con,
+                                [int(x) for x in args.outreach.split(",") if x.strip()])
     finally:
         llm.recorder = previous
         con.close()
@@ -334,9 +419,11 @@ def main() -> int:
         out = out.with_name(out.stem + f"-{dt.datetime.now():%H%M%S}.json")
     out.write_text(json.dumps(saved, indent=1), encoding="utf-8")
     print(f"saved the drafts to {out} (gitignored; yours, never committed)")
-    if any(not i.get("letter") for i in saved):
-        report(profile, [i for i in saved if not i.get("letter")])
+    plain = [i for i in saved if not i.get("letter") and not i.get("outreach")]
+    if plain:
+        report(profile, plain)
     report_letters(profile, saved)
+    report_outreach(profile, saved)
     return 0
 
 
