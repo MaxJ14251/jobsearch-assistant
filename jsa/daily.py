@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from . import db
+from .words import plural
 
 STEPS = ("backup", "discover", "inbox")
 LOG_KEEP_DAYS = 30
@@ -75,10 +76,10 @@ def _discover(db_path: Path | None = None) -> Step:
     failed = [r.company for r in reports if str(r.status).startswith("FAIL")]
     new = sum(getattr(r, "new", 0) for r in reports)
     polled = sum(1 for r in reports if r.status == "ok" or str(r.status).startswith("FAIL"))
-    detail = f"{polled} feeds, {new} new posting(s)"
+    detail = f"{plural(polled, 'feed')}, {plural(new, 'new posting')}"
     if failed:
         return Step("discover", "failed",
-                    f"{detail}; {len(failed)} feed(s) failed: {', '.join(failed)}")
+                    f"{detail}; {plural(len(failed), 'feed')} failed: {', '.join(failed)}")
     return Step("discover", "ok", detail)
 
 
@@ -92,7 +93,7 @@ def _inbox(db_path: Path) -> Step:
         con.commit()
     finally:
         con.close()
-    return Step("inbox", "ok", f"{report.stored} new repl(ies)")
+    return Step("inbox", "ok", f"{plural(report.stored, 'new reply', 'new replies')}")
 
 
 def _run_step(name: str, db_path: Path) -> Step:
@@ -143,10 +144,10 @@ def _yesterday(con: sqlite3.Connection) -> dict[str, int]:
 
 
 def summary_line(summary: dict[str, Any]) -> str:
-    return (f"{summary.get('new_matches', 0)} new match(es) · "
-            f"{summary.get('replies', 0)} repl(ies) to confirm · "
-            f"{summary.get('due', 0)} follow-up(s) due · "
-            f"{summary.get('review', 0)} draft(s) waiting in Review")
+    return (f"{plural(summary.get('new_matches', 0), 'new match', 'new matches')} · "
+            f"{plural(summary.get('replies', 0), 'reply', 'replies')} to confirm · "
+            f"{plural(summary.get('due', 0), 'follow-up')} due · "
+            f"{plural(summary.get('review', 0), 'draft')} waiting in Review")
 
 
 # --- the run --------------------------------------------------------------------------
@@ -216,7 +217,7 @@ def report(result: Run) -> str:
     if calls.get("calls"):
         tokens = (f", {calls['tokens_in']:,} tokens in / {calls['tokens_out']:,} out"
                   if calls.get("tokens_in") or calls.get("tokens_out") else "")
-        lines.append(f"yesterday: {calls['calls']} model call(s){tokens} (jsa usage)")
+        lines.append(f"yesterday: {plural(calls['calls'], 'model call')}{tokens} (jsa usage)")
     lines.append("")
     lines.append("ok" if result.ok else
                  "FAILED: " + ", ".join(result.summary.get("failed") or []))

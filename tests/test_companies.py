@@ -86,7 +86,7 @@ class TestStoredReading(Tracker):
         con.commit()
         con.close()
         applied = db.upgrade(path)
-        self.assertIn("jobs.degree_level read for 1 posting(s)", applied)
+        self.assertIn("jobs.degree_level read for 1 posting", applied)
         con = db.connect(path)
         self.assertEqual(con.execute("SELECT degree_level FROM jobs").fetchone()[0], "masters")
         con.close()

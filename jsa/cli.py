@@ -17,6 +17,7 @@ from pathlib import Path
 
 from . import approvals, db, discover
 from .config import COMPANIES_PATH, DB_PATH, ConfigError, Preferences, load_profile
+from .words import plural
 
 
 def load_regions() -> dict[str, list[str]]:
@@ -85,7 +86,7 @@ def cmd_backup(args: argparse.Namespace) -> int:
         return 0
     if args.check:
         check = backup.check_live(DB_PATH)
-        print(f"checked {check.submitted_checked} sent document(s) against "
+        print(f"checked {plural(check.submitted_checked, 'sent document')} against "
               "the hashes recorded when they were sent")
         for problem in check.problems:
             print(f"  x {problem}")
@@ -99,7 +100,7 @@ def cmd_backup(args: argparse.Namespace) -> int:
     removed = backup.prune(root, {"manual": args.keep} if args.keep else None)
     print(f"copied to {path}")
     print(f"  {check.tables} tables, {check.rows} rows, {check.files} files, "
-          f"{check.submitted_checked} sent document(s) checked")
+          f"{plural(check.submitted_checked, 'sent document')} checked")
     if not check.ok:
         for problem in check.problems:
             print(f"  x {problem}")
@@ -107,7 +108,7 @@ def cmd_backup(args: argparse.Namespace) -> int:
         return 1
     print("  verified")
     if removed:
-        print(f"  removed {len(removed)} older copie(s) beyond the ones kept")
+        print(f"  removed {plural(len(removed), 'older copy', 'older copies')} beyond the ones kept")
     return 0
 
 
@@ -158,9 +159,9 @@ def cmd_pass(args: argparse.Namespace) -> int:
     finally:
         con.close()
     if args.undo:
-        print(f"job {args.job_id} is back in the matches ({n} cop(ies))")
+        print(f"job {args.job_id} is back in the matches ({plural(n, 'copy', 'copies')})")
     else:
-        print(f"passed job {args.job_id} ({n} cop(ies)); undo: jsa unpass {args.job_id}")
+        print(f"passed job {args.job_id} ({plural(n, 'copy', 'copies')}); undo: jsa unpass {args.job_id}")
     return 0
 
 
@@ -251,7 +252,7 @@ def cmd_learned(args: argparse.Namespace) -> int:
         con.close()
     if not learning.enabled(_profile_or_none()):
         print("Learning from swipes is off (ranking.learn_from_swipes: false).")
-    print(f"{model.signals} swipe(s): {model.saves} saved, {model.passes} passed.")
+    print(f"{plural(model.signals, 'swipe')}: {model.saves} saved, {model.passes} passed.")
     if not model.active:
         print(f"Learning starts after {learning.MIN_SIGNALS} swipes "
               f"({model.signals} so far). Nothing is nudged yet.")
@@ -284,7 +285,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             con.close()
 
     if report.blocking:
-        print(f"{len(report.blocking)} thing(s) to fix before this works:\n")
+        print(f"{plural(len(report.blocking), 'thing')} to fix before this works:\n")
         for finding in report.blocking:
             print(f"  x {finding.what}")
             print(f"      {finding.fix}")
@@ -292,7 +293,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                 print(f"      in {finding.where}")
             print()
     if report.advisory:
-        print(f"{len(report.advisory)} thing(s) worth knowing:\n")
+        print(f"{plural(len(report.advisory), 'thing')} worth knowing:\n")
         for finding in report.advisory:
             print(f"  - {finding.what}")
             print(f"      {finding.fix}")
@@ -329,12 +330,12 @@ def cmd_import_resume(args: argparse.Namespace) -> int:
     print(f"wrote {report.draft_path}")
     if report.warning:
         print(f"warning: {report.warning}", file=sys.stderr)
-    print(f"  imported {len(v.experience)} job(s), "
-          f"{len(v.projects)} project(s), {v.bullet_count} bullet(s), "
-          f"{len(v.certifications)} certification(s), "
-          f"{len(v.education)} school(s), {len(v.skills)} skill(s)")
+    print(f"  imported {plural(len(v.experience), 'job')}, "
+          f"{plural(len(v.projects), 'project')}, {plural(v.bullet_count, 'bullet')}, "
+          f"{plural(len(v.certifications), 'certification')}, "
+          f"{plural(len(v.education), 'school')}, {plural(len(v.skills), 'skill')}")
     if v.dropped:
-        print(f"  dropped {len(v.dropped)} item(s) the model did not "
+        print(f"  dropped {plural(len(v.dropped), 'item')} the model did not "
               "copy exactly (nothing is reworded into your profile):")
         for d in v.dropped:
             print(f"    - {d.where}: {d.what[:70]!r} -- {d.why}")
@@ -406,7 +407,7 @@ def cmd_discover(args: argparse.Namespace) -> int:
             f"new {r.new:>3}  filtered {r.rejected:>4}{dupes}  {r.status}"
         )
         total_new += r.new
-    print(f"\n{total_new} new listing(s) above score {args.min}. "
+    print(f"\n{plural(total_new, 'new listing')} above score {args.min}. "
           f"See them with `python -m jsa matches`.")
 
     # A transient failure on one large feed can halve the result set, and the
@@ -415,7 +416,7 @@ def cmd_discover(args: argparse.Namespace) -> int:
     # obviously a short run rather than a quiet one.
     failed = [r for r in reports if r.status.startswith("FAIL")]
     if failed:
-        print(f"\n!! {len(failed)} feed(s) FAILED this run — results are incomplete:")
+        print(f"\n!! {plural(len(failed), 'feed')} FAILED this run — results are incomplete:")
         for r in failed:
             print(f"     {r.company}: {r.status}")
         print("   Re-run `discover`, or `verify` to check whether the feed moved.")
@@ -435,7 +436,7 @@ def cmd_rescore(args: argparse.Namespace) -> int:
         con.commit()
     finally:
         con.close()
-    print(f"rescored {report.jobs} listing(s): pay found in {report.with_pay}, "
+    print(f"rescored {plural(report.jobs, 'listing')}: pay found in {report.with_pay}, "
           f"score changed for {report.changed}")
     if report.rejected_by_floor:
         print(f"  {report.rejected_by_floor} now score 0: pay below your floor")
@@ -530,7 +531,7 @@ def cmd_matches(args: argparse.Namespace) -> int:
             print(f"       · {reason}")
         for reason in row.get("reasons") or []:          # learned (plan 19)
             print(f"       · {reason}")
-    print(f"\n{len(rows)} match(es). Save one by its number: jsa save <#>")
+    print(f"\n{plural(len(rows), 'match', 'matches')}. Save one by its number: jsa save <#>")
     return 0
 
 
@@ -547,9 +548,9 @@ def cmd_enrich(args: argparse.Namespace) -> int:
         return 2
 
     if args.job:
-        print(f"re-enriching job(s) {', '.join(map(str, args.job))}...")
+        print(f"re-enriching {'job' if len(args.job) == 1 else 'jobs'} {', '.join(map(str, args.job))}...")
     else:
-        print(f"enriching up to {args.limit} listing(s) scoring >= {args.min}"
+        print(f"enriching up to {plural(args.limit, 'listing')} scoring >= {args.min}"
               f"{' (forced re-run)' if args.force else ''}...")
     from . import ledger
     started = ledger.stamp()
@@ -743,7 +744,7 @@ def cmd_tailor(args: argparse.Namespace) -> int:
         # Closed by the tool, not by you. Said plainly so the queue shrinking
         # is never mistaken for someone having decided something.
         ids = ", ".join(str(i) for i in result.superseded)
-        print(f"  closed   approval(s) {ids} — superseded by v{result.version}")
+        print(f"  closed   {'approval' if len(result.superseded) == 1 else 'approvals'} {ids} — superseded by v{result.version}")
     if result.prior_feedback:
         # The point of the whole exercise. This was written, stored, shown on a
         # page nobody had open, and read by nothing at the moment it mattered.
@@ -960,7 +961,7 @@ def cmd_prep(args: argparse.Namespace) -> int:
         print(f"warning: {result.thin_note}", file=sys.stderr)
     print(f"prep {prep_id} for application {args.application_id} "
           f"({row['title']} at {row['company']}, {args.round})")
-    print(f"  {len(result.questions)} question(s)  model {result.model}")
+    print(f"  {plural(len(result.questions), 'question')}  model {result.model}")
     print(f"  drilled from {result.drilled_from}")
     for question in result.questions[:2]:
         # The two standard drills lead the list; they are the ones that come up
@@ -1337,7 +1338,7 @@ def cmd_inbox(args: argparse.Namespace) -> int:
             if args.reply_id is None:
                 n = inbox.acknowledge_receipts(con)
                 con.commit()
-                print(f"noted {n} receipt(s); no stage moved")
+                print(f"noted {plural(n, 'receipt')}; no stage moved")
             else:
                 inbox.acknowledge(con, args.reply_id)
                 con.commit()
@@ -1350,8 +1351,8 @@ def cmd_inbox(args: argparse.Namespace) -> int:
             return 0
         if not args.no_fetch:
             report = inbox.fetch(con)
-            print(f"checked {report.user}: {report.searched} message(s) looked at, "
-                  f"{report.stored} new repl(ies) about your applications"
+            print(f"checked {report.user}: {plural(report.searched, 'message')} looked at, "
+                  f"{plural(report.stored, 'new reply', 'new replies')} about your applications"
                   + (f", {report.ambiguous} unclear which one" if report.ambiguous else ""))
         rows = inbox.pending(con)
     except inbox.InboxError as exc:
@@ -1435,21 +1436,21 @@ def cmd_due(args: argparse.Namespace) -> int:
     finally:
         con.close()
     if not items:
-        print(f"nothing due in the next {args.days} day(s)")
+        print(f"nothing due in the next {plural(args.days, 'day')}")
         return 0
     for item in items:
         if item.days_out is None:
             when = f"no date, quiet {item.quiet_days} days"
         elif item.days_out < 0:
-            when = f"OVERDUE by {-item.days_out} day(s)"
+            when = f"OVERDUE by {plural(-item.days_out, 'day')}"
         elif item.days_out == 0:
             when = "due today"
         else:
-            when = f"due in {item.days_out} day(s)"
+            when = f"due in {plural(item.days_out, 'day')}"
         print(f"[{item.job_id}] {when}  ({item.status})")
         print(f"     {item.title} at {item.company}")
         print(f"     {item.next_action or 'no next action set — decide one, or let it go'}")
-    print(f"\n{len(items)} item(s). Nothing here changed anything.")
+    print(f"\n{plural(len(items), 'item')}. Nothing here changed anything.")
     return 0
 
 
@@ -1556,7 +1557,7 @@ def cmd_outcomes(args: argparse.Namespace) -> int:
     else:
         for o in happened:
             flags = (", closed" if o.closed else "") + (", quiet" if o.quiet else "")
-            since = (f"  applied {o.days_since_applied} day(s) ago"
+            since = (f"  applied {plural(o.days_since_applied, 'day')} ago"
                      if o.days_since_applied is not None else "")
             print(f"[{o.job_id}] {o.point.replace('_', ' ')}{flags}{since}")
             print(f"     {o.title} at {o.company}")

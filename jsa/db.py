@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .config import DB_PATH, SCHEMA_PATH
+from .words import plural
 
 
 def utcnow() -> str:
@@ -80,7 +81,7 @@ def upgrade(path: Path = DB_PATH, schema: Path = SCHEMA_PATH) -> list[str]:
         applied = migrate(con, schema)
         rekeyed = rekey(con)
         if rekeyed:
-            applied.append(f"re-keyed {rekeyed} posting(s) for duplicate folding")
+            applied.append(f"re-keyed {plural(rekeyed, 'posting')} for duplicate folding")
         con.commit()
     finally:
         con.close()
@@ -204,7 +205,7 @@ def migrate(con: sqlite3.Connection, schema: Path = SCHEMA_PATH) -> list[str]:
 
     if "jobs.degree_level" in applied:
         filled = backfill_degree(con)
-        applied.append(f"jobs.degree_level read for {filled} posting(s)")
+        applied.append(f"jobs.degree_level read for {plural(filled, 'posting')}")
 
     applied += _rebuild_approvals_if_stale(con, text)
     applied += _rebuild_sources_if_stale(con, text)

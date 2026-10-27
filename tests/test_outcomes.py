@@ -162,7 +162,7 @@ class TestReadOnly(Tracker):
             self.assertEqual(cli.cmd_outcomes(Namespace(by=None)), 0)
             self.assertEqual(cli.cmd_outcomes(Namespace(by="source_kind")), 0)
         said = out.getvalue()
-        self.assertIn("1 application(s)", said)
+        self.assertIn("1 application:", said)
         self.assertIn("too few to compare", said)
         self.assertIn("Nothing here changed anything.", said)
         self.assertEqual(self.path.read_bytes(), before)
@@ -175,7 +175,7 @@ class TestReadOnly(Tracker):
             self.assertIn("No applications have gone out yet.", c.get("/pipeline").text)
             self.app("applied")
             page = c.get("/pipeline").text
-        self.assertIn("What happened · 1 application(s)", page)
+        self.assertIn("What happened · 1 application:", page)
 
     def test_no_model(self):
         tree = ast.parse((ROOT / "jsa" / "outcomes.py").read_text(encoding="utf-8"))

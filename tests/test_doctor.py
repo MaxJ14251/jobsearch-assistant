@@ -172,7 +172,7 @@ class TestAppliedButBeforeApplied(unittest.TestCase):
         before = con.total_changes
         report = doctor.run(copy.deepcopy(GOOD), con)
         text = findings(report)
-        self.assertIn("2 application(s) have an applied date", text)
+        self.assertIn("2 applications have an applied date", text)
         self.assertIn("#3", text)
         self.assertIn("#5", text)
         self.assertNotIn("#7", text)

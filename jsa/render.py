@@ -31,6 +31,7 @@ from . import db
 from .config import OUTPUT_DIR, load_coach
 from .tailor import (UNPRINTED_SKILLS, TailoredDraft, collect_bullets, entry_key,
                      public_repo)
+from .words import plural
 
 BODY_PT = 10.5
 NAME_PT = 18
@@ -320,7 +321,7 @@ def check_placement(draft: TailoredDraft, sources: dict[str, Any],
         expected = f"{src.origin}::{src.parent}" if src else None
         if times[b.source_id] != 1 or under.get(b.source_id) != expected:
             raise RenderError(
-                f"bullet {b.source_id!r} was written {times[b.source_id]} time(s)"
+                f"bullet {b.source_id!r} was written {plural(times[b.source_id], 'time')}"
                 + (f", under {under[b.source_id]!r}" if b.source_id in under else "")
                 + f"; it belongs once under {expected!r}. Nothing was saved. "
                 "Two entries with the same employer and title need an id:.")

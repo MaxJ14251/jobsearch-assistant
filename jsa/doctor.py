@@ -26,6 +26,7 @@ import yaml
 
 from .config import (COMPANIES_PATH, ENV_PATH, EXAMPLE_PROFILE, PROFILE_PATH,
                      running_from_clone)
+from .words import plural
 
 # What counts as "still the example". Read from the example file rather than
 # copied here: a copy is personal-looking data in source (the scanner blocked
@@ -161,7 +162,7 @@ def check_preferences(profile: dict[str, Any], report: Report) -> None:
                    "Replace them with real cities, written 'City, ST'.",
                    "profile/master_profile.yaml")
     elif unedited:
-        report.add(False, f"{len(unedited)} location(s) are still placeholders",
+        report.add(False, f"{plural(len(unedited), 'location')} {'is' if len(unedited) == 1 else 'are'} still placeholders",
                    "Replace or delete them: " + ", ".join(unedited))
 
     for name, cities in (prefs.get("regions") or {}).items():
@@ -189,7 +190,7 @@ def check_evidence(profile: dict[str, Any], report: Report) -> None:
 
     untagged = sorted(b.id for b in bullets.values() if not b.tags)
     if untagged:
-        report.add(False, f"{len(untagged)} bullet(s) have no tags",
+        report.add(False, f"{plural(len(untagged), 'bullet')} {'has' if len(untagged) == 1 else 'have'} no tags",
                    "Tags are how a bullet gets picked for a role. Untagged "
                    "ones are only chosen when little else fits: "
                    + ", ".join(untagged[:6]))
@@ -241,7 +242,7 @@ def check_resume_fields(profile: dict[str, Any], report: Report) -> None:
         ("coach.disabled / gap_months", bool(profile.get("coach"))),
     ) if not used]
     if unused:
-        report.add(False, f"{len(unused)} optional resume field(s) unused",
+        report.add(False, f"{plural(len(unused), 'optional resume field')} unused",
                    "Optional; the defaults work. See the comments in "
                    f"{EXAMPLE_PROFILE.name}: " + ", ".join(unused))
     report.checked.append("optional resume fields")
@@ -259,7 +260,7 @@ def check_tracker(con: sqlite3.Connection | None, profile: dict[str, Any],
     if jobs == 0:
         report.add(False, "The tracker holds no postings yet",
                    "Run `jsa discover`. It needs no API key.")
-    report.checked.append(f"the tracker ({jobs} posting(s))")
+    report.checked.append(f"the tracker ({plural(jobs, 'posting')})")
 
     from . import backup
     age = backup.newest_age_days()
@@ -279,7 +280,8 @@ def check_tracker(con: sqlite3.Connection | None, profile: dict[str, Any],
         f"SELECT job_id FROM applications WHERE applied_at IS NOT NULL "
         f"AND status IN ({marks}) ORDER BY job_id", BEFORE_APPLIED)]
     if back:
-        report.add(False, f"{len(back)} application(s) have an applied date but sit "
+        report.add(False, f"{plural(len(back), 'application')} {'has' if len(back) == 1 else 'have'} an applied date but "
+                          f"{'sits' if len(back) == 1 else 'sit'} "
                           "before applied: " + ", ".join(f"#{j}" for j in back),
                    "If you did apply, move each back with `jsa status <job#> applied` "
                    "or the job page; if not, leave them.")
@@ -319,7 +321,7 @@ def check_tracker(con: sqlite3.Connection | None, profile: dict[str, Any],
         weights = tag_weights(con, vocabulary(profile))
         dead = sorted(t for t in vocabulary(profile) if is_dead(t, weights))
         if dead:
-            report.add(False, f"{len(dead)} tag(s) match no posting you have",
+            report.add(False, f"{plural(len(dead), 'tag')} {'matches' if len(dead) == 1 else 'match'} no posting you have",
                        "They cannot help a bullet get picked. Reword them to "
                        "words postings use, or leave them: " + ", ".join(dead))
         report.checked.append("tag vocabulary against real postings")
@@ -381,7 +383,7 @@ def check_market(profile: dict[str, Any], con: sqlite3.Connection | None,
         if unplaceable:
             report.add(
                 False,
-                f"{unplaceable} posting(s) name a place this cannot find",
+                f"{plural(unplaceable, 'posting')} {'names' if unplaceable == 1 else 'name'} a place this cannot find",
                 "They are scored on everything else and never dropped. Mostly "
                 "postings that name no town, a department instead of a place, "
                 "or a town too new for the shipped Census data.")
@@ -404,14 +406,14 @@ def check_market(profile: dict[str, Any], con: sqlite3.Connection | None,
         import os
 
         if os.environ.get("MUSE_API_KEY", "").strip():
-            fix = (f"{remote} remote role(s) are in your tracker. The "
+            fix = (f"{plural(remote, 'remote role')} {'is' if remote == 1 else 'are'} in your tracker. The "
                    f"nationwide source is configured, so run `jsa discover` "
                    f"again -- it asks about your own cities. If it stays thin "
                    f"after that, the local market for these titles is thin, "
                    f"and adding employers near you to {COMPANIES_PATH} "
                    f"is the next lever.")
         else:
-            fix = (f"{remote} remote role(s) are in your tracker, and local "
+            fix = (f"{plural(remote, 'remote role')} {'is' if remote == 1 else 'are'} in your tracker, and local "
                    f"coverage is this thin because every shipped feed is one "
                    f"large employer's own board. Set MUSE_API_KEY in .env "
                    f"(free, from themuse.com/developers/api/v2/apps): that "
@@ -423,7 +425,7 @@ def check_market(profile: dict[str, Any], con: sqlite3.Connection | None,
                 and os.environ.get("USAJOBS_EMAIL", "").strip()):
             fix += (" For federal jobs in your cities, set USAJOBS_API_KEY and "
                     "USAJOBS_EMAIL (free, from developer.usajobs.gov).")
-        report.add(False, f"Only {local} on-site posting(s) in {named}", fix)
+        report.add(False, f"Only {plural(local, 'on-site posting')} in {named}", fix)
 
 
 def check_usajobs(report: Report) -> None:

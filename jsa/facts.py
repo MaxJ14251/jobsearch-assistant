@@ -12,6 +12,7 @@ import re
 from typing import Any
 
 from .coach import _label, _month
+from .words import plural
 
 
 def _edu(profile: dict[str, Any]) -> dict[str, Any]:
@@ -72,7 +73,7 @@ def degree_answer(profile: dict[str, Any]) -> str:
     certs = profile.get("certifications") or []
     if certs:
         latest = max((str(c.get("issued") or "")[:4] for c in certs), default="")
-        since.append(f"{len(certs)} certification(s)"
+        since.append(plural(len(certs), "certification")
                      + (f", most recently in {latest}" if latest else ""))
     if profile.get("projects"):
         since.append("the applied projects on my resume")

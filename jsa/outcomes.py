@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from .approvals import QUIET_DAYS
+from .words import plural
 
 POINTS = ("applied", "heard_back", "interview", "offer")
 _LEVEL = {"saved": 0, "drafting": 0, "ready": 0, "applied": 1,
@@ -199,8 +200,8 @@ def summary(outcomes: list[Outcome]) -> str:
     if not n:
         return "No applications have gone out yet."
     count = {p: sum(o.point == p for o in outcomes) for p in POINTS}
-    return (f"{n} application(s): {count['heard_back']} heard back, "
-            f"{count['interview']} reached an interview, {count['offer']} offer(s); "
+    return (f"{plural(n, 'application')}: {count['heard_back']} heard back, "
+            f"{count['interview']} reached an interview, {plural(count['offer'], 'offer')}; "
             f"{sum(o.closed for o in outcomes)} closed, "
             f"{sum(o.quiet for o in outcomes)} quiet for {QUIET_DAYS}+ days.")
 

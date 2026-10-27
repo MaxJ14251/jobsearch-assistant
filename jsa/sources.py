@@ -966,5 +966,5 @@ def fetch(entry: dict[str, Any]) -> FetchResult:
         return FetchResult(False, [], f"no adapter for kind={kind!r}")
     missing = [f for f in REQUIRED_FIELDS.get(kind, ()) if not entry.get(f)]
     if missing:
-        return FetchResult(False, [], f"missing config field(s): {', '.join(missing)}")
+        return FetchResult(False, [], f"missing config {'field' if len(missing) == 1 else 'fields'}: {', '.join(missing)}")
     return fetcher(entry)

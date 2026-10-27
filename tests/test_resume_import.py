@@ -285,7 +285,7 @@ class TestCommand(Base):
         self.assertEqual(code, 0, out)
         self.assertEqual(self.live.read_bytes(), before)
         self.assertTrue(self.draft.exists())
-        self.assertIn("imported 1 job(s)", out)
+        self.assertIn("imported 1 job,", out)
         self.assertIn("dropped", out)
         self.assertIn("#5 Acme", out)
         self.assertIn("jsa doctor", out.splitlines()[-2])

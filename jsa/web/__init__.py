@@ -68,11 +68,7 @@ env = Environment(
 env.filters["localtime"] = db.local_time
 
 
-def plural(n: int, one: str, many: str | None = None) -> str:
-    """"1 match", "2 matches": the dashboard's counts read as English, not
-    "match(es)". `many` defaults to `one` + "s"."""
-    return f"{n} {one if n == 1 else (many or one + 's')}"
-
+from ..words import plural  # noqa: E402  (re-exported for the route modules)
 
 env.filters["plural"] = plural
 

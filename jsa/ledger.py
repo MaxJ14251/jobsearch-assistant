@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from . import db
+from .words import plural
 
 COLUMNS = ("purpose", "model", "prompt_tokens", "completion_tokens", "total_tokens",
            "latency_s", "attempt", "fell_back", "ok", "error_kind")
@@ -85,7 +86,7 @@ class Spent:
     group: str = ""
 
     def line(self) -> str:
-        text = f"{self.calls} model call(s)"
+        text = plural(self.calls, "model call")
         if self.tokens_in or self.tokens_out:
             text += f", {self.tokens_in:,} tokens in / {self.tokens_out:,} out"
         if self.failed:

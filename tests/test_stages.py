@@ -321,7 +321,7 @@ class TestTheCommands(unittest.TestCase):
         self.assertEqual(code, 0)
         code, out = self.run_cmd(cmd_due, days=7)
         self.assertEqual(code, 0)
-        self.assertIn("OVERDUE by 1 day(s)", out)
+        self.assertIn("OVERDUE by 1 day", out)
         self.assertIn("email the recruiter", out)
         self.assertIn("changed anything", out)
 

@@ -34,6 +34,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from .words import plural
+
 HOURS_PER_YEAR = 2080
 
 _NUMBER = r"(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)"
@@ -279,7 +281,7 @@ def extract(text: str | None) -> Salary | None:
     text_out = chosen[0][3]
     distinct = {(c[0], c[1]) for c in chosen}
     if len(distinct) > 1:
-        text_out += f" (+{len(distinct) - 1} more range(s) combined)"
+        text_out += f" (+{plural(len(distinct) - 1, 'more range')} combined)"
     return Salary(
         minimum=min(c[0] for c in chosen),
         maximum=max(c[1] for c in chosen),

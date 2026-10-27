@@ -73,7 +73,7 @@ class TestPlacementGuard(unittest.TestCase):
         out = Path(tempfile.mkdtemp()) / "r.docx"
         with self.assertRaises(RenderError) as ctx:
             render_resume(every_bullet(profile), profile, JOB, out)
-        self.assertIn("2 time(s)", str(ctx.exception))
+        self.assertIn("2 times", str(ctx.exception))
         self.assertFalse(out.exists())
 
     def test_a_bullet_under_the_wrong_entry_refuses(self):
