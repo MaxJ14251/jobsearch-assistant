@@ -155,6 +155,39 @@ class TestAWorkingProfile(unittest.TestCase):
         self.assertTrue(report.ok, "an unused tag is not a blocker")
 
 
+class TestAppliedButBeforeApplied(unittest.TestCase):
+    """Found 2026-10-13: two applications kept their applied date but sat
+    back at saved. Doctor names them; it never moves them."""
+
+    def test_an_applied_date_before_applied_is_named_and_left_alone(self):
+        con = db.connect(tracker(jobs=25))
+        self.addCleanup(con.close)
+        for job, status, applied in ((3, "saved", "2026-10-01T12:00:00Z"),
+                                     (5, "ready", "2026-10-02T12:00:00Z"),
+                                     (7, "saved", None),
+                                     (9, "applied", "2026-10-03T12:00:00Z")):
+            con.execute("INSERT INTO applications (job_id, status, applied_at) "
+                        "VALUES (?, ?, ?)", (job, status, applied))
+        con.commit()
+        before = con.total_changes
+        report = doctor.run(copy.deepcopy(GOOD), con)
+        text = findings(report)
+        self.assertIn("2 application(s) have an applied date", text)
+        self.assertIn("#3", text)
+        self.assertIn("#5", text)
+        self.assertNotIn("#7", text)
+        self.assertNotIn("#9", text)
+        self.assertTrue(report.ok, "advice, not a blocker")
+        self.assertEqual(con.total_changes, before)
+        self.assertEqual(con.execute("SELECT status FROM applications "
+                                     "WHERE job_id = 3").fetchone()[0], "saved")
+
+    def test_a_clean_tracker_says_nothing(self):
+        con = db.connect(tracker(jobs=25))
+        self.addCleanup(con.close)
+        self.assertNotIn("applied date", findings(doctor.run(copy.deepcopy(GOOD), con)))
+
+
 class TestItChangesNothing(unittest.TestCase):
     """Scenario d. Watch this fail against a version that fills a default."""
 

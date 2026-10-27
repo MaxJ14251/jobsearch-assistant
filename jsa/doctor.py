@@ -270,6 +270,20 @@ def check_tracker(con: sqlite3.Connection | None, profile: dict[str, Any],
         report.add(False, f"The newest backup is {age:.0f} days old",
                    "Run `jsa backup` to take a fresh, verified copy.")
 
+    # An applied date on an application sitting before applied: found
+    # 2026-10-13, when confirming two receipts moved applied applications back
+    # to saved. Named here; the person moves them, doctor never does.
+    from .inbox import BEFORE_APPLIED
+    marks = ",".join("?" * len(BEFORE_APPLIED))
+    back = [r[0] for r in con.execute(
+        f"SELECT job_id FROM applications WHERE applied_at IS NOT NULL "
+        f"AND status IN ({marks}) ORDER BY job_id", BEFORE_APPLIED)]
+    if back:
+        report.add(False, f"{len(back)} application(s) have an applied date but sit "
+                          "before applied: " + ", ".join(f"#{j}" for j in back),
+                   "If you did apply, move each back with `jsa status <job#> applied` "
+                   "or the job page; if not, leave them.")
+
     # `jsa daily` (plan 18): only once one has ever run.
     import json as _json
     from datetime import datetime, timezone
