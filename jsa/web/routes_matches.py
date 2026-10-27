@@ -25,6 +25,7 @@ from . import (
 def register(app, ctx) -> None:
     """Add this area's routes to `app`; shared helpers come from `ctx`."""
     learned = ctx.learned
+    learn_state = ctx.learn_state
     match_connect = ctx.match_connect
     match_deck = ctx.match_deck
     match_filters = ctx.match_filters
@@ -37,9 +38,14 @@ def register(app, ctx) -> None:
     def matches(request: Request, near: str = "", track: str = "",
                 degree: str = "", remote: str = "", limit: int = 60,
                 home: str = "", radius: str = "", anywhere: str = "",
-                only: str = "", q: str = ""):
+                only: str = "", q: str = "", msg: str = "", bad: int = 0,
+                passed: int = 0, at: int = 0):
         from .. import mapview
         q = q.strip()
+        # The page's own query, for the cards' Save and Not for me to come
+        # back to: the filters, without this visit's message.
+        here = urlencode([(k, v) for k, v in request.query_params.multi_items()
+                          if k not in ("msg", "bad", "passed", "at")])
         where, params = match_filters(near, track, q, degree, remote)
         origin, home_text, home_problem, wanted, prefs_radius = match_place(
             not request.query_params, home, radius, anywhere)
@@ -65,6 +71,7 @@ def register(app, ctx) -> None:
             # The operator's own live applications (n21): on the map in
             # their status colour, and in the list when inside the radius.
             mine = _pipeline_rows(con, where, params)
+            learn = learn_state(con, profile())
         finally:
             con.close()
 
@@ -116,6 +123,8 @@ def register(app, ctx) -> None:
                     "remote": remote_n, "unplaced": unplaced_n,
                     "cards": _card_data(rows)}
         return render("matches", "matches", rows=rows, total=total, capped=capped,
+                      here=here, msg=msg, bad=bad, passed=passed, learn=learn,
+                      at=at if any(r["job_id"] == at for r in rows) else 0,
                       no_profile=profile() is None,
                       mine=sum(1 for r in rows if r["status"] != "new"),
                       live=live, wide=True,

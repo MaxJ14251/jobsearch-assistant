@@ -1,5 +1,5 @@
-{% macro match_card(r) %}
-<div class="card" data-key="{{ r.key }}" data-status="{{ r.status }}">
+{% macro match_card(r, triage=none) %}
+<div class="card" data-key="{{ r.key }}" data-status="{{ r.status }}" id="job-{{ r.job_id }}">
   <div class="row1">
     <span class="score">{{ '%.2f'|format(r.match_score or 0) }}</span>
     {% if r.status != 'new' %}<span class="pill" title="Your application">{{ r.stage|replace('_',' ') }}</span>{% endif %}
@@ -18,5 +18,24 @@
     {% for t in r.stack %}<span class="flag">{{ t }}</span>{% endfor %}
   </div>
   {% if r.reasons %}<ul class="reasons">{% for x in r.reasons %}<li>{{ x }}</li>{% endfor %}</ul>{% endif %}
+  {% if triage and r.status == 'new' %}
+  <div class="triage">
+    <form method="post" action="/job/{{ r.job_id }}/save" class="inline">
+      <input type="hidden" name="csrf" value="{{ triage.csrf }}">
+      <input type="hidden" name="page" value="matches">
+      <input type="hidden" name="back" value="{{ triage.here }}">
+      <input type="hidden" name="next" value="{{ triage.next or '' }}">
+      <button type="submit" class="ghost">Save</button>
+    </form>
+    <form method="post" action="/turbo/pass" class="inline">
+      <input type="hidden" name="csrf" value="{{ triage.csrf }}">
+      <input type="hidden" name="job_id" value="{{ r.job_id }}">
+      <input type="hidden" name="page" value="matches">
+      <input type="hidden" name="back" value="{{ triage.here }}">
+      <input type="hidden" name="next" value="{{ triage.next or '' }}">
+      <button type="submit" class="ghost">Not for me</button>
+    </form>
+  </div>
+  {% endif %}
 </div>
 {% endmacro %}

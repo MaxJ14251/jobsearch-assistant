@@ -16,6 +16,7 @@ from . import _copies
 def register(app, ctx) -> None:
     """Add this area's routes to `app`; shared helpers come from `ctx`."""
     connect = ctx.connect
+    back_to_matches = ctx.back_to_matches
     learn_state = ctx.learn_state
     learned = ctx.learned
     match_connect = ctx.match_connect
@@ -85,10 +86,14 @@ def register(app, ctx) -> None:
                       blocker=turbo.drafting_blocker(prof), limit=limit,
                       left_today=left, strip=strip, learn=learn)
 
-    def turbo_reply(js: str, back: str, message: str, bad: bool, **extra):
-        """JSON for the page's script; a redirect when JavaScript is off."""
+    def turbo_reply(js: str, back: str, message: str, bad: bool, page: str = "",
+                    next_id: str = "", passed: int | None = None, **extra):
+        """JSON for the page's script; a redirect when JavaScript is off.
+        From the Matches cards (`page=matches`) it returns to Matches."""
         if js:
             return JSONResponse({"ok": not bad, "message": message, **extra})
+        if page == "matches":
+            return back_to_matches(back, message, bad, next_id=next_id, passed=passed)
         query = back.lstrip("?")
         joiner = "&" if query else ""
         return RedirectResponse(
@@ -96,30 +101,36 @@ def register(app, ctx) -> None:
             status_code=303)
 
     @app.post("/turbo/pass")
-    def turbo_pass(job_id: int = Form(...), back: str = Form(""), js: str = Form("")):
+    def turbo_pass(job_id: int = Form(...), back: str = Form(""), js: str = Form(""),
+                   page: str = Form(""), next: str = Form("")):
         from .. import turbo
         con = connect()
         try:
             turbo.pass_job(con, job_id)
             con.commit()
         except ValueError as exc:
-            return turbo_reply(js, back, str(exc), True)
+            return turbo_reply(js, back, str(exc), True, page)
         finally:
             con.close()
+        if page == "matches":
+            return turbo_reply(js, back, "Not for you: hidden from your matches.", False,
+                               page, next_id=next, passed=job_id)
         return turbo_reply(js, back, f"Passed. Undo with `jsa unpass {job_id}`.", False)
 
     @app.post("/turbo/unpass")
-    def turbo_unpass(job_id: int = Form(...), back: str = Form(""), js: str = Form("")):
+    def turbo_unpass(job_id: int = Form(...), back: str = Form(""), js: str = Form(""),
+                     page: str = Form("")):
         from .. import turbo
         con = connect()
         try:
             turbo.unpass(con, job_id)
             con.commit()
         except ValueError as exc:
-            return turbo_reply(js, back, str(exc), True)
+            return turbo_reply(js, back, str(exc), True, page)
         finally:
             con.close()
-        return turbo_reply(js, back, "Back in your matches.", False)
+        return turbo_reply(js, back, "Back in your matches.", False, page,
+                           next_id=str(job_id))
 
     @app.post("/turbo/interested")
     def turbo_interested(job_id: int = Form(...), back: str = Form(""),

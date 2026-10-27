@@ -748,11 +748,26 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         query = urlencode({"msg": msg, "bad": int(bad)})
         return RedirectResponse(f"/job/{job_id}?{query}", status_code=303)
 
+    def back_to_matches(back: str, msg: str, bad: bool, *, next_id: str = "",
+                        passed: int | None = None) -> RedirectResponse:
+        """To Matches with its filters (`back` is the page's own query), the
+        message, an Undo for a pass, and the next card in view."""
+        extra = {"msg": msg, "bad": int(bad)}
+        if passed is not None:
+            extra["passed"] = passed
+        if next_id.isdigit():
+            extra["at"] = next_id         # the message is shown above this card
+        query = back.lstrip("?")
+        anchor = "#triage-note" if next_id.isdigit() else ""
+        return RedirectResponse(f"/?{query}{'&' if query else ''}{urlencode(extra)}{anchor}",
+                                status_code=303)
+
     # What the route modules share: these helpers close over this app's
     # tracker, output folder and profile (plan 24).
     from .context import Ctx
     ctx = Ctx(
         back_to_job=back_to_job,
+        back_to_matches=back_to_matches,
         back_to_pipeline=back_to_pipeline,
         connect=connect,
         daily_banner=daily_banner,

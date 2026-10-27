@@ -1,4 +1,11 @@
 {% extends "base" %}{% from "card" import match_card %}{% block body %}
+{% macro triage_note() %}<div id="triage-note" class="note {{ 'bad' if bad else 'good' }}" role="status">{{ msg }}
+  {% if passed and not bad %}<form method="post" action="/turbo/unpass" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="job_id" value="{{ passed }}">
+    <input type="hidden" name="page" value="matches">
+    <input type="hidden" name="back" value="{{ here }}">
+    <button type="submit" class="ghost">Undo</button></form>{% endif %}</div>{% endmacro %}
 <h1>Matches</h1>
 {% if no_profile %}<p class="note bad" role="alert">No profile yet, so nothing can be scored for you.
   <a class="plain" href="/setup">Set up in the browser</a> (import your resume, or start from the example), or run
@@ -10,6 +17,9 @@
     {{ near_count }} near you, {{ rows|length - near_count }} remote{% endif %}
   {%- if capped %} · {{ capped }} more hidden: at most 3 per company{% endif %}</p>
 {% if home_problem %}<p class="note bad" role="alert">{{ home_problem }}</p>{% endif %}
+{% if msg and not at %}{{ triage_note() }}{% endif %}
+{% if learn and learn.enabled %}<p class="sub">Save or "Not for me" teaches the order:
+  {% if learn.active %}your choices nudge it ({{ learn.signals }} so far).{% else %}learning starts after {{ learn.minimum }} ({{ learn.signals }} so far).{% endif %}</p>{% endif %}
 {% if hidden %}<p class="sub">{{ hidden }} match(es) hidden by the radius.
   {%- if unplaced %} {{ unplaced }} of them name a place this could not find, so the distance is unknown rather than far.{% endif %}
   <a class="plain" href="{{ nationwide_url }}">Show them anyway</a></p>{% endif %}
@@ -116,7 +126,8 @@
   </div>
   <div id="feed-list">
 {% for r in rows %}
-{{ match_card(r) }}
+{% if msg and at == r.job_id %}{{ triage_note() }}{% endif %}
+{{ match_card(r, {"csrf": csrf, "here": here, "next": rows[loop.index].job_id if not loop.last else none}) }}
 {% else %}<p class="empty">Nothing matches those filters.</p>{% endfor %}
   </div>
 </section>

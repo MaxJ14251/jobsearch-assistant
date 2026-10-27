@@ -21,6 +21,7 @@ def register(app, ctx) -> None:
     """Add this area's routes to `app`; shared helpers come from `ctx`."""
     back_to_job = ctx.back_to_job
     back_to_pipeline = ctx.back_to_pipeline
+    back_to_matches = ctx.back_to_matches
     connect = ctx.connect
     document_status = ctx.document_status
     inspect_document = ctx.inspect_document
@@ -200,17 +201,21 @@ def register(app, ctx) -> None:
                 "cover": kind("cover_letter")}
 
     @app.post("/job/{job_id}/save")
-    def do_save(job_id: int):
+    def do_save(job_id: int, page: str = Form(""), back: str = Form(""),
+                next: str = Form("")):
+        """Save as an application (your act). From a Matches card
+        (`page=matches`) it returns to Matches; it never drafts."""
+        go = ((lambda msg, bad: back_to_matches(back, msg, bad, next_id=next))
+              if page == "matches" else (lambda msg, bad: back_to_job(job_id, msg, bad)))
         con = connect()
         try:
             _, created = approvals.save_application(con, job_id)
             con.commit()
         except approvals.ApprovalError as exc:
-            return back_to_job(job_id, str(exc), True)
+            return go(str(exc), True)
         finally:
             con.close()
-        return back_to_job(job_id, "Saved as an application." if created
-                           else "Already saved.", False)
+        return go("Saved as an application." if created else "Already saved.", False)
 
     @app.post("/job/{job_id}/tailor")
     def do_tailor(job_id: int, kind: str = Form("resume")):
