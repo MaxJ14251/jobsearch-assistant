@@ -2,7 +2,7 @@
 <h1>Set up</h1>
 <p class="sub">Four steps to your first matches. Everything here writes the <strong>draft</strong> profile, <code>profile/{{ draft_name }}</code>; your real profile is only created on a first run, and never overwritten.</p>
 {% if msg %}<p class="note {{ 'bad' if bad else 'good' }}" role="status">{{ msg }}</p>{% endif %}
-{% if not api_key %}<p class="note" role="note">No model API key yet. Matching works without one; drafting resumes needs one. Add <code>NVIDIA_API_KEY=...</code> to <code>.env</code> (<code>jsa init</code> creates it from the template; a free key from build.nvidia.com). This page never asks for it.</p>{% endif %}
+{% if not api_key %}<p class="note" role="note">No model API key yet. Matching works without one; drafting resumes needs one. Add <code>NVIDIA_API_KEY=...</code> to <code>.env</code> (<code>jsa init</code> creates it from the template; a free key from build.nvidia.com), or <code>JSA_LLM_API_KEY</code> and <code>JSA_LLM_BASE_URL</code> for another OpenAI-compatible provider. This page never asks for it.</p>{% endif %}
 
 <h2>1 · Start</h2>
 {% if draft %}<p class="sub">You have a draft. <a class="plain" href="/import">Import a resume</a> to replace it, or carry on below.</p>
@@ -78,6 +78,7 @@
   <button type="submit">Make this my profile</button>
   <span class="meta">{% if live_exists %}Replaces the unedited example (a backup is kept first).{% else %}Creates profile/master_profile.yaml from the draft.{% endif %}</span>
 </form>
+{% elif draft_is_live %}<p class="note good">This draft is your profile now. Later changes go in <code>{{ live_full }}</code>.</p>
 {% else %}<p class="sub">You already have a profile, and it is never overwritten here. To use the draft, copy it over yourself:<br><code>copy "{{ draft_full }}" "{{ live_full }}"</code></p>{% endif %}
 {% endif %}
 
@@ -85,7 +86,7 @@
 <form method="post" action="/setup/discover" class="inline" style="margin-top:10px" id="disc-form">
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <button type="submit" {{ 'disabled' if progress.running }}>Find jobs</button>
-  <span class="meta" id="disc">{% if progress.running %}Searching: {{ progress.polled }} of {{ progress.total }} job boards…{% elif progress.done %}{% if progress.error %}Stopped: {{ progress.error }}{% else %}Done. <a class="plain" href="/">See your matches</a> or <a class="plain" href="/turbo">swipe through them</a>.{% endif %}{% else %}About 13 minutes the first time; it runs in the background.{% endif %}</span>
+  <span class="meta" id="disc">{% if progress.running %}Searching: {{ progress.polled }} of {{ progress.total }} job boards…{% elif progress.done %}{% if progress.error %}Stopped: {{ progress.error }}{% else %}Done. <a class="plain" href="/">See your matches</a> or <a class="plain" href="/turbo">swipe through them</a>.{% endif %}{% else %}About 20 minutes the first time; it runs in the background.{% endif %}</span>
 </form>
 <script>
 (function () {

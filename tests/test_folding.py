@@ -163,6 +163,17 @@ class TestTheCapComesAfterTheRadius(Tracker):
         self.assertIn("Near Role", self.page(radius="25", home="Boise, ID"))
 
 
+    def test_the_page_says_the_cap_hid_cards(self):
+        """Found on the G10 newcomer walk: a first run over one board said
+        "14 unreviewed · showing 3" and never said why."""
+        for n in range(3):
+            self.add(3, f"Remote Role {n}", "Remote", 0.9 - n / 100, remote="remote")
+        self.assertNotIn("more hidden: at most", self.page(anywhere="1"))
+        for n in range(3, 5):
+            self.add(3, f"Remote Role {n}", "Remote", 0.9 - n / 100, remote="remote")
+        self.assertIn("2 more hidden: at most 3 per company", self.page(anywhere="1"))
+
+
 class TestExactDistanceNotRounded(unittest.TestCase):
     def test_a_job_just_past_the_radius_is_outside_it(self):
         """The list compared the ROUNDED mileage, so 25.4 miles passed a

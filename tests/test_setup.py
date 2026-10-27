@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 from jsa import config, db, setup, web
 from jsa.config import ROOT, Preferences
+from jsa.llm import LLMError
 
 EXAMPLE = ROOT / "jsa" / "resources" / "master_profile.example.yaml"
 GOOD = {"target_titles": "Support Engineer\nData Analyst", "remote": "1",
@@ -99,6 +100,14 @@ class TestValidation(Folder):
         for field in ("target_titles", "home", "floor", "max_years", "radius"):
             self.assertIn(field, errors, field)
 
+    def test_the_examples_stand_in_cities_are_refused(self):
+        """Found on the G10 newcomer walk: "Start from the example" pre-fills
+        "Your City, ST" and the like, and saving kept them as real cities."""
+        _, errors = setup.validate({**GOOD, "locations": "Your City, ST\nBoise, ID"})
+        self.assertIn("Your City, ST", errors["locations"])
+        _, errors = setup.validate({**GOOD, "locations": "Boise, ID"})
+        self.assertNotIn("locations", errors)
+
 
 class TestThePage(Folder):
     def client(self):
@@ -124,8 +133,22 @@ class TestThePage(Folder):
     def test_adopt_creates_a_profile_when_there_is_none(self):
         c, app = self.client()
         setup.start_from_example()
+        setup.set_preferences(setup.draft_path(), setup.validate(GOOD)[0])
         c.post("/setup/adopt", data={"csrf": app.state.csrf_token})
         self.assertEqual(self.live.read_bytes(), setup.draft_path().read_bytes())
+        # Found on the G10 walk: right after adopting, step 4 told the person
+        # to copy the draft over the profile it had just become.
+        page = c.get("/setup").text
+        self.assertNotIn("copy it over yourself", page)
+        self.assertIn("This draft is your profile", page)
+
+    def test_the_key_note_names_any_provider_and_a_current_time(self):
+        c, _ = self.client()
+        with mock.patch("jsa.llm.api_key", side_effect=LLMError("no key")):
+            page = c.get("/setup").text
+        self.assertIn("JSA_LLM_API_KEY", page)
+        self.live.write_text("identity: {full_name: Someone Real}\n", encoding="utf-8")
+        self.assertNotIn("13 minutes", c.get("/setup").text)
 
     def test_adopt_replaces_the_unedited_example_after_a_backup(self):
         from jsa import backup

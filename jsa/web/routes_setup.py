@@ -66,6 +66,8 @@ def register(app, ctx) -> None:
                       f=form or setup_form_values(draft), errors=errors or {},
                       blocking=blocking, can_adopt=setup.can_adopt(),
                       live_exists=live.exists(),
+                      draft_is_live=(draft is not None and live.exists() and
+                                     live.read_bytes() == setup.draft_path().read_bytes()),
                       live_personal=live.exists() and not setup.can_adopt(),
                       draft_full=str(setup.draft_path()), live_full=str(live),
                       api_key=has_key, progress=progress)

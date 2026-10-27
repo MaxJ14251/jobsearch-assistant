@@ -134,7 +134,12 @@ def validate(form: dict[str, str]) -> tuple[dict[str, Any], dict[str, str]]:
             if "," in home and home not in locations:
                 locations.append(home)
     prefs["locations"] = locations
-    if not locations:
+    from .doctor import _is_placeholder
+    stand_ins = [x for x in locations if _is_placeholder(x)]
+    if stand_ins:
+        errors["locations"] = (f"{stand_ins[0]!r} is the example's stand-in: replace it "
+                               "with a real \"City, ST\", or delete the line.")
+    elif not locations:
         errors["locations"] = "Tick remote, or give a home location or a city."
     radius = (form.get("radius") or "").strip()
     try:

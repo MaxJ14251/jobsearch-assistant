@@ -70,6 +70,7 @@ def register(app, ctx) -> None:
 
         view = mapview.build(drawn, origin, wanted)
         picked = {key for key in only.split(",") if key.strip()}
+        capped = 0
         if picked and len(picked) <= MAX_PICKED:
             # A bubble on the map, opened: exactly the cards in it, whatever
             # the radius, the three-per-company cap or the card limit would
@@ -79,7 +80,11 @@ def register(app, ctx) -> None:
             mine, _, _ = _by_distance(
                 [r for r in mine if r.get("key") in picked], origin, None)
         else:
+            before = len(rows)
             rows, hidden, unplaced = match_deck(rows, copies, origin, wanted)
+            # Said on the page: a first run over few boards otherwise reads
+            # "14 unreviewed, showing 3" with no reason (G10 newcomer walk).
+            capped = before - hidden - len(rows)
             rows = rows[:limit]
             mine, _, _ = _by_distance(mine, origin, wanted)
         rows = sorted(mine + rows,
@@ -110,7 +115,7 @@ def register(app, ctx) -> None:
                                 if basemap.available() else None),
                     "remote": remote_n, "unplaced": unplaced_n,
                     "cards": _card_data(rows)}
-        return render("matches", "matches", rows=rows, total=total,
+        return render("matches", "matches", rows=rows, total=total, capped=capped,
                       no_profile=profile() is None,
                       mine=sum(1 for r in rows if r["status"] != "new"),
                       live=live, wide=True,

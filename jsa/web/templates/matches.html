@@ -7,7 +7,8 @@
 <p class="sub">{{ total }} unreviewed · showing {{ rows|length - mine }}
   {%- if mine %} and {{ mine }} of your applications{% endif %}
   {%- if home %} · within {{ radius }} miles of {{ home }}:
-    {{ near_count }} near you, {{ rows|length - near_count }} remote{% endif %}</p>
+    {{ near_count }} near you, {{ rows|length - near_count }} remote{% endif %}
+  {%- if capped %} · {{ capped }} more hidden: at most 3 per company{% endif %}</p>
 {% if home_problem %}<p class="note bad" role="alert">{{ home_problem }}</p>{% endif %}
 {% if hidden %}<p class="sub">{{ hidden }} match(es) hidden by the radius.
   {%- if unplaced %} {{ unplaced }} of them name a place this could not find, so the distance is unknown rather than far.{% endif %}
