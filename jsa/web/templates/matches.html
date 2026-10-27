@@ -18,6 +18,7 @@
   {%- if capped %} · {{ capped }} more hidden: at most 3 per company{% endif %}</p>
 {% if home_problem %}<p class="note bad" role="alert">{{ home_problem }}</p>{% endif %}
 {% if msg and not at %}{{ triage_note() }}{% endif %}
+{% if since %}<p class="sub">{{ since_n }} unreviewed found since {{ since|localtime }}; only those are shown. <a class="plain" href="{{ clear_since_url }}">Show all matches</a></p>{% endif %}
 {% if learn and learn.enabled %}<p class="sub">Save or "Not for me" teaches the order:
   {% if learn.active %}your choices nudge it ({{ learn.signals }} so far).{% else %}learning starts after {{ learn.minimum }} ({{ learn.signals }} so far).{% endif %}</p>{% endif %}
 {% if hidden %}<p class="sub">{{ hidden }} match(es) hidden by the radius.

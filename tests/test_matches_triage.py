@@ -83,5 +83,44 @@ class TestTriageOnMatches(Tracker):
         self.assertNotIn("/turbo/interested", page)
 
 
+
+class TestNewSinceTheLastRun(TestTriageOnMatches):
+    """The banner's "N new match(es)" opened Matches in its usual order; the
+    Newest sort reordered only the 60 cards already shown. Now it opens
+    exactly the postings found since the last daily run, cards and map."""
+
+    SINCE = "2026-10-20T07:00:00Z"
+
+    def setUp(self):
+        super().setUp()
+        con = self.con()
+        con.execute("UPDATE jobs SET discovered_at = '2026-10-01T07:00:00Z' WHERE id IN (1, 2)")
+        con.execute("UPDATE jobs SET discovered_at = '2026-10-21T07:00:00Z' WHERE id IN (3, 4)")
+        con.execute("INSERT INTO daily_runs (started_at, finished_at, ok, steps_json, "
+                    "summary_json) VALUES ('2026-10-27T07:00:00Z', '2026-10-27T07:20:00Z', "
+                    "1, '[]', ?)", ('{"since": "%s", "new_matches": 2}' % self.SINCE,))
+        con.commit()
+
+    def test_since_filters_the_cards_and_the_map(self):
+        self.assertEqual(sorted(self.listed(f"anywhere=1&since={self.SINCE}")), [3, 4])
+        page = self.client.get(f"/?anywhere=1&since={self.SINCE}").text
+        self.assertIn("2 unreviewed found since 2026-10-20", page)
+        self.assertEqual(sorted(self.listed()), [1, 3, 4])           # without it, all
+
+    def test_the_banner_link_opens_exactly_those(self):
+        page = self.client.get("/pipeline").text
+        link = re.search(r'<a class="plain" href="([^"]+)">2 new match', page).group(1)
+        self.assertIn("since=", link)
+        self.assertEqual(sorted(self.listed(link.split("?", 1)[1].replace("&amp;", "&"))),
+                         [3, 4])
+
+    def test_a_malformed_since_is_ignored(self):
+        self.assertEqual(sorted(self.listed("anywhere=1&since=yesterday")), [1, 3, 4])
+
+    def test_save_keeps_the_since_filter(self):
+        page = self.client.get(f"/?anywhere=1&since={self.SINCE}").text
+        self.assertIn('name="back" value="anywhere=1&amp;since=', page)
+
+
 if __name__ == "__main__":
     unittest.main()

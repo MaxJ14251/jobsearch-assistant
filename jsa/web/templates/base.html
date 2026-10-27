@@ -298,7 +298,7 @@
 <div class="wrap{{ ' wide' if wide }}">{% if daily %}
 <div class="note daily" id="daily-banner" role="status">
   <span>Since your last daily run ({{ daily.started_at|localtime }}):
-    <a class="plain" href="/">{{ daily.s.new_matches }} new match(es)</a> ·
+    <a class="plain" href="/?anywhere=1{% if daily.s.since %}&amp;since={{ daily.s.since|urlencode }}{% endif %}">{{ daily.s.new_matches }} new match(es)</a> ·
     <a class="plain" href="/replies">{{ daily.s.replies }} repl(ies) to confirm</a> ·
     <a class="plain" href="/pipeline">{{ daily.s.due }} follow-up(s) due</a> ·
     <a class="plain" href="/review">{{ daily.s.review }} draft(s) waiting in Review</a>

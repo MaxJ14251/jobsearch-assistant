@@ -457,6 +457,11 @@ def host_allowed(host_header: str) -> bool:
     return name in ALLOWED_HOSTS
 
 
+# A stored UTC stamp, as daily_runs and jobs.discovered_at hold them. Anything
+# else in ?since= is ignored rather than compared.
+SINCE_STAMP = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ")
+
+
 def create_app(db_path: Path | None = None, output_dir: Path | None = None,
                profile_loader: Callable[[], dict[str, Any]] | None = None) -> FastAPI:
     """The three arguments exist for tests. Served, the app uses the
@@ -644,7 +649,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         return info
 
     def match_filters(near: str, track: str, q: str, degree: str,
-                      remote: str) -> tuple[list[str], dict[str, Any]]:
+                      remote: str, since: str = "") -> tuple[list[str], dict[str, Any]]:
         """The SQL conditions behind the filter form. Matches and Turbo use
         the same ones, so the deck and the list agree."""
         from ..cli import load_regions, region_clause
@@ -674,6 +679,11 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
             where.append("m.degree_level IN ('none', 'associate', 'bachelors_or_equiv')")
         if remote == "remote":
             where.append("m.remote = 'remote'")
+        if SINCE_STAMP.fullmatch(since):
+            # The daily banner's "N new match(es)": found since the last run,
+            # compared as stored (UTC stamps sort as text).
+            where.append("m.discovered_at > :since")
+            params["since"] = since
         return where, params
 
     def match_place(bare: bool, home: str, radius: str, anywhere: str):
