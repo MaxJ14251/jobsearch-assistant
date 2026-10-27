@@ -645,6 +645,11 @@ def set_stage(
                 f"back to applied; submitted {db.local_time(already)}, "
                 "record of what was sent unchanged"))
             return application_id, previous
+        if already and previous == "applied" and resume is None and cover is None:
+            # Asked again for where it already is: say so, not "what was sent
+            # is fixed", which read like a failure on a re-run (2026-10-27).
+            raise ApprovalError(f"job {job_id} is already applied (since "
+                                f"{db.local_time(already)}); nothing to do")
         mark_applied(con, job_id, via=via, resume=resume, cover=cover)
         if note:
             con.execute(

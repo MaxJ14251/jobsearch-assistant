@@ -93,9 +93,16 @@ class TestWalkingAnApplication(unittest.TestCase):
                                 "ORDER BY id DESC").fetchone()
         self.assertEqual(last["actor"], "human")
         self.assertIn("record of what was sent unchanged", last["note"])
-        # Still at applied: moving there again is still refused, not doubled.
-        with self.assertRaises(approvals.ApprovalError):
+        # Still at applied: moving there again is still refused, not doubled,
+        # and says so plainly (2026-10-27: a re-run read like a failure).
+        events = self.con.execute("SELECT COUNT(*) FROM application_events").fetchone()[0]
+        with self.assertRaises(approvals.ApprovalError) as caught:
             approvals.set_stage(self.con, 1, "applied")
+        self.assertIn("is already applied", str(caught.exception))
+        self.assertIn("nothing to do", str(caught.exception))
+        self.assertNotIn("--resume", str(caught.exception))
+        self.assertEqual(self.con.execute(
+            "SELECT COUNT(*) FROM application_events").fetchone()[0], events)
 
     def test_the_extension_naming_the_same_resume_moves_it_back_too(self):
         """The extension's "I submitted this" names the resume it filled."""
