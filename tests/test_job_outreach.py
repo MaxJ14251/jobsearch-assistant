@@ -111,6 +111,40 @@ class TestOutreachOnTheJobPage(unittest.TestCase):
                 self.assertEqual(r.status_code, 403)
 
 
+class TestOutreachOnPipelineCards(unittest.TestCase):
+    def setUp(self):
+        self.box = Sandbox()
+        self.addCleanup(self.box.cleanup)
+        con = self.box.connect()
+        con.execute("INSERT INTO contacts (id, company_id, name) VALUES (1, 1, 'Dana Reyes')")
+        for status in ("drafted", "drafted", "sent", "discarded"):
+            con.execute("INSERT INTO outreach (contact_id, job_id, channel, purpose, "
+                        "draft_body, status) VALUES (1, 1, 'email', 'referral_ask', 'x', ?)",
+                        (status,))
+        con.commit()
+        con.close()
+        self.client, _ = make_client(self.box.db, self.box.out, profile={"x": 1})
+
+    def card(self):
+        page = self.client.get("/pipeline").text
+        start = page.index('id="app-1"')
+        return page[start:page.index("</form>", start)]
+
+    def test_the_card_says_what_was_drafted_and_sent(self):
+        card = self.card()
+        self.assertIn("2 messages drafted", card)
+        self.assertIn("1 sent", card)
+        self.assertNotIn("discarded", card)
+        self.assertIn('href="/job/1#outreach"', card)
+
+    def test_a_card_with_no_outreach_says_nothing_about_it(self):
+        con = self.box.connect()
+        con.execute("DELETE FROM outreach")
+        con.commit()
+        con.close()
+        self.assertNotIn("#outreach", self.card())
+
+
 class TestNoRouteSends(unittest.TestCase):
     def test_the_dashboard_never_records_or_sends_outreach(self):
         web = Path(__file__).resolve().parent.parent / "jsa" / "web"

@@ -33,7 +33,8 @@
   </div>
   <div class="meta">{{ r.next_action or 'no next action set' }}
     {%- if r.next_action_due %} · due {{ r.next_action_due }}{% endif %}
-    {%- if r.last_activity_at %} · last activity {{ r.last_activity_at|localdate }}{% endif %}</div>
+    {%- if r.last_activity_at %} · last activity {{ r.last_activity_at|localdate }}{% endif %}
+    {%- if r.outreach %} · <a class="plain" href="/job/{{ r.job_id }}#outreach">{{ r.outreach }}</a>{% endif %}</div>
   <form method="post" action="/job/{{ r.job_id }}/stage" class="inline">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <select name="stage" aria-label="Stage for {{ r.title }}">

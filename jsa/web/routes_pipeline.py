@@ -12,6 +12,10 @@ from .. import approvals
 from . import plural, db
 
 
+# How an outreach message's status reads on a Pipeline card, in order.
+OUTREACH_ORDER = ("drafted", "approved", "sent", "replied", "declined")
+
+
 def register(app, ctx) -> None:
     """Add this area's routes to `app`; shared helpers come from `ctx`."""
     connect = ctx.connect
@@ -38,6 +42,14 @@ def register(app, ctx) -> None:
                 "  FROM applications a JOIN jobs j ON j.id = a.job_id "
                 "  LEFT JOIN companies c ON c.id = j.company_id "
                 " WHERE a.archived_at IS NULL").fetchall()]
+            # Outreach per job, by status, for a line on each card. A
+            # discarded draft is history, not news.
+            sent_out: dict[int, dict[str, int]] = {}
+            for o in con.execute(
+                    "SELECT job_id, status, COUNT(*) AS n FROM outreach "
+                    "WHERE job_id IS NOT NULL AND archived_at IS NULL "
+                    "AND status != 'discarded' GROUP BY job_id, status"):
+                sent_out.setdefault(o["job_id"], {})[o["status"]] = o["n"]
             from .. import applyqueue, outcomes, pairing
             happened = outcomes.all_outcomes(con)
             # The apply session (plan 31): what is ready, and whether the
@@ -49,6 +61,12 @@ def register(app, ctx) -> None:
 
         today = date.today()
         for row in rows:
+            counts = sent_out.get(row["job_id"], {})
+            items = [(s, counts[s]) for s in OUTREACH_ORDER if counts.get(s)]
+            # "2 messages drafted · 1 sent": the noun once, on the first.
+            row["outreach"] = " · ".join(
+                (plural(n, "message") if i == 0 else str(n)) + f" {s}"
+                for i, (s, n) in enumerate(items))
             row["days_out"] = None
             row["quiet"] = None
             if row["next_action_due"]:
