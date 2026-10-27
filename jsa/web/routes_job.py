@@ -12,6 +12,7 @@ from fastapi import Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from .. import approvals
+from ..inbox import BEFORE_APPLIED
 from ..prep import INTERVIEW_ROUNDS
 from . import APPLY_BY_HAND_STAGES, _json_list
 
@@ -28,7 +29,7 @@ def register(app, ctx) -> None:
     render = ctx.render
 
     @app.get("/job/{job_id}", response_class=HTMLResponse)
-    def job_detail(job_id: int, msg: str = "", bad: int = 0):
+    def job_detail(job_id: int, msg: str = "", bad: int = 0, ask_back: str = ""):
         prof = profile()
         sources: dict[str, Any] = {}
         if prof is not None:
@@ -80,11 +81,16 @@ def register(app, ctx) -> None:
                     "via": approvals.VIA_LABELS.get(application["applied_via"] or ""),
                     "sent": sent,
                     "not_sent": not_sent if application["applied_at"] else [],
-                    "history": [dict(e) for e in con.execute(
-                        "SELECT from_status, to_status, occurred_at, actor, note "
-                        "FROM application_events WHERE application_id = ? "
-                        "ORDER BY id DESC", (application["id"],))],
                 }
+                # The tool's "drafted" entries move nothing (ready -> ready) and
+                # each draft is listed under Documents: counted, not listed.
+                events = [dict(e) for e in con.execute(
+                    "SELECT from_status, to_status, occurred_at, actor, note "
+                    "FROM application_events WHERE application_id = ? "
+                    "ORDER BY id DESC", (application["id"],))]
+                record["history"] = [e for e in events if not (
+                    e["actor"] == "agent" and e["from_status"] == e["to_status"])]
+                record["drafts_hidden"] = len(events) - len(record["history"])
             preps = []
             if application is not None:
                 for p in con.execute(
@@ -113,6 +119,7 @@ def register(app, ctx) -> None:
                       stack=_json_list(row["tech_stack"]),
                       application=dict(application) if application else None,
                       record=record, stages=approvals.STAGES,
+                      ask_back=ask_back if ask_back in BEFORE_APPLIED else "",
                       documents=documents, preps=preps, msg=msg, bad=bad,
                       interview_rounds=INTERVIEW_ROUNDS,
                       answer_facts=facts, answer_written=written,
@@ -348,13 +355,21 @@ def register(app, ctx) -> None:
                       prep=dict(row), questions=questions)
 
     @app.post("/job/{job_id}/stage")
-    def do_stage(job_id: int, stage: str = Form(...), back: str = Form("")):
+    def do_stage(job_id: int, stage: str = Form(...), back: str = Form(""),
+                 confirm_back: str = Form("")):
         """The same approvals call `jsa status` makes. ADR 0003 decision 5.
-        From the job page (`back=job`) it returns there; else to Pipeline."""
+        From the job page (`back=job`) it returns there; else to Pipeline.
+        A move back before applied is asked about first, on the job page."""
         from .. import prep
         go = (lambda msg, bad: back_to_job(job_id, msg, bad)) if back == "job"             else back_to_pipeline
         con = connect()
         try:
+            row = con.execute("SELECT status FROM applications WHERE job_id = ?",
+                              (job_id,)).fetchone()
+            if (row is not None and stage in BEFORE_APPLIED
+                    and row["status"] not in BEFORE_APPLIED and confirm_back != "1"):
+                return RedirectResponse(f"/job/{job_id}?" + urlencode(
+                    {"ask_back": stage}) + "#your-application", status_code=303)
             application_id, previous = approvals.set_stage(con, job_id, stage)
             con.commit()
             hint = prep.suggestion(con, application_id, stage)

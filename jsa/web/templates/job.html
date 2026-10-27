@@ -19,6 +19,19 @@
 {% for s in record.sent %}<a href="/document/{{ s.document_id }}">{{ s.kind|replace('_',' ')|capitalize }} v{{ s.version }}</a> ({{ 'approved' if s.approved else 'not approved' }}){{ ', ' if not loop.last }}{% else %}no document recorded{% endfor %}
 {% if record.not_sent %}· Drafted, not sent: {% for d in record.not_sent %}{{ d.kind|replace('_',' ') }} v{{ d.version }}{{ ', ' if not loop.last }}{% endfor %}{% endif %}</p>
 {% endif %}
+{% if ask_back %}
+<div class="note bad" role="alert">
+  <p>This would move {{ job.title }} from {{ application.status|replace('_',' ') }} back to {{ ask_back }}, as if you had not applied. Is that what you mean?</p>
+  <form method="post" action="/job/{{ job.id }}/stage" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="stage" value="{{ ask_back }}">
+    <input type="hidden" name="back" value="job">
+    <input type="hidden" name="confirm_back" value="1">
+    <button type="submit">Yes, move it back to {{ ask_back }}</button>
+    <a class="meta" href="/job/{{ job.id }}">No, keep it {{ application.status|replace('_',' ') }}</a>
+  </form>
+</div>
+{% endif %}
 <form method="post" action="/job/{{ job.id }}/stage" class="inline">
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <input type="hidden" name="back" value="job">
@@ -29,11 +42,12 @@
   <button type="submit">Move</button>
   <span class="meta">Records that you said so.</span>
 </form>
-{% if record.history %}
+{% if record.history or record.drafts_hidden %}
 <details><summary class="meta">History ({{ record.history|length }})</summary>
 <ul class="history">
 {% for e in record.history %}<li class="meta">{{ e.occurred_at|localtime }} · {{ (e.from_status or 'new')|replace('_',' ') }} → {{ e.to_status|replace('_',' ') }} · {{ 'you' if e.actor == 'human' else 'the tool' }}{% if e.note %} · {{ e.note }}{% endif %}</li>
 {% endfor %}</ul>
+{% if record.drafts_hidden %}<p class="meta">Plus {{ record.drafts_hidden }} draft{{ 's' if record.drafts_hidden != 1 }} by the tool, listed under Documents.</p>{% endif %}
 </details>
 {% endif %}
 </section>

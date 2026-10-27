@@ -83,6 +83,37 @@ class TestYourApplication(unittest.TestCase):
         self.assertEqual(actor, "human")
         self.assertIn("applied → phone screen", self.section())
 
+    def test_the_tools_drafting_entries_are_counted_not_listed(self):
+        con = self.box.connect()
+        con.execute("INSERT INTO application_events (application_id, from_status, "
+                    "to_status, actor, note) VALUES (1, 'applied', 'applied', 'agent', "
+                    "'resume v3 drafted, awaiting approval')")
+        con.commit()
+        con.close()
+        text = self.section()
+        self.assertNotIn("resume v3 drafted", text)
+        self.assertIn("Plus 1 draft by the tool", text)
+        self.assertIn("ready → applied", text)
+
+    def test_moving_back_before_applied_asks_first(self):
+        for back in ("job", ""):                 # the job page and Pipeline
+            with self.subTest(back=back):
+                r = self.client.post("/job/1/stage", data={
+                    "csrf": self.csrf, "stage": "saved", "back": back},
+                    follow_redirects=False)
+                self.assertEqual(self.status(), "applied")
+                page = self.client.get(r.headers["location"]).text
+                self.assertIn("back to saved, as if you had not applied", page)
+                self.assertIn('name="confirm_back" value="1"', page)
+        self.client.post("/job/1/stage", data={"csrf": self.csrf, "stage": "saved",
+                                                "back": "job", "confirm_back": "1"},
+                         follow_redirects=False)
+        self.assertEqual(self.status(), "saved")
+
+    def test_only_a_move_back_is_ever_asked_about(self):
+        self.assertNotIn('name="confirm_back"',
+                         self.client.get("/job/1?ask_back=rejected").text)
+
     def test_the_pipeline_form_still_returns_to_the_pipeline(self):
         r = self.client.post("/job/1/stage", data={"csrf": self.csrf, "stage": "phone_screen"},
                              follow_redirects=False)
