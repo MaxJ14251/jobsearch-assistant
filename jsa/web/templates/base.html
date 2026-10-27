@@ -300,7 +300,7 @@
   <span>Since your last daily run ({{ daily.started_at|localtime }}):
     <a class="plain" href="/?anywhere=1{% if daily.s.since %}&amp;since={{ daily.s.since|urlencode }}{% endif %}">{{ daily.s.new_matches }} new match(es)</a> ·
     <a class="plain" href="/replies">{{ daily.s.replies }} repl(ies) to confirm</a> ·
-    <a class="plain" href="/pipeline">{{ daily.s.due }} follow-up(s) due</a> ·
+    <a class="plain" href="/pipeline#first-due">{{ daily.s.due }} follow-up(s) due</a> ·
     <a class="plain" href="/review">{{ daily.s.review }} draft(s) waiting in Review</a>
     {%- if not daily.ok %} · <strong>failed: {{ daily.s.failed|join(', ') }}</strong> (see logs/){% endif %}
     {%- if daily.s.top %}<br><span class="meta">Newest best: {% for t in daily.s.top %}<a class="plain" href="/job/{{ t.job_id }}">{{ t.company }}, {{ t.title }}</a>{{ ' · ' if not loop.last }}{% endfor %}</span>{% endif %}</span>

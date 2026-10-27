@@ -105,6 +105,7 @@ class TestTheGuard(Base):
             "/add/paste": {"company": "Beta", "title": "Support", "text": posting},
             "/inbox/fetch": {}, "/inbox/1/confirm": {"stage": "applied"},
             "/inbox/1/dismiss": {}, "/job/1/stage": {"stage": "saved"},
+            "/job/1/next": {"action": "Email the recruiter", "due": "2026-11-03"},
             "/inbox/1/acknowledge": {}, "/inbox/receipts/acknowledge": {},
             "/approve": {"approval_id": 99}, "/reject": {"approval_id": 99, "feedback": "x"},
             "/turbo/pass": {"job_id": 1, "js": "1"}, "/turbo/unpass": {"job_id": 1, "js": "1"},

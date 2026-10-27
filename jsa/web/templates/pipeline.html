@@ -17,10 +17,12 @@
   .session p{flex-basis:100%;margin:0}</style>
 {% endif %}
 {% if replies_count %}<p class="note" role="status"><a class="plain" href="/replies">{{ replies_count }} email repl(ies) waiting on you</a> in Replies.</p>{% endif %}
+{% set ns = namespace(first_due=false) %}
 {% for stage, items in groups %}
 <h2>{{ stage|replace('_',' ') }} · {{ items|length }}</h2>
 {% for r in items %}
-<div class="card">
+{% set is_due = r.days_out is not none and r.days_out <= 1 %}
+<div class="card" id="app-{{ r.job_id }}">{% if is_due and not ns.first_due %}{% set ns.first_due = true %}<span id="first-due"></span>{% endif %}
   <div class="row1">
     <span class="title"><a class="plain" href="/job/{{ r.job_id }}">{{ r.title }}</a></span>
     <span class="co">{{ r.company }}</span>
@@ -39,6 +41,18 @@
     </select>
     <button class="ghost" type="submit">Move</button>
   </form>
+  <details class="follow"><summary class="meta">{{ 'Change follow-up' if r.next_action else 'Set a follow-up' }}</summary>
+  <form method="post" action="/job/{{ r.job_id }}/next" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="text" name="action" id="next-{{ r.job_id }}" value="{{ r.next_action or '' }}"
+           maxlength="200" placeholder="e.g. Email the recruiter" aria-label="Next action for {{ r.title }}">
+    <input type="date" name="due" id="due-{{ r.job_id }}" value="{{ r.next_action_due or '' }}" aria-label="Due date for {{ r.title }}">
+    <button class="ghost" type="submit">Save</button>
+  </form>
+  {% if r.next_action %}<form method="post" action="/job/{{ r.job_id }}/next" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="clear" value="1">
+    <button class="ghost" type="submit">Clear</button></form>{% endif %}
+  </details>
 </div>
 {% endfor %}
 {% else %}<p class="empty">Nothing in the pipeline yet. Save a match to start one.</p>{% endfor %}

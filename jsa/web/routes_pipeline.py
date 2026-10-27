@@ -62,6 +62,10 @@ def register(app, ctx) -> None:
                     row["quiet"] = quiet if quiet >= approvals.QUIET_DAYS else None
                 except (TypeError, ValueError):
                     pass
+        # Within a stage: overdue and due first (soonest first), then gone
+        # quiet (longest first), then the rest as before.
+        rows.sort(key=lambda r: (r["days_out"] is None, r["days_out"] or 0,
+                                 -(r["quiet"] or 0)))
         live = [r for r in rows if r["status"] not in approvals.CLOSED]
         closed = [r for r in rows if r["status"] in approvals.CLOSED]
         groups = [(stage, [r for r in live if r["status"] == stage])
@@ -73,6 +77,29 @@ def register(app, ctx) -> None:
                                   if r["days_out"] is not None and r["days_out"] < 0),
                       happened=happened, happened_line=outcomes.summary(happened),
                       session=session, msg=msg, bad=bad)
+
+    @app.post("/job/{job_id}/next")
+    def set_follow_up(job_id: int, action: str = Form(""), due: str = Form(""),
+                      clear: str = Form("")):
+        """Your next action for this application, set or cleared from its
+        Pipeline card: the same call `jsa next` makes. Never set by the tool."""
+        from urllib.parse import urlencode
+        con = connect()
+        try:
+            if clear == "1":
+                approvals.clear_next_action(con, job_id)
+                message = "Follow-up cleared."
+            else:
+                approvals.set_next_action(con, job_id, action, due=due.strip() or None)
+                message = "Follow-up set."
+            con.commit()
+            bad = False
+        except approvals.ApprovalError as exc:
+            message, bad = said(exc), True
+        finally:
+            con.close()
+        return RedirectResponse("/pipeline?" + urlencode({"msg": message, "bad": int(bad)})
+                                + f"#app-{job_id}", status_code=303)
 
     @app.get("/replies", response_class=HTMLResponse)
     def replies_page(msg: str = "", bad: int = 0, ask: int = 0, to: str = ""):

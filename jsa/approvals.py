@@ -688,6 +688,15 @@ def set_next_action(
     return application_id
 
 
+def clear_next_action(con: sqlite3.Connection, job_id: int) -> int:
+    """Nothing next: clears the action and its date. The person's act, as
+    setting one is; set_next_action refuses empty text, so this is how."""
+    application_id = require_application(con, job_id)
+    con.execute("UPDATE applications SET next_action = NULL, next_action_due = NULL "
+                "WHERE id = ?", (application_id,))
+    return application_id
+
+
 @dataclass
 class DueItem:
     job_id: int
