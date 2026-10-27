@@ -17,6 +17,14 @@ from ..prep import INTERVIEW_ROUNDS
 from . import APPLY_BY_HAND_STAGES, _json_list
 
 
+# What the job page offers for outreach. Connection notes first: measured
+# 2026-10-26 (ADR 0010), 2 of 9 drafts passed the check, both connection
+# notes; longer messages mostly came back refused.
+OUTREACH_CHANNELS = ("linkedin_connect", "linkedin_dm", "email")
+OUTREACH_PURPOSES = ("referral_ask", "informational")
+RELATIONSHIPS = ("cold", "warm", "alum", "referral", "recruiter", "friend")
+
+
 def register(app, ctx) -> None:
     """Add this area's routes to `app`; shared helpers come from `ctx`."""
     back_to_job = ctx.back_to_job
@@ -92,6 +100,17 @@ def register(app, ctx) -> None:
                 record["history"] = [e for e in events if not (
                     e["actor"] == "agent" and e["from_status"] == e["to_status"])]
                 record["drafts_hidden"] = len(events) - len(record["history"])
+            # Outreach (ADR 0010): the people you added at this company, and
+            # what was drafted for this job. Drafting is on request only.
+            contacts = [dict(c) for c in con.execute(
+                "SELECT id, name, title, relationship FROM contacts "
+                "WHERE company_id = ? AND archived_at IS NULL ORDER BY id",
+                (row["company_id"],))]
+            messages = [dict(m) for m in con.execute(
+                "SELECT o.id, o.channel, o.purpose, o.status, o.drafted_at, c.name "
+                "FROM outreach o JOIN contacts c ON c.id = o.contact_id "
+                "WHERE o.job_id = ? AND o.archived_at IS NULL ORDER BY o.id DESC",
+                (job_id,))]
             preps = []
             if application is not None:
                 for p in con.execute(
@@ -120,6 +139,8 @@ def register(app, ctx) -> None:
                       stack=_json_list(row["tech_stack"]),
                       application=dict(application) if application else None,
                       record=record, stages=approvals.STAGES,
+                      contacts=contacts, messages=messages,
+                      channels=OUTREACH_CHANNELS, purposes=OUTREACH_PURPOSES,
                       ask_back=ask_back if ask_back in BEFORE_APPLIED else "",
                       documents=documents, preps=preps, msg=msg, bad=bad,
                       interview_rounds=INTERVIEW_ROUNDS,
@@ -216,6 +237,56 @@ def register(app, ctx) -> None:
         finally:
             con.close()
         return go("Saved as an application." if created else "Already saved.", False)
+
+    @app.post("/job/{job_id}/contact")
+    def add_contact(job_id: int, name: str = Form(""), title: str = Form(""),
+                    relationship: str = Form("cold")):
+        """Someone you know or found at this job's company (yours to add)."""
+        from .. import outreach
+        if not name.strip():
+            return back_to_job(job_id, "A contact needs a name.", True)
+        if relationship not in RELATIONSHIPS:
+            return back_to_job(job_id, f"Unknown relationship {relationship!r}.", True)
+        con = connect()
+        try:
+            job = con.execute("SELECT company_id FROM jobs WHERE id = ?", (job_id,)).fetchone()
+            if job is None:
+                return not_found("job")
+            outreach.add_contact(con, name=name.strip()[:120], company_id=job["company_id"],
+                                 title=title.strip()[:120] or None,
+                                 relationship=relationship)
+            con.commit()
+        finally:
+            con.close()
+        return back_to_job(job_id, f"Added {name.strip()}.", False)
+
+    @app.post("/job/{job_id}/outreach")
+    def draft_outreach(job_id: int, contact_id: int = Form(...),
+                       channel: str = Form("linkedin_connect"),
+                       purpose: str = Form("referral_ask")):
+        """One paid model call, on your request. The draft is checked, then
+        waits in Review; nothing here or anywhere in the dashboard sends it."""
+        from .. import outreach
+        from ..llm import LLMError
+        from ..tailor import FabricationError
+        if channel not in OUTREACH_CHANNELS or purpose not in OUTREACH_PURPOSES:
+            return back_to_job(job_id, "Unknown channel or purpose.", True)
+        prof = profile()
+        if prof is None:
+            return back_to_job(job_id, "Your profile could not be loaded.", True)
+        con = connect()
+        try:
+            result = outreach.draft(con, prof, contact_id=contact_id, channel=channel,
+                                    purpose=purpose, job_id=job_id)
+            con.commit()
+        except (FabricationError, outreach.OutreachError, LLMError) as exc:
+            return back_to_job(job_id, f"Not drafted: {exc}", True)
+        finally:
+            con.close()
+        note = f" {result.thin_note}" if result.thin_note else ""
+        return back_to_job(job_id, "Drafted and checked; it waits in Review for you to "
+                           "read and approve. Nothing is sent: you send it yourself."
+                           + note, False)
 
     @app.post("/job/{job_id}/tailor")
     def do_tailor(job_id: int, kind: str = Form("resume")):

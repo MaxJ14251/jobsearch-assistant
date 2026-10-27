@@ -198,6 +198,39 @@ document.querySelectorAll('button.copy').forEach(function (b) {
 </script>
 {% endif %}
 
+<h2 id="outreach">Reach someone there</h2>
+{% if messages %}<ul class="history">{% for m in messages %}
+  <li class="meta">{{ m.drafted_at|localtime }} · to {{ m.name }} · {{ m.channel|replace('_',' ') }}, {{ m.purpose|replace('_',' ') }} · <strong>{{ m.status }}</strong>{% if m.status == 'drafted' %} · <a class="plain" href="/review">read it in Review</a>{% endif %}</li>
+{% endfor %}</ul>{% endif %}
+{% for c in contacts %}
+<form method="post" action="/job/{{ job.id }}/outreach" class="inline"
+      onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Drafting, up to a minute…'">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="contact_id" value="{{ c.id }}">
+  <span>{{ c.name }}{% if c.title %}, {{ c.title }}{% endif %} <span class="meta">({{ c.relationship }})</span></span>
+  <select name="channel" id="ch-{{ c.id }}" aria-label="Channel for {{ c.name }}">
+    {% for ch in channels %}<option value="{{ ch }}">{{ ch|replace('_',' ') }}</option>{% endfor %}
+  </select>
+  <select name="purpose" id="pu-{{ c.id }}" aria-label="Purpose for {{ c.name }}">
+    {% for p in purposes %}<option value="{{ p }}">{{ p|replace('_',' ') }}</option>{% endfor %}
+  </select>
+  <button type="submit">Draft a message</button>
+</form>
+{% endfor %}
+{% if contacts %}<p class="meta">Each draft is one paid model call (a few more if it needs retries). It is checked against your profile and waits in Review; nothing is ever sent. Measured 2026-10-26: 2 of 9 drafts passed the check, both LinkedIn connection notes; longer messages and emails usually come back refused.</p>{% endif %}
+<details{% if not contacts %} open{% endif %}><summary class="meta">Add someone at {{ job.company }}</summary>
+<form method="post" action="/job/{{ job.id }}/contact" class="inline">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="text" name="name" id="ct-name" maxlength="120" required placeholder="Name" aria-label="Contact name">
+  <input type="text" name="title" id="ct-title" maxlength="120" placeholder="Their title (optional)" aria-label="Contact title">
+  <select name="relationship" id="ct-rel" aria-label="How you know them">
+    <option value="cold">cold</option><option value="warm">warm</option><option value="alum">alum</option>
+    <option value="referral">referral</option><option value="recruiter">recruiter</option><option value="friend">friend</option>
+  </select>
+  <button class="ghost" type="submit">Add</button>
+</form>
+</details>
+
 <h2>Interview prep</h2>
 {% for p in preps %}
 <div class="card"><div class="row1">
