@@ -37,7 +37,7 @@ def register(app, ctx) -> None:
         try:
             rows = [dict(r) for r in con.execute(
                 "SELECT a.id AS application_id, a.job_id, a.status, a.next_action, "
-                "       a.next_action_due, a.last_activity_at, j.title, "
+                "       a.next_action_due, a.last_activity_at, j.title, j.closed_at, "
                 "       c.name AS company "
                 "  FROM applications a JOIN jobs j ON j.id = a.job_id "
                 "  LEFT JOIN companies c ON c.id = j.company_id "

@@ -88,6 +88,9 @@ def register(app, ctx) -> None:
                     seen.add(d["kind"])
                 record = {
                     "via": approvals.VIA_LABELS.get(application["applied_via"] or ""),
+                    # Offered only to fill a missing channel, preset to where
+                    # the job's link points.
+                    "guess_via": approvals.channel(row["url"], row["company"]),
                     "sent": sent,
                     "not_sent": not_sent if application["applied_at"] else [],
                 }
@@ -139,6 +142,7 @@ def register(app, ctx) -> None:
                       stack=_json_list(row["tech_stack"]),
                       application=dict(application) if application else None,
                       record=record, stages=approvals.STAGES,
+                      via_labels=approvals.VIA_LABELS,
                       contacts=contacts, messages=messages,
                       channels=OUTREACH_CHANNELS, purposes=OUTREACH_PURPOSES,
                       ask_back=ask_back if ask_back in BEFORE_APPLIED else "",
@@ -237,6 +241,20 @@ def register(app, ctx) -> None:
         finally:
             con.close()
         return go("Saved as an application." if created else "Already saved.", False)
+
+    @app.post("/job/{job_id}/via")
+    def fill_via(job_id: int, via: str = Form(...)):
+        """Where you applied, for a record made before the channel was."""
+        con = connect()
+        try:
+            approvals.fill_applied_via(con, job_id, via)
+            con.commit()
+        except approvals.ApprovalError as exc:
+            return back_to_job(job_id, str(exc), True)
+        finally:
+            con.close()
+        return back_to_job(job_id, f"Recorded: you applied via {approvals.VIA_LABELS[via]}.",
+                           False)
 
     @app.post("/job/{job_id}/contact")
     def add_contact(job_id: int, name: str = Form(""), title: str = Form(""),

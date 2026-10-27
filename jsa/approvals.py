@@ -688,6 +688,25 @@ def set_next_action(
     return application_id
 
 
+def fill_applied_via(con: sqlite3.Connection, job_id: int, via: str) -> int:
+    """Where an application went, filled in afterwards (found 2026-10-27: 7
+    of 14 had none, recorded before the channel was). The person's act.
+    Fills a missing channel only: one already recorded is never changed,
+    so the record of an application stays what was said at the time."""
+    if via not in VIA:
+        raise ApprovalError(f"{via!r} is not a channel. Use one of: {', '.join(VIA)}")
+    application_id = require_application(con, job_id)
+    row = con.execute("SELECT applied_at, applied_via FROM applications WHERE id = ?",
+                      (application_id,)).fetchone()
+    if row["applied_at"] is None:
+        raise ApprovalError(f"job {job_id} is not recorded as applied yet")
+    if row["applied_via"] is not None:
+        raise ApprovalError(f"job {job_id} already says it went via "
+                            f"{VIA_LABELS[row['applied_via']]}; that is not changed")
+    con.execute("UPDATE applications SET applied_via = ? WHERE id = ?", (via, application_id))
+    return application_id
+
+
 def clear_next_action(con: sqlite3.Connection, job_id: int) -> int:
     """Nothing next: clears the action and its date. The person's act, as
     setting one is; set_next_action refuses empty text, so this is how."""

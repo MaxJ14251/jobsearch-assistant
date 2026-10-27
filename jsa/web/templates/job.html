@@ -14,6 +14,16 @@
 <section id="your-application" aria-labelledby="your-application-h">
 <h2 id="your-application-h">Your application</h2>
 <p><strong>{{ application.status|replace('_',' ')|capitalize }}</strong>{% if application.applied_at %} · applied {{ application.applied_at|localtime }}{% if record.via %} via {{ record.via }}{% endif %}{% endif %}</p>
+{% if application.applied_at and not record.via %}
+<form method="post" action="/job/{{ job.id }}/via" class="inline">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="via-{{ job.id }}" class="meta">Where you applied isn't recorded:</label>
+  <select name="via" id="via-{{ job.id }}">
+    {% for v, label in via_labels.items() %}<option value="{{ v }}" {{ 'selected' if v == record.guess_via }}>{{ label }}</option>{% endfor %}
+  </select>
+  <button class="ghost" type="submit">Record it</button>
+</form>
+{% endif %}
 {% if application.applied_at %}
 <p class="meta">Sent:
 {% for s in record.sent %}<a href="/document/{{ s.document_id }}">{{ s.kind|replace('_',' ')|capitalize }} v{{ s.version }}</a> ({{ 'approved' if s.approved else 'not approved' }}){{ ', ' if not loop.last }}{% else %}no document recorded{% endfor %}

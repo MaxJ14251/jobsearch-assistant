@@ -30,6 +30,7 @@
     {% elif r.days_out == 0 %}<span class="flag warn">due today</span>
     {% elif r.days_out is not none %}<span class="flag">due in {{ r.days_out }}d</span>{% endif %}
     {% if r.quiet %}<span class="flag warn">quiet {{ r.quiet }}d</span>{% endif %}
+    {% if r.closed_at %}<span class="flag" title="The employer's board stopped listing it on {{ r.closed_at|localdate }}. Often it was filled; it is not a reply.">posting taken down</span>{% endif %}
   </div>
   <div class="meta">{{ r.next_action or 'no next action set' }}
     {%- if r.next_action_due %} · due {{ r.next_action_due }}{% endif %}
