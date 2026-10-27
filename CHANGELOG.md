@@ -6,6 +6,10 @@ version number lives in one place, `jsa/__init__.py`.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-26
+
+Everything below landed after 0.2.0.
+
 ### Changed
 
 - **Outreach drafts keep sentences about the recipient apart from sentences
@@ -121,6 +125,16 @@ version number lives in one place, `jsa/__init__.py`.
   `companies.yaml`, keeping every comment, and a feed that fails one run is
   reported and left verified. It used to rewrite the whole file without its
   comments and switch off any board that failed once.
+- **Setup refuses the example's stand-in cities.** "Start from the example"
+  filled "Other cities" with "Your City, ST" and the like, and saving kept
+  them as real places.
+- **Setup no longer tells you to copy the draft over the profile it just
+  became**; step 4 says the draft is your profile now. The page also names
+  `JSA_LLM_API_KEY` for other providers, and gives the first search's time
+  as about 20 minutes (measured 18 over 60 sources; it said 13).
+- **Matches says when the three-per-company cap hides cards** ("11 more
+  hidden: at most 3 per company"). A first search over a few boards used
+  to read "14 unreviewed, showing 3" with no reason.
 
 ## [0.2.0] - 2026-10-05
 
