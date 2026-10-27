@@ -8,7 +8,8 @@ from __future__ import annotations
 from fastapi import Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from .. import approvals, db
+from .. import approvals
+from . import plural, db
 
 
 def register(app, ctx) -> None:
@@ -131,8 +132,9 @@ def register(app, ctx) -> None:
         finally:
             con.close()
         return back_to_replies(
-            f"Checked {report.user}: {report.searched} message(s) looked at, "
-            f"{report.stored} new repl(ies) about your applications.", False)
+            f"Checked {report.user}: {plural(report.searched, 'message')} looked at, "
+            f"{plural(report.stored, 'new reply', 'new replies')} about your "
+            "applications.", False)
 
     @app.post("/inbox/{reply_id}/confirm")
     def inbox_confirm(reply_id: int, stage: str = Form(...), back: str = Form("")):
@@ -167,7 +169,7 @@ def register(app, ctx) -> None:
             con.commit()
         finally:
             con.close()
-        return back_to_replies(f"Noted {n} receipt(s). No stage moved.", False)
+        return back_to_replies(f"Noted {plural(n, 'receipt')}. No stage moved.", False)
 
     @app.post("/inbox/{reply_id}/acknowledge")
     def inbox_acknowledge(reply_id: int):

@@ -10,6 +10,7 @@ from fastapi import Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from .. import approvals
+from . import plural
 from . import _copies
 
 
@@ -44,7 +45,7 @@ def register(app, ctx) -> None:
         if s["failed"]:
             parts.append(f"{len(s['failed'])} failed")
         if s["model_calls_today"]:
-            parts.append(f"{s['model_calls_today']} model call(s) today")
+            parts.append(f"{plural(s['model_calls_today'], 'model call')} today")
         return " · ".join(parts)
 
     @app.get("/turbo", response_class=HTMLResponse)
@@ -159,7 +160,7 @@ def register(app, ctx) -> None:
             con.commit()
         finally:
             con.close()
-        return turbo_reply(js, back, f"Cancelled {n} waiting draft(s).", False)
+        return turbo_reply(js, back, f"Cancelled {plural(n, 'waiting draft')}.", False)
 
     @app.get("/turbo/status")
     def turbo_status():

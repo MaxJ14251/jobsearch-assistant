@@ -21,7 +21,7 @@
 {% if since %}<p class="sub">{{ since_n }} unreviewed found since {{ since|localtime }}; only those are shown. <a class="plain" href="{{ clear_since_url }}">Show all matches</a></p>{% endif %}
 {% if learn and learn.enabled %}<p class="sub">Save or "Not for me" teaches the order:
   {% if learn.active %}your choices nudge it ({{ learn.signals }} so far).{% else %}learning starts after {{ learn.minimum }} ({{ learn.signals }} so far).{% endif %}</p>{% endif %}
-{% if hidden %}<p class="sub">{{ hidden }} match(es) hidden by the radius.
+{% if hidden %}<p class="sub">{{ hidden|plural('match', 'matches') }} hidden by the radius.
   {%- if unplaced %} {{ unplaced }} of them name a place this could not find, so the distance is unknown rather than far.{% endif %}
   <a class="plain" href="{{ nationwide_url }}">Show them anyway</a></p>{% endif %}
 </div>
@@ -66,7 +66,7 @@
       data-per-mile="{{ '%.6f'|format(map.per_mile) }}"/>{% endif %}
     {% for b in map.bubbles %}<a href="/job/{{ b.job_id }}"><circle
       class="dot {{ 'in' if b.inside else 'out' }}" cx="{{ '%.1f'|format(b.x) }}"
-      cy="{{ '%.1f'|format(b.y) }}" r="{{ '%.1f'|format(b.r) }}"><title>{{ b.place }}: {{ b.count }} posting(s){% if b.miles is not none %}, {{ b.miles }} miles away{% endif %}</title></circle></a>
+      cy="{{ '%.1f'|format(b.y) }}" r="{{ '%.1f'|format(b.r) }}"><title>{{ b.place }}: {{ b.count|plural('posting') }}{% if b.miles is not none %}, {{ b.miles }} miles away{% endif %}</title></circle></a>
     {% endfor %}
     {% if map.home %}<circle class="home" cx="{{ '%.1f'|format(map.home[0]) }}"
       cy="{{ '%.1f'|format(map.home[1]) }}" r="4"><title>{{ map.home_name }}</title></circle>{% endif %}
@@ -1233,7 +1233,7 @@
 
   var note = document.getElementById('map-note');
   if (note) {
-    note.textContent = live.points.length + ' posting(s) on the map' +
+    note.textContent = live.points.length + (live.points.length === 1 ? ' posting' : ' postings') + ' on the map' +
       (live.remote ? '; ' + live.remote + ' remote, with no distance to draw' : '') +
       (live.unplaced ? '; ' + live.unplaced + ' naming a place this could not find' : '') +
       '. Drag to pan, scroll to zoom. Distances are straight-line miles from ' + live.home + '.';

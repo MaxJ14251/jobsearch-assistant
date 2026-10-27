@@ -2,7 +2,7 @@
 <h1>Your draft profile</h1>
 <p class="note good" role="status">Wrote <code>{{ draft_path }}</code>. Your real profile was not changed.</p>
 {% if warning %}<p class="note bad" role="alert">{{ warning[0]|upper }}{{ warning[1:] }}</p>{% endif %}
-<p class="sub">Imported {{ v.experience|length }} job(s), {{ v.projects|length }} project(s), {{ v.bullet_count }} bullet(s), {{ v.certifications|length }} certification(s), {{ v.education|length }} school(s) and {{ v.skills|length }} skill(s), each copied word for word from your resume.</p>
+<p class="sub">Imported {{ v.experience|length|plural('job') }}, {{ v.projects|length|plural('project') }}, {{ v.bullet_count|plural('bullet') }}, {{ v.certifications|length|plural('certification') }}, {{ v.education|length|plural('school') }} and {{ v.skills|length|plural('skill') }}, each copied word for word from your resume.</p>
 
 {% if v.dropped %}<h2>Left out ({{ v.dropped|length }})</h2>
 <p class="sub">Nothing is reworded into your profile. These were not found word for word in your resume; copy any you want across by hand.</p>

@@ -68,6 +68,15 @@ env = Environment(
 env.filters["localtime"] = db.local_time
 
 
+def plural(n: int, one: str, many: str | None = None) -> str:
+    """"1 match", "2 matches": the dashboard's counts read as English, not
+    "match(es)". `many` defaults to `one` + "s"."""
+    return f"{n} {one if n == 1 else (many or one + 's')}"
+
+
+env.filters["plural"] = plural
+
+
 def safe_url(url: Any) -> str:
     """A link from stored data, only when it is http(s). A feed is third-party
     input, and a `javascript:` URL in an href runs on the dashboard's own
@@ -118,11 +127,12 @@ def _map_note(view) -> str:
     """What the map is not showing, in words. Nothing is dropped in silence."""
     places_shown = len(view.bubbles)
     if view.kind == "local":
-        bits = [f"{view.shown} posting(s) in {places_shown} place(s) on this map"]
+        bits = [f"{plural(view.shown, 'posting')} in {plural(places_shown, 'place')} "
+                "on this map"]
         if view.off_map:
             bits.append(f"{view.off_map} further out than it reaches")
     else:
-        bits = [f"{view.shown} posting(s) in {places_shown} place(s) "
+        bits = [f"{plural(view.shown, 'posting')} in {plural(places_shown, 'place')} "
                 "across the lower 48"]
         if view.off_map:
             bits.append(f"{view.off_map} in Alaska, Hawaii or Puerto Rico, "
@@ -680,7 +690,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         if remote == "remote":
             where.append("m.remote = 'remote'")
         if SINCE_STAMP.fullmatch(since):
-            # The daily banner's "N new match(es)": found since the last run,
+            # The daily banner's "N new matches": found since the last run,
             # compared as stored (UTC stamps sort as text).
             where.append("m.discovered_at > :since")
             params["since"] = since

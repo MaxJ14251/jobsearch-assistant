@@ -517,7 +517,7 @@ class TestTheDashboard(unittest.TestCase):
         self.add_receipt(8)
         page = self.client.get("/replies").text
         self.assertIn('action="/inbox/8/acknowledge"', page)
-        self.assertIn("Got it, all 1 receipt(s)", page)
+        self.assertIn("Got it, the receipt", page)
         r = self.client.post("/inbox/8/acknowledge", data={"csrf": self.csrf},
                              follow_redirects=False)
         self.assertEqual(r.status_code, 303)
@@ -560,7 +560,7 @@ class TestTheDashboard(unittest.TestCase):
         self.assertIn('href="/replies"', self.client.get("/").text)
         pipeline = self.client.get("/pipeline").text
         self.assertNotIn("Check email", pipeline)
-        self.assertIn("1 email repl(ies) waiting on you", pipeline)
+        self.assertIn("1 email reply waiting on you", pipeline)
 
     def test_check_email_without_settings_says_how_to_set_up(self):
         from unittest import mock

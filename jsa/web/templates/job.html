@@ -77,7 +77,7 @@
   <div class="row1">
     <span class="title">{{ d.kind|replace('_',' ')|capitalize }} v{{ d.version }}</span>
     <span class="flag {{ {'approved':'ok','rejected':'warn'}.get(d.status,'') }}">{{ d.status }}</span>
-    {% if d.flagged %}<span class="flag warn">{{ d.flagged }} line(s) not in your profile</span>{% endif %}
+    {% if d.flagged %}<span class="flag warn">{{ d.flagged|plural('line') }} not in your profile</span>{% endif %}
     <span class="co">document {{ d.id }}</span>
   </div>
   <div class="meta">drafted {{ d.generated_at|localtime }} · {{ d.model or 'model not recorded' }}</div>
@@ -86,7 +86,7 @@
     {% for g in d.gaps %}<span class="flag warn">gap: {{ g }}</span>
     {% else %}<span class="flag ok">no keyword gaps reported</span>{% endfor %}
   </div>
-  <details><summary>{{ d.bullets|length }} bullet(s) selected from your profile</summary>
+  <details><summary>{{ d.bullets|length|plural('bullet') }} selected from your profile</summary>
     <ul class="reasons">{% for b in d.bullets %}
       <li><span class="ids">{{ b.id }}</span> · {{ b.text or 'no longer in your profile' }}</li>
     {% endfor %}</ul>
@@ -139,7 +139,7 @@
   <li><h3>{{ title }}{% if optional %} <span class="meta">(optional: many quick-apply forms have no place for one)</span>{% endif %}</h3>
     {% if k.approved %}{% set d = k.approved[0] %}
     <p>v{{ d.version }}, approved. {% if d.servable %}<a class="btn" href="/document/{{ d.id }}">Download .docx</a> <a class="plain" href="/document/{{ d.id }}/preview">Preview</a>{% else %}<span class="meta">The file is missing from output/.</span>{% endif %}</p>
-    {% if k.approved|length > 1 %}<p class="meta">{{ k.approved|length - 1 }} older approved version(s) too; pick the one you send below.</p>{% endif %}
+    {% if k.approved|length > 1 %}<p class="meta">{{ (k.approved|length - 1)|plural('older approved version') }} too; pick the one you send below.</p>{% endif %}
     {% else %}<p class="note bad">No approved {{ title|lower }} yet.{% if k.waiting %} <a class="plain" href="/review#doc-{{ k.waiting[0].id }}">Review v{{ k.waiting[0].version }}</a>.{% elif not optional %} Draft one above, then review it.{% endif %}</p>{% endif %}
     {% if k.approved and k.waiting %}<p class="note">A newer draft, v{{ k.waiting[0].version }}, is waiting in <a class="plain" href="/review#doc-{{ k.waiting[0].id }}">Review</a>. Approve it first if you mean to send it.</p>{% endif %}
   </li>{% endfor %}
@@ -235,7 +235,7 @@ document.querySelectorAll('button.copy').forEach(function (b) {
 {% for p in preps %}
 <div class="card"><div class="row1">
   <span class="title"><a class="plain" href="/prep/{{ p.id }}">{{ (p.round or 'general')|replace('_',' ')|capitalize }}</a></span>
-  <span class="co">{{ p.count }} question(s) · {{ p.generated_at|localdate }}</span></div></div>
+  <span class="co">{{ p.count|plural('question') }} · {{ p.generated_at|localdate }}</span></div></div>
 {% else %}<p class="empty">No interview prep yet.{% if application %} Run <code>jsa prep {{ application.id }}</code> to draft one.{% endif %}</p>{% endfor %}
 {% if application and application.status in interview_rounds %}
 <form method="post" action="/job/{{ job.id }}/prep" class="inline" style="margin-top:8px"

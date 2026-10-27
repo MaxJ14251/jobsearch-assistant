@@ -198,7 +198,7 @@ class TestTheChecklist(Page):
         page = self.page()
         self.assertIn("v2, approved", page)
         self.assertNotIn("v1, approved", page)
-        self.assertIn("1 older approved version(s)", page)
+        self.assertIn("1 older approved version too", page)
         self.assertIn(f"A newer draft, v3, is waiting", page)
         self.assertIn(f"/review#doc-{waiting}", page)
 

@@ -589,13 +589,13 @@ def score_job(job: dict[str, Any], prefs: Preferences) -> tuple[float, list[str]
     elif years is not None and years_filter == "off":
         # Ignored means ignored: scored as if the posting had not said.
         s_score = 0.5
-        reasons.append(f"asks for {years} years (you set years to be ignored)")
+        reasons.append(f"asks for {years} year{'' if years == 1 else 's'} (you set years to be ignored)")
     elif years is not None:
         s_score = 1.0 if years <= ceiling else 0.0
         if years <= ceiling:
-            reasons.append(f"asks for {years} years")
+            reasons.append(f"asks for {years} year{'' if years == 1 else 's'}")
         else:
-            reasons.append(f"asks for {years} years, more than your {ceiling}: "
+            reasons.append(f"asks for {years} year{'' if years == 1 else 's'}, more than your {ceiling}: "
                            "ranked lower, not dropped")
     else:
         s_score = 0.5

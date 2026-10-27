@@ -9,7 +9,7 @@
   <div class="meta">{{ r.location or 'location not stated' }} · {{ r.remote }}
     {%- if r.miles is not none and r.remote != 'remote' %} · {{ r.miles }} mi away
       {%- if r.via_copy %} (its nearest location){% endif %}{% endif %}
-    {%- if r.variant_count and r.variant_count > 1 %} · +{{ r.variant_count - 1 }} more location(s){% endif %}<span class="eta"></span></div>
+    {%- if r.variant_count and r.variant_count > 1 %} · +{{ (r.variant_count - 1)|plural('more location') }}{% endif %}<span class="eta"></span></div>
   <div class="flags">
     {% if r.track == 'sales' %}<span class="flag">sales track</span>{% endif %}
     {% set dflag = degree_flag(r.degree_level) %}{% if dflag %}<span class="flag {{ dflag[1] }}" title="Read from the posting's text. Shown so you know, never used to hide or rank a job">{{ dflag[0] }}</span>{% endif %}

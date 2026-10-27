@@ -20,7 +20,7 @@
       <div class="doc">{% for p in r.doc.paragraphs %}<p>{{ p.text }}</p>{% endfor %}</div>
     {% endif %}
     {% if c %}
-      {% if c.flagged %}<p class="note bad">{{ c.flagged }} line(s) say something your profile does not. Read the highlighted rows before you decide.</p>
+      {% if c.flagged %}<p class="note bad">{{ c.flagged|plural('line') }} say{{ 's' if c.flagged == 1 }} something your profile does not. Read the highlighted rows before you decide.</p>
       {% else %}<p class="note good">Every line traces back to your profile. Only you know whether each one is true, so read it anyway.</p>{% endif %}
       {% if c.summary %}
       <div class="pair {{ 'flag-row' if c.summary.status == 'flag' }}">

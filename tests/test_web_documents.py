@@ -335,7 +335,7 @@ class TestReviewShowsTheDraft(SandboxCase):
         doc_id, _ = queue_document(self.box, path, [bid])
         page = self.client.get("/review").text
         self.assertIn(f'id="doc-{doc_id}"', page)
-        self.assertIn("say something your profile does not", page)
+        self.assertIn("1 line says something your profile does not", page)
         self.assertIn("<mark>turnaround</mark>", page)
         # Shown as written, not as the verifier's stem ("requirement").
         self.assertIn("<mark>requirements</mark>", page)

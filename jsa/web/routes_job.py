@@ -14,7 +14,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from .. import approvals
 from ..inbox import BEFORE_APPLIED
 from ..prep import INTERVIEW_ROUNDS
-from . import APPLY_BY_HAND_STAGES, _json_list
+from . import APPLY_BY_HAND_STAGES, _json_list, plural
 
 
 # What the job page offers for outreach. Connection notes first: measured
@@ -313,7 +313,7 @@ def register(app, ctx) -> None:
         parts = [f"Drafted {kind.replace('_', ' ')} v{result.version}. "
                  "It is waiting in the review queue."]
         if result.revert_reasons:
-            parts.append(f"{len(result.revert_reasons)} rewrite(s) went back to "
+            parts.append(f"{plural(len(result.revert_reasons), 'rewrite')} went back to "
                          "your own words.")
         if result.gaps:
             parts.append("Gaps: " + ", ".join(result.gaps) + ".")

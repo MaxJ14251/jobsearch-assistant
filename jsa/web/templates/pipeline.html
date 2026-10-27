@@ -1,6 +1,6 @@
 {% extends "base" %}{% block body %}
 <h1>Pipeline</h1>
-<p class="sub">{{ total }} live application(s){% if overdue %} · <strong>{{ overdue }} overdue</strong>{% endif %} · moving a stage records that YOU said so</p>
+<p class="sub">{{ total|plural('live application') }}{% if overdue %} · <strong>{{ overdue }} overdue</strong>{% endif %} · moving a stage records that YOU said so</p>
 {% if msg %}<p class="note {{ 'bad' if bad else 'good' }}" role="status">{{ msg }}</p>{% endif %}
 {% set lo = session.left_out %}
 {% if session["items"] or lo.needs_approval or lo.by_hand %}
@@ -16,7 +16,7 @@
 <style>.session{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:12px 0 4px}
   .session p{flex-basis:100%;margin:0}</style>
 {% endif %}
-{% if replies_count %}<p class="note" role="status"><a class="plain" href="/replies">{{ replies_count }} email repl(ies) waiting on you</a> in Replies.</p>{% endif %}
+{% if replies_count %}<p class="note" role="status"><a class="plain" href="/replies">{{ replies_count|plural('email reply', 'email replies') }} waiting on you</a> in Replies.</p>{% endif %}
 {% set ns = namespace(first_due=false) %}
 {% for stage, items in groups %}
 <h2>{{ stage|replace('_',' ') }} · {{ items|length }}</h2>
@@ -68,7 +68,7 @@
 {% endif %}
 <details id="what-happened" style="margin-top:18px"><summary>What happened · {{ happened_line }}</summary>
 {% if happened %}<ul style="margin:8px 0 0;padding-left:18px">{% for o in happened %}
-  <li><a class="plain" href="/job/{{ o.job_id }}">#{{ o.job_id }} {{ o.company }}</a>: {{ o.point.replace('_', ' ') }}{% if o.closed %}, closed{% endif %}{% if o.quiet %}, quiet{% endif %}{% if o.days_since_applied is not none %} <span class="meta">· applied {{ o.days_since_applied }} day(s) ago</span>{% endif %}</li>
+  <li><a class="plain" href="/job/{{ o.job_id }}">#{{ o.job_id }} {{ o.company }}</a>: {{ o.point.replace('_', ' ') }}{% if o.closed %}, closed{% endif %}{% if o.quiet %}, quiet{% endif %}{% if o.days_since_applied is not none %} <span class="meta">· applied {{ o.days_since_applied|plural('day') }} ago</span>{% endif %}</li>
 {% endfor %}</ul>{% endif %}
 <p class="meta">Furthest point each application reached; an undone stage doesn't count, and an automatic receipt isn't hearing back. Counts by group: <code>jsa outcomes --by source_kind</code>. A report: nothing here changes anything.</p>
 </details>
