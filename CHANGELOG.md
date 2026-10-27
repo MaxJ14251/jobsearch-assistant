@@ -29,6 +29,11 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Added
 
+- **Four more employer boards in the shipped list:** Disney (Workday),
+  Flexport, Celonis and Reddit (Greenhouse). Each was seen through The Muse or
+  We Work Remotely with no board of its own, and measured before it was added
+  ([ADR 0009](docs/decisions/0009-what-the-shipped-feed-list-is.md)).
+
 - **Replies have their own tab**, and a "thank you for applying" receipt
   gets **Got it** (one, or all at once): noted, no stage moves. Also
   `jsa inbox ack [reply#]`.

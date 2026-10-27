@@ -137,3 +137,53 @@ reader can add to their own list; it adds no employer to the shipped one.
 The shipped list still grows only with a measurement, as above. Three
 Recruitee boards were checked with `jsa verify` as a local trial (7, 26 and
 76 postings) and were not committed.
+
+## Four employers added after a measurement, 2026-10-26 (G9)
+
+The first growth of the shipped list since this decision. Candidates came
+from one owner's tracker, read-only: employers seen through The Muse, USAJOBS
+or the remote RSS feeds with no board of their own configured (52 of them).
+Federal agencies (USAJOBS covers them), staffing firms and talent
+marketplaces, and YC-hosted pages were left out. Of the 20 most frequent, the
+owner chose eight to try. Each board was found with `jsa find` (Greenhouse
+names the board; Ashby does not) or, for Workday, which cannot be guessed, by
+one list request to a known tenant URL. The owner confirmed every board was
+the employer's own before anything was measured.
+
+Each board was then fetched once and scored in memory against that profile,
+the way discovery does, writing nothing:
+
+| employer | kind | postings | kept (≥ 0.35) | ≥ 0.5 | in the owner's cities | remote | seconds |
+|---|---|---|---|---|---|---|---|
+| Disney | workday | 371 | 24 | 18 | 17 | 0 | 136 |
+| Flexport | greenhouse | 188 | 19 | 5 | 7 | 0 | 1 |
+| Celonis | greenhouse | 224 | 16 | 13 | 0 | 5 | 2 |
+| Reddit | greenhouse | 161 | 15 | 8 | 0 | 15 | 2 |
+| Bank of America, searched "software engineer" | workday | 102 | 9 | 7 | 0 | 0 | 35 |
+| Bank of America, unsearched | workday | 247 | 1 | 1 | 0 | 0 | 162 |
+| Modern Animal | greenhouse | 101 | 4 | 0 | 4 | 0 | 1 |
+| Bild AI | ashby | 4 | 2 | 1 | 0 | 0 | 1 |
+| Sunrun | workday | 222 | 2 | 0 | 1 | 0 | 194 |
+
+Added: Disney, Flexport, Celonis and Reddit. Why each is worth shipping to
+other readers, not only this one:
+
+- **Disney** is a large multi-site employer, the kind this decision found
+  carries in-state roles nobody configured: its board's first postings were
+  technology roles in Florida, while 17 of the 24 kept were in the owner's cities.
+- **Flexport** posts outside this owner's area too (4 kept postings were
+  over 50 miles away) and costs one request.
+- **Celonis** and **Reddit** post remote US roles, which is what this list
+  holds for a reader outside a big metro (above). One request each.
+
+Not added: Bank of America (no posting in the owner's cities or remote,
+even narrowed), Sunrun (over three minutes a run for two weak matches,
+mostly field sales), Modern Animal and Bild AI (a few weak matches; a reader
+can add them to their own list).
+
+Verified with `jsa verify` (56 of 60 sources answered; all four new ones
+did) and one real `jsa discover` run afterwards: Disney 24 new postings,
+Flexport 19, Celonis 16, Reddit 15, so 74 of the run's 99 new listings came
+from the four. The run took 17 min 56 s; the previous daily run's discovery
+took about 15 min 40 s, so the four cost about 2¼ minutes, almost all of it
+Disney's detail requests.

@@ -102,7 +102,7 @@ cd "C:\path\to\jobsearch-assistant"
 |---|--------|-------|
 | 1 | Master profile | **Done** — [master_profile.example.yaml](jsa/resources/master_profile.example.yaml) |
 | 2 | Tracker DB schema | **Done** — [schema.sql](jsa/resources/schema.sql), validated on SQLite |
-| 3 | Job discovery | **Done** — 50 verified feeds (47 employer boards, 3 remote-job RSS feeds), plus The Muse and USAJOBS |
+| 3 | Job discovery | **Done** — 54 verified feeds (51 employer boards, 3 remote-job RSS feeds), plus The Muse and USAJOBS |
 | 3b | LLM enrichment | **Done** — degree/clearance/stack facts the filter can't see |
 | 4 | Resume/cover tailoring | **Done** — verifier, scrubber, ATS-safe .docx, provenance |
 | 5 | Review dashboard | **Done** — `jsa serve`, loopback only |
@@ -243,7 +243,7 @@ or dismiss it. Nothing is marked read, nothing is sent, and no mail text
 goes to a model. See
 [ADR 0021](docs/decisions/0021-reading-replies-from-the-mailbox.md).
 
-**Where the shipped feeds point.** `jsa/resources/companies.yaml` ships 50 employer and
+**Where the shipped feeds point.** `jsa/resources/companies.yaml` ships 54 employer and
 aggregator feeds (listed under [Feed coverage](#feed-coverage)). Their on-site
 jobs sit where those employers have offices, mostly California, Washington and
 Texas. Measured from a profile based in Columbus, Ohio: the matches that came
@@ -926,8 +926,8 @@ the employer's own token from 10 February 2027, after which its boards report
 a 401 rather than listings. SmartRecruiters and Breezy HR were checked and
 are not read ([ADR 0020](docs/decisions/0020-postings-the-tool-may-not-read.md)).
 
-`jsa/resources/companies.yaml` holds 56 sources: 50 employer feeds and aggregators
-(47 employer boards, 3 RSS feeds), the two sources asked about your own cities
+`jsa/resources/companies.yaml` holds 60 sources: 54 employer feeds and aggregators
+(51 employer boards, 3 RSS feeds), the two sources asked about your own cities
 (The Muse and USAJOBS), and four employers kept for reference with no public
 feed. They are grouped below by the kind of employer. Where a company is
 headquartered is not where its jobs are: SpaceX's own board supplies
@@ -969,7 +969,8 @@ Health, Becton Dickinson, GoodRx, Sidecar Health, Tebra.
 
 *Software & consumer:* ZipRecruiter, Snap, System1, Riot Games, Scopely,
 ServiceTitan, GoGuardian, Boulevard, Match Group, Tealium, Kyriba, Mitek,
-GoFundMe, ClickUp, Gopuff, Duolingo, Petco.
+GoFundMe, ClickUp, Gopuff, Duolingo, Petco, Disney, Flexport, Celonis,
+Reddit (the last four added 2026-10-26, after the table above was measured).
 
 *Finance & industrial:* T. Rowe Price, Johnson Controls.
 
@@ -1108,7 +1109,7 @@ like.
 
 Worth knowing before you rely on this.
 
-- **Feed coverage is partial and decays.** 52 of 56 configured sources work. Eightfold
+- **Feed coverage is partial and decays.** 56 of 60 configured sources work. Eightfold
   boards (Qualcomm, Dexcom) return 403 to any automated client, and Cloudflare-fronted
   boards return 403 too. Board tokens also change without notice — run `jsa verify`
   periodically, not just once.

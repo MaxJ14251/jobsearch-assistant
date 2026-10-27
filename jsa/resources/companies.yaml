@@ -203,6 +203,27 @@ sources:
     priority: 3
     verified: true          # 74 listings — LA presence via Tinder/Hinge
 
+  # Added 2026-10-26 (G9, ADR 0009): seen through The Muse with no board of
+  # their own configured. Measured on one owner's profile, read-only.
+  - company: Disney
+    slug: disney
+    kind: workday
+    tenant: disney
+    wd: wd5
+    site: disneycareer
+    careers_url: https://jobs.disneycareers.com/
+    hq: Burbank, CA
+    priority: 2
+    verified: true          # 371 listings; 24 kept, 17 in the owner's cities
+
+  - company: Flexport
+    slug: flexport
+    kind: greenhouse
+    board: flexport
+    hq: San Francisco, CA
+    priority: 3
+    verified: true          # 188 listings; 19 kept, 7 in the owner's cities
+
   # ==========================================================================
   # AI labs & developer tools
   # ==========================================================================
@@ -306,6 +327,24 @@ sources:
     priority: 3
     verified: true          # 290 listings — CoreWeave acquired Weights & Biases,
                             # so W&B roles are posted here. NJ/NY/Sunnyvale, not LA.
+
+  # Added 2026-10-26 (G9, ADR 0009): seen through The Muse and We Work
+  # Remotely with no board configured; strong matches, and remote US roles.
+  - company: Celonis
+    slug: celonis
+    kind: greenhouse
+    board: celonis
+    hq: Munich / New York
+    priority: 3
+    verified: true          # 224 listings; 16 kept, 13 scoring 0.5+, 5 remote
+
+  - company: Reddit
+    slug: reddit
+    kind: greenhouse
+    board: reddit
+    hq: San Francisco, CA
+    priority: 3
+    verified: true          # 161 listings; 15 kept, all remote
 
   # ==========================================================================
   # Remote-first aggregators
