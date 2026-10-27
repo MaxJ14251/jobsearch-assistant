@@ -16,6 +16,9 @@
 <style>.session{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:12px 0 4px}
   .session p{flex-basis:100%;margin:0}</style>
 {% endif %}
+{% if not waiting %}<p class="note" role="status">Nothing is waiting to be applied to.
+  {% if strong %}<a class="plain" href="/">{{ strong|plural('unreviewed match', 'unreviewed matches') }} score{{ 's' if strong == 1 }} {{ strong_at }} or higher</a>: save the ones you want on Matches, or go through them in <a class="plain" href="/turbo">Turbo</a>.
+  {% else %}And no unreviewed match scores {{ strong_at }} or higher: <a class="plain" href="/">see all matches</a>.{% endif %}</p>{% endif %}
 {% if replies_count %}<p class="note" role="status"><a class="plain" href="/replies">{{ replies_count|plural('email reply', 'email replies') }} waiting on you</a> in Replies.</p>{% endif %}
 {% set ns = namespace(first_due=false) %}
 {% for stage, items in groups %}

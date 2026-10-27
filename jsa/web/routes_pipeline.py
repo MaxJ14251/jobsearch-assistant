@@ -9,8 +9,13 @@ from fastapi import Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from .. import approvals
+from ..inbox import BEFORE_APPLIED
 from . import plural, db
 
+
+# "A strong match" for the empty-pipeline note: on 2026-10-27, 140 of 1,559
+# unreviewed matches scored this or higher, a list worth a sitting.
+STRONG_MATCH = 0.8
 
 # How an outreach message's status reads on a Pipeline card, in order.
 OUTREACH_ORDER = ("drafted", "approved", "sent", "replied", "declined")
@@ -52,6 +57,8 @@ def register(app, ctx) -> None:
                 sent_out.setdefault(o["job_id"], {})[o["status"]] = o["n"]
             from .. import applyqueue, outcomes, pairing
             happened = outcomes.all_outcomes(con)
+            strong = con.execute("SELECT COUNT(*) FROM v_new_matches WHERE match_score >= ?",
+                                 (STRONG_MATCH,)).fetchone()[0]
             # The apply session (plan 31): what is ready, and whether the
             # extension that walks it is connected.
             session = applyqueue.ready_to_apply(con)
@@ -86,6 +93,7 @@ def register(app, ctx) -> None:
         rows.sort(key=lambda r: (r["days_out"] is None, r["days_out"] or 0,
                                  -(r["quiet"] or 0)))
         live = [r for r in rows if r["status"] not in approvals.CLOSED]
+        waiting = sum(1 for r in live if r["status"] in BEFORE_APPLIED)
         closed = [r for r in rows if r["status"] in approvals.CLOSED]
         groups = [(stage, [r for r in live if r["status"] == stage])
                   for stage in approvals.STAGES if stage not in approvals.CLOSED]
@@ -95,7 +103,8 @@ def register(app, ctx) -> None:
                       overdue=sum(1 for r in live
                                   if r["days_out"] is not None and r["days_out"] < 0),
                       happened=happened, happened_line=outcomes.summary(happened),
-                      session=session, msg=msg, bad=bad)
+                      session=session, msg=msg, bad=bad,
+                      waiting=waiting, strong=strong, strong_at=STRONG_MATCH)
 
     @app.post("/job/{job_id}/next")
     def set_follow_up(job_id: int, action: str = Form(""), due: str = Form(""),
