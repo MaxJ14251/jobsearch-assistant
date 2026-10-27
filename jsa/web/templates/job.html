@@ -10,6 +10,35 @@
 </div>
 {% if msg %}<p class="note {{ 'bad' if bad else 'good' }}" role="status">{{ msg }}</p>{% endif %}
 
+{% if record %}
+<section id="your-application" aria-labelledby="your-application-h">
+<h2 id="your-application-h">Your application</h2>
+<p><strong>{{ application.status|replace('_',' ')|capitalize }}</strong>{% if application.applied_at %} · applied {{ application.applied_at|localtime }}{% if record.via %} via {{ record.via }}{% endif %}{% endif %}</p>
+{% if application.applied_at %}
+<p class="meta">Sent:
+{% for s in record.sent %}<a href="/document/{{ s.document_id }}">{{ s.kind|replace('_',' ')|capitalize }} v{{ s.version }}</a> ({{ 'approved' if s.approved else 'not approved' }}){{ ', ' if not loop.last }}{% else %}no document recorded{% endfor %}
+{% if record.not_sent %}· Drafted, not sent: {% for d in record.not_sent %}{{ d.kind|replace('_',' ') }} v{{ d.version }}{{ ', ' if not loop.last }}{% endfor %}{% endif %}</p>
+{% endif %}
+<form method="post" action="/job/{{ job.id }}/stage" class="inline">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="back" value="job">
+  <label for="stage-{{ job.id }}" class="meta">Move to</label>
+  <select name="stage" id="stage-{{ job.id }}">
+    {% for s in stages %}<option value="{{ s }}" {{ 'selected' if s == application.status }}>{{ s|replace('_',' ') }}</option>{% endfor %}
+  </select>
+  <button type="submit">Move</button>
+  <span class="meta">Records that you said so.</span>
+</form>
+{% if record.history %}
+<details><summary class="meta">History ({{ record.history|length }})</summary>
+<ul class="history">
+{% for e in record.history %}<li class="meta">{{ e.occurred_at|localtime }} · {{ (e.from_status or 'new')|replace('_',' ') }} → {{ e.to_status|replace('_',' ') }} · {{ 'you' if e.actor == 'human' else 'the tool' }}{% if e.note %} · {{ e.note }}{% endif %}</li>
+{% endfor %}</ul>
+</details>
+{% endif %}
+</section>
+{% endif %}
+
 <h2>Documents</h2>
 {% if not application %}
   <p class="sub">Tailoring needs a saved application. Saving only records that you are pursuing this job.</p>

@@ -60,6 +60,31 @@ def register(app, ctx) -> None:
                     "servable": info["servable"],
                     "flagged": (info["compare"] or {}).get("flagged", 0),
                 })
+            record = None
+            if application is not None:
+                # What went out and how the application got here (ADR 0012):
+                # read from the record, never inferred from the newest draft.
+                sent = approvals.submitted(con, application["id"])
+                sent_version = {s.kind: s.version for s in sent}
+                # Worth naming: a draft newer than the one sent, or the newest
+                # of a kind when none was sent. Older drafts are just history.
+                not_sent, seen = [], set()
+                for d in documents:                 # newest version first
+                    if d["kind"] in sent_version:
+                        if d["version"] > sent_version[d["kind"]]:
+                            not_sent.append(d)
+                    elif d["kind"] not in seen:
+                        not_sent.append(d)
+                    seen.add(d["kind"])
+                record = {
+                    "via": approvals.VIA_LABELS.get(application["applied_via"] or ""),
+                    "sent": sent,
+                    "not_sent": not_sent if application["applied_at"] else [],
+                    "history": [dict(e) for e in con.execute(
+                        "SELECT from_status, to_status, occurred_at, actor, note "
+                        "FROM application_events WHERE application_id = ? "
+                        "ORDER BY id DESC", (application["id"],))],
+                }
             preps = []
             if application is not None:
                 for p in con.execute(
@@ -87,6 +112,7 @@ def register(app, ctx) -> None:
                       max_chars=intake.MAX_PASTED_CHARS,
                       stack=_json_list(row["tech_stack"]),
                       application=dict(application) if application else None,
+                      record=record, stages=approvals.STAGES,
                       documents=documents, preps=preps, msg=msg, bad=bad,
                       interview_rounds=INTERVIEW_ROUNDS,
                       answer_facts=facts, answer_written=written,
@@ -322,19 +348,21 @@ def register(app, ctx) -> None:
                       prep=dict(row), questions=questions)
 
     @app.post("/job/{job_id}/stage")
-    def do_stage(job_id: int, stage: str = Form(...)):
-        """The same approvals call `jsa status` makes. ADR 0003 decision 5."""
+    def do_stage(job_id: int, stage: str = Form(...), back: str = Form("")):
+        """The same approvals call `jsa status` makes. ADR 0003 decision 5.
+        From the job page (`back=job`) it returns there; else to Pipeline."""
         from .. import prep
+        go = (lambda msg, bad: back_to_job(job_id, msg, bad)) if back == "job"             else back_to_pipeline
         con = connect()
         try:
             application_id, previous = approvals.set_stage(con, job_id, stage)
             con.commit()
             hint = prep.suggestion(con, application_id, stage)
         except approvals.ApprovalError as exc:
-            return back_to_pipeline(str(exc), True)
+            return go(str(exc), True)
         finally:
             con.close()
-        return back_to_pipeline(
+        return go(
             f"Moved from {previous.replace('_', ' ')} to "
             f"{stage.replace('_', ' ')}." + (f" {hint}." if hint else ""), False)
 
