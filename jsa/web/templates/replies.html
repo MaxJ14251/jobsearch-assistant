@@ -25,6 +25,18 @@
     {% else %}<span class="title">Unclear which application</span>{% endif %}
   </div>
   <div class="meta">{{ (r.received_at or '')[:10] }} · {{ r.sender_domain }} · {{ r.subject }}</div>
+  {% if ask == r.id and r.application_id %}
+  <div class="note bad" role="alert">
+    <p>This would move {{ r.title }} from {{ r.status|replace('_',' ') }} back to {{ ask_to }}, as if you had not applied. Is that what you mean?</p>
+    <form method="post" action="/inbox/{{ r.id }}/confirm" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="stage" value="{{ ask_to }}">
+      <input type="hidden" name="back" value="1">
+      <button type="submit">Yes, move it back to {{ ask_to }}</button>
+      <a class="meta" href="/replies">No, keep it {{ r.status|replace('_',' ') }}</a>
+    </form>
+  </div>
+  {% endif %}
   <div class="inline">
     {% if r.application_id and r.suggested_stage %}
     <form method="post" action="/inbox/{{ r.id }}/confirm" class="inline">

@@ -1321,7 +1321,12 @@ def cmd_inbox(args: argparse.Namespace) -> int:
     try:
         if action == "confirm":
             from . import prep
-            done = inbox.confirm(con, args.reply_id, stage=args.stage)
+            try:
+                done = inbox.confirm(con, args.reply_id, stage=args.stage,
+                                     back=getattr(args, "back", False))
+            except inbox.MovesBack as exc:
+                print(f"{exc}: add --back.", file=sys.stderr)
+                return 1
             con.commit()
             print(f"{done.previous} -> {done.stage}: job {done.job_id} (confirmed by you)")
             hint = prep.suggestion(con, done.application_id, done.stage)
@@ -1949,6 +1954,8 @@ def main(argv: list[str] | None = None) -> int:
     p_ic.add_argument("reply_id", type=int)
     p_ic.add_argument("--stage", choices=list(approvals.STAGES), metavar="STAGE",
                       help="a different stage than the one suggested")
+    p_ic.add_argument("--back", action="store_true",
+                      help="yes, move it back before applied")
     p_ia = inbox_sub.add_parser(
         "ack", help="note a reply that moves nothing (a 'thank you for applying'); "
                     "with no number, every pending receipt")

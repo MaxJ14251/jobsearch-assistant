@@ -75,7 +75,7 @@ def register(app, ctx) -> None:
                       session=session, msg=msg, bad=bad)
 
     @app.get("/replies", response_class=HTMLResponse)
-    def replies_page(msg: str = "", bad: int = 0):
+    def replies_page(msg: str = "", bad: int = 0, ask: int = 0, to: str = ""):
         from .. import inbox
         con = connect()
         try:
@@ -83,7 +83,10 @@ def register(app, ctx) -> None:
         finally:
             con.close()
         receipts = sum(1 for r in replies if r["kind"] == "received" and r["application_id"])
+        if to not in inbox.BEFORE_APPLIED:
+            ask = 0                 # only a move back is ever asked about
         return render("replies", "replies", replies=replies, receipts=receipts,
+                      ask=ask, ask_to=to,
                       stages=list(approvals.STAGES),
                       mail_ready=inbox.settings() is not None, msg=msg, bad=bad)
 
@@ -105,14 +108,20 @@ def register(app, ctx) -> None:
             f"{report.stored} new repl(ies) about your applications.", False)
 
     @app.post("/inbox/{reply_id}/confirm")
-    def inbox_confirm(reply_id: int, stage: str = Form(...)):
-        """Your confirmation moves the stage: the same call as the stage form."""
+    def inbox_confirm(reply_id: int, stage: str = Form(...), back: str = Form("")):
+        """Your confirmation moves the stage: the same call as the stage form.
+        A move back before applied is asked about first (inbox.MovesBack)."""
+        from urllib.parse import urlencode
+
         from .. import inbox, prep
         con = connect()
         try:
-            done = inbox.confirm(con, reply_id, stage=stage)
+            done = inbox.confirm(con, reply_id, stage=stage, back=back == "1")
             con.commit()
             hint = prep.suggestion(con, done.application_id, done.stage)
+        except inbox.MovesBack as exc:
+            return RedirectResponse("/replies?" + urlencode(
+                {"ask": reply_id, "to": exc.stage}), status_code=303)
         except (inbox.InboxError, approvals.ApprovalError) as exc:
             return back_to_replies(said(exc), True)
         finally:

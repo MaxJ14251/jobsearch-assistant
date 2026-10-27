@@ -100,6 +100,24 @@ class InboxError(Exception):
     """Not configured, or the mailbox could not be read. Says what to do."""
 
 
+class MovesBack(InboxError):
+    """The confirmation would take an application back before applied.
+    Asked about, never done silently (found 2026-10-13: two receipts moved
+    applied applications back to saved)."""
+
+    def __init__(self, reply_id: int, previous: str, stage: str):
+        self.reply_id, self.previous, self.stage = reply_id, previous, stage
+        super().__init__(
+            f"reply {reply_id} would move the application from {previous.replace('_', ' ')} "
+            f"back to {stage}, as if you had not applied. Confirm again if that is what "
+            "you mean")
+
+
+# Stages before applying. A reply never moves an application back into one of
+# these unless the person says so twice.
+BEFORE_APPLIED = ("saved", "drafting", "ready")
+
+
 @dataclass
 class Report:
     searched: int = 0
@@ -458,10 +476,12 @@ class Confirmed:
     kind: str
 
 
-def confirm(con: sqlite3.Connection, reply_id: int, stage: str | None = None) -> Confirmed:
-    """Move the application, as the person confirming."""
+def confirm(con: sqlite3.Connection, reply_id: int, stage: str | None = None,
+            back: bool = False) -> Confirmed:
+    """Move the application, as the person confirming. A move back before
+    applied raises MovesBack unless `back` says the person meant it."""
     row = con.execute(
-        "SELECT r.*, a.job_id FROM inbox_replies r "
+        "SELECT r.*, a.job_id, a.status AS app_status FROM inbox_replies r "
         "LEFT JOIN applications a ON a.id = r.application_id WHERE r.id = ?",
         (reply_id,)).fetchone()
     if row is None:
@@ -475,6 +495,9 @@ def confirm(con: sqlite3.Connection, reply_id: int, stage: str | None = None) ->
     stage = stage or row["suggested_stage"]
     if not stage:
         raise InboxError(f"reply {reply_id} suggests no stage; give one with --stage")
+    if (stage in BEFORE_APPLIED and row["app_status"] not in BEFORE_APPLIED
+            and not back):
+        raise MovesBack(reply_id, row["app_status"], stage)
     day = (row["received_at"] or "")[:10] or "an unknown date"
     _app, previous = approvals.set_stage(
         con, row["job_id"], stage, note=f"from an email of {day}: {row['subject']}")

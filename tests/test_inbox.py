@@ -381,6 +381,65 @@ class TestConfirmAndDismiss(InboxCase):
             "SELECT status FROM applications WHERE job_id = 1").fetchone()[0], "applied")
 
 
+class TestNoSilentMoveBack(InboxCase):
+    """Found on 2026-10-13: confirming two "thank you for applying" emails
+    moved applied applications back to saved (the form's stage picker
+    defaulted to an earlier stage). A reply may move an application forward,
+    or close it; it never takes it back before applied without asking."""
+
+    def setUp(self):
+        super().setUp()
+        self.run_fetch([message(sender="Acme Robotics <no-reply@acmerobotics.com>",
+                                subject="Thank you for applying to Acme Robotics",
+                                body="We received your application.", mid="r1")])
+        self.reply = self.replies()[0]["id"]
+
+    def status(self):
+        return self.con.execute(
+            "SELECT status FROM applications WHERE job_id = 1").fetchone()[0]
+
+    def test_a_reply_never_moves_an_applied_application_back_unasked(self):
+        for stage in ("saved", "drafting", "ready"):
+            with self.subTest(stage=stage):
+                with self.assertRaises(inbox.InboxError):
+                    inbox.confirm(self.con, self.reply, stage=stage)
+                self.assertEqual(self.status(), "applied")
+                self.assertEqual(self.replies()[0]["state"], "pending")
+
+    def test_saying_so_twice_moves_it_back(self):
+        done = inbox.confirm(self.con, self.reply, stage="saved", back=True)
+        self.assertEqual((done.previous, self.status()), ("applied", "saved"))
+        actor = self.con.execute(
+            "SELECT actor FROM application_events ORDER BY id DESC").fetchone()[0]
+        self.assertEqual(actor, "human")
+
+    def test_the_cli_refuses_without_back_and_moves_with_it(self):
+        import io
+        from contextlib import redirect_stderr, redirect_stdout
+        from unittest import mock
+
+        from jsa import cli
+        path, real_connect = self.dir / "t.db", db.connect
+        self.con.commit()
+        # Patch connect itself: its default path is bound at import, so
+        # patching DB_PATH alone would reach the real tracker.
+        with mock.patch("jsa.db.connect", side_effect=lambda *a, **k: real_connect(path)),              mock.patch("jsa.db.upgrade"):
+            err = io.StringIO()
+            with redirect_stderr(err), redirect_stdout(io.StringIO()):
+                self.assertEqual(cli.main(["inbox", "confirm", str(self.reply),
+                                           "--stage", "saved"]), 1)
+            self.assertIn("--back", err.getvalue())
+            self.assertEqual(self.status(), "applied")
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(cli.main(["inbox", "confirm", str(self.reply),
+                                           "--stage", "saved", "--back"]), 0)
+        self.assertEqual(self.status(), "saved")
+
+    def test_forward_and_closing_moves_still_need_no_extra_step(self):
+        inbox.confirm(self.con, self.reply, stage="rejected")
+        self.assertEqual(self.status(), "rejected")
+
+
 class TestTheDashboard(unittest.TestCase):
     """The Replies page: confirm, note and dismiss, token-guarded."""
 
@@ -475,6 +534,27 @@ class TestTheDashboard(unittest.TestCase):
         self.assertEqual([self.state(i) for i in (7, 8, 9, 10)],
                          ["pending", "confirmed", "confirmed", "pending"])
         self.assertEqual(self.status(), "applied")
+
+    def test_move_its_stage_instead_never_takes_applied_back_silently(self):
+        """The 2026-10-13 shape: a receipt, "Move its stage instead", saved."""
+        self.add_receipt(8)
+        r = self.client.post("/inbox/8/confirm", data={"csrf": self.csrf, "stage": "saved"},
+                             follow_redirects=False)
+        self.assertEqual(r.status_code, 303)
+        self.assertEqual(self.status(), "applied")
+        self.assertEqual(self.state(8), "pending")
+        page = self.client.get(r.headers["location"]).text
+        self.assertIn("back to saved, as if you had not applied", page)
+        self.assertIn('name="back" value="1"', page)
+        self.client.post("/inbox/8/confirm",
+                         data={"csrf": self.csrf, "stage": "saved", "back": "1"},
+                         follow_redirects=False)
+        self.assertEqual(self.status(), "saved")
+        self.assertEqual(self.state(8), "confirmed")
+
+    def test_only_a_move_back_is_ever_asked_about(self):
+        page = self.client.get("/replies?ask=7&to=rejected").text
+        self.assertNotIn('name="back"', page)
 
     def test_the_tab_and_the_pipeline_pointer(self):
         self.assertIn('href="/replies"', self.client.get("/").text)
