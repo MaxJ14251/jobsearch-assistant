@@ -1,0 +1,67 @@
+{% extends "base" %}{% block body %}
+<p class="eyebrow">{{ day }}</p>
+<h1>Today</h1>
+<div class="today">
+  <div class="today-col">
+    <section class="hero" aria-labelledby="next-step">
+      <span class="hero-label">Your next step</span>
+      <h2 id="next-step">{{ step.text }}</h2>
+      <a class="btn primary" href="{{ step.href }}">{{ step.action }}</a>
+    </section>
+
+    <section aria-labelledby="waiting">
+      <h2 id="waiting" class="group-head">Waiting on you</h2>
+      <div class="group">
+        <a class="row" href="/pipeline#first-due"><span>Follow-ups due</span><span class="n {{ 'due' if counts.due }}">{{ counts.due }}</span></a>
+        <a class="row" href="/review"><span>Drafts to approve</span><span class="n">{{ counts.drafts }}</span></a>
+        <a class="row" href="/replies"><span>Replies to confirm</span><span class="n">{{ counts.replies }}</span></a>
+      </div>
+    </section>
+  </div>
+
+  <div class="today-col">
+    <div class="stats">
+      <a class="stat" href="/"><strong>{{ counts.strong }}</strong><span>strong new {{ 'match' if counts.strong == 1 else 'matches' }}</span></a>
+      <a class="stat" href="/pipeline"><strong>{{ counts.saved }}</strong><span>saved to draft</span></a>
+      <a class="stat" href="/pipeline"><strong>{{ counts.applied }}</strong><span>applied, waiting</span></a>
+    </div>
+
+    <section aria-labelledby="newest">
+      <h2 id="newest" class="group-head">Newest strong matches</h2>
+      {% if newest %}<div class="group">
+        {% for m in newest %}<a class="row" href="/job/{{ m.job_id }}"><span class="two"><strong>{{ m.title }}</strong><span class="meta">{{ m.company }}{% if m.location %} · {{ m.location }}{% endif %}</span></span><span class="score">{{ '%.2f'|format(m.match_score or 0) }}</span></a>
+        {% endfor %}</div>
+      {% else %}<p class="empty">No unreviewed match scores {{ strong_at }} or higher. <a class="plain" href="/">See all matches</a>.</p>{% endif %}
+    </section>
+  </div>
+</div>
+<style>
+  .eyebrow{margin:8px 0 0;font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--mute)}
+  .today{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;align-items:start;margin-top:16px}
+  .today-col{display:flex;flex-direction:column;gap:20px;min-width:0}
+  .hero{display:flex;flex-direction:column;gap:12px;padding:24px;border-radius:24px;
+    background:linear-gradient(180deg,var(--glass-strong),color-mix(in srgb,var(--copper) 14%,var(--glass-strong)));
+    border:1px solid var(--glass-edge);box-shadow:var(--glass-shadow)}
+  .hero-label{font-size:15px;font-weight:600;color:var(--copper)}
+  .hero h2{margin:0;font-size:26px;line-height:1.2;letter-spacing:-.01em;text-transform:none;color:var(--ink);text-wrap:balance}
+  a.btn.primary{align-self:flex-start;color:#fff;border:0;border-radius:999px;padding:10px 22px;min-height:44px;
+    background:var(--btn);background-image:linear-gradient(180deg,var(--btn-top) 0%,var(--btn) 52%,var(--btn-bottom) 100%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 3px 10px color-mix(in srgb,var(--btn) 30%,transparent)}
+  .group-head{margin:0 0 8px;padding-left:16px}
+  .group{display:flex;flex-direction:column;background:var(--glass);border:1px solid var(--glass-edge);border-radius:18px;
+    box-shadow:var(--glass-shadow);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);overflow:hidden}
+  .group .row{display:flex;align-items:center;gap:12px;padding:13px 18px;min-height:44px;color:var(--ink);text-decoration:none;font-size:15.5px}
+  .group .row + .row{border-top:1px solid var(--rule)}
+  .group .row:hover{background:color-mix(in srgb,var(--copper) 6%,transparent)}
+  .group .row > span:first-child{flex:1;min-width:0}
+  .group .two{display:flex;flex-direction:column}
+  .group .n{color:var(--mute);font-variant-numeric:tabular-nums}
+  .group .n.due{color:var(--amber);font-weight:700}
+  .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  .stat{display:flex;flex-direction:column;gap:4px;padding:16px;border-radius:18px;text-decoration:none;color:var(--ink);
+    background:var(--glass);border:1px solid var(--glass-edge);box-shadow:var(--glass-shadow);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+  .stat strong{font-size:28px;line-height:1.1;font-variant-numeric:tabular-nums}
+  .stat span{font-size:13.5px;color:var(--mute)}
+  @media (max-width:460px){.stats{grid-template-columns:minmax(0,1fr)}}
+</style>
+{% endblock %}

@@ -4,51 +4,91 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ title }} · Job Search</title>
 <style>
+  /* The Aero theme (2026-10-28 redesign): Apple-style structure, a soft sky
+     ground, frosted panels and one aqua-green accent. Token names are kept,
+     so every rule that reads them follows: --copper is the accent now.
+     Amber means "waiting on you"; clay (red) is kept for errors. Contrast,
+     measured: accent #0B7A65 on white 5.4:1; --mute on white 6.4:1. */
   :root{
-    --paper:#F2F3F0;--surface:#fff;--surface-2:#E9EBE6;--ink:#171C1A;
-    --ink-2:#39423E;--mute:#6E7873;--rule:#D3D7D0;
-    --copper:#B5652E;--sage:#3F7A66;--sage-soft:#DDEAE3;
-    --clay:#A8412F;--clay-soft:#F5DFDA;
-    --blue:#2F6BC4;--violet:#7A4DC4;
+    --paper:#EDF7F4;--surface:#fff;--surface-2:#EAF3F0;--ink:#12202A;
+    --ink-2:#2E3F47;--mute:#4E5E66;--rule:#D3E0DC;
+    --copper:#0B7A65;--sage:#0B7A65;--sage-soft:#DDF1EA;
+    --clay:#A8412F;--clay-soft:#F8E1DB;--amber:#8A5110;--amber-soft:#FCEBD3;
+    --blue:#2F6FD0;--violet:#7A4DC4;
+    --btn:#0B7A65;--btn-top:#34B597;--btn-bottom:#08705C;
+    --glass:rgba(255,255,255,.68);--glass-strong:rgba(255,255,255,.84);
+    --glass-edge:rgba(255,255,255,.95);
+    --glass-shadow:0 10px 30px rgba(30,95,115,.10),inset 0 1px 0 rgba(255,255,255,.95);
+    --sky:radial-gradient(circle at 88% 4%,rgba(120,205,235,.45),transparent 38%),
+      radial-gradient(circle at 4% 96%,rgba(130,215,175,.35),transparent 42%),
+      linear-gradient(165deg,#DCF1FA 0%,#EAF7F2 48%,#F8FCFB 100%);
     /* The ground under the live map (n23): context, so quieter than
        anything drawn on it. Water against land is at least 1.3:1 in both
-       themes (n26: 1.38 light, 1.33 dark; it was 1.23 and 1.12). */
-    --map-water:#C5D6DE;--map-land:#F7F6F1;--map-urban:#ECE6DA;
-    --map-road:#D8B98C;--map-edge:#BCC5C0;
+       themes (measured 2026-10-28: 1.36 light, 1.36 dark). */
+    --map-water:#BCDDEA;--map-land:#F5FAF7;--map-urban:#EAF0EA;
+    --map-road:#E4D3AE;--map-edge:#C6D6D1;
   }
   @media (prefers-color-scheme:dark){:root{
-    --paper:#121615;--surface:#191F1D;--surface-2:#222927;--ink:#E8EBE7;
-    --ink-2:#C0C7C2;--mute:#8B958F;--rule:#2C3532;--copper:#D98A4F;
-    --sage:#6DAF96;--sage-soft:#1B2A25;--clay:#D2705B;--clay-soft:#2E1B17;
-    --blue:#6FA3EE;--violet:#AE8BEB;
-    --map-water:#0A1114;--map-land:#252C29;--map-urban:#303834;
-    --map-road:#6C5D49;--map-edge:#404C47;}}
+    --paper:#0B1A20;--surface:#14262D;--surface-2:#1B3038;--ink:#E6F1F3;
+    --ink-2:#C2D3D8;--mute:#93A9B0;--rule:#284049;--copper:#4FD1B5;
+    --sage:#4FD1B5;--sage-soft:#123029;--clay:#E08A75;--clay-soft:#33201B;
+    --amber:#F0B86A;--amber-soft:#33270F;--blue:#79AEF5;--violet:#B79AF0;
+    --btn:#11866F;--btn-top:#2BB79A;--btn-bottom:#0A6B58;
+    --glass:rgba(20,38,45,.72);--glass-strong:rgba(20,38,45,.88);
+    --glass-edge:rgba(255,255,255,.08);
+    --glass-shadow:0 10px 30px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.06);
+    --sky:radial-gradient(circle at 88% 4%,rgba(40,120,150,.30),transparent 40%),
+      radial-gradient(circle at 4% 96%,rgba(30,110,85,.25),transparent 44%),
+      linear-gradient(165deg,#0B1A20 0%,#0D2026 50%,#0A171C 100%);
+    --map-water:#0A1A22;--map-land:#1E3236;--map-urban:#213539;
+    --map-road:#5E5440;--map-edge:#36505A;}}
   *{box-sizing:border-box}
   /* A link to a section lands below the sticky nav, not under it. */
-  [id]{scroll-margin-top:64px}
+  [id]{scroll-margin-top:16px}
   [hidden]{display:none!important}
-  body{margin:0;background:var(--paper);color:var(--ink);line-height:1.55;
-    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
-  .wrap{max-width:1000px;margin:0 auto;padding:0 16px 64px}
-  .wrap.wide{max-width:1480px}
-  nav{border-bottom:1px solid var(--rule);background:var(--surface);
-      position:sticky;top:0;z-index:5}
-  nav .wrap{display:flex;gap:18px;padding-block:12px;align-items:center;
-    flex-wrap:wrap;padding-bottom:12px}
-  nav a{color:var(--ink-2);text-decoration:none;font-weight:500;font-size:14px}
-  nav a.on{color:var(--copper)}
-  h1{font-size:22px;margin:24px 0 4px;line-height:1.2;text-wrap:balance;
-    overflow-wrap:anywhere}
+  body{margin:0;background:var(--paper);background-image:var(--sky);
+    background-attachment:fixed;color:var(--ink);line-height:1.55;
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif;}
+  /* The shell: a frosted sidebar beside the page; on a phone it stacks. */
+  .shell{display:flex;flex-wrap:wrap;gap:20px;padding:20px;align-items:flex-start}
+  .wrap{flex:999 1 560px;min-width:0;max-width:1080px;padding:0 8px 64px}
+  .wrap.wide{max-width:none}
+  nav.side{flex:1 1 210px;max-width:236px;position:sticky;top:20px;z-index:5;
+    display:flex;flex-direction:column;gap:2px;padding:16px 10px;
+    background:var(--glass);border:1px solid var(--glass-edge);border-radius:22px;
+    box-shadow:var(--glass-shadow);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+  nav.side .brand{font-size:17px;font-weight:700;letter-spacing:-.01em;padding:4px 12px 12px;
+    color:var(--ink)}
+  nav.side a{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:12px;
+    min-height:42px;color:var(--ink-2);text-decoration:none;font-size:15px}
+  nav.side a svg{flex-shrink:0}
+  nav.side a:hover{background:color-mix(in srgb,var(--copper) 8%,transparent)}
+  nav.side a.on{color:var(--copper);font-weight:600;
+    background:linear-gradient(180deg,var(--glass-strong),color-mix(in srgb,var(--copper) 16%,var(--glass-strong)))}
+  nav.side .count{margin-left:auto;font-size:12.5px;font-weight:600;border-radius:999px;
+    padding:1px 8px;background:var(--amber-soft);color:var(--amber)}
+  nav.side .sep{height:1px;background:var(--rule);margin:8px 12px}
+  @media (max-width:760px){
+    .shell{padding:12px;gap:12px}
+    nav.side{max-width:none;position:static;flex-direction:row;flex-wrap:wrap;padding:8px}
+    nav.side .brand{width:100%;padding:4px 8px 4px}
+    nav.side a{min-height:40px;padding:8px 10px;font-size:14px}
+    nav.side .sep{display:none}
+  }
+  h1{font-size:32px;margin:12px 0 4px;line-height:1.15;font-weight:700;letter-spacing:-.02em;
+    text-wrap:balance;overflow-wrap:anywhere}
   h2{font-size:13px;margin:28px 0 8px;letter-spacing:.06em;text-transform:uppercase;
     color:var(--ink-2)}
   .sub{color:var(--mute);font-size:13px;margin:0 0 18px;overflow-wrap:anywhere}
-  form.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;
-    background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:12px}
-  select,input[type=search],input[type=text],input[type=url],textarea{font:inherit;
-    font-size:13px;padding:6px 8px;border:1px solid var(--rule);border-radius:3px;
+  form.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;padding:12px;
+    background:var(--glass);border:1px solid var(--glass-edge);border-radius:18px;
+    box-shadow:var(--glass-shadow);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+  select,input[type=search],input[type=text],input[type=url],input[type=date],textarea{font:inherit;
+    font-size:14px;padding:7px 10px;border:1px solid var(--rule);border-radius:10px;
     background:var(--surface);color:var(--ink);min-width:0}
-  form.stack{display:grid;gap:10px;background:var(--surface);border:1px solid var(--rule);
-    border-radius:4px;padding:14px 16px;margin-bottom:10px}
+  form.stack{display:grid;gap:10px;padding:16px 18px;margin-bottom:12px;
+    background:var(--glass);border:1px solid var(--glass-edge);border-radius:18px;
+    box-shadow:var(--glass-shadow);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
   form.stack label{display:grid;gap:4px;font-size:12.5px;color:var(--ink-2)}
   form.stack .two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
   form.stack button{justify-self:start}
@@ -59,8 +99,9 @@
   output{font-variant-numeric:tabular-nums;min-width:66px}
   /* The map. Drawn from shipped data on this machine: no tiles, so no
      request tells anybody where the operator lives. */
-  figure.map{margin:0 0 14px;background:var(--surface);border:1px solid var(--rule);
-    border-radius:4px;padding:10px 10px 6px}
+  figure.map{margin:0 0 14px;padding:10px 10px 6px;background:var(--glass);
+    border:1px solid var(--glass-edge);border-radius:22px;box-shadow:var(--glass-shadow);
+    backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
   figure.map svg{display:block;width:100%;height:auto;max-height:62vh}
   figure.map figcaption{color:var(--mute);font-size:12.5px;padding:4px 4px 2px;
     overflow-wrap:anywhere}
@@ -88,8 +129,8 @@
   .feed{min-width:0}
   @media (width>=1100px){
     .split.live{grid-template-columns:minmax(0,1fr) 440px;align-items:start}
-    .split.live .mapcol{position:sticky;top:58px}
-    .split.live .feed{max-height:calc(100vh - 70px);overflow-y:auto;
+    .split.live .mapcol{position:sticky;top:20px}
+    .split.live .feed{max-height:calc(100vh - 40px);overflow-y:auto;
       padding-right:4px;scrollbar-width:thin}
   }
   .pill{font:600 10.5px ui-monospace,Menlo,monospace;letter-spacing:.05em;
@@ -217,13 +258,18 @@
   .sheet p{margin:0;white-space:pre-wrap}
   .sheet ul{margin:0;padding-left:1.5em}
   .sheet .blank{height:1.1em}
-  button{font:inherit;font-size:13px;padding:6px 12px;border:0;border-radius:3px;
-    background:var(--copper);color:#fff;cursor:pointer}
+  /* Primary buttons carry the gloss; ghost buttons are quiet glass. */
+  button{font:inherit;font-size:14px;font-weight:600;padding:8px 16px;border:0;border-radius:12px;
+    min-height:36px;color:#fff;cursor:pointer;background:var(--btn);
+    background-image:linear-gradient(180deg,var(--btn-top) 0%,var(--btn) 52%,var(--btn-bottom) 100%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 3px 10px color-mix(in srgb,var(--btn) 30%,transparent)}
   button:disabled{opacity:.6;cursor:progress}
-  button.ghost{background:var(--surface-2);color:var(--ink-2)}
+  button.ghost{background:var(--glass-strong);background-image:none;color:var(--ink-2);
+    border:1px solid var(--rule);box-shadow:none}
   :focus-visible{outline:2px solid var(--copper);outline-offset:2px}
-  .card{background:var(--surface);border:1px solid var(--rule);border-radius:4px;
-    padding:14px 16px;margin-bottom:10px}
+  .card{padding:16px 18px;margin-bottom:12px;background:var(--glass);
+    border:1px solid var(--glass-edge);border-radius:20px;box-shadow:var(--glass-shadow);
+    backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
   .row1{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
   .score{font:600 14px ui-monospace,Menlo,monospace;color:var(--copper);
     font-variant-numeric:tabular-nums}
@@ -231,26 +277,28 @@
   .co{color:var(--mute);font-size:13px;overflow-wrap:anywhere}
   .meta{color:var(--mute);font-size:12.5px;margin-top:3px;overflow-wrap:anywhere}
   .flags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-  .flag{font:500 11px ui-monospace,Menlo,monospace;padding:2px 7px;border-radius:3px;
-    background:var(--surface-2);color:var(--mute);white-space:nowrap}
-  .flag.warn{background:var(--clay-soft);color:var(--clay)}
+  .flag{font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px;
+    background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink-2);white-space:nowrap}
+  .flag.warn{background:var(--amber-soft);color:var(--amber);font-weight:600}
   .flag.ok{background:var(--sage-soft);color:var(--sage)}
   .reasons{margin:8px 0 0;padding-left:16px;color:var(--ink-2);font-size:13px}
   .reasons li{margin:2px 0;overflow-wrap:anywhere}
-  .jd{background:var(--surface);border:1px solid var(--rule);border-radius:4px;
+  .jd{background:var(--glass-strong);border:1px solid var(--glass-edge);border-radius:18px;
     padding:16px;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;
     font-size:13.5px;color:var(--ink-2);max-height:70vh;overflow-y:auto}
   .empty{color:var(--mute);padding:12px 0}
   a.plain{color:var(--copper);overflow-wrap:anywhere}
-  a.btn{display:inline-block;font-size:13px;padding:6px 12px;border-radius:3px;
-    background:var(--surface-2);color:var(--ink);text-decoration:none}
+  a.btn{display:inline-flex;align-items:center;font-size:14px;font-weight:600;padding:8px 16px;
+    border-radius:12px;min-height:36px;background:var(--glass-strong);border:1px solid var(--rule);
+    color:var(--ink);text-decoration:none}
   code{font:12.5px ui-monospace,Menlo,monospace;overflow-wrap:anywhere}
-  .note{border-radius:4px;padding:10px 12px;margin:10px 0;font-size:13.5px;
+  .note{border-radius:16px;padding:12px 14px;margin:10px 0;font-size:14px;
     overflow-wrap:anywhere}
   .note.bad{background:var(--clay-soft);color:var(--clay)}
   .note.good{background:var(--sage-soft);color:var(--sage)}
   .note.daily{display:flex;gap:12px;align-items:center;justify-content:space-between;
-    flex-wrap:wrap;background:var(--surface-2);color:var(--ink)}
+    flex-wrap:wrap;color:var(--ink);background:var(--glass);border:1px solid var(--glass-edge);
+    box-shadow:var(--glass-shadow);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
   .inline{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
   .triage{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
   .triage .inline{margin:0}
@@ -265,7 +313,7 @@
     text-transform:uppercase;color:var(--mute);margin-bottom:2px;overflow-wrap:anywhere}
   .pair p{margin:0;font-size:13.5px;overflow-wrap:anywhere}
   mark{background:transparent;color:var(--clay);font-weight:600}
-  .doc{background:var(--surface-2);border-radius:4px;padding:12px 14px;
+  .doc{background:var(--glass-strong);border:1px solid var(--rule);border-radius:14px;padding:12px 14px;
     font-size:13.5px;overflow-wrap:anywhere}
   .doc h3{font-size:12px;letter-spacing:.06em;margin:12px 0 4px}
   .doc p{margin:2px 0}
@@ -276,25 +324,37 @@
   .qa .say{margin:8px 0 0;padding-left:12px;border-left:3px solid var(--sage);
     overflow-wrap:anywhere;max-width:70ch}
   @media (max-width:460px){
-    .wrap{padding:0 12px 48px}
-    h1{font-size:19px}
+    .wrap{padding:0 4px 48px}
+    h1{font-size:26px}
     form.filters{flex-direction:column}
     select,input[type=search],form.filters button{width:100%}
     .pair{grid-template-columns:minmax(0,1fr)}
     form.stack .two{grid-template-columns:minmax(0,1fr)}
     .desk{padding:12px 0}
   }
+  .rp,.mapctl,.maplegend,.tip,.livemap .mapnorth,.livemap .bm-note,.picked,.drawer{
+    background:var(--glass-strong);border-color:var(--glass-edge);
+    backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+  .rp,.drawer,.picked{border-radius:18px;box-shadow:var(--glass-shadow)}
+  .mapctl{border-radius:14px;box-shadow:var(--glass-shadow)}
+  .maplegend,.tip{border-radius:12px}
+  .livemap{border-radius:18px}
+  .rp .num{font-family:inherit;font-weight:700}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style></head><body>
-<nav><div class="wrap">
-  <a href="/" class="{{ 'on' if page=='matches' }}">Matches</a>
-  <a href="/turbo" class="{{ 'on' if page=='turbo' }}">Turbo</a>
-  <a href="/pipeline" class="{{ 'on' if page=='pipeline' }}">Pipeline</a>
-  <a href="/replies" class="{{ 'on' if page=='replies' }}">Replies{% if replies_count %} ({{ replies_count }}){% endif %}</a>
-  <a href="/review" class="{{ 'on' if page=='review' }}">Review{% if pending_count %} ({{ pending_count }}){% endif %}</a>
-  <a href="/add" class="{{ 'on' if page=='add' }}">Add a job</a>
-  <a href="/companies" class="{{ 'on' if page=='companies' }}">Companies</a>
-</div></nav>
+<div class="shell">
+<nav class="side" aria-label="Main">
+  <span class="brand">Job Search</span>
+  <a href="/today" class="{{ 'on' if page=='today' }}"{{ ' aria-current="page"'|safe if page=='today' }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7v9H3z"/></svg>Today</a>
+  <a href="/" class="{{ 'on' if page=='matches' }}"{{ ' aria-current="page"'|safe if page=='matches' }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>Matches</a>
+  <a href="/turbo" class="{{ 'on' if page=='turbo' }}"{{ ' aria-current="page"'|safe if page=='turbo' }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3L4 14h7l-1 7 9-11h-7z"/></svg>Turbo</a>
+  <a href="/pipeline" class="{{ 'on' if page=='pipeline' }}"{{ ' aria-current="page"'|safe if page=='pipeline' }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 5h16M4 12h10M4 19h6"/></svg>Pipeline</a>
+  <a href="/review" class="{{ 'on' if page=='review' }}"{{ ' aria-current="page"'|safe if page=='review' }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l4 4 10-10"/></svg>Review{% if pending_count %} <span class="count">{{ pending_count }}</span>{% endif %}</a>
+  <a href="/replies" class="{{ 'on' if page=='replies' }}"{{ ' aria-current="page"'|safe if page=='replies' }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16v12H4z"/><path d="M4 7l8 6 8-6"/></svg>Replies{% if replies_count %} <span class="count">{{ replies_count }}</span>{% endif %}</a>
+  <span class="sep" aria-hidden="true"></span>
+  <a href="/add" class="{{ 'on' if page=='add' }}"{{ ' aria-current="page"'|safe if page=='add' }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add a job</a>
+  <a href="/companies" class="{{ 'on' if page=='companies' }}"{{ ' aria-current="page"'|safe if page=='companies' }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V5l8-3 8 3v16"/><path d="M9 21v-5h6v5"/></svg>Companies</a>
+</nav>
 <main class="wrap{{ ' wide' if wide }}">{% if daily %}
 <div class="note daily" id="daily-banner" role="status">
   <span>Since your last daily run ({{ daily.started_at|localtime }}):
@@ -310,4 +370,5 @@
     <button class="ghost" type="submit">Got it</button>
   </form>
 </div>{% endif %}{% block body %}{% endblock %}</main>
+</div>
 </body></html>

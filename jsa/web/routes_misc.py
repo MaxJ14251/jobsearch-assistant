@@ -43,7 +43,7 @@ def register(app, ctx) -> None:
             con.commit()
         finally:
             con.close()
-        return RedirectResponse(back if back in ("/", "/pipeline") else "/",
+        return RedirectResponse(back if back in ("/", "/pipeline", "/today") else "/",
                                 status_code=303)
 
     @app.get("/basemap/{tier}")

@@ -588,9 +588,10 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         try:
             ctx.setdefault("pending_count", _pending_count(con))
             ctx.setdefault("replies_count", _replies_count(con))
-            if page in ("matches", "pipeline") and name != "preview":
+            if page in ("matches", "pipeline", "today") and name != "preview":
                 ctx.setdefault("daily", daily_banner(con))
-                ctx.setdefault("page_path", "/" if page == "matches" else "/pipeline")
+                ctx.setdefault("page_path", {"matches": "/", "pipeline": "/pipeline",
+                                             "today": "/today"}[page])
         finally:
             con.close()
         title = ctx.pop("title", page.title())
@@ -814,6 +815,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         routes_review,
         routes_ext,
         routes_companies,
+        routes_today,
     )
     routes_matches.register(app, ctx)
     routes_turbo.register(app, ctx)
@@ -826,6 +828,7 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
     routes_review.register(app, ctx)
     routes_ext.register(app, ctx)
     routes_companies.register(app, ctx)
+    routes_today.register(app, ctx)
     return app
 
 
