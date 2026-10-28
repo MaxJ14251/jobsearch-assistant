@@ -182,6 +182,9 @@ def register(app, ctx) -> None:
             return back_to_replies(said(exc), True)
         finally:
             con.close()
+        if done.previous == done.stage:
+            return back_to_replies(f"Noted. It was already {done.stage.replace('_', ' ')}; "
+                                   "nothing moved.", False)
         return back_to_replies(
             f"Moved from {done.previous.replace('_', ' ')} to "
             f"{done.stage.replace('_', ' ')}." + (f" {hint}." if hint else ""), False)

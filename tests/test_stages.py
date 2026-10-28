@@ -104,6 +104,18 @@ class TestWalkingAnApplication(unittest.TestCase):
         self.assertEqual(self.con.execute(
             "SELECT COUNT(*) FROM application_events").fetchone()[0], events)
 
+    def test_moving_to_the_stage_it_is_in_writes_nothing(self):
+        """Found 2026-10-27: re-running `jsa status 1147 withdrawn` wrote 11
+        "withdrawn -> withdrawn" events, each looking like a decision."""
+        approvals.set_stage(self.con, 1, "withdrawn")
+        events = self.con.execute("SELECT COUNT(*) FROM application_events").fetchone()[0]
+        with self.assertRaises(approvals.ApprovalError) as caught:
+            approvals.set_stage(self.con, 1, "withdrawn")
+        self.assertIn("already withdrawn", str(caught.exception))
+        self.assertIn("nothing to do", str(caught.exception))
+        self.assertEqual(self.con.execute(
+            "SELECT COUNT(*) FROM application_events").fetchone()[0], events)
+
     def test_the_extension_naming_the_same_resume_moves_it_back_too(self):
         """The extension's "I submitted this" names the resume it filled."""
         path = Path(self.path).with_name("r.docx")

@@ -1329,7 +1329,10 @@ def cmd_inbox(args: argparse.Namespace) -> int:
                 print(f"{exc}: add --back.", file=sys.stderr)
                 return 1
             con.commit()
-            print(f"{done.previous} -> {done.stage}: job {done.job_id} (confirmed by you)")
+            if done.previous == done.stage:
+                print(f"noted: job {done.job_id} was already {done.stage}; nothing moved")
+            else:
+                print(f"{done.previous} -> {done.stage}: job {done.job_id} (confirmed by you)")
             hint = prep.suggestion(con, done.application_id, done.stage)
             if hint:
                 print(f"  {hint}")

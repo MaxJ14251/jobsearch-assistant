@@ -657,6 +657,11 @@ def set_stage(
                 "WHERE id = (SELECT MAX(id) FROM application_events "
                 "WHERE application_id = ?)", (note, application_id))
         return application_id, previous
+    if stage == previous:
+        # Asked for where it already is: nothing happened, so nothing is
+        # written (2026-10-27: a re-run command wrote 11 identical events).
+        raise ApprovalError(f"job {job_id} is already {stage.replace('_', ' ')}; "
+                            "nothing to do")
     record_event(con, application_id, stage, actor="human", note=note)
     return application_id, previous
 

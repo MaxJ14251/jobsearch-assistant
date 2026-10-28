@@ -498,6 +498,11 @@ def confirm(con: sqlite3.Connection, reply_id: int, stage: str | None = None,
     if (stage in BEFORE_APPLIED and row["app_status"] not in BEFORE_APPLIED
             and not back):
         raise MovesBack(reply_id, row["app_status"], stage)
+    if stage == row["app_status"]:
+        # Already there (a rejection for an application you closed): the
+        # reply is noted and nothing moves, so no event says it did.
+        con.execute("UPDATE inbox_replies SET state = 'confirmed' WHERE id = ?", (reply_id,))
+        return Confirmed(row["job_id"], stage, stage, row["application_id"], row["kind"])
     day = (row["received_at"] or "")[:10] or "an unknown date"
     _app, previous = approvals.set_stage(
         con, row["job_id"], stage, note=f"from an email of {day}: {row['subject']}")

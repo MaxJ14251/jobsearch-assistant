@@ -435,6 +435,15 @@ class TestNoSilentMoveBack(InboxCase):
                                            "--stage", "saved", "--back"]), 0)
         self.assertEqual(self.status(), "saved")
 
+    def test_a_reply_for_the_stage_it_is_already_in_is_noted_not_repeated(self):
+        self.con.execute("UPDATE applications SET status = 'rejected' WHERE job_id = 1")
+        events = self.con.execute("SELECT COUNT(*) FROM application_events").fetchone()[0]
+        done = inbox.confirm(self.con, self.reply, stage="rejected")
+        self.assertEqual((done.previous, done.stage), ("rejected", "rejected"))
+        self.assertEqual(self.replies()[0]["state"], "confirmed")
+        self.assertEqual(self.con.execute(
+            "SELECT COUNT(*) FROM application_events").fetchone()[0], events)
+
     def test_forward_and_closing_moves_still_need_no_extra_step(self):
         inbox.confirm(self.con, self.reply, stage="rejected")
         self.assertEqual(self.status(), "rejected")
