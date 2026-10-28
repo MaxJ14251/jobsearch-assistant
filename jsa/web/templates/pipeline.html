@@ -56,7 +56,7 @@
   </div>
   {% if r.status in ('saved', 'drafting', 'ready') %}<div class="status-line">{% if r.drafts.pending %}<a class="flag warn" href="/review">{{ r.drafts.pending|plural('draft') }} to review</a>
     {% elif r.drafts.approved %}<span class="flag ok">resume approved</span>
-    {% elif r.drafts.total %}<span class="flag">{{ r.drafts.total|plural('draft') }}, none approved</span>
+    {% elif r.drafts.total %}<span class="flag">{{ r.drafts.total|plural('draft') }}, no resume approved</span>
     {% else %}<span class="flag">no drafts yet</span>{% endif %}</div>{% endif %}
   <div class="meta">{{ r.next_action or 'no next action set' }}
     {%- if r.next_action_due %} · due {{ r.next_action_due }}{% endif %}

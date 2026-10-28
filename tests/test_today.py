@@ -100,7 +100,7 @@ class TestThePage(unittest.TestCase):
         con.commit()
         con.close()
         page = self.client.get("/pipeline").text
-        self.assertIn("1 draft, none approved", page)       # rejected is not "no drafts"
+        self.assertIn("1 draft, no resume approved", page)   # rejected is not "no drafts"
         self.assertNotIn("no drafts yet", page)
 
     def test_every_page_has_the_sidebar(self):
