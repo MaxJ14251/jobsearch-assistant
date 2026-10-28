@@ -56,6 +56,7 @@
   /* B1, B4: every link reads, on glass or on the sky: none falls back to
      the browser's blue (1.66:1 on the dark glass). */
   a{color:var(--accent-text)}
+  input{accent-color:var(--copper)}
   /* One frosted panel, written once. */
   .glass{background:var(--glass);border:1px solid var(--glass-edge);box-shadow:var(--glass-shadow);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
   /* The shell: a frosted sidebar beside the page; on a phone it stacks. */
@@ -363,7 +364,7 @@
   .rp .num{font-family:inherit;font-weight:700}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
   @media print{
-    body::before,nav.side,.note.daily,button,form{display:none!important}
+    body::before,nav.side,.note.daily,button,form,a.btn{display:none!important}
     .shell{display:block;padding:0}
     .card,.glass,.note,.jd,.doc{background:#fff!important;color:#000;box-shadow:none!important;
       backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border:1px solid #ccc}

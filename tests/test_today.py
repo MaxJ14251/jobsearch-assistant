@@ -64,7 +64,7 @@ class TestThePage(unittest.TestCase):
         def snapshot():
             con = self.box.connect()
             try:
-                return [con.execute(f"SELECT COUNT(*), TOTAL(rowid) FROM {t}").fetchone()[:]
+                return [[tuple(r) for r in con.execute(f"SELECT * FROM {t} ORDER BY rowid")]
                         for t in tables]
             finally:
                 con.close()
@@ -91,6 +91,17 @@ class TestThePage(unittest.TestCase):
     def test_saved_and_ready_cards_say_where_their_drafts_are(self):
         page = self.client.get("/pipeline").text
         self.assertIn("no drafts yet", page)                 # job 1 is ready, no documents
+        con = self.box.connect()
+        doc = con.execute("INSERT INTO documents (job_id, kind, path, version) "
+                          "VALUES (1, 'resume', 'x.docx', 1)").lastrowid
+        con.execute("INSERT INTO approvals (subject_type, subject_id, summary, decision, "
+                    "decided_by, decided_at, feedback) VALUES ('document', ?, 'resume v1', "
+                    "'rejected', 'human', '2026-10-27T00:00:00Z', 'not this one')", (doc,))
+        con.commit()
+        con.close()
+        page = self.client.get("/pipeline").text
+        self.assertIn("1 draft, none approved", page)       # rejected is not "no drafts"
+        self.assertNotIn("no drafts yet", page)
 
     def test_every_page_has_the_sidebar(self):
         for url in ("/", "/today", "/pipeline", "/review", "/replies", "/add", "/companies", "/turbo"):

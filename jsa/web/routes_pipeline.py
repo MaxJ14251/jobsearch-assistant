@@ -65,11 +65,12 @@ def register(app, ctx) -> None:
             # cards: drafts waiting in Review, or an approved resume.
             drafts: dict[int, dict[str, int]] = {}
             for d in con.execute(
-                    "SELECT d.job_id, SUM(a.decision = 'pending') AS pending, "
+                    "SELECT d.job_id, COUNT(DISTINCT d.id) AS total, "
+                    "SUM(a.decision = 'pending') AS pending, "
                     "SUM(a.decision = 'approved' AND d.kind = 'resume') AS approved "
-                    "FROM documents d JOIN approvals a ON a.subject_type = 'document' "
+                    "FROM documents d LEFT JOIN approvals a ON a.subject_type = 'document' "
                     "AND a.subject_id = d.id GROUP BY d.job_id"):
-                drafts[d["job_id"]] = {"pending": d["pending"] or 0,
+                drafts[d["job_id"]] = {"total": d["total"] or 0, "pending": d["pending"] or 0,
                                        "approved": d["approved"] or 0}
             from .. import applyqueue, outcomes, pairing
             happened = outcomes.all_outcomes(con)
@@ -90,7 +91,7 @@ def register(app, ctx) -> None:
 
         today = date.today()
         for row in rows:
-            row["drafts"] = drafts.get(row["job_id"], {"pending": 0, "approved": 0})
+            row["drafts"] = drafts.get(row["job_id"], {"total": 0, "pending": 0, "approved": 0})
             counts = sent_out.get(row["job_id"], {})
             items = [(s, counts[s]) for s in OUTREACH_ORDER if counts.get(s)]
             # "2 messages drafted · 1 sent": the noun once, on the first.
