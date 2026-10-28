@@ -4,6 +4,7 @@ every action it points to lives on its own page."""
 
 from __future__ import annotations
 
+import sqlite3
 from datetime import date
 
 from fastapi.responses import HTMLResponse
@@ -56,9 +57,16 @@ def register(app, ctx) -> None:
         con = connect()
         try:
             one = lambda sql, *a: con.execute(sql, a).fetchone()[0]  # noqa: E731
+            try:
+                replies = one("SELECT COUNT(*) FROM inbox_replies WHERE state = 'pending'")
+            except sqlite3.OperationalError:          # an older tracker: no inbox yet
+                replies = 0
             counts = {
-                "replies": one("SELECT COUNT(*) FROM inbox_replies WHERE state = 'pending'"),
-                "drafts": one("SELECT COUNT(*) FROM approvals WHERE decision = 'pending'"),
+                "replies": replies,
+                # Documents only: an outreach note waiting is not a draft
+                # that stands between you and applying.
+                "drafts": one("SELECT COUNT(*) FROM approvals WHERE decision = 'pending' "
+                              "AND subject_type = 'document'"),
                 "ready": len(applyqueue.ready_to_apply(con)["items"]),
                 "due": sum(1 for d in approvals.due_items(con, days=0)
                            if d.days_out is not None and d.days_out <= 0),

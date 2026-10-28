@@ -41,7 +41,7 @@
   <span class="meta">postings that don't say go last</span>
 </form>{% endif %}
 {% for r in items %}
-{% set is_due = r.days_out is not none and r.days_out <= 1 %}
+{% set is_due = r.days_out is not none and r.days_out <= 0 %}
 <div class="card" id="app-{{ r.job_id }}">{% if is_due and not ns.first_due %}{% set ns.first_due = true %}<span id="first-due"></span>{% endif %}
   <div class="row1">
     <span class="title"><a class="plain" href="/job/{{ r.job_id }}">{{ r.title }}</a></span>

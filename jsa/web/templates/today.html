@@ -22,7 +22,7 @@
   <div class="today-col">
     <div class="stats">
       <a class="stat" href="/"><strong>{{ counts.strong }}</strong><span>strong new {{ 'match' if counts.strong == 1 else 'matches' }}</span></a>
-      <a class="stat" href="/pipeline"><strong>{{ counts.saved }}</strong><span>saved to draft</span></a>
+      <a class="stat" href="/pipeline"><strong>{{ counts.undrafted }}</strong><span>saved, not drafted</span></a>
       <a class="stat" href="/pipeline"><strong>{{ counts.applied }}</strong><span>applied, waiting</span></a>
     </div>
 
@@ -42,7 +42,7 @@
   .hero{display:flex;flex-direction:column;gap:12px;padding:24px;border-radius:24px;
     background:linear-gradient(180deg,var(--glass-strong),color-mix(in srgb,var(--copper) 14%,var(--glass-strong)));
     border:1px solid var(--glass-edge);box-shadow:var(--glass-shadow)}
-  .hero-label{font-size:15px;font-weight:600;color:var(--copper)}
+  .hero-label{font-size:15px;font-weight:600;color:var(--accent-text)}
   .hero h2{margin:0;font-size:26px;line-height:1.2;letter-spacing:-.01em;text-transform:none;color:var(--ink);text-wrap:balance}
   .hero a.btn.primary{align-self:flex-start}
   .group-head{margin:0 0 8px;padding-left:16px}
