@@ -23,52 +23,60 @@
   })();
 </script>
 <style>
-  /* The Aero theme (2026-10-27 redesign): Apple-style structure, a soft sky
-     ground, frosted panels and one aqua-green accent. Token names are kept,
-     so every rule that reads them follows: --copper is the accent now.
-     Amber means "waiting on you"; clay (red) is kept for errors. Contrast,
-     measured 2026-10-27: accent on white 5.27:1; --accent-text on the
-     accent's own 16% tint 5.64:1 (the accent there is 4.22:1, so text on a
-     tint uses --accent-text); --sage on --sage-soft 5.46:1; --mute on white
-     6.74:1; white on the button 5.27:1 (dark 5.26:1). */
+  /* Two themes, one structure (2026-10-27): Apple-style layout and type in
+     both. Light is Frutiger Aero: a bright sky over green grass, white
+     frosted glass, aqua-blue gloss. Dark is dark Aero: a deep ocean night
+     with aurora glows, smoky glass with a cyan rim, cyan and lime light.
+     Token names are kept, so every rule that reads them follows: --copper
+     is the accent. Amber means "waiting on you"; clay (red) is for errors.
+     Contrast, measured 2026-10-27. Light: accent on white 5.11:1;
+     --accent-text on white 6.84:1 and on the accent's 16% tint 5.46:1;
+     --sage on --sage-soft 5.08:1; --mute on white 6.55:1 and on the top of
+     the sky 4.72:1; white on the button 5.11:1. Dark: --accent-text on
+     --surface 10.1:1; --mute 6.96:1; --sage on --sage-soft 9.1:1; white on
+     the button 4.8:1. */
   :root{color-scheme:light dark;
-    --paper:#EDF7F4;--surface:#fff;--surface-2:#EAF3F0;--ink:#12202A;
-    --ink-2:#2E3F47;--mute:#4E5E66;--rule:#D3E0DC;
-    --copper:#0B7A65;--sage:#276B43;--sage-soft:#DDF1EA;
+    --paper:#E6F4FC;--surface:#fff;--surface-2:#E8F3FA;--ink:#0E2233;
+    --ink-2:#2B4256;--mute:#4A6072;--rule:#CFE0EA;
+    --copper:#0A72B8;--sage:#2E7322;--sage-soft:#E4F4D8;
     --clay:#A8412F;--clay-soft:#F8E1DB;--amber:#8A5110;--amber-soft:#FCEBD3;
     --blue:#2459A8;--violet:#6A3DB4;
-    --btn:#0B7A65;--btn-top:#34B597;--btn-bottom:#08705C;--accent-text:#07654F;
-    --glass:rgba(255,255,255,.68);--glass-strong:rgba(255,255,255,.84);
+    --btn:#0A72B8;--btn-top:#5CC7F4;--btn-bottom:#075E99;--accent-text:#075E99;
+    --glass:rgba(255,255,255,.64);--glass-strong:rgba(255,255,255,.86);
     --glass-edge:rgba(255,255,255,.95);
-    --glass-shadow:0 10px 30px rgba(30,95,115,.10),inset 0 1px 0 rgba(255,255,255,.95);
-    --sky:radial-gradient(circle at 88% 4%,rgba(120,205,235,.45),transparent 38%),
-      radial-gradient(circle at 4% 96%,rgba(130,215,175,.35),transparent 42%),
-      linear-gradient(165deg,#DCF1FA 0%,#EAF7F2 48%,#F8FCFB 100%);
+    --glass-shadow:0 10px 30px rgba(20,100,160,.13),inset 0 1px 0 rgba(255,255,255,.95);
+    /* Sky, sun and grass. The top stays light enough for --mute (4.72:1). */
+    --sky:radial-gradient(ellipse 55% 40% at 82% -6%,rgba(255,255,255,.9),transparent 70%),
+      radial-gradient(ellipse 80% 38% at 18% 106%,rgba(120,200,80,.42),transparent 70%),
+      radial-gradient(ellipse 65% 32% at 88% 108%,rgba(50,175,110,.32),transparent 70%),
+      linear-gradient(180deg,#B3E2F8 0%,#CDEBFA 30%,#EAF6FC 62%,#F1FAEF 100%);
     /* The ground under the live map (n23): context, so quieter than
        anything drawn on it. Water against land is at least 1.3:1 in both
-       themes (measured 2026-10-27: 1.36 light, 1.32 dark). */
-    --map-water:#BCDDEA;--map-land:#F5FAF7;--map-urban:#EAF0EA;
-    --map-road:#E4D3AE;--map-edge:#C6D6D1;
-    /* Map markers, one set for both themes (white on each base color: 4.9:1 or more, measured 2026-10-27). */
-    --mk-new:#5B6B73;--mk-saved:#2F6FD0;--mk-applied:#0B7A65;--mk-interview:#7A4DC4;
+       themes (measured 2026-10-27: 1.42 light, 1.48 dark). */
+    --map-water:#A9D9F2;--map-land:#F4FAF1;--map-urban:#E8F1E8;
+    --map-road:#E3D3A8;--map-edge:#BFD5E2;
+    /* Map markers, one set for both themes (white on each base color: 4.6:1 or more, measured 2026-10-27). */
+    --mk-new:#5B6B73;--mk-saved:#2F6FD0;--mk-applied:#2E8540;--mk-interview:#7A4DC4;
   }
   /* Dark: set by the script above, from the computer's setting or the
      sidebar's choice. Without JavaScript the page stays light. */
   :root[data-theme="light"]{color-scheme:light}
   :root[data-theme="dark"]{color-scheme:dark;
-    --paper:#0B1A20;--surface:#14262D;--surface-2:#1B3038;--ink:#E6F1F3;
-    --ink-2:#C2D3D8;--mute:#93A9B0;--rule:#284049;--copper:#4FD1B5;
-    --sage:#6CCB8E;--sage-soft:#123029;--clay:#E08A75;--clay-soft:#33201B;
+    --paper:#050F1A;--surface:#0C1E2E;--surface-2:#12293B;--ink:#E4F3FA;
+    --ink-2:#BDD6E3;--mute:#8FAABB;--rule:#1E3A50;--copper:#3CCFEA;
+    --sage:#8EDB6A;--sage-soft:#132A18;--clay:#E08A75;--clay-soft:#33201B;
     --amber:#F0B86A;--amber-soft:#33270F;--blue:#79AEF5;--violet:#B79AF0;
-    --btn:#0F7A65;--btn-top:#2BB79A;--btn-bottom:#0A6553;--accent-text:#4FD1B5;
-    --glass:rgba(20,38,45,.72);--glass-strong:rgba(20,38,45,.88);
-    --glass-edge:rgba(255,255,255,.08);
-    --glass-shadow:0 10px 30px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.06);
-    --sky:radial-gradient(circle at 88% 4%,rgba(40,120,150,.30),transparent 40%),
-      radial-gradient(circle at 4% 96%,rgba(30,110,85,.25),transparent 44%),
-      linear-gradient(165deg,#0B1A20 0%,#0D2026 50%,#0A171C 100%);
-    --map-water:#0A1A22;--map-land:#1E3236;--map-urban:#213539;
-    --map-road:#5E5440;--map-edge:#36505A;}
+    --btn:#0A7BA3;--btn-top:#3CC6EA;--btn-bottom:#065C7E;--accent-text:#5ED8EE;
+    --glass:rgba(12,32,50,.62);--glass-strong:rgba(12,32,50,.86);
+    --glass-edge:rgba(120,210,255,.16);
+    --glass-shadow:0 12px 34px rgba(0,0,0,.5),inset 0 1px 0 rgba(150,225,255,.12);
+    /* Night ocean with aurora: cyan from the top, lime at the foot, a hint of indigo. */
+    --sky:radial-gradient(ellipse 60% 45% at 85% -4%,rgba(30,160,220,.30),transparent 70%),
+      radial-gradient(ellipse 55% 40% at 10% 104%,rgba(80,200,110,.20),transparent 70%),
+      radial-gradient(ellipse 50% 40% at 45% 50%,rgba(70,80,190,.10),transparent 70%),
+      linear-gradient(170deg,#06182A 0%,#05131F 55%,#030B14 100%);
+    --map-water:#03101C;--map-land:#173448;--map-urban:#1A3A50;
+    --map-road:#4C5A6E;--map-edge:#26475E;}
   *{box-sizing:border-box}
   /* A link to a section lands with a little room above it. */
   [id]{scroll-margin-top:16px}
