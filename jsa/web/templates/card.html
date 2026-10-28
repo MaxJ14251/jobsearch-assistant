@@ -25,7 +25,7 @@
       <input type="hidden" name="page" value="matches">
       <input type="hidden" name="back" value="{{ triage.here }}">
       <input type="hidden" name="next" value="{{ triage.next or '' }}">
-      <button type="submit" class="ghost">Save</button>
+      <button type="submit">Save</button>
     </form>
     <form method="post" action="/turbo/pass" class="inline">
       <input type="hidden" name="csrf" value="{{ triage.csrf }}">
