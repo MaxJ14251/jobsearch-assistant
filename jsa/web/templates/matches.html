@@ -541,12 +541,8 @@
     canvas.style.opacity = fade;
     bmNote.hidden = !(a && a.ch && S > limit);
   }
-  if (BM && window.matchMedia) {
-    var scheme = window.matchMedia('(prefers-color-scheme: dark)');
-    if (scheme.addEventListener) {
-      scheme.addEventListener('change', function () { bm.at = null; asked = ''; redraw(); });
-    }
-  }
+  /* The ground is painted in the theme's colors: repaint when it changes. */
+  if (BM) document.addEventListener('jsa-theme', function () { bm.at = null; asked = ''; redraw(); });
   var tip = node('div', {'class': 'tip', hidden: ''}, box);
 
   var view = {cx: 0, cy: 0, s: 1};

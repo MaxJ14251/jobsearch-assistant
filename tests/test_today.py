@@ -103,6 +103,15 @@ class TestThePage(unittest.TestCase):
         self.assertIn("1 draft, no resume approved", page)   # rejected is not "no drafts"
         self.assertNotIn("no drafts yet", page)
 
+    def test_the_theme_can_be_chosen_and_auto_follows_the_computer(self):
+        page = self.client.get("/today").text
+        self.assertIn('aria-label="Theme"', page)
+        for mode in ("auto", "light", "dark"):
+            self.assertIn(f'data-mode="{mode}"', page)
+        self.assertIn(':root[data-theme="dark"]{', page)     # one set of dark tokens
+        self.assertIn("prefers-color-scheme: dark", page)    # what "auto" reads
+        self.assertLess(page.index("jsaTheme"), page.index("<style>"))   # set before paint
+
     def test_every_page_has_the_sidebar(self):
         for url in ("/", "/today", "/pipeline", "/review", "/replies", "/add", "/companies", "/turbo"):
             with self.subTest(url=url):
