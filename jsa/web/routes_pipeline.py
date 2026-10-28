@@ -130,6 +130,7 @@ def register(app, ctx) -> None:
                       happened=happened, happened_line=outcomes.summary(happened),
                       session=session, msg=msg, bad=bad, saved_sorts=SAVED_SORTS,
                       waiting=waiting, strong=strong, strong_at=STRONG_MATCH, batch=batch,
+                      wide=True,
                       saved_sort=saved_sort if saved_sort in SAVED_SORTS else "")
 
     @app.post("/pipeline/draft-batch")
