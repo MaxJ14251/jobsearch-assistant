@@ -2,6 +2,7 @@
 drafting or ready applications while 140 unreviewed matches scored 0.8 or
 higher). It says so and points at those matches; it decides nothing."""
 
+import re
 import unittest
 
 from tests.test_web_documents import Sandbox, make_client
@@ -77,6 +78,48 @@ class TestClosedCardsCanMove(unittest.TestCase):
                           "application_events e ON e.application_id = a.id "
                           "WHERE a.job_id = 1 ORDER BY e.id DESC").fetchone()
         self.assertEqual(tuple(row), ("withdrawn", "human"))
+
+
+
+class TestSortSavedByExperience(unittest.TestCase):
+    """The saved group sorted by the years a posting asks for, either way;
+    a posting that states none goes last in both (asked 2026-10-27)."""
+
+    def setUp(self):
+        self.box = Sandbox()
+        self.addCleanup(self.box.cleanup)
+        con = self.box.connect()
+        con.execute("UPDATE applications SET status = 'saved' WHERE job_id = 1")
+        con.execute("UPDATE jobs SET years_required = 3 WHERE id = 1")
+        for job_id, years in ((20, 5), (21, None), (22, 1)):
+            con.execute("INSERT INTO jobs (id,company_id,title,url,years_required) "
+                        "VALUES (?,1,?,?,?)", (job_id, f"Job {job_id}", f"https://x/{job_id}", years))
+            con.execute("INSERT INTO applications (job_id,status) VALUES (?, 'saved')", (job_id,))
+        con.commit()
+        con.close()
+        self.client, _ = make_client(self.box.db, self.box.out, profile={"x": 1})
+
+    def order(self, query=""):
+        page = self.client.get("/pipeline" + query).text
+        saved = page[page.index("<h2>saved"):]
+        end = saved.find("<h2>", 4)
+        return [int(x) for x in re.findall(r'id="app-(\d+)"', saved[:end if end > 0 else None])]
+
+    def test_fewest_years_first_with_unstated_last(self):
+        self.assertEqual(self.order("?saved_sort=years_asc"), [22, 1, 20, 21])
+
+    def test_most_years_first_with_unstated_still_last(self):
+        self.assertEqual(self.order("?saved_sort=years_desc"), [20, 1, 22, 21])
+
+    def test_the_control_and_the_years_show(self):
+        page = self.client.get("/pipeline?saved_sort=years_desc").text
+        self.assertIn('name="saved_sort"', page)
+        self.assertRegex(page, r'<option value="years_desc"\s+selected')
+        self.assertIn("5+ yrs", page)
+        self.assertIn("years not stated", page)
+
+    def test_an_unknown_sort_keeps_the_usual_order(self):
+        self.assertEqual(sorted(self.order("?saved_sort=nonsense")), [1, 20, 21, 22])
 
 
 if __name__ == "__main__":

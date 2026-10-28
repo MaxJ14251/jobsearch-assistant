@@ -17,6 +17,9 @@ from . import plural, db
 # unreviewed matches scored this or higher, a list worth a sitting.
 STRONG_MATCH = 0.8
 
+# How the saved group can be ordered, besides the usual due-first order.
+SAVED_SORTS = {"years_asc": "fewest years first", "years_desc": "most years first"}
+
 # How an outreach message's status reads on a Pipeline card, in order.
 OUTREACH_ORDER = ("drafted", "approved", "sent", "replied", "declined")
 
@@ -35,7 +38,7 @@ def register(app, ctx) -> None:
         return str(exc)[:1].upper() + str(exc)[1:]
 
     @app.get("/pipeline", response_class=HTMLResponse)
-    def pipeline(msg: str = "", bad: int = 0):
+    def pipeline(msg: str = "", bad: int = 0, saved_sort: str = ""):
         from datetime import date
 
         con = connect()
@@ -43,6 +46,7 @@ def register(app, ctx) -> None:
             rows = [dict(r) for r in con.execute(
                 "SELECT a.id AS application_id, a.job_id, a.status, a.next_action, "
                 "       a.next_action_due, a.last_activity_at, j.title, j.closed_at, "
+                "       j.years_required, "
                 "       c.name AS company "
                 "  FROM applications a JOIN jobs j ON j.id = a.job_id "
                 "  LEFT JOIN companies c ON c.id = j.company_id "
@@ -98,13 +102,23 @@ def register(app, ctx) -> None:
         groups = [(stage, [r for r in live if r["status"] == stage])
                   for stage in approvals.STAGES if stage not in approvals.CLOSED]
         groups = [(stage, items) for stage, items in groups if items]
+        # Saved, by the years the posting asks for, either way; a posting
+        # that states none goes last both ways (it is not "0 years").
+        if saved_sort in SAVED_SORTS:
+            most_first = saved_sort == "years_desc"
+            for stage, items in groups:
+                if stage == "saved":
+                    items.sort(key=lambda r: (
+                        r["years_required"] is None,
+                        -(r["years_required"] or 0) if most_first else (r["years_required"] or 0)))
         return render("pipeline", "pipeline", groups=groups, closed=closed,
                       total=len(live), stages=list(approvals.STAGES),
                       overdue=sum(1 for r in live
                                   if r["days_out"] is not None and r["days_out"] < 0),
                       happened=happened, happened_line=outcomes.summary(happened),
-                      session=session, msg=msg, bad=bad,
-                      waiting=waiting, strong=strong, strong_at=STRONG_MATCH)
+                      session=session, msg=msg, bad=bad, saved_sorts=SAVED_SORTS,
+                      waiting=waiting, strong=strong, strong_at=STRONG_MATCH,
+                      saved_sort=saved_sort if saved_sort in SAVED_SORTS else "")
 
     @app.post("/job/{job_id}/next")
     def set_follow_up(job_id: int, action: str = Form(""), due: str = Form(""),

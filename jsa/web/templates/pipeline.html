@@ -23,6 +23,15 @@
 {% set ns = namespace(first_due=false) %}
 {% for stage, items in groups %}
 <h2>{{ stage|replace('_',' ') }} · {{ items|length }}</h2>
+{% if stage == 'saved' %}<form method="get" action="/pipeline" class="inline">
+  <label for="saved-sort" class="meta">Sort saved by experience asked</label>
+  <select name="saved_sort" id="saved-sort" onchange="this.form.submit()">
+    <option value="">as usual (due first)</option>
+    {% for value, label in saved_sorts.items() %}<option value="{{ value }}" {{ 'selected' if value == saved_sort }}>{{ label }}</option>{% endfor %}
+  </select>
+  <noscript><button class="ghost" type="submit">Sort</button></noscript>
+  <span class="meta">postings that don't say go last</span>
+</form>{% endif %}
 {% for r in items %}
 {% set is_due = r.days_out is not none and r.days_out <= 1 %}
 <div class="card" id="app-{{ r.job_id }}">{% if is_due and not ns.first_due %}{% set ns.first_due = true %}<span id="first-due"></span>{% endif %}
@@ -33,6 +42,7 @@
     {% elif r.days_out == 0 %}<span class="flag warn">due today</span>
     {% elif r.days_out is not none %}<span class="flag">due in {{ r.days_out }}d</span>{% endif %}
     {% if r.quiet %}<span class="flag warn">quiet {{ r.quiet }}d</span>{% endif %}
+    {% if stage == 'saved' %}<span class="flag">{{ '%d+ yrs'|format(r.years_required) if r.years_required is not none else 'years not stated' }}</span>{% endif %}
     {% if r.closed_at %}<span class="flag" title="The employer's board stopped listing it on {{ r.closed_at|localdate }}. Often it was filled; it is not a reply.">posting taken down</span>{% endif %}
   </div>
   <div class="meta">{{ r.next_action or 'no next action set' }}
