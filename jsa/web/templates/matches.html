@@ -256,13 +256,13 @@
      left, in the theme's own colors so both themes follow. */
   function sphere(id, color, light) {
     var gr = sv('radialGradient', {id: id, cx: '35%', cy: '30%', r: '70%'}, defs);
-    [['0%', 'color-mix(in srgb,' + color + ' 45%,' + (light || '#fff') + ')'],
+    [['0%', 'color-mix(in srgb,' + color + ' var(--mk-hi),' + (light || '#fff') + ')'],
      ['60%', color], ['100%', 'color-mix(in srgb,' + color + ' 72%,#000)']].forEach(function (st) {
       sv('stop', {offset: st[0]}, gr).style.stopColor = st[1];
     });
   }
-  /* The concept's sphere colors, the same in both themes: mid-dark, so
-     white numbers read on them and they stand off a light or a dark map. */
+  /* Sphere colors come from the theme (--mk-*), each dark enough for
+     white numbers; the gradients follow a theme switch by themselves. */
   Object.keys(ST_COLOR).forEach(function (k) { sphere('mk-' + k, 'var(--mk-' + k + ')'); });
   sphere('mk-home', 'var(--copper)', '#fff');
   var ground = sv('rect', {width: '100%', height: '100%'}, svg);
@@ -832,7 +832,7 @@
 
     var home = sv('g', {transform: 'translate(' + H[0] + ' ' + H[1] + ')'}, overG);
     home.style.pointerEvents = 'none';
-    home.style.filter = 'drop-shadow(0 2px 3px rgba(0,0,0,.3))';
+    home.style.filter = 'var(--mk-shadow)';
     var hc = sv('circle', {r: 9}, home); hc.style.fill = 'url(#mk-home)'; hc.style.stroke = '#fff'; hc.style.strokeWidth = '3px';
     var ht = sv('text', {x: 12, y: -10, 'class': 'town left'}, home);
     ht.style.fontWeight = '600'; ht.textContent = 'Home';
@@ -849,7 +849,7 @@
                      'class': 'mk', role: 'button', tabindex: c.inside ? 0 : -1}, marksG);
     var dimmed = state.facet && !c.m.some(function (q) { return inFeed[q.p.key]; });
     g.style.opacity = !c.inside ? 0.32 : (dimmed ? 0.3 : 1);
-    g.style.filter = 'drop-shadow(0 2px 3px rgba(0,0,0,.28))';
+    g.style.filter = 'var(--mk-shadow)';
     if (n === 1) {
       var p = c.m[0].p;
       g.setAttribute('aria-label', titleOf(p) + ', ' + p.d.toFixed(1) + ' miles');
