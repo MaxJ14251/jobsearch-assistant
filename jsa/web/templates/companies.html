@@ -34,8 +34,11 @@
 {% endfor %}</ul>
 {% endif %}
 <p class="meta">"Open to equivalent experience" counts postings that name no degree, ask for an associate's, or accept experience instead of a bachelor's. Each posting's own reading, with the sentence it came from, is on its job page. CLI: <code>jsa companies --sort open|certs</code>. <a class="plain" href="/about-data">About this data</a>.</p>
-<style>.tablewrap{overflow-x:auto}
+<style>.tablewrap{overflow-x:auto;padding:6px 8px;border-radius:20px;background:var(--glass);
+    border:1px solid var(--glass-edge);box-shadow:var(--glass-shadow);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
   table.companies{border-collapse:collapse;width:100%;font-size:14px}
-  table.companies th,table.companies td{padding:6px 10px;border-bottom:1px solid var(--rule);text-align:left;vertical-align:top}
+  table.companies th,table.companies td{padding:9px 10px;border-bottom:1px solid var(--rule);text-align:left;vertical-align:top}
+  table.companies tr:last-child td{border-bottom:0}
+  table.companies th{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--mute)}
   table.companies .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}</style>
 {% endblock %}
