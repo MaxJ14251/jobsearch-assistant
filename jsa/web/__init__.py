@@ -588,10 +588,11 @@ def create_app(db_path: Path | None = None, output_dir: Path | None = None,
         try:
             ctx.setdefault("pending_count", _pending_count(con))
             ctx.setdefault("replies_count", _replies_count(con))
-            if page in ("matches", "pipeline", "today") and name != "preview":
+            # Not on Today: its counts are live, the banner's are frozen at
+            # the run's end, and the two side by side disagreed (arena M1).
+            if page in ("matches", "pipeline") and name != "preview":
                 ctx.setdefault("daily", daily_banner(con))
-                ctx.setdefault("page_path", {"matches": "/", "pipeline": "/pipeline",
-                                             "today": "/today"}[page])
+                ctx.setdefault("page_path", "/" if page == "matches" else "/pipeline")
         finally:
             con.close()
         title = ctx.pop("title", page.title())

@@ -61,6 +61,16 @@ def register(app, ctx) -> None:
                     "WHERE job_id IS NOT NULL AND archived_at IS NULL "
                     "AND status != 'discarded' GROUP BY job_id, status"):
                 sent_out.setdefault(o["job_id"], {})[o["status"]] = o["n"]
+            # Each job's drafts, for the one-line status on saved and ready
+            # cards: drafts waiting in Review, or an approved resume.
+            drafts: dict[int, dict[str, int]] = {}
+            for d in con.execute(
+                    "SELECT d.job_id, SUM(a.decision = 'pending') AS pending, "
+                    "SUM(a.decision = 'approved' AND d.kind = 'resume') AS approved "
+                    "FROM documents d JOIN approvals a ON a.subject_type = 'document' "
+                    "AND a.subject_id = d.id GROUP BY d.job_id"):
+                drafts[d["job_id"]] = {"pending": d["pending"] or 0,
+                                       "approved": d["approved"] or 0}
             from .. import applyqueue, outcomes, pairing
             happened = outcomes.all_outcomes(con)
             strong = con.execute("SELECT COUNT(*) FROM v_new_matches WHERE match_score >= ?",
@@ -80,6 +90,7 @@ def register(app, ctx) -> None:
 
         today = date.today()
         for row in rows:
+            row["drafts"] = drafts.get(row["job_id"], {"pending": 0, "approved": 0})
             counts = sent_out.get(row["job_id"], {})
             items = [(s, counts[s]) for s in OUTREACH_ORDER if counts.get(s)]
             # "2 messages drafted · 1 sent": the noun once, on the first.

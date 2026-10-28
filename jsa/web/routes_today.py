@@ -1,4 +1,4 @@
-"""Today: the redesign's home page (2026-10-28). One next step, what is
+"""Today: the redesign's home page (2026-10-27). One next step, what is
 waiting on you, three numbers and the newest strong matches. It reads only;
 every action it points to lives on its own page."""
 
@@ -33,12 +33,17 @@ def next_step(counts: dict[str, int]) -> dict[str, str]:
     if n["due"]:
         return {"text": f"{plural_n(n['due'], 'follow-up')} due",
                 "href": "/pipeline#first-due", "action": "Open Pipeline"}
+    if n["outreach"]:
+        return {"text": f"Approve {plural_n(n['outreach'], 'outreach message')}",
+                "href": "/review", "action": "Open Review"}
     if n["undrafted"]:
         return {"text": f"Draft {plural_n(n['undrafted'], 'saved job')}",
                 "href": "/pipeline", "action": "Open Pipeline"}
     if n["strong"]:
+        # Nationwide, as the count is: a bare "/" applies the home radius
+        # and showed far fewer (arena M3).
         return {"text": f"Look through {plural_n(n['strong'], 'strong new match', 'strong new matches')}",
-                "href": "/", "action": "Open Matches"}
+                "href": "/?anywhere=1", "action": "Open Matches"}
     return {"text": "You're caught up", "href": "/", "action": "Browse matches"}
 
 
@@ -73,8 +78,8 @@ def register(app, ctx) -> None:
                 "undrafted": len(turbo.batch_candidates(con)[0]),
                 "strong": one("SELECT COUNT(*) FROM v_new_matches WHERE match_score >= ?",
                               STRONG_MATCH),
-                "saved": one("SELECT COUNT(*) FROM applications WHERE status = 'saved' "
-                             "AND archived_at IS NULL"),
+                "outreach": one("SELECT COUNT(*) FROM approvals WHERE decision = 'pending' "
+                                "AND subject_type = 'outreach'"),
                 "applied": one("SELECT COUNT(*) FROM applications WHERE status = 'applied' "
                                "AND archived_at IS NULL"),
             }

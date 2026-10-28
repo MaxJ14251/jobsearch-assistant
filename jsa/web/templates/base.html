@@ -4,20 +4,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ title }} · Job Search</title>
 <style>
-  /* The Aero theme (2026-10-28 redesign): Apple-style structure, a soft sky
+  /* The Aero theme (2026-10-27 redesign): Apple-style structure, a soft sky
      ground, frosted panels and one aqua-green accent. Token names are kept,
      so every rule that reads them follows: --copper is the accent now.
      Amber means "waiting on you"; clay (red) is kept for errors. Contrast,
-     measured 2026-10-28: accent on white 5.27:1; --accent-text on the
+     measured 2026-10-27: accent on white 5.27:1; --accent-text on the
      accent's own 16% tint 5.64:1 (the accent there is 4.22:1, so text on a
      tint uses --accent-text); --sage on --sage-soft 5.46:1; --mute on white
      6.74:1; white on the button 5.27:1 (dark 5.26:1). */
-  :root{
+  :root{color-scheme:light dark;
     --paper:#EDF7F4;--surface:#fff;--surface-2:#EAF3F0;--ink:#12202A;
     --ink-2:#2E3F47;--mute:#4E5E66;--rule:#D3E0DC;
     --copper:#0B7A65;--sage:#276B43;--sage-soft:#DDF1EA;
     --clay:#A8412F;--clay-soft:#F8E1DB;--amber:#8A5110;--amber-soft:#FCEBD3;
-    --blue:#2F6FD0;--violet:#7A4DC4;
+    --blue:#2459A8;--violet:#6A3DB4;
     --btn:#0B7A65;--btn-top:#34B597;--btn-bottom:#08705C;--accent-text:#07654F;
     --glass:rgba(255,255,255,.68);--glass-strong:rgba(255,255,255,.84);
     --glass-edge:rgba(255,255,255,.95);
@@ -27,7 +27,7 @@
       linear-gradient(165deg,#DCF1FA 0%,#EAF7F2 48%,#F8FCFB 100%);
     /* The ground under the live map (n23): context, so quieter than
        anything drawn on it. Water against land is at least 1.3:1 in both
-       themes (measured 2026-10-28: 1.36 light, 1.32 dark). */
+       themes (measured 2026-10-27: 1.36 light, 1.32 dark). */
     --map-water:#BCDDEA;--map-land:#F5FAF7;--map-urban:#EAF0EA;
     --map-road:#E4D3AE;--map-edge:#C6D6D1;
   }
@@ -46,12 +46,18 @@
     --map-water:#0A1A22;--map-land:#1E3236;--map-urban:#213539;
     --map-road:#5E5440;--map-edge:#36505A;}}
   *{box-sizing:border-box}
-  /* A link to a section lands below the sticky nav, not under it. */
+  /* A link to a section lands with a little room above it. */
   [id]{scroll-margin-top:16px}
   [hidden]{display:none!important}
-  body{margin:0;background:var(--paper);background-image:var(--sky);
-    background-attachment:fixed;color:var(--ink);line-height:1.55;
+  body{margin:0;background:var(--paper);color:var(--ink);line-height:1.55;
     font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif;}
+  body::before{content:"";position:fixed;inset:0;z-index:-1;background:var(--paper);
+    background-image:var(--sky);pointer-events:none}
+  /* B1, B4: every link reads, on glass or on the sky: none falls back to
+     the browser's blue (1.66:1 on the dark glass). */
+  a{color:var(--accent-text)}
+  /* One frosted panel, written once. */
+  .glass{background:var(--glass);border:1px solid var(--glass-edge);box-shadow:var(--glass-shadow);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
   /* The shell: a frosted sidebar beside the page; on a phone it stacks. */
   .shell{display:flex;flex-wrap:wrap;gap:20px;padding:20px;align-items:flex-start}
   .wrap{flex:999 1 560px;min-width:0;max-width:1080px;padding:0 8px 64px}
@@ -141,7 +147,6 @@
     color:var(--st);background:color-mix(in srgb,var(--st) 15%,transparent)}
   .eta{white-space:nowrap}
   .card[data-key]{cursor:pointer;transition:border-color .12s}
-  .feed .card{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--glass-strong)}
   .card.hov{border-color:var(--ink-2)}
   .card.sel{border-color:var(--copper);box-shadow:inset 3px 0 0 var(--copper)}
   .feed-head{display:flex;flex-wrap:wrap;gap:6px;align-items:center;
@@ -277,14 +282,13 @@
   button.ghost{background:var(--glass-strong);background-image:none;color:var(--ink-2);
     border:1px solid var(--rule);box-shadow:none}
   :focus-visible{outline:2px solid var(--copper);outline-offset:2px}
-  .card{padding:16px 18px;margin-bottom:12px;background:var(--glass);
-    border:1px solid var(--glass-edge);border-radius:20px;box-shadow:var(--glass-shadow);
-    backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+  .card{padding:16px 18px;margin-bottom:12px;background:var(--glass-strong);
+    border:1px solid var(--glass-edge);border-radius:20px;box-shadow:var(--glass-shadow)}
   .row1{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   /* The match score as a ring, as in the concept. */
   .score{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
     width:46px;height:46px;border-radius:50%;border:3px solid var(--copper);
-    font-size:13px;font-weight:700;color:var(--copper);font-variant-numeric:tabular-nums;
+    font-size:13px;font-weight:700;color:var(--accent-text);font-variant-numeric:tabular-nums;
     background:radial-gradient(circle at 35% 30%,var(--surface) 0%,color-mix(in srgb,var(--copper) 14%,var(--surface)) 75%)}
   .title{font-weight:600;overflow-wrap:anywhere}
   .co{color:var(--mute);font-size:13px;overflow-wrap:anywhere}
@@ -300,7 +304,7 @@
     padding:16px;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;
     font-size:13.5px;color:var(--ink-2);max-height:70vh;overflow-y:auto}
   .empty{color:var(--mute);padding:12px 0}
-  a.plain{color:var(--copper);overflow-wrap:anywhere}
+  a.plain{color:var(--accent-text);overflow-wrap:anywhere}
   a.btn{display:inline-flex;align-items:center;font-size:14px;font-weight:600;padding:8px 16px;
     border-radius:12px;min-height:36px;background:var(--glass-strong);border:1px solid var(--rule);
     color:var(--ink);text-decoration:none}
@@ -321,7 +325,7 @@
   .triage .inline{margin:0}
   .ids{font:12px ui-monospace,Menlo,monospace;color:var(--mute);overflow-wrap:anywhere}
   details{margin-top:8px}
-  summary{cursor:pointer;color:var(--copper);font-size:13px}
+  summary{cursor:pointer;color:var(--accent-text);font-size:13px}
   .pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;
     padding:10px 0;border-top:1px solid var(--rule)}
   .pair.flag-row{background:var(--clay-soft);padding-inline:10px;border-radius:3px;
@@ -358,6 +362,12 @@
   .livemap{border-radius:18px}
   .rp .num{font-family:inherit;font-weight:700}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+  @media print{
+    body::before,nav.side,.note.daily,button,form{display:none!important}
+    .shell{display:block;padding:0}
+    .card,.glass,.note,.jd,.doc{background:#fff!important;color:#000;box-shadow:none!important;
+      backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border:1px solid #ccc}
+  }
 </style></head><body>
 <div class="shell">
 <nav class="side" aria-label="Main">

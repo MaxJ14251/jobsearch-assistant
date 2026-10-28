@@ -135,7 +135,9 @@ def register(app, ctx) -> None:
                  if application is not None and prof else [])
         education = _education(row)
         from .. import intake, posting
-        return render("job", "matches", title=row["title"], job=dict(row),
+        # The sidebar marks where the job lives: Pipeline once it is yours.
+        return render("job", "pipeline" if application else "matches",
+                      title=row["title"], job=dict(row),
                       thin=posting.thin(row["description"], job_id),
                       min_chars=intake.MIN_PASTED_CHARS,
                       max_chars=intake.MAX_PASTED_CHARS,

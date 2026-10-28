@@ -118,7 +118,9 @@ def summarize(con: sqlite3.Connection, since: str) -> dict[str, Any]:
     new = con.execute(
         "SELECT job_id, title, company, match_score FROM v_new_matches "
         "WHERE discovered_at > ? ORDER BY match_score DESC", (since,)).fetchall()
-    due = approvals.due_items(con, days=1)
+    # "Due" is due today or overdue, and "drafts" are documents, as on Today
+    # and Pipeline's anchor (arena M1, 2026-10-27).
+    due = approvals.due_items(con, days=0)
     return {
         "since": since,
         "new_matches": len(new),
@@ -126,9 +128,9 @@ def summarize(con: sqlite3.Connection, since: str) -> dict[str, Any]:
                  "score": round(r["match_score"] or 0, 2)} for r in new[:5]],
         "replies": con.execute("SELECT COUNT(*) FROM inbox_replies "
                                "WHERE state = 'pending'").fetchone()[0],
-        "due": sum(1 for d in due if d.days_out is not None),
-        "review": con.execute("SELECT COUNT(*) FROM approvals "
-                              "WHERE decision = 'pending'").fetchone()[0],
+        "due": sum(1 for d in due if d.days_out is not None and d.days_out <= 0),
+        "review": con.execute("SELECT COUNT(*) FROM approvals WHERE decision = 'pending' "
+                              "AND subject_type = 'document'").fetchone()[0],
         "model_calls": _yesterday(con),
     }
 

@@ -19,11 +19,12 @@
 {% if home_problem %}<p class="note bad" role="alert">{{ home_problem }}</p>{% endif %}
 {% if msg and not at %}{{ triage_note() }}{% endif %}
 {% if since %}<p class="sub">{{ since_n }} unreviewed found since {{ since|localtime }}; only those are shown. <a class="plain" href="{{ clear_since_url }}">Show all matches</a></p>{% endif %}
-{% if learn and learn.enabled %}<p class="sub">Save or "Not for me" teaches the order:
-  {% if learn.active %}your choices nudge it ({{ learn.signals }} so far).{% else %}learning starts after {{ learn.minimum }} ({{ learn.signals }} so far).{% endif %}</p>{% endif %}
 {% if hidden %}<p class="sub">{{ hidden|plural('match', 'matches') }} hidden by the radius.
   {%- if unplaced %} {{ unplaced }} of them name a place this could not find, so the distance is unknown rather than far.{% endif %}
   <a class="plain" href="{{ nationwide_url }}">Show them anyway</a></p>{% endif %}
+{% if learn and learn.enabled %}<details class="sub"><summary>How the order is chosen</summary><p class="meta" style="margin:4px 0 0">Save or "Not for me" teaches the order:
+  {% if learn.active %}your choices nudge it ({{ learn.signals }} so far).{% else %}learning starts after {{ learn.minimum }} ({{ learn.signals }} so far).{% endif %}</p></details>{% endif %}
+
 </div>
 <form class="filters" method="get" id="where">
   <label class="pair-in" for="f-radius">within

@@ -88,7 +88,9 @@ class TestTheGuard(App):
 
     def test_setup_is_its_own_page(self):
         page = self.client.get("/setup").text
-        self.assertNotIn('<a href="/" class="on">', page)
+        # No sidebar item is current on Setup (the old exact-string check
+        # could no longer fail once links carried aria-current).
+        self.assertNotIn('aria-current="page"', page)
 
 
 class TestTwoSavesAtOnce(App):

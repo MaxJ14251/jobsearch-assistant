@@ -23,7 +23,7 @@
 {% set ns = namespace(first_due=false) %}
 <div class="board">
 {% for stage, items in groups %}
-<section class="col" aria-label="{{ stage|replace('_',' ') }}">
+<section class="col glass" aria-label="{{ stage|replace('_',' ') }}">
 <h2>{{ stage|replace('_',' ') }} · {{ items|length }}</h2>
 {% if stage == 'saved' and batch.waiting %}{% if batch.next %}<form method="post" action="/pipeline/draft-batch" class="inline"
       onsubmit="return confirm('Draft a resume and a cover letter for the next {{ batch.next }} saved jobs? About {{ batch.next * 2 }} paid model calls; the drafts wait in Review.')">
@@ -54,10 +54,14 @@
     <span class="flag">{{ 'posted %s'|format(r.posted_on) if r.posted_on else 'posting date unknown' }}</span>{% endif %}
     {% if r.closed_at %}<span class="flag" title="The employer's board stopped listing it on {{ r.closed_at|localdate }}. Often it was filled; it is not a reply.">posting taken down</span>{% endif %}
   </div>
+  {% if r.status in ('saved', 'drafting', 'ready') %}<div class="status-line">{% if r.drafts.pending %}<a class="flag warn" href="/review">{{ r.drafts.pending|plural('draft') }} to review</a>
+    {% elif r.drafts.approved %}<span class="flag ok">resume approved</span>
+    {% else %}<span class="flag">no drafts yet</span>{% endif %}</div>{% endif %}
   <div class="meta">{{ r.next_action or 'no next action set' }}
     {%- if r.next_action_due %} · due {{ r.next_action_due }}{% endif %}
     {%- if r.last_activity_at %} · last activity {{ r.last_activity_at|localdate }}{% endif %}
     {%- if r.outreach %} · <a class="plain" href="/job/{{ r.job_id }}#outreach">{{ r.outreach }}</a>{% endif %}</div>
+  <details class="manage"><summary class="meta">Move stage or {{ 'change the follow-up' if r.next_action else 'set a follow-up' }}</summary>
   <form method="post" action="/job/{{ r.job_id }}/stage" class="inline">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <select name="stage" aria-label="Stage for {{ r.title }}">
@@ -65,7 +69,6 @@
     </select>
     <button class="ghost" type="submit">Move</button>
   </form>
-  <details class="follow"><summary class="meta">{{ 'Change follow-up' if r.next_action else 'Set a follow-up' }}</summary>
   <form method="post" action="/job/{{ r.job_id }}/next" class="inline">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <input type="text" name="action" id="next-{{ r.job_id }}" value="{{ r.next_action or '' }}"
@@ -85,12 +88,12 @@
 <style>
   /* Stages as frosted columns (the redesign's Pipeline); cards inside sit
      on the column's glass. */
-  .board{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:16px;align-items:start;margin-top:12px}
-  .col{min-width:0;padding:14px;border-radius:22px;background:color-mix(in srgb,var(--glass) 70%,transparent);
-    border:1px solid var(--glass-edge);box-shadow:var(--glass-shadow);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+  .board{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(310px,100%),1fr));gap:16px;align-items:start;margin-top:12px}
+  .col{min-width:0;padding:14px;border-radius:22px}
+  .status-line{margin-top:8px}
+  .status-line a.flag{text-decoration:none}
   .col > h2{margin:2px 4px 10px;font-size:16px;letter-spacing:0;text-transform:capitalize;color:var(--ink)}
-  .col .card{background:var(--glass-strong);box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;
-    padding:14px;border-radius:16px;margin-bottom:10px}
+  .col .card{box-shadow:none;padding:14px;border-radius:16px;margin-bottom:10px}
   .col .card:last-child{margin-bottom:0}
   .col form.inline select{flex:1 1 140px}
 </style>

@@ -1,4 +1,4 @@
-"""Today, the redesign's home page (2026-10-28): one next step chosen in the
+"""Today, the redesign's home page (2026-10-27): one next step chosen in the
 order a search moves, what is waiting on you, three numbers and the newest
 strong matches. It reads only."""
 
@@ -9,8 +9,8 @@ from tests.test_web_documents import Sandbox, make_client
 
 
 def counts(**kw):
-    base = {"replies": 0, "drafts": 0, "ready": 0, "due": 0, "undrafted": 0,
-            "strong": 0, "saved": 0, "applied": 0}
+    base = {"replies": 0, "drafts": 0, "ready": 0, "due": 0, "outreach": 0,
+            "undrafted": 0, "strong": 0, "applied": 0}
     return {**base, **kw}
 
 
@@ -25,8 +25,17 @@ class TestTheNextStep(unittest.TestCase):
         self.assertEqual(next_step(counts())["text"], "You're caught up")
 
     def test_each_step_links_to_where_it_is_done(self):
-        self.assertEqual(next_step(counts(drafts=1))["href"], "/review")
-        self.assertEqual(next_step(counts(replies=1))["href"], "/replies")
+        for kw, href in (({"replies": 1}, "/replies"), ({"drafts": 1}, "/review"),
+                         ({"ready": 1}, "/pipeline"), ({"due": 1}, "/pipeline#first-due"),
+                         ({"outreach": 1}, "/review"), ({"undrafted": 1}, "/pipeline"),
+                         ({"strong": 1}, "/?anywhere=1"), ({}, "/")):
+            with self.subTest(kw=kw):
+                self.assertEqual(next_step(counts(**kw))["href"], href)
+
+    def test_waiting_outreach_is_never_hidden(self):
+        """Arena R2: with only outreach waiting, Today said "caught up"."""
+        self.assertIn("Approve 2 outreach messages", next_step(counts(outreach=2))["text"])
+        self.assertIn("Approve 1 draft", next_step(counts(drafts=1, outreach=2))["text"])
 
 
 class TestThePage(unittest.TestCase):
@@ -45,13 +54,43 @@ class TestThePage(unittest.TestCase):
         self.assertIn("Your next step", page)
         self.assertIn("Waiting on you", page)
         self.assertIn('href="/job/30"', page)
-        self.assertIn('aria-current="page"', page)
+        self.assertIn('href="/today" class="on" aria-current="page"', page)
+        self.assertEqual(page.count('aria-current="page"'), 1)
+        self.assertNotIn('id="daily-banner"', page)          # live counts only (arena M1)
 
     def test_it_writes_nothing(self):
+        tables = ("applications", "application_events", "approvals", "documents",
+                  "draft_queue", "daily_runs", "jobs")
+        def snapshot():
+            con = self.box.connect()
+            try:
+                return [con.execute(f"SELECT COUNT(*), TOTAL(rowid) FROM {t}").fetchone()[:]
+                        for t in tables]
+            finally:
+                con.close()
+        before = snapshot()
         self.client.get("/today")
+        self.assertEqual(snapshot(), before)
+
+    def test_pending_outreach_shows_as_waiting(self):
         con = self.box.connect()
-        self.assertEqual(con.execute("SELECT COUNT(*) FROM application_events").fetchone()[0], 0)
+        con.execute("INSERT INTO contacts (id, company_id, name) VALUES (1, 1, 'Dana')")
+        con.execute("INSERT INTO outreach (id, contact_id, job_id, channel, purpose, draft_body) "
+                    "VALUES (1, 1, 1, 'email', 'referral_ask', 'x')")
+        con.execute("INSERT INTO approvals (subject_type, subject_id, summary) "
+                    "VALUES ('outreach', 1, 'Send referral ask to Dana')")
+        con.commit()
         con.close()
+        page = self.client.get("/today").text
+        self.assertIn("Outreach messages to approve", page)
+
+    def test_a_job_you_have_marks_pipeline_and_one_you_dont_marks_matches(self):
+        self.assertIn('href="/pipeline" class="on"', self.client.get("/job/1").text)   # saved
+        self.assertIn('href="/" class="on"', self.client.get("/job/30").text)          # not yet
+
+    def test_saved_and_ready_cards_say_where_their_drafts_are(self):
+        page = self.client.get("/pipeline").text
+        self.assertIn("no drafts yet", page)                 # job 1 is ready, no documents
 
     def test_every_page_has_the_sidebar(self):
         for url in ("/", "/today", "/pipeline", "/review", "/replies", "/add", "/companies", "/turbo"):
