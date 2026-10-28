@@ -64,10 +64,17 @@
 {% if closed %}
 <h2>closed · {{ closed|length }}</h2>
 {% for r in closed %}
-<div class="card"><div class="row1"><span class="flag">{{ r.status }}</span>
+<div class="card" id="app-{{ r.job_id }}"><div class="row1"><span class="flag">{{ r.status }}</span>
   <span class="title"><a class="plain" href="/job/{{ r.job_id }}">{{ r.title }}</a></span>
   <span class="co">{{ r.company }}</span></div>
   <div class="meta">history kept{% if r.last_activity_at %} · last activity {{ r.last_activity_at|localdate }}{% endif %}</div>
+  <form method="post" action="/job/{{ r.job_id }}/stage" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <select name="stage" aria-label="Stage for {{ r.title }}">
+      {% for s in stages %}<option value="{{ s }}" {{ 'selected' if s == r.status }}>{{ s|replace('_',' ') }}</option>{% endfor %}
+    </select>
+    <button class="ghost" type="submit">Move</button>
+  </form>
 </div>
 {% endfor %}
 {% endif %}

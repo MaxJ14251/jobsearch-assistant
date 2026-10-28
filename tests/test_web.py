@@ -156,11 +156,17 @@ class TestFilters(unittest.TestCase):
     def test_per_company_cap_stops_one_board_dominating(self):
         """SpaceX posts thousands of reqs; it must not fill the page."""
         text = self.client.get("/?limit=200").text
+        # Only new postings are capped: your own applications are always
+        # listed too (found 2026-10-27, when 3 saved SpaceX jobs plus 3 new
+        # ones made 6 cards on a tracker this reads).
+        new_cards = [c for c in text.split('<div class="card"')[1:]
+                     if 'data-status="new"' in c.split(">", 1)[0]]
         for company in ("SpaceX", "OpenAI", "Anthropic"):
             # The company label, not every mention: "OpenAI" is also a
             # tech-stack tag on other companies' jobs, and counting those
             # failed this test once the tracker grew to 1,147 postings.
-            self.assertLessEqual(text.count(f'class="co">{company}<'), 3)
+            self.assertLessEqual(
+                sum(f'class="co">{company}<' in c for c in new_cards), 3)
 
     def test_unknown_region_does_not_error(self):
         self.assertEqual(self.client.get("/?near=nowhere").status_code, 200)

@@ -48,5 +48,36 @@ class TestEmptyPipeline(unittest.TestCase):
         self.assertIn("no unreviewed match scores 0.8 or higher", page)
 
 
+class TestClosedCardsCanMove(unittest.TestCase):
+    """Found 2026-10-27: closed cards (rejected, withdrawn, ghosted) had no
+    stage control, so a mistaken "ghosted" meant opening the job page."""
+
+    def setUp(self):
+        self.box = Sandbox()
+        self.addCleanup(self.box.cleanup)
+        con = self.box.connect()
+        con.execute("UPDATE applications SET status = 'ghosted' WHERE job_id = 1")
+        con.commit()
+        con.close()
+        self.client, self.app = make_client(self.box.db, self.box.out, profile={"x": 1})
+
+    def test_a_closed_card_has_the_same_stage_control(self):
+        page = self.client.get("/pipeline").text
+        closed = page[page.index("<h2>closed"):]
+        self.assertIn('id="app-1"', closed)
+        self.assertIn('action="/job/1/stage"', closed)
+        self.assertRegex(closed, r'<option value="ghosted"\s+selected')
+
+    def test_moving_it_records_the_person(self):
+        self.client.post("/job/1/stage", data={"csrf": self.app.state.csrf_token,
+                                               "stage": "withdrawn"}, follow_redirects=False)
+        con = self.box.connect()
+        self.addCleanup(con.close)
+        row = con.execute("SELECT a.status, e.actor FROM applications a JOIN "
+                          "application_events e ON e.application_id = a.id "
+                          "WHERE a.job_id = 1 ORDER BY e.id DESC").fetchone()
+        self.assertEqual(tuple(row), ("withdrawn", "human"))
+
+
 if __name__ == "__main__":
     unittest.main()
