@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -552,6 +552,39 @@ def find_duplicate(con: sqlite3.Connection, job: dict[str, Any]) -> int | None:
         if _norm(row["title"]) == title and _first_city(row["location"]) == city:
             return int(row["id"])
     return None
+
+
+def posted_date(stamp: str | None) -> date | None:
+    """A posting date as each board stores it, read as a date, or None.
+
+    Measured on the tracker, 2026-10-27: ISO with "Z", an offset, "+0000"
+    or milliseconds (Ashby, Greenhouse, The Muse, custom feeds); a bare date
+    (Workable, Workday); RFC 822 (RSS); and Lever's milliseconds since 1970.
+    Anything else is None, never a guess."""
+    if not stamp:
+        return None
+    text = str(stamp).strip()
+    if text.isdigit() and len(text) >= 12:
+        return datetime.fromtimestamp(int(text) / 1000, timezone.utc).date()
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).date()
+    except ValueError:
+        pass
+    # RFC 822, read by hand: no email.* module may be imported anywhere
+    # (tests/test_outreach_cmd.py, "nothing can send"), and %b follows the
+    # OS locale. "Fri, 11 Sep 2026 07:30:48 +0000" -> 2026-09-11.
+    found = re.search(r"\b(\d{1,2}) ([A-Za-z]{3}) (\d{4})\b", text)
+    month = _MONTHS.get(found.group(2).lower()) if found else None
+    if month:
+        try:
+            return date(int(found.group(3)), month, int(found.group(1)))
+        except ValueError:
+            return None
+    return None
+
+
+_MONTHS = {m: i for i, m in enumerate(
+    ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"), 1)}
 
 
 def upsert_job(con: sqlite3.Connection, job: dict[str, Any]) -> tuple[int, bool]:

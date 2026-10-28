@@ -164,7 +164,9 @@ def fetch_greenhouse(entry: dict[str, Any]) -> FetchResult:
                 "url": item.get("absolute_url") or "",
                 "description": desc,
                 "description_hash": content_hash(desc),
-                "posted_at": item.get("updated_at"),
+                # When it went up, not when it was last edited: updated_at
+                # moves on every edit (Scale AI, 2026-10-27: Oct 1 vs Oct 22).
+                "posted_at": item.get("first_published") or item.get("updated_at"),
                 # The board's own pay data, when it publishes one (n22).
                 "pay": salary.from_greenhouse(item.get("pay_input_ranges")),
             }

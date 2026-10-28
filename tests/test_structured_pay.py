@@ -156,6 +156,19 @@ class TestTheAdaptersAskAndRead(unittest.TestCase):
             "pay_input_ranges": [gh(10000000, 12000000)]}]})
         self.assertEqual(job["pay"].minimum, 100000)
 
+    def test_greenhouse_dates_a_posting_by_when_it_went_up(self):
+        """updated_at moves on every edit; first_published is when it went up
+        (Scale AI, checked 2026-10-27: first published Oct 1, updated Oct 22)."""
+        job = self.fetch(sources.fetch_greenhouse, {"jobs": [{
+            "id": 1, "title": "Engineer", "content": "x", "location": {"name": "LA"},
+            "first_published": "2026-10-01T19:38:55-04:00",
+            "updated_at": "2026-10-22T14:10:38-04:00"}]})
+        self.assertEqual(job["posted_at"], "2026-10-01T19:38:55-04:00")
+        job = self.fetch(sources.fetch_greenhouse, {"jobs": [{
+            "id": 1, "title": "Engineer", "content": "x", "location": {"name": "LA"},
+            "updated_at": "2026-10-22T14:10:38-04:00"}]})
+        self.assertEqual(job["posted_at"], "2026-10-22T14:10:38-04:00")   # older boards
+
     def test_lever(self):
         job = self.fetch(sources.fetch_lever, [{
             "id": "a", "text": "Engineer", "descriptionPlain": "x", "categories": {},

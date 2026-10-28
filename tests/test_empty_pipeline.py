@@ -81,6 +81,29 @@ class TestClosedCardsCanMove(unittest.TestCase):
 
 
 
+class TestPostedDate(unittest.TestCase):
+    """Every format the boards were storing on 2026-10-27, read as a date."""
+
+    def test_each_boards_format(self):
+        from datetime import date
+        from jsa.db import posted_date
+        cases = {
+            "2023-09-22T01:31:37.849+00:00": date(2023, 9, 22),       # Ashby
+            "2026-07-16T17:13:00+0000": date(2026, 7, 16),            # custom feeds
+            "2026-06-16T16:06:27-04:00": date(2026, 6, 16),           # Greenhouse
+            "1634141954197": date(2021, 10, 13),                      # Lever, ms
+            "Fri, 11 Sep 2026 07:30:48 +0000": date(2026, 9, 11),     # RSS
+            "2024-12-10T18:37:15Z": date(2024, 12, 10),               # The Muse
+            "2026-02-06T00:00:00.0000": date(2026, 2, 6),             # USAJOBS
+            "2026-05-29": date(2026, 5, 29),                          # Workable, Workday
+        }
+        for stamp, want in cases.items():
+            with self.subTest(stamp=stamp):
+                self.assertEqual(posted_date(stamp), want)
+        for junk in (None, "", "soon", "12"):
+            self.assertIsNone(posted_date(junk))
+
+
 class TestSortSavedByExperience(unittest.TestCase):
     """The saved group sorted by the years a posting asks for, either way;
     a posting that states none goes last in both (asked 2026-10-27)."""
@@ -117,6 +140,19 @@ class TestSortSavedByExperience(unittest.TestCase):
         self.assertRegex(page, r'<option value="years_desc"\s+selected')
         self.assertIn("5+ yrs", page)
         self.assertIn("years not stated", page)
+
+    def test_by_posting_date_either_way_with_undated_last(self):
+        con = self.box.connect()
+        for job_id, posted in ((1, "2026-10-20T10:00:00-04:00"), (20, "2026-10-01T10:00:00Z"),
+                               (22, "2026-10-25T09:00:00Z")):
+            con.execute("UPDATE jobs SET posted_at = ? WHERE id = ?", (posted, job_id))
+        con.commit()
+        con.close()
+        self.assertEqual(self.order("?saved_sort=posted_desc"), [22, 1, 20, 21])
+        self.assertEqual(self.order("?saved_sort=posted_asc"), [20, 1, 22, 21])
+        page = self.client.get("/pipeline?saved_sort=posted_desc").text
+        self.assertIn("posted 2026-10-25", page)
+        self.assertIn("posting date unknown", page)
 
     def test_an_unknown_sort_keeps_the_usual_order(self):
         self.assertEqual(sorted(self.order("?saved_sort=nonsense")), [1, 20, 21, 22])

@@ -24,7 +24,7 @@
 {% for stage, items in groups %}
 <h2>{{ stage|replace('_',' ') }} · {{ items|length }}</h2>
 {% if stage == 'saved' %}<form method="get" action="/pipeline" class="inline">
-  <label for="saved-sort" class="meta">Sort saved by experience asked</label>
+  <label for="saved-sort" class="meta">Sort saved by</label>
   <select name="saved_sort" id="saved-sort" onchange="this.form.submit()">
     <option value="">as usual (due first)</option>
     {% for value, label in saved_sorts.items() %}<option value="{{ value }}" {{ 'selected' if value == saved_sort }}>{{ label }}</option>{% endfor %}
@@ -42,7 +42,8 @@
     {% elif r.days_out == 0 %}<span class="flag warn">due today</span>
     {% elif r.days_out is not none %}<span class="flag">due in {{ r.days_out }}d</span>{% endif %}
     {% if r.quiet %}<span class="flag warn">quiet {{ r.quiet }}d</span>{% endif %}
-    {% if stage == 'saved' %}<span class="flag">{{ '%d+ yrs'|format(r.years_required) if r.years_required is not none else 'years not stated' }}</span>{% endif %}
+    {% if stage == 'saved' %}<span class="flag">{{ '%d+ yrs'|format(r.years_required) if r.years_required is not none else 'years not stated' }}</span>
+    <span class="flag">{{ 'posted %s'|format(r.posted_on) if r.posted_on else 'posting date unknown' }}</span>{% endif %}
     {% if r.closed_at %}<span class="flag" title="The employer's board stopped listing it on {{ r.closed_at|localdate }}. Often it was filled; it is not a reply.">posting taken down</span>{% endif %}
   </div>
   <div class="meta">{{ r.next_action or 'no next action set' }}
