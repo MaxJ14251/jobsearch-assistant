@@ -108,6 +108,7 @@ class TestTheGuard(Base):
             "/job/1/next": {"action": "Email the recruiter", "due": "2026-11-03"},
             "/job/1/contact": {"name": "Dana Reyes", "title": "Support Lead"},
             "/job/1/via": {"via": "employer"},
+            "/pipeline/draft-batch": {},
             "/job/1/outreach": {"contact_id": 1, "channel": "email"},
             "/inbox/1/acknowledge": {}, "/inbox/receipts/acknowledge": {},
             "/approve": {"approval_id": 99}, "/reject": {"approval_id": 99, "feedback": "x"},

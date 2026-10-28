@@ -28,6 +28,7 @@ OUTREACH_ORDER = ("drafted", "approved", "sent", "replied", "declined")
 def register(app, ctx) -> None:
     """Add this area's routes to `app`; shared helpers come from `ctx`."""
     connect = ctx.connect
+    profile = ctx.profile
     render = ctx.render
 
     def back_to_replies(msg: str, bad: bool) -> RedirectResponse:
@@ -64,6 +65,12 @@ def register(app, ctx) -> None:
             happened = outcomes.all_outcomes(con)
             strong = con.execute("SELECT COUNT(*) FROM v_new_matches WHERE match_score >= ?",
                                  (STRONG_MATCH,)).fetchone()[0]
+            # The next batch of saved jobs to draft, within today's limit.
+            from .. import turbo
+            ready, thin = turbo.batch_candidates(con)
+            room = max(0, turbo.daily_limit(profile()) - turbo.queued_today(con))
+            batch = {"next": min(len(ready), room), "waiting": len(ready), "thin": thin,
+                     "limit": turbo.daily_limit(profile())}
             # The apply session (plan 31): what is ready, and whether the
             # extension that walks it is connected.
             session = applyqueue.ready_to_apply(con)
@@ -122,8 +129,38 @@ def register(app, ctx) -> None:
                                   if r["days_out"] is not None and r["days_out"] < 0),
                       happened=happened, happened_line=outcomes.summary(happened),
                       session=session, msg=msg, bad=bad, saved_sorts=SAVED_SORTS,
-                      waiting=waiting, strong=strong, strong_at=STRONG_MATCH,
+                      waiting=waiting, strong=strong, strong_at=STRONG_MATCH, batch=batch,
                       saved_sort=saved_sort if saved_sort in SAVED_SORTS else "")
+
+    @app.post("/pipeline/draft-batch")
+    def draft_batch():
+        """Your request to draft the next saved jobs: Turbo's queue, limit and
+        thin-posting rule. The drafts wait in Review; nothing is approved or
+        sent."""
+        from urllib.parse import urlencode
+
+        from .. import turbo
+        con = connect()
+        try:
+            result = turbo.draft_batch(con, profile())
+            con.commit()
+        finally:
+            con.close()
+        if result.queued:
+            app.state.worker.wake()
+        if result.blocker:
+            message, bad = f"Nothing queued: {result.blocker}.", True
+        else:
+            message = (f"Queued {plural(result.queued, 'saved job')} for a resume and a "
+                       "cover letter each; they will be waiting in Review.")
+            if result.left:
+                message += f" {result.left} more wait for another day's limit."
+            if result.thin:
+                message += (f" {plural(result.thin, 'posting')} with almost no text "
+                            "skipped: fill those in from the job page first.")
+            bad = False
+        return RedirectResponse("/pipeline?" + urlencode({"msg": message, "bad": int(bad)}),
+                                status_code=303)
 
     @app.post("/job/{job_id}/next")
     def set_follow_up(job_id: int, action: str = Form(""), due: str = Form(""),

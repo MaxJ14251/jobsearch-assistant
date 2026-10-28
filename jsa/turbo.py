@@ -153,6 +153,41 @@ def enqueue_allowed(con: sqlite3.Connection, job_id: int, limit: int) -> bool:
     return bool(already) or queued_today(con) < limit
 
 
+@dataclass
+class Batch:
+    queued: int            # jobs queued now (a resume and a cover letter each)
+    thin: int              # skipped: almost no posting text to draft from
+    left: int              # waiting for another day's limit
+    blocker: str | None    # why nothing could be queued at all
+
+
+def batch_candidates(con: sqlite3.Connection) -> tuple[list[int], int]:
+    """Saved jobs never drafted or queued, best match first, and how many
+    were left out for having almost no posting text."""
+    rows = con.execute(
+        "SELECT j.id, j.description FROM applications a JOIN jobs j ON j.id = a.job_id "
+        "WHERE a.status = 'saved' AND a.archived_at IS NULL "
+        "AND NOT EXISTS (SELECT 1 FROM documents d WHERE d.job_id = j.id) "
+        "AND NOT EXISTS (SELECT 1 FROM draft_queue q WHERE q.job_id = j.id) "
+        "ORDER BY j.match_score DESC, j.id").fetchall()
+    ready = [r["id"] for r in rows if not posting.thin(r["description"], r["id"])]
+    return ready, len(rows) - len(ready)
+
+
+def draft_batch(con: sqlite3.Connection, profile: dict[str, Any] | None) -> Batch:
+    """Queue drafts for the saved jobs that have none (found 2026-10-27: 48
+    saved, undrafted, because Turbo drafts only on a right swipe). Pressing
+    the button is the request; the same daily limit and thin-posting rule as
+    a swipe apply, and the drafts wait in Review like any other."""
+    ready, thin = batch_candidates(con)
+    blocker = drafting_blocker(profile)
+    if blocker:
+        return Batch(0, thin, len(ready), blocker)
+    room = max(0, daily_limit(profile) - queued_today(con))
+    queued = sum(enqueue(con, job_id) for job_id in ready[:room])
+    return Batch(queued, thin, len(ready) - queued, None)
+
+
 def cancel_waiting(con: sqlite3.Connection) -> int:
     """Cancel drafts that haven't started. Running ones finish."""
     return con.execute("UPDATE draft_queue SET state = 'cancelled', finished_at = ? "

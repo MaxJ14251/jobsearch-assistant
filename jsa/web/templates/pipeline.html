@@ -23,6 +23,12 @@
 {% set ns = namespace(first_due=false) %}
 {% for stage, items in groups %}
 <h2>{{ stage|replace('_',' ') }} · {{ items|length }}</h2>
+{% if stage == 'saved' and batch.waiting %}{% if batch.next %}<form method="post" action="/pipeline/draft-batch" class="inline"
+      onsubmit="return confirm('Draft a resume and a cover letter for the next {{ batch.next }} saved jobs? About {{ batch.next * 2 }} paid model calls; the drafts wait in Review.')">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <button type="submit">Draft the next {{ batch.next|plural('saved job') }}</button>
+  <span class="meta">about {{ batch.next * 2 }} model calls · {{ batch.waiting }} saved without drafts · up to {{ batch.limit }} a day{% if batch.thin %} · {{ batch.thin }} with almost no posting text left out{% endif %}</span>
+</form>{% else %}<p class="meta">{{ batch.waiting|plural('saved job') }} without drafts; today's drafting limit ({{ batch.limit }}) is reached.</p>{% endif %}{% endif %}
 {% if stage == 'saved' %}<form method="get" action="/pipeline" class="inline">
   <label for="saved-sort" class="meta">Sort saved by</label>
   <select name="saved_sort" id="saved-sort" onchange="this.form.submit()">
