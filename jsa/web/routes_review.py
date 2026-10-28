@@ -13,6 +13,19 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from .. import approvals
 
 
+def _flagged(item: dict) -> bool:
+    """A draft that says something the profile does not, or can't be read.
+    A cover letter's note alone is not a flag: it says the drafted prose was
+    refused and the letter was built from the profile's own sentences
+    (2026-10-27: all 9 notes on the queue were that)."""
+    doc = item.get("doc")
+    if not doc:
+        return False
+    if doc.get("problem") or (doc.get("compare") or {}).get("flagged"):
+        return True
+    return doc.get("kind") == "cover_letter" and bool((doc.get("letter") or {}).get("problems"))
+
+
 def register(app, ctx) -> None:
     """Add this area's routes to `app`; shared helpers come from `ctx`."""
     connect = ctx.connect
@@ -47,7 +60,26 @@ def register(app, ctx) -> None:
                 rows.append(item)
         finally:
             con.close()
-        return render("review", "review", title="Review", rows=rows,
+        # With 40 waiting (2026-10-27) the 9 flagged drafts were mixed in.
+        # Jobs with a flagged draft come first, the flagged draft leading;
+        # each job's resume and cover letter stay together.
+        for item in rows:
+            item["flagged"] = _flagged(item)
+        flagged_jobs = {(r.get("doc") or {}).get("job_id") for r in rows if r["flagged"]}
+        rows = [r for _, r in sorted(enumerate(rows), key=lambda pair: (
+            (pair[1].get("doc") or {}).get("job_id") not in flagged_jobs,
+            not pair[1]["flagged"], pair[0]))]
+        # The resume report is advice about the profile, not about a draft:
+        # shown once, every distinct point, instead of on every card.
+        advice, seen = [], set()
+        for item in rows:
+            for f in item.get("coach") or []:
+                key = (f.get("id"), f.get("message"), f.get("where"))
+                if key not in seen:
+                    seen.add(key)
+                    advice.append(f)
+        return render("review", "review", title="Review", rows=rows, advice=advice,
+                      flagged=[r for r in rows if r["flagged"]],
                       reject_reasons=approvals.REJECT_REASONS,
                       error=error, error_id=error_id,
                       error_in_rows=any(r["approval_id"] == error_id for r in rows))

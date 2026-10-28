@@ -1022,7 +1022,7 @@ drafts stay, and discovery will not overwrite the text. See
 
 ## Test coverage
 
-About 1,790 Python tests and 40 extension tests (`node --test extension/test/*.test.mjs`).
+About 1,890 Python tests and 40 extension tests (`node --test extension/test/*.test.mjs`).
 Line coverage **89%**, measured 2026-10-24 with `coverage run --source=jsa -m
 unittest discover -s tests -t .` (80% at the 888-test run before it), reported as
 measured rather than tuned.
@@ -1204,7 +1204,7 @@ jobsearch/
   extension/                    # the Chrome extension: fills a form, never submits
   tools/build_map_data.py       # rebuilds jsa/resources/data/ from its public sources
   tools/build_role_data.py      # rebuilds the role education data (BLS, O*NET)
-  tests/                        # about 1,790 tests
+  tests/                        # about 1,890 tests
 ```
 
 ## Configure it for yourself
