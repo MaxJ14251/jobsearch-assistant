@@ -250,7 +250,21 @@
   box.appendChild(panel);
   panel.hidden = false;
   var svg = sv('svg', {role: 'img', 'aria-label': 'Map of postings around ' + live.home}, box);
-  var clipC = sv('circle', {cx: 0, cy: 0}, sv('clipPath', {id: 'fence-clip'}, sv('defs', {}, svg)));
+  var defs = sv('defs', {}, svg);
+  var clipC = sv('circle', {cx: 0, cy: 0}, sv('clipPath', {id: 'fence-clip'}, defs));
+  /* The concept's glossy markers: one sphere per status, lit from the top
+     left, in the theme's own colors so both themes follow. */
+  function sphere(id, color, light) {
+    var gr = sv('radialGradient', {id: id, cx: '35%', cy: '30%', r: '70%'}, defs);
+    [['0%', 'color-mix(in srgb,' + color + ' 45%,' + (light || '#fff') + ')'],
+     ['60%', color], ['100%', 'color-mix(in srgb,' + color + ' 72%,#000)']].forEach(function (st) {
+      sv('stop', {offset: st[0]}, gr).style.stopColor = st[1];
+    });
+  }
+  /* The concept's sphere colors, the same in both themes: mid-dark, so
+     white numbers read on them and they stand off a light or a dark map. */
+  Object.keys(ST_COLOR).forEach(function (k) { sphere('mk-' + k, 'var(--mk-' + k + ')'); });
+  sphere('mk-home', 'var(--copper)', '#fff');
   var ground = sv('rect', {width: '100%', height: '100%'}, svg);
   ground.style.fill = 'var(--surface)';
   var world = sv('g', {}, svg);
@@ -737,7 +751,7 @@
       pts.push({p: p, x: x, y: y, inside: p.d <= R});
     });
     clear(marksG); clear(labelsG); clear(overG);
-    var clusters = cluster(pts, 22);
+    var clusters = cluster(pts, 26);
     clusters.filter(function (c) { return !c.inside; }).forEach(function (c) { drawCluster(c, inFeed); });
     clusters.filter(function (c) { return c.inside; }).forEach(function (c) { drawCluster(c, inFeed); });
 
@@ -818,8 +832,8 @@
 
     var home = sv('g', {transform: 'translate(' + H[0] + ' ' + H[1] + ')'}, overG);
     home.style.pointerEvents = 'none';
-    var hc = sv('circle', {r: 8}, home); hc.style.fill = 'var(--surface)'; hc.style.stroke = 'var(--ink)'; hc.style.strokeWidth = '2px';
-    sv('circle', {r: 2.5}, home).style.fill = 'var(--ink)';
+    home.style.filter = 'drop-shadow(0 2px 3px rgba(0,0,0,.3))';
+    var hc = sv('circle', {r: 9}, home); hc.style.fill = 'url(#mk-home)'; hc.style.stroke = '#fff'; hc.style.strokeWidth = '3px';
     var ht = sv('text', {x: 12, y: -10, 'class': 'town left'}, home);
     ht.style.fontWeight = '600'; ht.textContent = 'Home';
 
@@ -835,27 +849,28 @@
                      'class': 'mk', role: 'button', tabindex: c.inside ? 0 : -1}, marksG);
     var dimmed = state.facet && !c.m.some(function (q) { return inFeed[q.p.key]; });
     g.style.opacity = !c.inside ? 0.32 : (dimmed ? 0.3 : 1);
+    g.style.filter = 'drop-shadow(0 2px 3px rgba(0,0,0,.28))';
     if (n === 1) {
       var p = c.m[0].p;
       g.setAttribute('aria-label', titleOf(p) + ', ' + p.d.toFixed(1) + ' miles');
-      sv('circle', {r: 11}, g).style.fill = 'transparent';
+      sv('circle', {r: 12}, g).style.fill = 'transparent';
       var big = p.key === state.sel || p.key === state.hov;
-      var dot = sv('circle', {r: big ? 7.5 : 5.5}, g);
-      dot.style.fill = ST_COLOR[p.status]; dot.style.stroke = 'var(--surface)'; dot.style.strokeWidth = '2px';
+      var dot = sv('circle', {r: big ? 9.5 : 7.5}, g);
+      dot.style.fill = 'url(#mk-' + p.status + ')'; dot.style.stroke = '#fff'; dot.style.strokeWidth = '2px';
     } else {
+      /* A bubble takes the color most of its postings have; the tooltip
+         gives the whole mix. */
       g.setAttribute('aria-label', n + ' postings here. List them.');
-      var r = 11 + Math.min(9, Math.log2(n) * 2.4), C = 2 * Math.PI * (r - 2), acc = 0;
-      var back = sv('circle', {r: r + 1.5}, g); back.style.fill = 'var(--surface)';
+      var r = 10 + Math.min(13, Math.sqrt(n) * 1.1), most = 'new', mostN = 0;
       STATUSES.forEach(function (s) {
-        var share = c.m.filter(function (q) { return q.p.status === s[0]; }).length / n;
-        if (!share) { return; }
-        var arc = sv('circle', {r: r - 2, transform: 'rotate(-90)'}, g);
-        arc.style.fill = 'none'; arc.style.stroke = ST_COLOR[s[0]]; arc.style.strokeWidth = '3.5px';
-        arc.style.strokeDasharray = (share * C) + ' ' + C; arc.style.strokeDashoffset = String(-acc * C);
-        acc += share;
+        var k = c.m.filter(function (q) { return q.p.status === s[0]; }).length;
+        if (k > mostN) { most = s[0]; mostN = k; }
       });
+      var ball = sv('circle', {r: r}, g);
+      ball.style.fill = 'url(#mk-' + most + ')'; ball.style.stroke = '#fff'; ball.style.strokeWidth = '2px';
       var t = sv('text', {'text-anchor': 'middle', dy: '0.36em'}, g);
-      t.style.fill = 'var(--ink)'; t.style.font = '500 11px ui-monospace,Menlo,monospace';
+      t.style.fill = '#fff'; t.style.font = '700 ' + (n > 99 ? 12 : 13) + 'px -apple-system,"Segoe UI",sans-serif';
+      t.style.paintOrder = 'stroke'; t.style.stroke = 'rgba(0,0,0,.18)'; t.style.strokeWidth = '2px';
       t.textContent = n;
     }
     g.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
