@@ -43,6 +43,8 @@
     --clay:#A8412F;--clay-soft:#F8E1DB;--amber:#8A5110;--amber-soft:#FCEBD3;
     --blue:#2459A8;--violet:#6A3DB4;
     --btn:#0B7A65;--btn-top:#34B597;--btn-bottom:#08705C;--accent-text:#075E99;
+    /* The score ring takes the buttons' green (text on its tint: 5.78:1 light, 6.72:1 dark). */
+    --score-ring:#0B7A65;--score-text:#07654F;
     --glass:rgba(255,255,255,.64);--glass-strong:rgba(255,255,255,.86);
     --glass-edge:rgba(255,255,255,.95);
     --glass-shadow:0 10px 30px rgba(20,100,160,.13),inset 0 1px 0 rgba(255,255,255,.95);
@@ -71,6 +73,7 @@
     --sage:#8EDB6A;--sage-soft:#132A18;--clay:#E08A75;--clay-soft:#33201B;
     --amber:#F0B86A;--amber-soft:#33270F;--blue:#79AEF5;--violet:#B79AF0;
     --btn:#0F7A65;--btn-top:#2BB79A;--btn-bottom:#0A6553;--accent-text:#5ED8EE;
+    --score-ring:#4FD1B5;--score-text:#4FD1B5;
     --glass:rgba(12,32,50,.62);--glass-strong:rgba(12,32,50,.86);
     --glass-edge:rgba(120,210,255,.16);
     --glass-shadow:0 12px 34px rgba(0,0,0,.5),inset 0 1px 0 rgba(150,225,255,.12);
@@ -333,9 +336,9 @@
   .row1{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   /* The match score as a ring, as in the concept. */
   .score{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
-    width:46px;height:46px;border-radius:50%;border:3px solid var(--copper);
-    font-size:13px;font-weight:700;color:var(--accent-text);font-variant-numeric:tabular-nums;
-    background:radial-gradient(circle at 35% 30%,var(--surface) 0%,color-mix(in srgb,var(--copper) 14%,var(--surface)) 75%)}
+    width:46px;height:46px;border-radius:50%;border:3px solid var(--score-ring);
+    font-size:13px;font-weight:700;color:var(--score-text);font-variant-numeric:tabular-nums;
+    background:radial-gradient(circle at 35% 30%,var(--surface) 0%,color-mix(in srgb,var(--score-ring) 14%,var(--surface)) 75%)}
   .title{font-weight:600;overflow-wrap:anywhere}
   .co{color:var(--mute);font-size:13px;overflow-wrap:anywhere}
   .meta{color:var(--mute);font-size:12.5px;margin-top:3px;overflow-wrap:anywhere}
