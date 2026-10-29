@@ -98,7 +98,17 @@
     background-image:var(--sky);pointer-events:none}
   /* B1, B4: every link reads, on glass or on the sky: none falls back to
      the browser's blue (1.66:1 on the dark glass). */
-  a{color:var(--accent-text)}
+  /* Links, Apple-style: the accent, a little weight, and a soft underline
+     set below the letters that firms up on hover. */
+  a{color:var(--accent-text);font-weight:500;text-decoration:underline;
+    text-decoration-color:color-mix(in srgb,currentColor 30%,transparent);
+    text-decoration-thickness:1.5px;text-underline-offset:3px;
+    transition:text-decoration-color .15s,color .15s}
+  a:hover{text-decoration-color:currentColor}
+  /* A card's title is a heading that opens the job: ink, no underline,
+     the accent on hover. */
+  .title a{color:var(--ink);font-weight:inherit;text-decoration:none}
+  .title a:hover{color:var(--accent-text)}
   input{accent-color:var(--copper)}
   /* One frosted panel, written once. */
   .glass{background:var(--glass);border:1px solid var(--glass-edge);box-shadow:var(--glass-shadow);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
@@ -392,7 +402,7 @@
   .triage .inline{margin:0}
   .ids{font:12px ui-monospace,Menlo,monospace;color:var(--mute);overflow-wrap:anywhere}
   details{margin-top:8px}
-  summary{cursor:pointer;color:var(--accent-text);font-size:13px}
+  summary{cursor:pointer;color:var(--accent-text);font-size:13px;font-weight:500}
   .pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;
     padding:10px 0;border-top:1px solid var(--rule)}
   .pair.flag-row{background:var(--clay-soft);padding-inline:10px;border-radius:3px;
