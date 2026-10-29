@@ -109,6 +109,10 @@
      the accent on hover. */
   .title a{color:var(--ink);font-weight:inherit;text-decoration:none}
   .title a:hover{color:var(--accent-text)}
+  /* The daily banner is a row of links; underlines there read as clutter,
+     so they appear only on hover. */
+  .note.daily a{text-decoration:none}
+  .note.daily a:hover{text-decoration:underline}
   input{accent-color:var(--copper)}
   /* One frosted panel, written once. */
   .glass{background:var(--glass);border:1px solid var(--glass-edge);box-shadow:var(--glass-shadow);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
