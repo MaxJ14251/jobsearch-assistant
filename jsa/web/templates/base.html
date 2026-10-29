@@ -196,9 +196,13 @@
   .bar{fill:var(--ink-2)}
   /* n21: the Matches page as map + list + analytics. Without the script it
      is the page above: the server's map, the server's list. */
-  .st-new,[data-status=new]{--st:var(--mute)} .st-saved,[data-status=saved]{--st:var(--blue)}
-  .st-applied,[data-status=applied]{--st:var(--sage)}
-  .st-interview,[data-status=interview]{--st:var(--violet)}
+  /* --st colors status text (card pills); --sd colors status dots, which
+     match the map's markers (2026-10-29). Pink and gold dots are too light
+     to use as text, so the two are kept apart. */
+  .st-new,[data-status=new]{--st:var(--mute);--sd:var(--mk-new)}
+  .st-saved,[data-status=saved]{--st:var(--blue);--sd:var(--mk-saved)}
+  .st-applied,[data-status=applied]{--st:var(--sage);--sd:var(--mk-applied)}
+  .st-interview,[data-status=interview]{--st:var(--violet);--sd:var(--mk-interview)}
   .split{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
   .feed{min-width:0}
   @media (width>=1360px){
@@ -221,9 +225,9 @@
   .chips,.seg{display:flex;flex-wrap:wrap;gap:4px}
   .chip{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;padding:5px 10px;
     border:1px solid var(--rule);border-radius:999px;background:var(--surface);color:var(--ink)}
-  .chip i{width:9px;height:9px;border-radius:50%;background:var(--st);display:inline-block}
+  .chip i{width:9px;height:9px;border-radius:50%;background:var(--sd);display:inline-block}
   .chip[aria-pressed="false"]{color:var(--mute);border-style:dashed;background:transparent}
-  .chip[aria-pressed="false"] i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--st)}
+  .chip[aria-pressed="false"] i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--sd)}
   .chip b{font:500 11px ui-monospace,Menlo,monospace;color:var(--mute)}
   /* An Apple-style segmented control: one track, the chosen segment raised. */
   .seg{gap:0;padding:2px;border-radius:10px;background:color-mix(in srgb,var(--ink) 7%,transparent)}
@@ -281,7 +285,7 @@
     max-height:calc(100% - 20px);overflow-y:auto}
   .rp .num{font:500 34px/1 ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
   .rp .stbar{display:flex;height:5px;border-radius:3px;overflow:hidden;background:var(--surface-2)}
-  .rp .stbar span{background:var(--st)}
+  .rp .stbar span{background:var(--sd)}
   .rp .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
   .rp .modes{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;
     background:var(--surface-2);border-radius:3px;padding:2px}
@@ -304,9 +308,7 @@
     background:var(--surface);border:1px solid var(--rule);border-radius:3px;
     padding:6px 8px;font-size:11px;pointer-events:none}
   .maplegend span{display:flex;gap:6px;align-items:center}
-  .maplegend i{width:9px;height:9px;border-radius:50%;background:var(--st)}
-  .maplegend .st-new i{background:var(--mk-new)} .maplegend .st-saved i{background:var(--mk-saved)}
-  .maplegend .st-applied i{background:var(--mk-applied)} .maplegend .st-interview i{background:var(--mk-interview)}
+  .maplegend i{width:9px;height:9px;border-radius:50%;background:var(--sd)}
   .mapfoot{position:absolute;left:10px;bottom:10px;z-index:2;pointer-events:none;
     font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--mute)}
   .mapfoot .sb{height:6px;border:1.5px solid var(--ink-2);border-top:0;margin-top:3px}
