@@ -60,13 +60,12 @@
        themes (measured 2026-10-27: 1.42 light, 1.48 dark). */
     --map-water:#A9D9F2;--map-land:#F4FAF1;--map-urban:#E8F1E8;
     --map-road:#E3D3A8;--map-edge:#BFD5E2;
-    /* Map markers in the theme's own colors: sunlit gold for new
-       (2026-10-29, the owner's pick), cobalt for saved, grass for applied,
-       violet for interview. White on each base color is 4.5:1 or more
-       (measured 2026-10-27), in both themes, except gold (2.09:1). Counts
-       are plain white with no outline, the owner's choice: on mostly-new
-       clusters they are below the 4.5:1 text minimum. */
-    --mk-new:#E9A800;--mk-saved:#2F5FD0;--mk-applied:#2E8540;--mk-interview:#7A4DC4;
+    /* Map markers in the theme's own colors (owner's picks, 2026-10-29):
+       Apple's system pink for new, cobalt for saved, grass for applied,
+       sunlit gold for interview. Counts are plain white with no outline,
+       the owner's choice. White is 4.5:1 or more on cobalt and grass, but
+       not on pink (3.65:1 light, 3.52:1 dark) or gold (2.09:1). */
+    --mk-new:#FF2D55;--mk-saved:#2F5FD0;--mk-applied:#2E8540;--mk-interview:#E9A800;
     --mk-shadow:drop-shadow(0 2px 3px rgba(0,0,0,.28));--mk-hi:45%;
   }
   /* Dark: set by the script above, from the computer's setting or the
@@ -90,7 +89,7 @@
     --map-water:#03101C;--map-land:#173448;--map-urban:#1A3A50;
     --map-road:#4C5A6E;--map-edge:#26475E;
     /* Deep cyan, electric indigo, lime-moss and violet, with a cyan glow. */
-    --mk-new:#E9A800;--mk-saved:#3554D6;--mk-applied:#3A7F1C;--mk-interview:#8A4FD8;
+    --mk-new:#FF375F;--mk-saved:#3554D6;--mk-applied:#3A7F1C;--mk-interview:#E9A800;
     --mk-shadow:drop-shadow(0 0 5px rgba(60,207,234,.45)) drop-shadow(0 2px 3px rgba(0,0,0,.5));
     --mk-hi:72%;  /* less white in the shine: a deep glow, not a pale bead */}
   *{box-sizing:border-box}
