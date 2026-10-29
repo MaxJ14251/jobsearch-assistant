@@ -885,12 +885,7 @@
       var ball = sv('circle', {r: r}, g);
       ball.style.fill = 'url(#mk-' + most + ')'; ball.style.stroke = '#fff'; ball.style.strokeWidth = '2px';
       var t = sv('text', {'text-anchor': 'middle', dy: '0.36em'}, g);
-      /* White reads on every status color but gold (new), where the count
-         gets a dark-gold outline instead of the faint shadow. */
-      var gold = most === 'new';
       t.style.fill = '#fff'; t.style.font = '700 ' + (n > 99 ? 12 : 13) + 'px -apple-system,"Segoe UI",sans-serif';
-      t.style.paintOrder = 'stroke'; t.style.stroke = gold ? 'var(--mk-new-edge)' : 'rgba(0,0,0,.18)';
-      t.style.strokeWidth = gold ? '3px' : '2px'; t.style.strokeLinejoin = 'round';
       t.textContent = n;
     }
     g.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
