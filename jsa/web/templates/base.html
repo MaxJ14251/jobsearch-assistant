@@ -66,6 +66,9 @@
        the owner's choice. White is 4.5:1 or more on grass, but not on aqua
        (3.95:1), pink (3.65:1 light, 3.52:1 dark) or gold (2.09:1). */
     --mk-new:#FF2D55;--mk-saved:#0789BC;--mk-applied:#2E8540;--mk-interview:#E9A800;
+    /* The same hues, deep enough for text on cards' status pills (on the
+       pill's 15% tint: 5.34, 5.27, 4.84 and 6.15:1; measured 2026-10-29). */
+    --mk-new-ink:#B8133A;--mk-saved-ink:#05668F;--mk-interview-ink:#7A5300;
     --mk-shadow:drop-shadow(0 2px 3px rgba(0,0,0,.28));--mk-hi:45%;
   }
   /* Dark: set by the script above, from the computer's setting or the
@@ -90,6 +93,8 @@
     --map-road:#4C5A6E;--map-edge:#26475E;
     /* Deep cyan, electric indigo, lime-moss and violet, with a cyan glow. */
     --mk-new:#FF375F;--mk-saved:#0789BC;--mk-applied:#3A7F1C;--mk-interview:#E9A800;
+    /* Pill text, dark (on the tint: 6.14, 6.77, 8.69 and 7.76:1). */
+    --mk-new-ink:#FF7D96;--mk-saved-ink:#4CC0EC;--mk-interview-ink:#F2C230;
     --mk-shadow:drop-shadow(0 0 5px rgba(60,207,234,.45)) drop-shadow(0 2px 3px rgba(0,0,0,.5));
     --mk-hi:72%;  /* less white in the shine: a deep glow, not a pale bead */}
   *{box-sizing:border-box}
@@ -196,13 +201,13 @@
   .bar{fill:var(--ink-2)}
   /* n21: the Matches page as map + list + analytics. Without the script it
      is the page above: the server's map, the server's list. */
-  /* --st colors status text (card pills); --sd colors status dots, which
-     match the map's markers (2026-10-29). Pink and gold dots are too light
-     to use as text, so the two are kept apart. */
-  .st-new,[data-status=new]{--st:var(--mute);--sd:var(--mk-new)}
-  .st-saved,[data-status=saved]{--st:var(--blue);--sd:var(--mk-saved)}
+  /* Status colors match the map's markers (2026-10-29). --sd is the dot
+     and tint color; --st is a deeper shade of the same hue for text, since
+     the pink and gold dots are too light to read as text. */
+  .st-new,[data-status=new]{--st:var(--mk-new-ink);--sd:var(--mk-new)}
+  .st-saved,[data-status=saved]{--st:var(--mk-saved-ink);--sd:var(--mk-saved)}
   .st-applied,[data-status=applied]{--st:var(--sage);--sd:var(--mk-applied)}
-  .st-interview,[data-status=interview]{--st:var(--violet);--sd:var(--mk-interview)}
+  .st-interview,[data-status=interview]{--st:var(--mk-interview-ink);--sd:var(--mk-interview)}
   .split{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
   .feed{min-width:0}
   @media (width>=1360px){
@@ -213,7 +218,7 @@
   }
   .pill{font:600 10.5px ui-monospace,Menlo,monospace;letter-spacing:.05em;
     text-transform:uppercase;padding:2px 6px;border-radius:3px;white-space:nowrap;
-    color:var(--st);background:color-mix(in srgb,var(--st) 15%,transparent)}
+    color:var(--st);background:color-mix(in srgb,var(--sd) 15%,transparent)}
   .eta{white-space:nowrap}
   .card[data-key]{cursor:pointer;transition:border-color .12s}
   .card.hov{border-color:var(--ink-2)}
