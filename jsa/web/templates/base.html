@@ -232,6 +232,20 @@
   .livemap .bm-note{position:absolute;left:10px;bottom:34px;font-size:11.5px;
     color:var(--mute);background:var(--surface);padding:2px 6px;border-radius:3px}
   .livemap .mk{cursor:pointer}
+  /* The radius handle and the time pills on the live map. */
+  .rhandle{cursor:ew-resize;outline:none;touch-action:none}
+  .rhandle .hit{fill:transparent}
+  .rhandle .focus{fill:none;stroke:var(--copper);stroke-width:2px;opacity:0}
+  .rhandle:focus-visible .focus{opacity:1}
+  .rhandle .knob{fill:var(--surface);stroke-width:3.5px;filter:var(--mk-shadow);transition:r .12s}
+  .rhandle:hover .knob,.rhandle.on .knob{r:11px}
+  .rhandle .pill rect,.tpill rect{fill:var(--glass-strong);stroke:var(--glass-edge);stroke-width:1px;
+    filter:drop-shadow(0 2px 4px rgba(0,0,0,.14))}
+  .rhandle .pill text{font:600 12.5px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    fill:var(--ink);font-variant-numeric:tabular-nums;text-transform:none;letter-spacing:0}
+  .tpill{pointer-events:none}
+  .tpill text{font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:var(--ink-2);
+    text-transform:none;letter-spacing:0}
   .picked{scroll-margin-top:16px;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline;margin:0 0 10px;
     padding:8px 12px;border:1px solid var(--rule);border-radius:4px;background:var(--surface-2);
     font-size:13px;color:var(--ink-2)}
@@ -272,7 +286,7 @@
   .maplegend .st-new i{background:var(--mk-new)} .maplegend .st-saved i{background:var(--mk-saved)}
   .maplegend .st-applied i{background:var(--mk-applied)} .maplegend .st-interview i{background:var(--mk-interview)}
   .mapfoot{position:absolute;left:10px;bottom:10px;z-index:2;pointer-events:none;
-    font:11px ui-monospace,Menlo,monospace;color:var(--mute)}
+    font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--mute)}
   .mapfoot .sb{height:6px;border:1.5px solid var(--ink-2);border-top:0;margin-top:3px}
   .tip{position:absolute;z-index:4;pointer-events:none;max-width:260px;font-size:12px;
     background:var(--surface);border:1px solid var(--rule);border-radius:3px;

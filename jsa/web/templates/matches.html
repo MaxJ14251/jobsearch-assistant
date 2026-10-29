@@ -275,6 +275,18 @@
   var marksG = sv('g', {}, svg);
   var labelsG = sv('g', {}, svg);
   var overG = sv('g', {}, svg);
+  /* The radius handle: a knob on the circle's edge with its distance on a
+     pill. Drawn once and moved, so a drag keeps its pointer while the rest
+     of the map redraws under it. Dragging it is moving the radius slider. */
+  var handleG = sv('g', {'class': 'rhandle', role: 'slider', tabindex: 0,
+                         'aria-label': 'Search radius. Drag, or use the arrow keys.'}, svg);
+  sv('circle', {r: 22, 'class': 'hit'}, handleG);
+  sv('circle', {r: 14, 'class': 'focus'}, handleG);
+  var hKnob = sv('circle', {r: 9, 'class': 'knob'}, handleG);
+  var hPill = sv('g', {'class': 'pill'}, handleG);
+  var hRect = sv('rect', {y: -12, height: 24, rx: 12}, hPill);
+  var hText = sv('text', {dy: '0.35em'}, hPill);
+  var lastH = [0, 0];
 
   var ctl = node('div', {'class': 'mapctl'}, box);
   [['+', 'Zoom in', function () { zoomBy(1.6); }],
@@ -724,7 +736,8 @@
     fenceFill.style.fill = color;
     fenceFill.style.fillOpacity = (state.bands ? state.fill * 0.5 : state.fill) / 100;
     fenceLine.setAttribute('r', R);
-    fenceLine.style.fill = 'none'; fenceLine.style.stroke = color; fenceLine.style.strokeWidth = '1.75px';
+    fenceLine.style.fill = 'none'; fenceLine.style.stroke = color; fenceLine.style.strokeWidth = '2px';
+    fenceLine.style.strokeDasharray = '7 6';
 
     clear(bandsG);
     var rings = [];
@@ -810,25 +823,35 @@
       var x = H[0], y = H[1] - b.r * S;
       if (y < 0 || y > h || lastY - y < 20) { return; }
       lastY = y;
-      var label = b.t >= 60 ? fmtMin(b.t) : b.t + ' min';
-      var g = sv('g', {transform: 'translate(' + x + ' ' + y + ')'}, overG);
-      g.style.pointerEvents = 'none';
-      var bg = sv('rect', {x: -label.length * 3.3 - 5, y: -8, width: label.length * 6.6 + 10, height: 16, rx: 3}, g);
-      bg.style.fill = 'var(--surface)'; bg.style.opacity = 0.92;
-      var t = sv('text', {'text-anchor': 'middle', dy: '0.35em'}, g);
-      t.style.fill = color; t.style.font = '10px ui-monospace,Menlo,monospace';
-      t.textContent = label;
+      /* A small frosted pill on the ring: a dot in the ring's colour, then
+         the time ("20 min", "1 h 30 min"). */
+      var g = sv('g', {transform: 'translate(' + x + ' ' + y + ')', 'class': 'tpill'}, overG);
+      var bg = sv('rect', {y: -10, height: 20, rx: 10}, g);
+      var dot = sv('circle', {r: 3}, g);
+      dot.style.fill = color;
+      var t = sv('text', {dy: '0.35em'}, g);
+      t.textContent = fmtMin(b.t);
+      var full = t.getComputedTextLength() + 26;
+      bg.setAttribute('x', -full / 2); bg.setAttribute('width', full);
+      dot.setAttribute('cx', -full / 2 + 10);
+      t.setAttribute('x', -full / 2 + 18);
     });
 
+    lastH = H;
     var ex = H[0] + R * S, ey = H[1];
-    if (ex > 0 && ex < w) {
-      var rl = fmtMiles(R), rg = sv('g', {transform: 'translate(' + ex + ' ' + ey + ')'}, overG);
-      rg.style.pointerEvents = 'none';
-      sv('rect', {x: -rl.length * 3.6 - 6, y: -10, width: rl.length * 7.2 + 12, height: 20, rx: 3}, rg).style.fill = color;
-      var rt = sv('text', {'text-anchor': 'middle', dy: '0.35em'}, rg);
-      rt.style.fill = 'var(--surface)'; rt.style.font = '600 11px ui-monospace,Menlo,monospace';
-      rt.textContent = rl;
-    }
+    handleG.style.display = ex > 0 && ex < w && ey > 0 && ey < h ? '' : 'none';
+    handleG.setAttribute('transform', 'translate(' + ex.toFixed(1) + ' ' + ey.toFixed(1) + ')');
+    handleG.setAttribute('aria-valuemin', slider.min);
+    handleG.setAttribute('aria-valuemax', slider.max);
+    handleG.setAttribute('aria-valuenow', R);
+    handleG.setAttribute('aria-valuetext', R + ' miles');
+    hKnob.style.stroke = color;
+    hText.textContent = fmtMiles(R);
+    var pw = hText.getComputedTextLength() + 20;
+    /* The pill sits right of the knob, or left of it near the map's controls. */
+    var px = ex + 16 + pw > w - 52 ? -16 - pw : 16;
+    hRect.setAttribute('x', px); hRect.setAttribute('width', pw);
+    hText.setAttribute('x', px + 10);
 
     var home = sv('g', {transform: 'translate(' + H[0] + ' ' + H[1] + ')'}, overG);
     home.style.pointerEvents = 'none';
@@ -951,6 +974,43 @@
     redraw();
   }, {passive: false});
   if (window.ResizeObserver) { new ResizeObserver(redraw).observe(box); }
+
+  /* The radius handle moves the slider, so the list, the counts and the
+     address bar follow exactly as they do for the slider itself. */
+  function setRadius(mi) {
+    var lo = +slider.min, hi = +slider.max, st = +slider.step || 1;
+    var v = Math.min(hi, Math.max(lo, Math.round(mi / st) * st));
+    if (v === R) { return; }
+    slider.value = v;
+    slider.dispatchEvent(new Event('input'));
+  }
+  var rdrag = false;
+  handleG.addEventListener('pointerdown', function (e) {
+    if (e.button !== 0) { return; }
+    e.stopPropagation(); e.preventDefault();
+    rdrag = true; handleG.classList.add('on');
+    handleG.setPointerCapture(e.pointerId);
+  });
+  handleG.addEventListener('pointermove', function (e) {
+    if (!rdrag) { return; }
+    var b = svg.getBoundingClientRect();
+    setRadius(Math.hypot(e.clientX - b.left - lastH[0], e.clientY - b.top - lastH[1]) / view.s);
+  });
+  function endRadius() {
+    if (!rdrag) { return; }
+    rdrag = false; handleG.classList.remove('on');
+    slider.dispatchEvent(new Event('change'));
+  }
+  handleG.addEventListener('pointerup', endRadius);
+  handleG.addEventListener('pointercancel', endRadius);
+  handleG.addEventListener('keydown', function (e) {
+    var st = +slider.step || 1, by = {ArrowRight: st, ArrowUp: st, ArrowLeft: -st, ArrowDown: -st,
+                                      PageUp: 4 * st, PageDown: -4 * st}[e.key];
+    if (e.key === 'Home') { by = +slider.min - R; } else if (e.key === 'End') { by = +slider.max - R; }
+    if (!by) { return; }
+    e.preventDefault();
+    setRadius(R + by);
+  });
 
   /* ---- the panel -------------------------------------------------------- */
   var bandsBox = document.getElementById('rp-bands');
