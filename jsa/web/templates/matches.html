@@ -90,7 +90,7 @@
     </div>
   </div>
   <div class="stbar" id="rp-bar" aria-hidden="true"></div>
-  <div class="row"><span>Commute bands</span>
+  <div class="row"><span>Travel-time rings</span>
     <label class="pair-in" for="rp-bands"><input type="checkbox" id="rp-bands"> show</label></div>
   <div class="modes" id="rp-modes" role="radiogroup" aria-label="How you would get there">
     <button type="button" role="radio" data-mode="drive">Drive</button>
@@ -268,10 +268,16 @@
   var ground = sv('rect', {width: '100%', height: '100%'}, svg);
   ground.style.fill = 'var(--surface)';
   var world = sv('g', {}, svg);
-  var gridG = sv('g', {}, world);
+  /* The circle, kept simple: a light fill a little stronger toward the
+     edge, like a lens, and one clean line with a soft halo so it reads on
+     any ground. The time rings inside are hairlines, not shaded bands. */
+  var fenceGrad = sv('radialGradient', {id: 'fence-grad'}, defs);
+  var fenceStops = [sv('stop', {offset: '0%'}, fenceGrad), sv('stop', {offset: '100%'}, fenceGrad)];
+  fenceStops[0].style.stopOpacity = 0.4;
   var fenceFill = sv('circle', {cx: 0, cy: 0}, world);
   var bandsG = sv('g', {'clip-path': 'url(#fence-clip)'}, world);
-  var fenceLine = sv('circle', {cx: 0, cy: 0, 'vector-effect': 'non-scaling-stroke'}, world);
+  var fenceHalo = sv('circle', {cx: 0, cy: 0, 'vector-effect': 'non-scaling-stroke', 'class': 'fence-halo'}, world);
+  var fenceLine = sv('circle', {cx: 0, cy: 0, 'vector-effect': 'non-scaling-stroke', 'class': 'fence-line'}, world);
   var marksG = sv('g', {}, svg);
   var labelsG = sv('g', {}, svg);
   var overG = sv('g', {}, svg);
@@ -722,36 +728,23 @@
     northEl.hidden = Math.abs(turn) < 0.01;
     northEl.style.transform = 'rotate(' + (-turn * 180 / Math.PI).toFixed(2) + 'deg)';
 
-    /* Range rings about home: in this projection a circle IS a distance. */
-    clear(gridG);
-    var far = Math.hypot(Math.max(Math.abs(H[0]), Math.abs(w - H[0])), Math.max(Math.abs(H[1]), Math.abs(h - H[1]))) / S;
-    var step = [1, 2, 5, 10, 25, 50, 100, 250, 500].find(function (m) { return m * S >= 70; }) || 1000;
-    for (var k = 1; k * step <= far && k <= 60; k++) {
-      var g = sv('circle', {cx: 0, cy: 0, r: k * step, 'vector-effect': 'non-scaling-stroke'}, gridG);
-      g.style.fill = 'none'; g.style.stroke = 'var(--rule)'; g.style.strokeWidth = '1px';
-    }
-
     clipC.setAttribute('r', R);
     fenceFill.setAttribute('r', R);
-    fenceFill.style.fill = color;
-    fenceFill.style.fillOpacity = (state.bands ? state.fill * 0.5 : state.fill) / 100;
+    fenceStops.forEach(function (st) { st.style.stopColor = color; });
+    fenceFill.style.fill = 'url(#fence-grad)';
+    fenceFill.style.fillOpacity = state.fill / 100;
+    fenceHalo.setAttribute('r', R);
     fenceLine.setAttribute('r', R);
-    fenceLine.style.fill = 'none'; fenceLine.style.stroke = color; fenceLine.style.strokeWidth = '2px';
-    fenceLine.style.strokeDasharray = '7 6';
+    fenceLine.style.stroke = color;
 
     clear(bandsG);
     var rings = [];
     if (state.bands) {
       MODES[state.mode].rings.forEach(function (t) { var r = reach(t); if (r > 0) { rings.push({t: t, r: r}); } });
     }
-    rings.slice().reverse().forEach(function (b) {
-      var c = sv('circle', {cx: 0, cy: 0, r: b.r}, bandsG);
-      c.style.fill = color; c.style.fillOpacity = 0.09;
-    });
     rings.forEach(function (b) {
-      var c = sv('circle', {cx: 0, cy: 0, r: b.r, 'vector-effect': 'non-scaling-stroke'}, bandsG);
-      c.style.fill = 'none'; c.style.stroke = color; c.style.strokeOpacity = 0.6;
-      c.style.strokeWidth = '1px'; c.style.strokeDasharray = '3 4';
+      var c = sv('circle', {cx: 0, cy: 0, r: b.r, 'vector-effect': 'non-scaling-stroke', 'class': 'time-ring'}, bandsG);
+      c.style.stroke = color;
     });
 
     /* Markers. Inside or outside is decided by d, never by x and y. */
