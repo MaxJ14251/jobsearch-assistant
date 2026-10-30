@@ -149,11 +149,11 @@ class TestMix(unittest.TestCase):
             self.assertIsNone(roles.for_title("Software Engineer"))
 
     def test_the_shipped_files_are_what_the_builder_writes(self):
-        with gzip.open(roles.DATA_DIR / roles.EDUCATION_FILE, "rt", encoding="utf-8") as f:
+        with gzip.open(roles._dir() / roles.EDUCATION_FILE, "rt", encoding="utf-8") as f:
             header = f.readline().strip().split(",")
         self.assertEqual(header, ["soc", "occupation", "less_than_hs", "hs", "some_college",
                                   "associate", "bachelor", "master", "doctoral", "year"])
-        with gzip.open(roles.DATA_DIR / roles.TITLES_FILE, "rt", encoding="utf-8") as f:
+        with gzip.open(roles._dir() / roles.TITLES_FILE, "rt", encoding="utf-8") as f:
             self.assertEqual(f.readline().strip(), "title,soc,weight")
 
 

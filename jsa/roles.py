@@ -20,10 +20,19 @@ import io
 import re
 from dataclasses import dataclass
 
-from .countries import us
+from . import countries
 
-# BLS and O*NET are US data: the files live in the US pack's folder.
-DATA_DIR = us.DATA
+# BLS and O*NET are US data: the files live in the US pack's folder, and a
+# country whose pack has no ROLE_EDUCATION shows nothing. A test may point
+# this somewhere else.
+DATA_DIR = None
+
+
+def _dir():
+    if DATA_DIR is not None:
+        return DATA_DIR
+    pack = countries.active()
+    return pack.DATA if getattr(pack, "ROLE_EDUCATION", False) else None
 
 EDUCATION_FILE = "role_education.csv.gz"
 TITLES_FILE = "role_titles.csv.gz"
@@ -159,17 +168,27 @@ class Mix:
 
 
 def _rows(name: str):
-    path = DATA_DIR / name
+    path = _dir() / name
     with gzip.open(path, "rt", encoding="utf-8", newline="") as handle:
         yield from csv.DictReader(handle)
 
 
 def available() -> bool:
-    return (DATA_DIR / EDUCATION_FILE).is_file() and (DATA_DIR / TITLES_FILE).is_file()
+    folder = _dir()
+    return (folder is not None and (folder / EDUCATION_FILE).is_file()
+            and (folder / TITLES_FILE).is_file())
 
 
-@functools.lru_cache(maxsize=1)
 def _education() -> dict[str, Mix]:
+    return _education_of(countries.active().CODE)
+
+
+def _titles() -> tuple[dict[str, tuple[str, int]], dict[str, list[str]]]:
+    return _titles_of(countries.active().CODE)
+
+
+@functools.lru_cache(maxsize=None)
+def _education_of(country: str) -> dict[str, Mix]:
     out = {}
     for r in _rows(EDUCATION_FILE):
         f = {k: float(r[k]) / 100 for k in ("less_than_hs", "hs", "some_college",
@@ -180,8 +199,8 @@ def _education() -> dict[str, Mix]:
     return out
 
 
-@functools.lru_cache(maxsize=1)
-def _titles() -> tuple[dict[str, tuple[str, int]], dict[str, list[str]]]:
+@functools.lru_cache(maxsize=None)
+def _titles_of(country: str) -> tuple[dict[str, tuple[str, int]], dict[str, list[str]]]:
     """(normalized title -> (soc, weight), word -> titles containing it)."""
     exact: dict[str, tuple[str, int]] = {}
     index: dict[str, list[str]] = {}

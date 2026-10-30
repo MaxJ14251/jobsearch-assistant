@@ -127,6 +127,17 @@ class TestSourcesBelongToCountries(unittest.TestCase):
         self.assertEqual(us.SEED_COMPANIES, config.SEED_COMPANIES)
 
 
+class TestRoleDataIsOptional(unittest.TestCase):
+    def test_a_country_without_it_shows_nothing(self):
+        from unittest import mock
+
+        from jsa import roles
+        self.assertTrue(roles.available())
+        with mock.patch.object(us, "ROLE_EDUCATION", False):
+            self.assertFalse(roles.available())
+            self.assertIsNone(roles.for_title("Software Engineer"))
+
+
 class TestTheFloorRename(unittest.TestCase):
     """compensation_floor_usd became compensation_floor (in the country's
     currency); a profile written before keeps working."""

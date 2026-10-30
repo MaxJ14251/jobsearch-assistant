@@ -140,6 +140,12 @@ HOURLY_BOUNDS = (10, 500)
 PAY_LOW = 50_000
 PAY_HIGH = 200_000
 
+# --- who holds each kind of job -----------------------------------------------
+# The education mix by occupation (BLS table 5.3 by O*NET title, plan 33)
+# ships for the US. A country without such data says False, and pages show
+# no line rather than another country's numbers.
+ROLE_EDUCATION = True
+
 # --- the national map -----------------------------------------------------------
 # Not drawn on the national map, and counted in words instead. Alaska and
 # Hawaii at their true position turn the lower 48 into a thumbnail, and an
