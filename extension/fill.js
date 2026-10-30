@@ -174,6 +174,14 @@
       /[*\u2731]\s*$/.test(String(field.label || ""));
   }
 
+  // A label that names the upload button, not the question. Greenhouse's
+  // current forms label every file input "Attach" and put the question on the
+  // group around it (found on a real SpaceX form: "Portfolio or Cover Letter").
+  function isActionLabel(label) {
+    return /^(attach|upload( a)?( file)?|browse|(choose|select|add)( a)? file|dropbox|google drive|enter manually)$/
+      .test(normalize(label));
+  }
+
   // --- open-ended questions (plan 35) -----------------------------------------
   // The ones left empty after a fill, offered in the panel for suggestions.
 
@@ -274,7 +282,7 @@
     return age >= 0 && age <= FILL_MEMORY_MS ? memory : null;
   }
 
-  const api = { normalize, keyForLabel, keyFor, valueFor, chooseYesNo, isRequired,
+  const api = { normalize, keyForLabel, keyFor, valueFor, chooseYesNo, isRequired, isActionLabel,
                 isOpenEnded, isQuestionLike, questionKey, questionText, REFUSED,
                 looksSubmitted, rememberedFor, FILL_MEMORY_MS,
                 RULES, BOARD_FIELDS };

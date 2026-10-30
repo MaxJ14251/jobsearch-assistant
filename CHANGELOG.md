@@ -17,6 +17,13 @@ version number lives in one place, `jsa/__init__.py`.
   22 Canadian employers' own boards (`companies_ca.yaml`), each confirmed
   and verified. French pay text is not read yet.
 
+### Fixed
+
+- The extension attaches your cover letter to Greenhouse's custom upload
+  questions ("Portfolio or Cover Letter"). It was reading each one as "Attach",
+  the name of its button. An upload with no letter drafted for the job now says
+  so, instead of staying empty without a word.
+
 ### Changed
 
 - Whether a posting is still up now shows on its job page as well as in

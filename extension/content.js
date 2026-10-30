@@ -70,12 +70,18 @@
       const joined = by.split(/\s+/).map((id) => text(document.getElementById(id))).join(" ").trim();
       if (joined) return joined;
     }
+    if (el.type === "file") {
+      const named = el.closest("[role='group'][aria-labelledby]");
+      const question = named && named.getAttribute("aria-labelledby").split(/\s+/)
+        .map((id) => text(document.getElementById(id))).join(" ").trim();
+      if (question) return question;
+    }
     if (el.id) {
       const tag = document.querySelector("label[for='" + CSS.escape(el.id) + "']");
-      if (text(tag)) return text(tag);
+      if (text(tag) && !F.isActionLabel(text(tag))) return text(tag);
     }
     const wrapping = el.closest("label");
-    if (text(wrapping)) return text(wrapping);
+    if (text(wrapping) && !F.isActionLabel(text(wrapping))) return text(wrapping);
     const group = el.closest("fieldset, .application-question, .field, [class*='question'], [class*='Field']");
     if (group) {
       const head = group.querySelector("legend, label, .application-label, [class*='label']");
@@ -104,8 +110,12 @@
         radios.get(name).push(el);
         continue;
       }
+      // An upload's "required" is on the group around it, as its question is.
+      const upload = type === "file" ? el.closest("[role='group'][aria-required]") : null;
       out.push({ els: [el], type, id: el.id, name: el.name, label: labelOf(el),
-                 required: el.required, ariaRequired: el.getAttribute("aria-required") });
+                 required: el.required,
+                 ariaRequired: el.getAttribute("aria-required") ||
+                   (upload && upload.getAttribute("aria-required")) });
     }
     for (const [name, els] of radios) {
       const group = els[0].closest("fieldset, [role='radiogroup'], .application-question, .field");
@@ -134,9 +144,14 @@
     el.style.outline = outline;
   }
 
-  async function attach(el, value, key) {
-    if (el.files && el.files.length) return false;          // you chose one already
+  async function attach(q, value, key) {
+    if (q.els[0].files && q.els[0].files.length) return false;   // you chose one already
     const got = await ask({ type: "document", id: value.document.id });
+    // A board can rebuild its form while the file is on its way (attaching the
+    // resume can do it): use the field that is on the page now.
+    const el = q.els[0].isConnected ? q.els[0] : document.getElementById(q.els[0].id);
+    if (!el) throw new Error("the page replaced this field, so attach it yourself");
+    q.els[0] = el;
     const raw = atob(got.data);
     const bytes = new Uint8Array(raw.length);
     for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
@@ -199,10 +214,12 @@
       let done = false;
       if (value && value.kind === "file" && q.type === "file") {
         try {
-          done = await attach(q.els[0], value, key);
+          done = await attach(q, value, key);
         } catch (err) {
           skipped.push(name + ": " + err.message);
         }
+      } else if (key === "cover_letter" && q.type === "file") {
+        skipped.push(name + " (no cover letter is drafted for this job yet)");
       } else if (value) {
         done = apply(q, value);
       }

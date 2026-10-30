@@ -40,6 +40,18 @@ test("a follow-up question is never filled", () => {
   assert.equal(fill.keyForLabel("Location (City) *"), "location");
 });
 
+test("an upload button's name is not its question", () => {
+  for (const label of ["Attach", "attach", "Upload File", "Upload a file", "Choose file", "Browse",
+                       "Enter manually", "Dropbox"]) {
+    assert.equal(fill.isActionLabel(label), true, label);
+  }
+  for (const label of ["Cover Letter", "Portfolio or Cover Letter", "Resume/CV*", "Attachments", ""]) {
+    assert.equal(fill.isActionLabel(label), false, label);
+  }
+  assert.equal(fill.keyForLabel("Portfolio or Cover Letter"), "cover_letter");
+  assert.equal(fill.keyForLabel("Upload your cover letter"), "cover_letter");
+});
+
 test("labels map to keys", () => {
   const cases = {
     "First Name *": "first_name", "Last name": "last_name", "Full name": "full_name",
