@@ -89,6 +89,8 @@ env.globals["degree_flag"] = lambda level: _degree_flag(level)
 # The working country's pack (jsa/countries), for pages that show its
 # currency, units or wording.
 env.globals["country"] = countries.active
+# Miles (how distances are measured) as a whole number in the country's unit.
+env.filters["shown"] = lambda miles: round(countries.shown(miles))
 
 
 def _degree_flag(level: Any) -> tuple[str, str] | None:
@@ -96,14 +98,15 @@ def _degree_flag(level: Any) -> tuple[str, str] | None:
     return degree.flag(level)
 
 
-# How far the slider goes. Below five miles a radius is a postcode, not a
-# commute; above three hundred it is a move, and `jsa.config.parse_radius`
-# says the same thing to a profile.
+# How far the slider goes, in the country's unit (miles or km). Below five a
+# radius is a postcode, not a commute; above three hundred it is a move, and
+# `jsa.config.parse_radius` says the same thing to a profile.
 RADIUS_MIN, RADIUS_MAX = 5, 300
 
 
 def _radius(typed: str, anywhere: str) -> float | None:
-    """Miles, or None for the whole country.
+    """Miles, from a radius typed in the country's unit; None for the whole
+    country.
 
     Empty means nationwide, which is what n18's links and the "Show them
     anyway" link say. A value outside the slider's range is clamped rather
@@ -116,10 +119,10 @@ def _radius(typed: str, anywhere: str) -> float | None:
     if not text:
         return None
     try:
-        miles = float(text)
+        typed = float(text)
     except ValueError:
         return None
-    return min(float(RADIUS_MAX), max(float(RADIUS_MIN), miles))
+    return countries.to_miles(min(float(RADIUS_MAX), max(float(RADIUS_MIN), typed)))
 
 
 def _map_note(view) -> str:
@@ -176,12 +179,12 @@ def _origin(typed: str, profile: dict[str, Any] | None = None):
 
 def _profile_radius(profile: dict[str, Any] | None) -> float:
     """How far the operator said they would go, or the shipped default."""
-    from ..config import DEFAULT_RADIUS_MILES, Preferences
+    from ..config import Preferences, default_radius_miles
 
     try:
         return Preferences.from_profile(profile or {}).radius_miles
     except Exception:  # noqa: BLE001 - a bad profile is not a reason to 500
-        return DEFAULT_RADIUS_MILES
+        return default_radius_miles()
 
 
 # How many cards one employer may take on the Matches page, so a board that

@@ -1224,7 +1224,8 @@ init` copies it to `profile/master_profile.yaml` (and `.env.example` to
 `fallback_weight` (a second tier ranked below the first), `locations`,
 `max_years_experience` and `years_filter` (what a posting asking for more years
 does: `reject` drops it, `rank` keeps it ranked lower, `off` ignores years),
-`exclude_keywords`, `home_location` and `radius_miles` (below), and `regions`
+`exclude_keywords`, `home_location` and `radius` (below; in your country's unit,
+and an older `radius_miles` is still read), and `regions`
 (named groups for the `matches --near` filter; the dashboard uses a radius
 instead), and `country`.
 
@@ -1260,8 +1261,8 @@ for close zooms, and Natural Earth lakes and city names, in three levels of
 detail (8.3 MB in all). Every file is public domain
 and can be rebuilt from its sources with `python tools/build_map_data.py`,
 which prints the count and SHA-256 of each so what ships can be checked rather
-than trusted. A town within `radius_miles`
-(default 40) of `home_location` scores as fully as one you listed by name, so
+than trusted. A town within `radius`
+(default 40 miles in the US) of `home_location` scores as fully as one you listed by name, so
 you do not have to write down every suburb you would commute to. For a
 profile at home in Columbus, Ohio, the nearby town of Delaware scores 1.0 at
 21 miles without appearing in any list.

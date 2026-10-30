@@ -65,6 +65,23 @@ def activate(code: str | None) -> ModuleType:
     return pack
 
 
+def shown(miles: float) -> float:
+    """A distance in miles (how the app measures) in the working country's
+    unit (how a person reads it)."""
+    return miles / active().MILES_PER_UNIT
+
+
+def to_miles(value: float) -> float:
+    """A distance typed in the working country's unit, in miles."""
+    return value * active().MILES_PER_UNIT
+
+
+def unit(n: float = 2) -> str:
+    """"mile" or "miles" (or "km") for a count of `n` of them."""
+    pack = active()
+    return pack.DISTANCE_UNIT if n == 1 else pack.DISTANCE_UNITS
+
+
 @contextmanager
 def using(code: str) -> Iterator[ModuleType]:
     """Work in another country for a block, then put the previous one back."""

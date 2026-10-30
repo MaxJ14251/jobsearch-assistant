@@ -99,7 +99,7 @@ class MapView:
     circle: float = 0.0             # px, 0 when there is no radius
     radius: float = 0.0             # miles, for the circle's own label
     per_mile: float = 0.0           # px per mile, so the page can rescale it
-    scale_miles: int = 0
+    scale_n: int = 0                # the scale bar's length, in the country's unit
     scale_px: float = 0.0
     ground: dict = field(default_factory=dict)   # basemap layer -> path, in miles
     remote: int = 0                 # counted in words, never drawn
@@ -228,8 +228,8 @@ def _bubble_radius(count: int, most: int) -> float:
     return BUBBLE_MIN + share * (BUBBLE_MAX - BUBBLE_MIN)
 
 
-def _nice_miles(span: float) -> int:
-    """A round number of miles, about a quarter of `span`, for the scale bar."""
+def _nice(span: float) -> int:
+    """A round number, about a quarter of `span`, for the scale bar."""
     target = max(1.0, span / 4)
     for step in (1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000):
         if step >= target:
@@ -285,8 +285,8 @@ def local(rows, origin: places.Place, radius: float,
     per_mile = usable / reach
     view.circle = radius * per_mile
     view.per_mile = per_mile
-    view.scale_miles = _nice_miles(reach)
-    view.scale_px = view.scale_miles * per_mile
+    view.scale_n = _nice(countries.shown(reach))
+    view.scale_px = countries.to_miles(view.scale_n) * per_mile
     view.ground = _ground(origin, per_mile, max(width, height) / 2 / per_mile * 1.3)
 
     most = max((g["count"] for g in groups.values()), default=1)
@@ -381,8 +381,8 @@ def national(rows, origin: places.Place | None = None,
     wx, wy = project(west.lat, west.lon)
     ex, ey = project(east.lat, east.lon)
     per_mile = math.hypot(ex - wx, ey - wy) / places.miles(west, east)
-    view.scale_miles = _nice_miles((width - 2 * PAD) / per_mile / 2)
-    view.scale_px = view.scale_miles * per_mile
+    view.scale_n = _nice(countries.shown((width - 2 * PAD) / per_mile / 2))
+    view.scale_px = countries.to_miles(view.scale_n) * per_mile
     return view
 
 

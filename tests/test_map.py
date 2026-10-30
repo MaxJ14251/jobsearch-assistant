@@ -126,7 +126,7 @@ class TestGeometry(unittest.TestCase):
 
     def test_the_scale_bar_is_the_length_it_claims(self):
         view = mapview.local(SPREAD, home(), 50)
-        self.assertAlmostEqual(view.scale_px / view.scale_miles,
+        self.assertAlmostEqual(view.scale_px / view.scale_n,
                                view.circle / 50, places=6)
 
     def test_the_national_scale_bar_is_honest_to_a_few_percent(self):
@@ -142,7 +142,7 @@ class TestGeometry(unittest.TestCase):
         drawn = math.hypot(east.x - west.x, east.y - west.y)
         true_miles = places.miles(places.resolve("San Francisco", "CA"),
                                   places.resolve("New York", "NY"))
-        claimed = drawn / view.scale_px * view.scale_miles
+        claimed = drawn / view.scale_px * view.scale_n
         self.assertLess(abs(claimed - true_miles) / true_miles, 0.05)
 
     def test_a_bubble_counts_every_posting_in_its_town(self):

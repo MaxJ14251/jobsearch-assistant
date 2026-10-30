@@ -111,8 +111,8 @@ def validate(form: dict[str, str]) -> tuple[dict[str, Any], dict[str, str]]:
     """The form's fields through the profile's own parsers. Returns
     (preferences, errors); nothing is written while errors is non-empty."""
     from . import places
-    from .config import (FLOOR_KEY, OLD_FLOOR_KEY, ConfigError, parse_compensation_floor,
-                         parse_radius,
+    from .config import (FLOOR_KEY, OLD_FLOOR_KEY, OLD_RADIUS_KEY, RADIUS_KEY, ConfigError,
+                         parse_compensation_floor, parse_radius,
                          parse_tristate, parse_years_filter)
 
     def lines(name: str) -> list[str]:
@@ -147,7 +147,10 @@ def validate(form: dict[str, str]) -> tuple[dict[str, Any], dict[str, str]]:
         errors["locations"] = "Tick remote, or give a home location or a city."
     radius = (form.get("radius") or "").strip()
     try:
-        prefs["radius_miles"] = int(parse_radius(radius)) if radius else 40
+        if radius:
+            parse_radius(radius, RADIUS_KEY)
+        prefs[RADIUS_KEY] = int(float(radius)) if radius else countries.active().DEFAULT_RADIUS
+        prefs.pop(OLD_RADIUS_KEY, None)
     except ConfigError as exc:
         errors["radius"] = str(exc)
     prefs["work_authorization"] = (form.get("work_authorization") or "").strip() or None

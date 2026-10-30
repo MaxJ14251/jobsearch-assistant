@@ -383,7 +383,8 @@ def check_market(profile: dict[str, Any], con: sqlite3.Connection | None,
             if places.nearest(home, parsed) <= radius:
                 inside += 1
         report.checked.append(
-            f"postings within {radius:.0f} miles of {home} ({inside})")
+            f"postings within {countries.shown(radius):.0f} {countries.unit()} "
+            f"of {home} ({inside})")
         if unplaceable:
             report.add(
                 False,

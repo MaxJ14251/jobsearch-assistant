@@ -11,6 +11,21 @@ from fastapi import Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 
+def _radius_shown(prefs: dict) -> Any:
+    """The radius as the setup form shows it: in the country's unit. A draft
+    still holding `radius_miles` (miles) is converted; neither: the default."""
+    from .. import countries
+    from ..config import OLD_RADIUS_KEY, RADIUS_KEY
+    if prefs.get(RADIUS_KEY) is not None:
+        return prefs[RADIUS_KEY]
+    if prefs.get(OLD_RADIUS_KEY) is not None:
+        try:
+            return round(countries.shown(float(prefs[OLD_RADIUS_KEY])))
+        except (TypeError, ValueError):
+            return prefs[OLD_RADIUS_KEY]
+    return countries.active().DEFAULT_RADIUS
+
+
 def register(app, ctx) -> None:
     """Add this area's routes to `app`; shared helpers come from `ctx`."""
     connect = ctx.connect
@@ -35,7 +50,7 @@ def register(app, ctx) -> None:
         return {
             "target_titles": NL.join(map(str, p.get("target_titles") or [])),
             "fallback_titles": NL.join(map(str, p.get("fallback_titles") or [])),
-            "home": home, "radius": p.get("radius_miles") or 40,
+            "home": home, "radius": _radius_shown(p),
             # Only the country's remote entry ("Remote (US)") is the checkbox;
             # any other "Remote (...)" stays a line of its own, not silently
             # replaced (review R-29).

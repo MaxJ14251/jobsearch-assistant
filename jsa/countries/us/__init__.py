@@ -145,6 +145,17 @@ HOURLY_BOUNDS = (10, 500)
 PAY_LOW = 50_000
 PAY_HIGH = 200_000
 
+# --- distance -------------------------------------------------------------------
+# The app measures in miles everywhere (places, scoring, the map, the
+# basemap). A pack decides only the unit a person types and reads: the
+# profile's `radius`, the slider, "12 miles away".
+DISTANCE_UNIT = "mile"
+DISTANCE_UNITS = "miles"
+DISTANCE_SHORT = "mi"
+MILES_PER_UNIT = 1.0
+# The radius when a profile sets none, in this pack's unit.
+DEFAULT_RADIUS = 40
+
 # --- resumes and letters --------------------------------------------------------
 # Paper: "letter" (8.5 x 11 in, python-docx's own default, so nothing is
 # set) or "a4" (set on every section).

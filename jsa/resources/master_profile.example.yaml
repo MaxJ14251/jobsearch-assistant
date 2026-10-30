@@ -138,10 +138,12 @@ job_search_preferences:
   # to write down every suburb you would commute to.
   #
   # Both lines are OPTIONAL. Unset, the radius is 40 miles and the origin is
-  # the first real place in `locations` above. Set them to be explicit:
+  # the first real place in `locations` above. Set them to be explicit. The
+  # radius is in your country's unit (miles in the US, km in Canada); an
+  # older profile's `radius_miles` is still read, always in miles.
   #
   #   home_location: "12345"        # a ZIP, or "Your City, ST"
-  #   radius_miles: 40
+  #   radius: 40
 
   # Named commute regions for `matches --near <name>`. Each is a list of
   # substrings matched against a listing's location text. Define whatever

@@ -30,7 +30,7 @@
     <label for="s-home">Home: a {{ country().POSTAL_NAME }} or "{{ country().PLACE_FORM }}"
       <input type="text" name="home" id="s-home" value="{{ f.home }}" maxlength="80">
       {% if errors.home %}<span class="err">{{ errors.home }}</span>{% endif %}</label>
-    <label for="s-radius">How far you'd commute, in miles
+    <label for="s-radius">How far you'd commute, in {{ country().DISTANCE_UNITS }}
       <input type="number" name="radius" id="s-radius" value="{{ f.radius }}" min="1" max="500">
       {% if errors.radius %}<span class="err">{{ errors.radius }}</span>{% endif %}</label>
   </div>

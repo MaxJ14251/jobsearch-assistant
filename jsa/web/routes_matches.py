@@ -9,6 +9,7 @@ from urllib.parse import urlencode
 from fastapi import Request
 from fastapi.responses import HTMLResponse
 
+from .. import countries
 from . import (
     MAX_PICKED,
     NOT_TAKEN,
@@ -114,7 +115,7 @@ def register(app, ctx) -> None:
             pts, remote_n, unplaced_n = mapview.points(
                 drawn + [{**r, "status": r["status"]} for r in mine], origin)
             from .. import basemap
-            live = {"radius": wanted, "min": RADIUS_MIN, "max": RADIUS_MAX,
+            live = {"radius": round(countries.shown(wanted), 6), "min": RADIUS_MIN, "max": RADIUS_MAX,
                     "home": str(origin), "points": pts,
                     # Radians the usual map of the US is turned at home;
                     # the page turns by this much when zoomed out.
@@ -144,8 +145,8 @@ def register(app, ctx) -> None:
                       degree=degree, remote=remote,
                       home=str(origin) if (origin and wanted) else "",
                       home_text=home_text, home_problem=home_problem,
-                      radius="%g" % wanted if wanted else "",
-                      profile_radius="%g" % prefs_radius,
+                      radius="%g" % countries.shown(wanted) if wanted else "",
+                      profile_radius="%g" % countries.shown(prefs_radius),
                       radius_min=RADIUS_MIN, radius_max=RADIUS_MAX,
                       map=view, map_note=_map_note(view),
                       hidden=hidden, near_count=near_count, unplaced=unplaced,

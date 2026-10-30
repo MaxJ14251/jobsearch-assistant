@@ -13,7 +13,7 @@
 <div id="summary">
 <p class="sub">{{ total }} unreviewed · showing {{ rows|length - mine }}
   {%- if mine %} and {{ mine }} of your applications{% endif %}
-  {%- if home %} · within {{ radius }} miles of {{ home }}:
+  {%- if home %} · within {{ radius }} {{ country().DISTANCE_UNITS }} of {{ home }}:
     {{ near_count }} near you, {{ rows|length - near_count }} remote{% endif %}
   {%- if capped %} · {{ capped }} more hidden: at most 3 per company{% endif %}</p>
 {% if home_problem %}<p class="note bad" role="alert">{{ home_problem }}</p>{% endif %}
@@ -31,7 +31,7 @@
     <input type="range" name="radius" id="f-radius" class="miles"
            min="{{ radius_min }}" max="{{ radius_max }}" step="5"
            value="{{ radius or profile_radius }}" aria-label="How far you would go">
-    <output for="f-radius" id="f-radius-out">{{ radius or profile_radius }} miles</output>
+    <output for="f-radius" id="f-radius-out">{{ radius or profile_radius }} {{ country().DISTANCE_UNITS }}</output>
   </label>
   <label class="pair-in" for="f-home">of
     <input type="search" name="home" id="f-home" value="{{ home_text }}"
@@ -67,14 +67,14 @@
       data-per-mile="{{ '%.6f'|format(map.per_mile) }}"/>{% endif %}
     {% for b in map.bubbles %}<a href="/job/{{ b.job_id }}"><circle
       class="dot {{ 'in' if b.inside else 'out' }}" cx="{{ '%.1f'|format(b.x) }}"
-      cy="{{ '%.1f'|format(b.y) }}" r="{{ '%.1f'|format(b.r) }}"><title>{{ b.place }}: {{ b.count|plural('posting') }}{% if b.miles is not none %}, {{ b.miles }} miles away{% endif %}</title></circle></a>
+      cy="{{ '%.1f'|format(b.y) }}" r="{{ '%.1f'|format(b.r) }}"><title>{{ b.place }}: {{ b.count|plural('posting') }}{% if b.miles is not none %}, {{ b.miles|shown }} {{ country().DISTANCE_UNITS }} away{% endif %}</title></circle></a>
     {% endfor %}
     {% if map.home %}<circle class="home" cx="{{ '%.1f'|format(map.home[0]) }}"
       cy="{{ '%.1f'|format(map.home[1]) }}" r="4"><title>{{ map.home_name }}</title></circle>{% endif %}
     {% for l in map.labels %}<text class="town" x="{{ '%.1f'|format(l.x) }}"
       y="{{ '%.1f'|format(l.y) }}">{{ l.text }}</text>{% endfor %}
     <rect class="bar" x="16" y="{{ map.height - 22 }}" width="{{ '%.1f'|format(map.scale_px) }}" height="3"/>
-    <text class="town left" x="16" y="{{ map.height - 28 }}">{{ map.scale_miles }} miles</text>
+    <text class="town left" x="16" y="{{ map.height - 28 }}">{{ map.scale_n }} {{ country().DISTANCE_UNITS }}</text>
   </svg>
   <figcaption id="map-note">{{ map_note }}
     {%- if map.kind == 'local' and map.off_map %}
@@ -163,6 +163,9 @@
   var shown = form.querySelector('#f-radius-out');
   var anywhere = form.querySelector('#f-anywhere');
   var dataEl = document.getElementById('map-data');
+  /* The slider and every label are in the country's unit; distances,
+     the map and the ground are measured in miles. U converts. */
+  var U = {{ country().MILES_PER_UNIT }};
 
   if (!dataEl) {
     /* No home, or "anywhere": the server's map, with its circle resized
@@ -170,9 +173,9 @@
     var ring = document.getElementById('ring');
     var perMile = ring ? parseFloat(ring.getAttribute('data-per-mile')) : 0;
     var paint = function () {
-      shown.textContent = slider.value + ' miles';
+      shown.textContent = slider.value + ' {{ country().DISTANCE_UNITS }}';
       slider.disabled = anywhere.checked;
-      if (ring && perMile) { ring.setAttribute('r', (slider.value * perMile).toFixed(1)); }
+      if (ring && perMile) { ring.setAttribute('r', (slider.value * U * perMile).toFixed(1)); }
     };
     slider.addEventListener('input', paint);
     slider.addEventListener('change', function () { anywhere.checked = false; form.submit(); });
@@ -219,7 +222,7 @@
     var h = Math.floor(x / 60), r = Math.round(x % 60);
     return r ? h + ' h ' + r + ' min' : h + ' h';
   }
-  function fmtMiles(r) { return (r % 1 ? r.toFixed(1) : String(r)) + ' mi'; }
+  function fmtMiles(r) { return (r % 1 ? r.toFixed(1) : String(r)) + ' {{ country().DISTANCE_SHORT }}'; }
   function money(n) { return '{{ country().CURRENCY_SYMBOL }}' + Math.round(n / 1000) + 'k'; }
   function median(xs) {
     if (!xs.length) { return null; }
@@ -297,7 +300,7 @@
   var ctl = node('div', {'class': 'mapctl'}, box);
   [['+', 'Zoom in', function () { zoomBy(1.6); }],
    ['−', 'Zoom out', function () { zoomBy(1 / 1.6); }],
-   ['⤢', 'Fit the circle', function () { fly(fitView(R)); }],
+   ['⤢', 'Fit the circle', function () { fly(fitView(R * U)); }],
    ['⌖', 'Back to home', function () { fly(centerOn(0, 0, view.s)); }]
   ].forEach(function (b) {
     var btn = node('button', {type: 'button', title: b[1], 'aria-label': b[1]}, ctl);
@@ -728,13 +731,13 @@
     northEl.hidden = Math.abs(turn) < 0.01;
     northEl.style.transform = 'rotate(' + (-turn * 180 / Math.PI).toFixed(2) + 'deg)';
 
-    clipC.setAttribute('r', R);
-    fenceFill.setAttribute('r', R);
+    clipC.setAttribute('r', R * U);
+    fenceFill.setAttribute('r', R * U);
     fenceStops.forEach(function (st) { st.style.stopColor = color; });
     fenceFill.style.fill = 'url(#fence-grad)';
     fenceFill.style.fillOpacity = state.fill / 100;
-    fenceHalo.setAttribute('r', R);
-    fenceLine.setAttribute('r', R);
+    fenceHalo.setAttribute('r', R * U);
+    fenceLine.setAttribute('r', R * U);
     fenceLine.style.stroke = color;
 
     clear(bandsG);
@@ -754,7 +757,7 @@
       if (!state.on[p.status]) { return; }
       var q = apply(M, p.x, p.y), x = q[0], y = q[1];
       if (x < -30 || y < -30 || x > w + 30 || y > h + 30) { return; }
-      pts.push({p: p, x: x, y: y, inside: p.d <= R});
+      pts.push({p: p, x: x, y: y, inside: p.d <= R * U});
     });
     clear(marksG); clear(labelsG); clear(overG);
     var clusters = cluster(pts, 26);
@@ -812,7 +815,7 @@
 
     var lastY = Infinity;
     rings.forEach(function (b) {
-      if (b.r >= R * 0.97 || b.r * S < 16) { return; }
+      if (b.r >= R * U * 0.97 || b.r * S < 16) { return; }
       var x = H[0], y = H[1] - b.r * S;
       if (y < 0 || y > h || lastY - y < 20) { return; }
       lastY = y;
@@ -831,13 +834,13 @@
     });
 
     lastH = H;
-    var ex = H[0] + R * S, ey = H[1];
+    var ex = H[0] + R * U * S, ey = H[1];
     handleG.style.display = ex > 0 && ex < w && ey > 0 && ey < h ? '' : 'none';
     handleG.setAttribute('transform', 'translate(' + ex.toFixed(1) + ' ' + ey.toFixed(1) + ')');
     handleG.setAttribute('aria-valuemin', slider.min);
     handleG.setAttribute('aria-valuemax', slider.max);
     handleG.setAttribute('aria-valuenow', R);
-    handleG.setAttribute('aria-valuetext', R + ' miles');
+    handleG.setAttribute('aria-valuetext', R + ' {{ country().DISTANCE_UNITS }}');
     hKnob.style.stroke = color;
     hText.textContent = fmtMiles(R);
     var pw = hText.getComputedTextLength() + 20;
@@ -853,10 +856,10 @@
     var ht = sv('text', {x: 12, y: -10, 'class': 'town left'}, home);
     ht.style.fontWeight = '600'; ht.textContent = 'Home';
 
-    var scaleMi = [0.5, 1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500].filter(function (m) { return m * S <= 130; }).pop() || 0.5;
+    var scaleMi = [0.5, 1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500].filter(function (m) { return m * U * S <= 130; }).pop() || 0.5;
     clear(foot);
-    text(foot, 'div', scaleMi + ' mi');
-    node('div', {'class': 'sb', style: 'width:' + (scaleMi * S).toFixed(1) + 'px'}, foot);
+    text(foot, 'div', scaleMi + ' {{ country().DISTANCE_SHORT }}');
+    node('div', {'class': 'sb', style: 'width:' + (scaleMi * U * S).toFixed(1) + 'px'}, foot);
   }
 
   function drawCluster(c, inFeed) {
@@ -868,7 +871,7 @@
     g.style.filter = 'var(--mk-shadow)';
     if (n === 1) {
       var p = c.m[0].p;
-      g.setAttribute('aria-label', titleOf(p) + ', ' + p.d.toFixed(1) + ' miles');
+      g.setAttribute('aria-label', titleOf(p) + ', ' + (p.d / U).toFixed(1) + ' {{ country().DISTANCE_UNITS }}');
       sv('circle', {r: 12}, g).style.fill = 'transparent';
       var big = p.key === state.sel || p.key === state.hov;
       var dot = sv('circle', {r: big ? 9.5 : 7.5}, g);
@@ -913,7 +916,7 @@
     if (c.m.length === 1) {
       var p = c.m[0].p;
       text(tip, 'b', titleOf(p));
-      text(tip, 'span', p.place + ' · ' + p.d.toFixed(1) + ' mi · ~' + fmtMin(minutes(p.d)) + ' ' + MODES[state.mode].noun + ' (est.)');
+      text(tip, 'span', p.place + ' · ' + (p.d / U).toFixed(1) + ' {{ country().DISTANCE_SHORT }} · ~' + fmtMin(minutes(p.d)) + ' ' + MODES[state.mode].noun + ' (est.)');
       var where = !c.inside ? 'Outside the circle. Click to open it.'
         : inFeed[p.key] ? 'In the list. Click to find it.'
         : 'Inside, but not in the list (three per company). Click to open it.';
@@ -969,9 +972,10 @@
 
   /* The radius handle moves the slider, so the list, the counts and the
      address bar follow exactly as they do for the slider itself. */
-  function setRadius(mi) {
+  function setRadius(r) {
+    /* r is in the slider's unit. */
     var lo = +slider.min, hi = +slider.max, st = +slider.step || 1;
-    var v = Math.min(hi, Math.max(lo, Math.round(mi / st) * st));
+    var v = Math.min(hi, Math.max(lo, Math.round(r / st) * st));
     if (v === R) { return; }
     slider.value = v;
     slider.dispatchEvent(new Event('input'));
@@ -986,7 +990,7 @@
   handleG.addEventListener('pointermove', function (e) {
     if (!rdrag) { return; }
     var b = svg.getBoundingClientRect();
-    setRadius(Math.hypot(e.clientX - b.left - lastH[0], e.clientY - b.top - lastH[1]) / view.s);
+    setRadius(Math.hypot(e.clientX - b.left - lastH[0], e.clientY - b.top - lastH[1]) / view.s / U);
   });
   function endRadius() {
     if (!rdrag) { return; }
@@ -1032,7 +1036,7 @@
   function counter() {
     var by = {interview: 0, applied: 0, saved: 0, 'new': 0}, n = 0, mins = [];
     live.points.forEach(function (p) {
-      if (state.on[p.status] && p.d <= R) { n++; by[p.status]++; mins.push(minutes(p.d)); }
+      if (state.on[p.status] && p.d <= R * U) { n++; by[p.status]++; mins.push(minutes(p.d)); }
     });
     document.getElementById('rp-count').textContent = n;
     document.getElementById('rp-of').textContent = ' postings within ' + fmtMiles(R) +
@@ -1283,13 +1287,13 @@
   }
   slider.addEventListener('input', function () {
     R = +slider.value;
-    shown.textContent = slider.value + ' miles';
+    shown.textContent = slider.value + ' {{ country().DISTANCE_UNITS }}';
     counter(); redraw(); requery(250);
   });
   slider.addEventListener('change', function () {
     requery(0);
     var z = size();
-    if (R * view.s > Math.min(z.w - panelWidth(), z.h) / 2) { fly(fitView(R)); }
+    if (R * U * view.s > Math.min(z.w - panelWidth(), z.h) / 2) { fly(fitView(R * U)); }
   });
   anywhere.addEventListener('change', function () { form.submit(); });
 
@@ -1300,9 +1304,9 @@
     note.textContent = live.points.length + (live.points.length === 1 ? ' posting' : ' postings') + ' on the map' +
       (live.remote ? '; ' + live.remote + ' remote, with no distance to draw' : '') +
       (live.unplaced ? '; ' + live.unplaced + ' naming a place this could not find' : '') +
-      '. Drag to pan, scroll to zoom. Distances are straight-line miles from ' + live.home + '.';
+      '. Drag to pan, scroll to zoom. Distances are straight-line {{ country().DISTANCE_UNITS }} from ' + live.home + '.';
   }
-  view = fitView(R);
+  view = fitView(R * U);
   bindFeed();
   refresh();
 })();

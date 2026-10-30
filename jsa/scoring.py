@@ -332,11 +332,13 @@ def names_a_state(location: str) -> bool:
 # whether the drive is worth it. Nothing here ever returns 0 for distance
 # alone -- that is reserved for the hard rejects above.
 def distance_score(miles: float, radius: float) -> tuple[float, str]:
-    near = f"{miles:.0f} mile{'s' if round(miles) != 1 else ''} away"
+    # Measured in miles; said in the working country's unit.
+    away, ring = countries.shown(miles), countries.shown(radius)
+    near = f"{away:.0f} {countries.unit(round(away))} away"
     if miles <= radius:
-        return 1.0, f"{near}, inside your {radius:.0f}-mile radius"
+        return 1.0, f"{near}, inside your {ring:.0f}-{countries.unit(1)} radius"
     if miles <= radius * 2:
-        return 0.65, f"{near}, just outside your {radius:.0f}-mile radius"
+        return 0.65, f"{near}, just outside your {ring:.0f}-{countries.unit(1)} radius"
     return 0.35, f"{near}"
 
 

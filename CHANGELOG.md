@@ -17,6 +17,9 @@ version number lives in one place, `jsa/__init__.py`.
   `compensation_floor_usd` still works; setting both is an error.
 - The resume import removes every country's contact formats, not only the
   working country's.
+- **The radius is `radius`, in your country's unit** (miles in the US; a
+  country pack can use km). `radius_miles` still works and is always miles;
+  setting both is an error. Distances are still measured in miles inside.
 
 ## [0.3.0] - 2026-10-26
 

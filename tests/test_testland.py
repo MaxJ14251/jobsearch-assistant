@@ -106,6 +106,50 @@ class TestPay(InTestland):
         self.assertIn("about T$58,500/yr", scoring.pay_score(hourly)[1])
 
 
+class TestKilometres(InTestland):
+    """Testland reads distances in km; the app still measures in miles."""
+
+    def test_the_radius_is_typed_in_km_and_kept_in_miles(self):
+        from jsa.config import ConfigError, Preferences
+        prefs = Preferences.from_profile(profile(radius=100))
+        self.assertAlmostEqual(prefs.radius_miles, 62.1371, places=3)
+        old = Preferences.from_profile(profile(radius_miles=40))
+        self.assertEqual(old.radius_miles, 40)                  # still miles
+        unset = Preferences.from_profile(profile())
+        self.assertAlmostEqual(countries.shown(unset.radius_miles), 60)
+        with self.assertRaisesRegex(ConfigError, "both radius and radius_miles"):
+            Preferences.from_profile(profile(radius=100, radius_miles=40))
+        with self.assertRaisesRegex(ConfigError, "number of km"):
+            Preferences.from_profile(profile(radius="far"))
+
+    def test_reasons_say_km(self):
+        from jsa import scoring
+        self.assertEqual(scoring.distance_score(31.0686, 37.2823)[1],
+                         "50 km away, inside your 60-km radius")
+        self.assertEqual(scoring.distance_score(0.62, 37.2823)[1],
+                         "1 km away, inside your 60-km radius")
+
+    def test_setup_writes_radius_in_km(self):
+        from jsa import setup
+        prefs, errors = setup.validate({"target_titles": "Support Engineer", "remote": "1",
+                                        "radius": "80"})
+        self.assertEqual(errors, {})
+        self.assertEqual(prefs["radius"], 80)
+        self.assertNotIn("radius_miles", prefs)
+        prefs, _ = setup.validate({"target_titles": "Support Engineer", "remote": "1"})
+        self.assertEqual(prefs["radius"], 60)
+
+    def test_the_dashboard_slider_is_in_km(self):
+        from jsa import web
+        self.assertAlmostEqual(web._radius("100", ""), 62.1371, places=3)
+        self.assertAlmostEqual(web._radius("9000", ""), countries.to_miles(web.RADIUS_MAX))
+        self.assertEqual(web.env.filters["shown"](31.0686), 50)
+
+    def test_the_scale_bar_is_a_round_number_of_km(self):
+        from jsa import mapview
+        self.assertEqual(mapview._nice(countries.shown(100)), 50)
+
+
 class TestSetupAndForms(InTestland):
     def test_setup_writes_testlands_remote_entry_and_wording(self):
         from jsa import setup
@@ -183,6 +227,13 @@ class TestTheUSComesBack(InTestland):
         from jsa import salary
         self.assertEqual(salary.extract("Salary range: $90,000 - $120,000 per year.").currency,
                          "USD")
+        from jsa import scoring
+        from jsa.config import Preferences
+        us_profile = {"job_search_preferences": {"target_titles": ["x"],
+                                                 "locations": ["Austin, TX"], "radius": 25}}
+        self.assertEqual(Preferences.from_profile(us_profile).radius_miles, 25)
+        self.assertEqual(scoring.distance_score(12, 25)[1],
+                         "12 miles away, inside your 25-mile radius")
 
 
 if __name__ == "__main__":

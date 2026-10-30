@@ -65,6 +65,7 @@ without changing anything for the existing US user.
 | Places | `PLACE_ALIASES`, `FIRST_WORD`, `COUNTRY_NOISE`, `POSTAL_CODE`, `POSTAL_COLUMN`, `postal_key()`, `POSTAL_NAME` "ZIP", `POSTAL_EXAMPLE`, `PLACE_FORM` "City, ST" |
 | Scoring | `HOME_SIGNAL`, `ABROAD`, `REGION_WORDS`, `TITLE_REGION_SUFFIX` |
 | Pay | `CURRENCY` "USD", `CURRENCY_SYMBOL` "$", `HOURS_PER_YEAR` 2080, `ANNUAL_BOUNDS`, `HOURLY_BOUNDS`, `PAY_LOW`, `PAY_HIGH` |
+| Distance | `DISTANCE_UNIT` "mile", `DISTANCE_UNITS` "miles", `DISTANCE_SHORT` "mi", `MILES_PER_UNIT` 1.0, `DEFAULT_RADIUS` 40 |
 | Forms | `REMOTE_LABEL` "Remote (US)", `AUTH_QUESTION`, `AUTH_EXAMPLE`, `AUTHORIZED_KEY` |
 | Privacy | `CONTACT_PHONE`, `CONTACT_POSTAL`, `CONTACT_CITY_REGION`, `CONTACT_STREET`, `CONTACT_SAMPLE` |
 | Sources | `SOURCE_KINDS`, `SEED_COMPANIES` |
@@ -103,6 +104,10 @@ without changing anything for the existing US user.
 - Nothing changed for a US profile; an existing profile needs no edit.
 - Not yet moved, and to be done with the first real country: the map's pay
   bands in `matches.html` ("under 60k"…) are US-sized; the extension's
-  field matching is English and says "state"; distances are in miles.
+  field matching is English and says "state". Distances moved on
+  2026-10-30 (Canada plan, phase 2): the app still measures in miles, and a
+  pack's `DISTANCE_UNIT(S)`, `DISTANCE_SHORT`, `MILES_PER_UNIT` and
+  `DEFAULT_RADIUS` decide what a person types and reads; the profile key is
+  `radius`, with `radius_miles` still read (always miles).
 - The live map's nationwide view needs a pack's outline; until one is
   built, a country without one shows the local map only.

@@ -9,6 +9,8 @@ from typing import Any
 
 import yaml
 
+from . import countries
+
 ROOT = Path(__file__).resolve().parent.parent   # a clone, or site-packages
 # What ships with the code, read-only: the schema, the map data, the seed
 # companies list, the example profile and .env template (plan 27).
@@ -248,24 +250,47 @@ def parse_tristate(value: Any, name: str) -> bool | None:
 
 
 # Far enough to include the next city over, close enough that "near me" still
-# means something. Overridden per profile with radius_miles.
+# means something. Overridden per profile with `radius`, in the country's own
+# unit (the pack's DEFAULT_RADIUS is the default there); `radius_miles`, the
+# key from before kilometres, is still read and is always miles.
 DEFAULT_RADIUS_MILES = 40.0
+RADIUS_KEY = "radius"
+OLD_RADIUS_KEY = "radius_miles"
 
 
-def parse_radius(value: Any) -> float:
+def default_radius_miles() -> float:
+    return countries.to_miles(countries.active().DEFAULT_RADIUS)
+
+
+def radius_setting(prefs: dict[str, Any]) -> tuple[Any, str]:
+    """(the radius as written, the key it is under), as floor_setting."""
+    new, old = prefs.get(RADIUS_KEY), prefs.get(OLD_RADIUS_KEY)
+    if new is not None and old is not None:
+        raise ConfigError(
+            f"master_profile.yaml: both {RADIUS_KEY} and {OLD_RADIUS_KEY} are set. "
+            f"Keep {RADIUS_KEY} (in {countries.unit()}) and delete {OLD_RADIUS_KEY}.")
+    if new is not None:
+        return new, RADIUS_KEY
+    return old, OLD_RADIUS_KEY
+
+
+def parse_radius(value: Any, key: str = OLD_RADIUS_KEY) -> float:
+    """Miles, from a radius written under `key`: `radius_miles` is miles,
+    `radius` is the working country's unit."""
     if value is None or value == "":
-        return DEFAULT_RADIUS_MILES
+        return default_radius_miles()
+    word = "miles" if key == OLD_RADIUS_KEY else countries.unit()
     try:
-        miles = float(value)
+        typed = float(value)
     except (TypeError, ValueError):
         raise ConfigError(
-            f"master_profile.yaml: job_search_preferences.radius_miles is "
-            f"{value!r}. Give a number of miles, e.g. 40.") from None
-    if not 1 <= miles <= 3000:
+            f"master_profile.yaml: job_search_preferences.{key} is "
+            f"{value!r}. Give a number of {word}, e.g. 40.") from None
+    if not 1 <= typed <= 3000:
         raise ConfigError(
-            f"radius_miles is {miles:g}. Use 1 to 3000 miles -- for the whole "
+            f"{key} is {typed:g}. Use 1 to 3000 {word} -- for the whole "
             f"country, there is no radius to set: leave locations remote-only.")
-    return miles
+    return typed if key == OLD_RADIUS_KEY else countries.to_miles(typed)
 
 
 YEARS_FILTERS = ("reject", "rank", "off")
@@ -377,7 +402,7 @@ class Preferences:
             max_years_experience=int(prefs.get("max_years_experience") or 3),
             years_filter=parse_years_filter(prefs.get("years_filter")),
             home_location=str(prefs.get("home_location") or "").strip(),
-            radius_miles=parse_radius(prefs.get("radius_miles")),
+            radius_miles=parse_radius(*radius_setting(prefs)),
             regions={k: list(v) for k, v in (prefs.get("regions") or {}).items()},
             compensation_floor=parse_compensation_floor(
                 floor, prefs.get("regions") or {}, floor_key),
