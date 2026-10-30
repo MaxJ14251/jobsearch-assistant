@@ -21,7 +21,7 @@ from typing import Any
 
 import yaml
 
-from . import config
+from . import config, countries
 from .resume_import import DRAFT_NAME, _q
 
 PREFS = "job_search_preferences"
@@ -124,7 +124,8 @@ def validate(form: dict[str, str]) -> tuple[dict[str, Any], dict[str, str]]:
     if not prefs["target_titles"]:
         errors["target_titles"] = "Name at least one job title you want."
     prefs["fallback_titles"] = lines("fallback_titles")
-    locations = (["Remote (US)"] if form.get("remote") else []) + lines("locations")
+    remote = countries.active().REMOTE_LABEL
+    locations = ([remote] if form.get("remote") else []) + lines("locations")
     home = (form.get("home") or "").strip()
     if home:
         if places.origin(home) is None:

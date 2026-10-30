@@ -34,11 +34,11 @@
       <input type="number" name="radius" id="s-radius" value="{{ f.radius }}" min="1" max="500">
       {% if errors.radius %}<span class="err">{{ errors.radius }}</span>{% endif %}</label>
   </div>
-  <label class="check" for="s-remote"><input type="checkbox" name="remote" id="s-remote" value="1" {{ 'checked' if f.remote }}> Remote jobs in the US are fine</label>
+  <label class="check" for="s-remote"><input type="checkbox" name="remote" id="s-remote" value="1" {{ 'checked' if f.remote }}> Remote jobs in {{ country().IN_TEXT }} are fine</label>
   <label for="s-locs">Other cities you'd work in, one per line ("City, ST")
     <textarea name="locations" id="s-locs" rows="2" maxlength="2000">{{ f.locations }}</textarea>
     {% if errors.locations %}<span class="err">{{ errors.locations }}</span>{% endif %}</label>
-  <label for="s-auth">How you can work in the US, in your words (e.g. "US citizen")
+  <label for="s-auth">How you can work in {{ country().IN_TEXT }}, in your words (e.g. "{{ country().AUTH_EXAMPLE }}")
     <input type="text" name="work_authorization" id="s-auth" value="{{ f.work_authorization }}" maxlength="200"></label>
   <div class="two">
     {% for name, text in (("needs_visa_sponsorship", "Need visa sponsorship?"), ("willing_to_relocate", "Willing to relocate?")) %}

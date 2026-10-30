@@ -297,7 +297,7 @@ document.querySelectorAll('button.copy').forEach(function (b) {
 <form class="stack" method="post" action="/job/{{ job.id }}/fill" onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Saving…'">
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <label for="fill-location">Where the job is, as the posting says it (the stub's is often wrong)
-    <input type="text" name="location" id="fill-location" value="{{ job.location or '' }}" placeholder="Austin, TX, or Remote (US)"></label>
+    <input type="text" name="location" id="fill-location" value="{{ job.location or '' }}" placeholder="Austin, TX, or {{ country().REMOTE_LABEL }}"></label>
   <label for="fill-text">Paste the full posting from the link above, requirements included
     <textarea name="text" id="fill-text" required minlength="{{ min_chars }}" maxlength="{{ max_chars }}"></textarea></label>
   <button type="submit">Use this text for this job</button>

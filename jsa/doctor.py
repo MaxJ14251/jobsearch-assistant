@@ -24,6 +24,7 @@ from typing import Any
 
 import yaml
 
+from . import countries
 from .config import (COMPANIES_PATH, ENV_PATH, EXAMPLE_PROFILE, PROFILE_PATH,
                      running_from_clone)
 from .words import plural
@@ -131,10 +132,11 @@ def check_identity(profile: dict[str, Any], report: Report) -> None:
 
 def check_preferences(profile: dict[str, Any], report: Report) -> None:
     prefs = profile.get("job_search_preferences") or {}
+    pack = countries.active()
 
     if not (prefs.get("work_authorization") or "").strip():
         report.add(True, "work_authorization is unanswered",
-                   "Write how you can work in the US, e.g. 'US citizen'. "
+                   f"Write how you can work in {pack.IN_TEXT}, e.g. '{pack.AUTH_EXAMPLE}'. "
                    "Drafting a document refuses until this is answered.",
                    "profile/master_profile.yaml")
     from .config import floor_setting
@@ -157,7 +159,7 @@ def check_preferences(profile: dict[str, Any], report: Report) -> None:
     unedited = [p for p in places if _is_placeholder(p)]
     if not places:
         report.add(True, "No locations",
-                   "List where you would work, and 'Remote (US)' if remote "
+                   f"List where you would work, and '{pack.REMOTE_LABEL}' if remote "
                    "suits you.", "profile/master_profile.yaml")
     elif len(unedited) == len(places):
         report.add(True, "Your locations are still the example's placeholders",

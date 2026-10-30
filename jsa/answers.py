@@ -86,7 +86,8 @@ def fact_answers(profile: dict[str, Any], job: dict[str, Any]) -> list[Answer]:
     prefs = profile.get("job_search_preferences") or {}
     out = []
     auth = " ".join(str(prefs.get("work_authorization") or "").split())
-    out.append(Answer("work_authorization", "Are you authorized to work in the US?",
+    from . import countries
+    out.append(Answer("work_authorization", countries.active().AUTH_QUESTION,
                       auth or "Not decided in your profile: set "
                               "job_search_preferences.work_authorization",
                       "profile" if auth else "undecided"))

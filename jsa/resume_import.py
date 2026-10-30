@@ -666,7 +666,7 @@ def render_draft(ident: Identity, v: Verified, source: str) -> str:
     w(f"  seniority: [\"intern\", \"entry\", \"junior\", \"associate\", \"mid\"]{SUGGESTED}")
     w(f"  work_arrangement: [\"remote\", \"hybrid\", \"onsite\"]{SUGGESTED}")
     w("  locations:")
-    w(f"    - \"Remote (US)\"{SUGGESTED}")
+    w(f"    - {_q(countries.active().REMOTE_LABEL)}{SUGGESTED}")
     if ident.city and ident.state:
         w(f"    - {_q(f'{ident.city}, {ident.state}')}{SUGGESTED}")
     w("  compensation_floor: null  # TODO no_floor | a number (see the example file)")

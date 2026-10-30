@@ -15,7 +15,7 @@ from typing import Any
 from fastapi import Form
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
-from .. import approvals, review
+from .. import approvals, countries, review
 from . import APPLY_BY_HAND_STAGES, DOCX_TYPE
 
 # The written answers a form may ask for, in the profile's own words or a
@@ -190,8 +190,11 @@ def register(app, ctx) -> None:
             else:
                 left_out.append({"key": a.key, "note": a.body})
         prefs = prof.get("job_search_preferences") or {}
-        if isinstance(prefs.get("authorized_to_work_us"), bool):
-            facts["authorized_to_work_us"] = "Yes" if prefs["authorized_to_work_us"] else "No"
+        # The profile key is the country's; "authorized_to_work_us" is also the
+        # name the extension (fill.js) reads the answer by.
+        key = countries.active().AUTHORIZED_KEY
+        if isinstance(prefs.get(key), bool):
+            facts["authorized_to_work_us"] = "Yes" if prefs[key] else "No"
         warnings = list(docs["warnings"])
         thin = posting.thin(job.get("description"), job_id)
         if thin:

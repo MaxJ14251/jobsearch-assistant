@@ -24,20 +24,23 @@ def register(app, ctx) -> None:
         p = (draft or {}).get("job_search_preferences") or {}
         locs = [str(x) for x in p.get("locations") or []]
         home = str(p.get("home_location") or "")
+        from .. import countries
         from ..config import ConfigError, floor_setting
         try:
             floor = floor_setting(p)[0]
         except ConfigError:
             floor = None
         tri = {True: "yes", False: "no"}
+        remote = countries.active().REMOTE_LABEL
         return {
             "target_titles": NL.join(map(str, p.get("target_titles") or [])),
             "fallback_titles": NL.join(map(str, p.get("fallback_titles") or [])),
             "home": home, "radius": p.get("radius_miles") or 40,
-            # Only "Remote (US)" is the checkbox; any other "Remote (...)"
-            # stays a line of its own, not silently replaced (review R-29).
-            "remote": "Remote (US)" in locs,
-            "locations": NL.join(x for x in locs if x != "Remote (US)" and x != home),
+            # Only the country's remote entry ("Remote (US)") is the checkbox;
+            # any other "Remote (...)" stays a line of its own, not silently
+            # replaced (review R-29).
+            "remote": remote in locs,
+            "locations": NL.join(x for x in locs if x != remote and x != home),
             "work_authorization": p.get("work_authorization") or "",
             "needs_visa_sponsorship": tri.get(p.get("needs_visa_sponsorship"), ""),
             "willing_to_relocate": tri.get(p.get("willing_to_relocate"), ""),

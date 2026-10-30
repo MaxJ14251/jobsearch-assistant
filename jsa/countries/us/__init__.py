@@ -140,6 +140,17 @@ HOURLY_BOUNDS = (10, 500)
 PAY_LOW = 50_000
 PAY_HIGH = 200_000
 
+# --- forms --------------------------------------------------------------------
+# The locations entry that means "remote, in this country": setup's checkbox
+# writes it, and scoring treats any "remote" entry as accepting remote roles.
+REMOTE_LABEL = "Remote (US)"
+# The work-authorization question forms ask, and an example answer.
+AUTH_QUESTION = "Are you authorized to work in the US?"
+AUTH_EXAMPLE = "US citizen"
+# The profile's optional yes/no for that question (the extension reads it;
+# it is never inferred from the free-text work_authorization).
+AUTHORIZED_KEY = "authorized_to_work_us"
+
 # --- contact details on a resume ----------------------------------------------
 # What a resume import finds and removes before any text reaches the model.
 # Missing a format here is a privacy leak, not just a parsing miss: the
