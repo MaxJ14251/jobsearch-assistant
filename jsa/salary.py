@@ -32,7 +32,7 @@ whole dollars in the posting's own period; salary_text keeps the exact words.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from types import SimpleNamespace
 
@@ -152,7 +152,8 @@ class Salary:
     maximum: int
     period: str            # "year" or "hour"
     text: str              # the words it was read from, for a human to check
-    currency: str = "USD"  # the code it is in; text figures take the working country's
+    # The code it is in: the working country's unless a board's field says.
+    currency: str = field(default_factory=lambda: countries.active().CURRENCY)
     source: str = "text"   # "text": read from the description; "field": the board's own pay data
 
     def annual_minimum(self) -> int:

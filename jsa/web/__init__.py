@@ -131,10 +131,11 @@ def _map_note(view) -> str:
         if view.off_map:
             bits.append(f"{view.off_map} further out than it reaches")
     else:
+        pack = countries.active()
         bits = [f"{plural(view.shown, 'posting')} in {plural(places_shown, 'place')} "
-                "across the lower 48"]
+                f"across {pack.MAP_MAINLAND}"]
         if view.off_map:
-            bits.append(f"{view.off_map} in Alaska, Hawaii or Puerto Rico, "
+            bits.append(f"{view.off_map} in {pack.MAP_OFFSHORE_NAMES}, "
                         "which this map does not draw")
     if view.remote:
         bits.append(f"{view.remote} remote, with no distance to draw")

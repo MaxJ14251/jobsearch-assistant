@@ -15,7 +15,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from . import approvals, db, discover
+from . import approvals, countries, db, discover
 from .config import COMPANIES_PATH, DB_PATH, ConfigError, Preferences, load_profile
 from .words import plural
 
@@ -1911,8 +1911,8 @@ def main(argv: list[str] | None = None) -> int:
     p_fill.add_argument("job_id", type=int)
     p_fill.add_argument("--file", help="read the text from a file")
     p_fill.add_argument("--location",
-                        help="where the job is, e.g. 'Austin, TX' or 'Remote (US)'; "
-                             "replaces the stub's")
+                        help="where the job is, e.g. 'Austin, TX' or "
+                             f"'{countries.active().REMOTE_LABEL}'; replaces the stub's")
     p_fill.add_argument("--no-enrich", action="store_true",
                         help="skip the model call that reads degree/clearance/years")
     p_fill.set_defaults(func=cmd_fill)

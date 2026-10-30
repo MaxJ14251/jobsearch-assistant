@@ -157,7 +157,8 @@ def validate(form: dict[str, str]) -> tuple[dict[str, Any], dict[str, str]]:
             prefs[name] = parse_tristate(value, name)
         except ConfigError as exc:
             errors[name] = str(exc)
-    floor = (form.get("floor") or "").strip().replace(",", "").replace("$", "")
+    floor = ((form.get("floor") or "").strip().replace(",", "")
+             .replace(countries.active().CURRENCY_SYMBOL, ""))
     if floor:
         value: Any = "no_floor" if floor.lower() in ("no floor", "no_floor", "none") else floor
         if value != "no_floor":

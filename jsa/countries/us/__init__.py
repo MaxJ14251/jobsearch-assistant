@@ -169,6 +169,9 @@ MAP_OFFSHORE = ("AK", "HI", "PR", "VI", "GU", "MP", "AS")
 # the origin as (latitude, longitude))
 MAP_PARALLELS = (29.5, 45.5)
 MAP_ORIGIN = (37.5, -96.0)
+# What the national map's caption calls what it draws, and what it leaves out.
+MAP_MAINLAND = "the lower 48"
+MAP_OFFSHORE_NAMES = "Alaska, Hawaii or Puerto Rico"
 
 # --- job sources --------------------------------------------------------------
 # Sources that search one country, asked about the operator's own cities:
@@ -204,6 +207,10 @@ CONTACT_STREET = (
     r"\b\d{1,6} [A-Za-z0-9.' ]{2,40}? (?:St|Street|Ave|Avenue|Rd|Road|Blvd|"
     r"Boulevard|Dr|Drive|Ln|Lane|Way|Ct|Court|Pl|Place|Ter|Terrace|Pkwy|"
     r"Circle|Cir)\b\.?(?:,? (?:Apt|Unit|Suite|#) ?\w+)?")
+# One fictional value per pattern: tests/test_testland.py removes each, for
+# every pack, so a pack's patterns are proven to catch its own formats.
+CONTACT_SAMPLE = {"phone": "(555) 555-0142", "postal": "62704",
+                  "street": "123 Maple Street", "city_region": "Springfield, IL"}
 
 # The shipped data files (Census, Natural Earth, BLS and O*NET).
 DATA = Path(__file__).resolve().parents[2] / "resources" / "data" / "us"

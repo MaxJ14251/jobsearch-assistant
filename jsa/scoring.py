@@ -502,7 +502,7 @@ def score_job(job: dict[str, Any], prefs: Preferences) -> tuple[float, list[str]
         return 0.0, [f"rejected: requires {years}+ years of experience"]
 
     if is_non_us(job.get("location") or ""):
-        return 0.0, [f"rejected: {job.get('location')!r} is outside the US"]
+        return 0.0, [f"rejected: {job.get('location')!r} is outside {_pack().IN_TEXT}"]
 
     # The floor is a threshold the operator opted into (ADR 0001 decision 7).
     # A job is rejected only when even its TOP figure is below it; unknown pay
