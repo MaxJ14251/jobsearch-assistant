@@ -90,27 +90,22 @@ class TestTheWorkingCountry(unittest.TestCase):
         self.assertIs(countries.active(), us)
 
     def test_the_live_profile_sets_it_and_a_draft_does_not(self):
+        import shutil
         import tempfile
         from unittest import mock
 
         from jsa import config
         folder = Path(tempfile.mkdtemp())
-        self.addCleanup(__import__("shutil").rmtree, folder, True)
+        self.addCleanup(shutil.rmtree, folder, True)
         live, draft = folder / "master_profile.yaml", folder / "draft.yaml"
-        live.write_text("job_search_preferences:
-  country: us
-", encoding="utf-8")
-        draft.write_text("job_search_preferences:
-  country: Narnia
-", encoding="utf-8")
+        live.write_text("job_search_preferences:\n  country: us\n", encoding="utf-8")
+        draft.write_text("job_search_preferences:\n  country: Narnia\n", encoding="utf-8")
         with mock.patch.object(config, "PROFILE_PATH", live):
             config.load_profile(live)
             self.assertIs(countries.active(), us)
             config.load_profile(draft)               # read, never activated
             self.assertIs(countries.active(), us)
-            live.write_text("job_search_preferences:
-  country: Narnia
-",
+            live.write_text("job_search_preferences:\n  country: Narnia\n",
                             encoding="utf-8")
             with self.assertRaises(ConfigError):
                 config.load_profile(live)
