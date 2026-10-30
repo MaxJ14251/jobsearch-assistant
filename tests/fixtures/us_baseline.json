@@ -1,0 +1,759 @@
+{
+ "dedup_key": {
+  "Account Executive, West | Denver, CO": "1:account executive west",
+  "Senior Data Analyst - Remote US | Remote (US)": "1:senior data analyst",
+  "Solutions Engineer | London, UK": "1:solutions engineer",
+  "Support Engineer | Austin, TX": "1:support engineer",
+  "Support Engineer | Austin, TX (Hybrid)": "1:support engineer"
+ },
+ "is_non_us": {
+  "": false,
+  "Anywhere": false,
+  "Austin": false,
+  "Austin, TX": false,
+  "Bangalore": true,
+  "Berlin, Germany": true,
+  "Hybrid - Denver, CO": false,
+  "London, UK": true,
+  "Mexico City": true,
+  "New York City": false,
+  "Portland, OR or Portland, ME": false,
+  "Remote": false,
+  "Remote (EMEA)": true,
+  "Remote (US)": false,
+  "Remote - Canada": true,
+  "Remote - US": false,
+  "San Francisco, CA; New York, NY": false,
+  "Texas": false,
+  "Toronto, ON": true,
+  "US - California - San Diego": false,
+  "United States": false,
+  "Vancouver, BC": true,
+  "Washington DC": false
+ },
+ "location_score": {
+  " | onsite": [
+   0.4,
+   "location not stated"
+  ],
+  " | remote": [
+   1.0,
+   "remote role and remote is acceptable"
+  ],
+  "Anywhere | onsite": [
+   0.2,
+   "location 'Anywhere' could not be placed on a map"
+  ],
+  "Anywhere | remote": [
+   1.0,
+   "remote role and remote is acceptable"
+  ],
+  "Austin | onsite": [
+   1.0,
+   "located in Austin, TX"
+  ],
+  "Austin | remote": [
+   1.0,
+   "remote role and remote is acceptable"
+  ],
+  "Austin, TX | onsite": [
+   1.0,
+   "located in Austin, TX"
+  ],
+  "Austin, TX | remote": [
+   1.0,
+   "remote role and remote is acceptable"
+  ],
+  "Bangalore | onsite": [
+   0.0,
+   "location 'Bangalore' is outside the US"
+  ],
+  "Bangalore | remote": [
+   0.0,
+   "location 'Bangalore' is outside the US"
+  ],
+  "Berlin, Germany | onsite": [
+   0.0,
+   "location 'Berlin, Germany' is outside the US"
+  ],
+  "Berlin, Germany | remote": [
+   0.0,
+   "location 'Berlin, Germany' is outside the US"
+  ],
+  "Hybrid - Denver, CO | onsite": [
+   0.0,
+   "location 'Hybrid - Denver, CO' is outside your list"
+  ],
+  "Hybrid - Denver, CO | remote": [
+   1.0,
+   "remote role and remote is acceptable"
+  ],
+  "London, UK | onsite": [
+   0.0,
+   "location 'London, UK' is outside the US"
+  ],
+  "London, UK | remote": [
+   0.0,
+   "location 'London, UK' is outside the US"
+  ],
+  "Mexico City | onsite": [
+   0.0,
+   "location 'Mexico City' is outside the US"
+  ],
+  "Mexico City | remote": [
+   0.0,
+   "location 'Mexico City' is outside the US"
+  ],
+  "New York City | onsite": [
+   0.0,
+   "location 'New York City' is outside your list"
+  ],
+  "New York City | remote": [
+   1.0,
+   "remote role and remote is acceptable"
+  ],
+  "Portland, OR or Portland, ME | onsite": [
+   0.2,
+   "location 'Portland, OR or Portland, ME' could not be placed on a map"
+  ],
+  "Portland, OR or Portland, ME | remote": [
+   1.0,
+   "remote role and remote is acceptable"
+  ],
+  "Remote (EMEA) | onsite": [
+   0.0,
+   "location 'Remote (EMEA)' is outside the US"
+  ],
+  "Remote (EMEA) | remote": [
+   0.0,
+   "location 'Remote (EMEA)' is outside the US"
+  ],
+  "Remote (US) | onsite": [
+   0.2,
+   "location 'Remote (US)' could not be placed on a map"
+  ],
+  "Remote (US) | remote": [
+   1.0,
+   "remote role and remote is acceptable"
+  ],
+  "Remote - Canada | onsite": [
+   0.0,
+   "location 'Remote - Canada' is outside the US"
+  ],
+  "Remote - Canada | remote": [
+   0.0,
+   "location 'Remote - Canada' is outside the US"
+  ],
+  "Remote - US | onsite": [
+   0.2,
+   "location 'Remote - US' could not be placed on a map"
+  ],
+  "Remote - US | remote": [
+   1.0,
+   "remote role and remote is acceptable"
+  ],
+  "Remote | onsite": [
+   0.2,
+   "location 'Remote' could not be placed on a map"
+  ],
+  "Remote | remote": [
+   1.0,
+   "remote role and remote is acceptable"
+  ],
+  "San Francisco, CA; New York, NY | onsite": [
+   0.6,
+   "1499 miles away, in California, a state you listed"
+  ],
+  "San Francisco, CA; New York, NY | remote": [
+   1.0,
+   "remote role and remote is acceptable"
+  ],
+  "Texas | onsite": [
+   0.6,
+   "in Texas, a state you listed"
+  ],
+  "Texas | remote": [
+   1.0,
+   "remote role and remote is acceptable"
+  ],
+  "Toronto, ON | onsite": [
+   0.0,
+   "location 'Toronto, ON' is outside the US"
+  ],
+  "Toronto, ON | remote": [
+   0.0,
+   "location 'Toronto, ON' is outside the US"
+  ],
+  "US - California - San Diego | onsite": [
+   1.0,
+   "located in San Diego, CA"
+  ],
+  "US - California - San Diego | remote": [
+   1.0,
+   "remote role and remote is acceptable"
+  ],
+  "United States | onsite": [
+   0.2,
+   "location 'United States' could not be placed on a map"
+  ],
+  "United States | remote": [
+   1.0,
+   "remote role and remote is acceptable"
+  ],
+  "Vancouver, BC | onsite": [
+   0.0,
+   "location 'Vancouver, BC' is outside the US"
+  ],
+  "Vancouver, BC | remote": [
+   0.0,
+   "location 'Vancouver, BC' is outside the US"
+  ],
+  "Washington DC | onsite": [
+   0.0,
+   "location 'Washington DC' is outside your list"
+  ],
+  "Washington DC | remote": [
+   1.0,
+   "remote role and remote is acceptable"
+  ]
+ },
+ "names_a_state": {
+  "": false,
+  "Anywhere": false,
+  "Austin": false,
+  "Austin, TX": true,
+  "Bangalore": false,
+  "Berlin, Germany": false,
+  "Hybrid - Denver, CO": true,
+  "London, UK": false,
+  "Mexico City": false,
+  "New York City": true,
+  "Portland, OR or Portland, ME": true,
+  "Remote": false,
+  "Remote (EMEA)": false,
+  "Remote (US)": false,
+  "Remote - Canada": false,
+  "Remote - US": false,
+  "San Francisco, CA; New York, NY": true,
+  "Texas": true,
+  "Toronto, ON": false,
+  "US - California - San Diego": true,
+  "United States": false,
+  "Vancouver, BC": false,
+  "Washington DC": true
+ },
+ "nearest_from_austin": {
+  "": null,
+  "Anywhere": null,
+  "Austin": null,
+  "Austin, TX": 0.0,
+  "Bangalore": null,
+  "Berlin, Germany": null,
+  "Hybrid - Denver, CO": 767.55,
+  "London, UK": null,
+  "Mexico City": null,
+  "New York City": 1512.29,
+  "Portland, OR or Portland, ME": null,
+  "Remote": null,
+  "Remote (EMEA)": null,
+  "Remote (US)": null,
+  "Remote - Canada": null,
+  "Remote - US": null,
+  "San Francisco, CA; New York, NY": 1499.2,
+  "Texas": null,
+  "Toronto, ON": null,
+  "US - California - San Diego": 1152.6,
+  "United States": null,
+  "Vancouver, BC": null,
+  "Washington DC": 1316.52
+ },
+ "origin": {
+  "92101": {
+   "lat": 32.7178,
+   "lon": -117.1721,
+   "name": "92101",
+   "state": ""
+  },
+  "92101-1234": {
+   "lat": 32.7178,
+   "lon": -117.1721,
+   "name": "92101",
+   "state": ""
+  },
+  "Austin, TX": {
+   "lat": 30.2986,
+   "lon": -97.7541,
+   "name": "Austin",
+   "state": "TX"
+  },
+  "Austin, Texas": {
+   "lat": 30.2986,
+   "lon": -97.7541,
+   "name": "Austin",
+   "state": "TX"
+  },
+  "Ft. Worth, TX": {
+   "lat": 32.782,
+   "lon": -97.3486,
+   "name": "Fort Worth",
+   "state": "TX"
+  },
+  "London": null,
+  "NYC": {
+   "lat": 40.6627,
+   "lon": -73.9387,
+   "name": "New York",
+   "state": "NY"
+  },
+  "San Diego": null,
+  "Springfield": null,
+  "St. Louis, MO": {
+   "lat": 38.6357,
+   "lon": -90.2446,
+   "name": "St. Louis",
+   "state": "MO"
+  },
+  "Toronto, ON": null,
+  "Washington, DC": {
+   "lat": 38.9042,
+   "lon": -77.0165,
+   "name": "Washington",
+   "state": "DC"
+  },
+  "nowhere at all": null
+ },
+ "parse": {
+  "": {
+   "places": [],
+   "remote": false,
+   "unplaced": []
+  },
+  "Anywhere": {
+   "places": [],
+   "remote": true,
+   "unplaced": []
+  },
+  "Austin": {
+   "places": [],
+   "remote": false,
+   "unplaced": [
+    "Austin"
+   ]
+  },
+  "Austin, TX": {
+   "places": [
+    {
+     "lat": 30.2986,
+     "lon": -97.7541,
+     "name": "Austin",
+     "state": "TX"
+    }
+   ],
+   "remote": false,
+   "unplaced": []
+  },
+  "Bangalore": {
+   "places": [],
+   "remote": false,
+   "unplaced": [
+    "Bangalore"
+   ]
+  },
+  "Berlin, Germany": {
+   "places": [],
+   "remote": false,
+   "unplaced": [
+    "Berlin, Germany"
+   ]
+  },
+  "Hybrid - Denver, CO": {
+   "places": [
+    {
+     "lat": 39.7619,
+     "lon": -104.8811,
+     "name": "Denver",
+     "state": "CO"
+    }
+   ],
+   "remote": false,
+   "unplaced": []
+  },
+  "London, UK": {
+   "places": [],
+   "remote": false,
+   "unplaced": [
+    "London, UK"
+   ]
+  },
+  "Mexico City": {
+   "places": [],
+   "remote": false,
+   "unplaced": [
+    "Mexico City"
+   ]
+  },
+  "New York City": {
+   "places": [
+    {
+     "lat": 40.6627,
+     "lon": -73.9387,
+     "name": "New York",
+     "state": "NY"
+    }
+   ],
+   "remote": false,
+   "unplaced": []
+  },
+  "Portland, OR or Portland, ME": {
+   "places": [],
+   "remote": false,
+   "unplaced": [
+    "Portland,",
+    "or Portland, ME"
+   ]
+  },
+  "Remote": {
+   "places": [],
+   "remote": true,
+   "unplaced": []
+  },
+  "Remote (EMEA)": {
+   "places": [],
+   "remote": true,
+   "unplaced": []
+  },
+  "Remote (US)": {
+   "places": [],
+   "remote": true,
+   "unplaced": []
+  },
+  "Remote - Canada": {
+   "places": [],
+   "remote": true,
+   "unplaced": []
+  },
+  "Remote - US": {
+   "places": [],
+   "remote": true,
+   "unplaced": []
+  },
+  "San Francisco, CA; New York, NY": {
+   "places": [
+    {
+     "lat": 37.7544,
+     "lon": -122.4428,
+     "name": "San Francisco",
+     "state": "CA"
+    },
+    {
+     "lat": 40.6627,
+     "lon": -73.9387,
+     "name": "New York",
+     "state": "NY"
+    }
+   ],
+   "remote": false,
+   "unplaced": []
+  },
+  "Texas": {
+   "places": [],
+   "remote": false,
+   "unplaced": [
+    "Texas"
+   ]
+  },
+  "Toronto, ON": {
+   "places": [],
+   "remote": false,
+   "unplaced": [
+    "Toronto, ON"
+   ]
+  },
+  "US - California - San Diego": {
+   "places": [
+    {
+     "lat": 32.815,
+     "lon": -117.1356,
+     "name": "San Diego",
+     "state": "CA"
+    }
+   ],
+   "remote": false,
+   "unplaced": []
+  },
+  "United States": {
+   "places": [],
+   "remote": false,
+   "unplaced": [
+    "United States"
+   ]
+  },
+  "Vancouver, BC": {
+   "places": [],
+   "remote": false,
+   "unplaced": [
+    "Vancouver, BC"
+   ]
+  },
+  "Washington DC": {
+   "places": [
+    {
+     "lat": 38.9042,
+     "lon": -77.0165,
+     "name": "Washington",
+     "state": "DC"
+    }
+   ],
+   "remote": false,
+   "unplaced": []
+  }
+ },
+ "pay": {
+  "": null,
+  "$120k-$150k": null,
+  "$45/hr to $55/hr": {
+   "columns": {
+    "salary_currency": "USD",
+    "salary_max": 55,
+    "salary_min": 45,
+    "salary_period": "hour",
+    "salary_source": "text",
+    "salary_text": "$45/hr to $55/hr (+1 more range combined)"
+   },
+   "currency": "USD",
+   "label": "$45–$55/hr",
+   "maximum": 55,
+   "minimum": 45,
+   "period": "hour",
+   "source": "text",
+   "text": "$45/hr to $55/hr (+1 more range combined)"
+  },
+  "$5,000 - $7,000 per month": null,
+  "Base pay $135,000.": {
+   "columns": {
+    "salary_currency": "USD",
+    "salary_max": 135000,
+    "salary_min": 135000,
+    "salary_period": "year",
+    "salary_source": "text",
+    "salary_text": "Base pay $135,000."
+   },
+   "currency": "USD",
+   "label": "$135,000/yr",
+   "maximum": 135000,
+   "minimum": 135000,
+   "period": "year",
+   "source": "text",
+   "text": "Base pay $135,000."
+  },
+  "CAD $90,000 - $110,000": null,
+  "Competitive salary and equity.": null,
+  "Salary range: $90,000 - $120,000 per year.": {
+   "columns": {
+    "salary_currency": "USD",
+    "salary_max": 120000,
+    "salary_min": 90000,
+    "salary_period": "year",
+    "salary_source": "text",
+    "salary_text": "Salary range: $90,000 - $120,000 per year."
+   },
+   "currency": "USD",
+   "label": "$90,000–$120,000/yr",
+   "maximum": 120000,
+   "minimum": 90000,
+   "period": "year",
+   "source": "text",
+   "text": "Salary range: $90,000 - $120,000 per year."
+  },
+  "USD 100,000 - 130,000 annually": null,
+  "We pay $25 per hour.": {
+   "columns": {
+    "salary_currency": "USD",
+    "salary_max": 25,
+    "salary_min": 25,
+    "salary_period": "hour",
+    "salary_source": "text",
+    "salary_text": "We pay $25 per hour."
+   },
+   "currency": "USD",
+   "label": "$25/hr",
+   "maximum": 25,
+   "minimum": 25,
+   "period": "hour",
+   "source": "text",
+   "text": "We pay $25 per hour."
+  },
+  "£40,000 - £50,000": null,
+  "€60.000 - €80.000 per year": null
+ },
+ "pay_score": {
+  "": [
+   0.5,
+   "pay not stated (scored neutral)"
+  ],
+  "$120k-$150k": [
+   0.5,
+   "pay not stated (scored neutral)"
+  ],
+  "$45/hr to $55/hr": [
+   0.2907,
+   "pays $45–$55/hr (about $93,600/yr)"
+  ],
+  "$5,000 - $7,000 per month": [
+   0.5,
+   "pay not stated (scored neutral)"
+  ],
+  "Base pay $135,000.": [
+   0.5667,
+   "pays $135,000/yr"
+  ],
+  "CAD $90,000 - $110,000": [
+   0.5,
+   "pay not stated (scored neutral)"
+  ],
+  "Competitive salary and equity.": [
+   0.5,
+   "pay not stated (scored neutral)"
+  ],
+  "Salary range: $90,000 - $120,000 per year.": [
+   0.2667,
+   "pays $90,000–$120,000/yr (ranked on the low end)"
+  ],
+  "USD 100,000 - 130,000 annually": [
+   0.5,
+   "pay not stated (scored neutral)"
+  ],
+  "We pay $25 per hour.": [
+   0.0133,
+   "pays $25/hr (about $52,000/yr)"
+  ],
+  "£40,000 - £50,000": [
+   0.5,
+   "pay not stated (scored neutral)"
+  ],
+  "€60.000 - €80.000 per year": [
+   0.5,
+   "pay not stated (scored neutral)"
+  ]
+ },
+ "preferred_states": [
+  "ca",
+  "tx"
+ ],
+ "score_job": {
+  "Account Executive, West | Denver, CO | onsite": [
+   0.363,
+   [
+    "title matches 'Account Executive' (100%) — sales track, ranked below engineering",
+    "location 'Denver, CO' is outside your list",
+    "JD mentions Python",
+    "seniority unstated",
+    "pays $90,000–$120,000/yr (ranked on the low end)"
+   ]
+  ],
+  "Account Executive, West | Denver, CO | remote": [
+   0.52,
+   [
+    "title matches 'Account Executive' (100%) — sales track, ranked below engineering",
+    "remote role and remote is acceptable",
+    "JD mentions Python",
+    "seniority unstated",
+    "pays $90,000–$120,000/yr (ranked on the low end)"
+   ]
+  ],
+  "Senior Data Analyst - Remote US | Remote (US) | onsite": [
+   0.0,
+   [
+    "rejected: title contains 'Senior'"
+   ]
+  ],
+  "Senior Data Analyst - Remote US | Remote (US) | remote": [
+   0.0,
+   [
+    "rejected: title contains 'Senior'"
+   ]
+  ],
+  "Solutions Engineer | London, UK | onsite": [
+   0.0,
+   [
+    "rejected: 'London, UK' is outside the US"
+   ]
+  ],
+  "Solutions Engineer | London, UK | remote": [
+   0.0,
+   [
+    "rejected: 'London, UK' is outside the US"
+   ]
+  ],
+  "Support Engineer | Austin, TX (Hybrid) | onsite": [
+   0.732,
+   [
+    "title matches 'Support Engineer' (100%)",
+    "located in Austin, TX",
+    "JD mentions Python",
+    "seniority unstated",
+    "pays $90,000–$120,000/yr (ranked on the low end)"
+   ]
+  ],
+  "Support Engineer | Austin, TX (Hybrid) | remote": [
+   0.732,
+   [
+    "title matches 'Support Engineer' (100%)",
+    "remote role and remote is acceptable",
+    "JD mentions Python",
+    "seniority unstated",
+    "pays $90,000–$120,000/yr (ranked on the low end)"
+   ]
+  ],
+  "Support Engineer | Austin, TX | onsite": [
+   0.732,
+   [
+    "title matches 'Support Engineer' (100%)",
+    "located in Austin, TX",
+    "JD mentions Python",
+    "seniority unstated",
+    "pays $90,000–$120,000/yr (ranked on the low end)"
+   ]
+  ],
+  "Support Engineer | Austin, TX | remote": [
+   0.732,
+   [
+    "title matches 'Support Engineer' (100%)",
+    "remote role and remote is acceptable",
+    "JD mentions Python",
+    "seniority unstated",
+    "pays $90,000–$120,000/yr (ranked on the low end)"
+   ]
+  ]
+ },
+ "split_identity": {
+  "identity": {
+   "city": "Springfield",
+   "email": "jordan.riverton@example.com",
+   "full_name": "Jordan Riverton",
+   "links": {
+    "github": "https://github.com/jriverton",
+    "linkedin": "https://linkedin.com/in/jordanriverton",
+    "portfolio": "https://jordan.example.dev",
+    "website": null
+   },
+   "phone": "(555) 555-0142",
+   "postal_code": "62704",
+   "state": "IL",
+   "street": "123 Maple Street"
+  },
+  "redacted": [
+   "[contact]",
+   "[contact], [contact] [contact]",
+   "[contact] | [contact] | [contact]",
+   "[contact] | [contact]",
+   "[contact]",
+   "Austin, TX [contact]",
+   "SUMMARY",
+   "Support engineer who writes clear bug reports.",
+   "EXPERIENCE",
+   "Northwind Supply - Support Engineer - 2022-2024",
+   "Answered 40 tickets a day by email and chat."
+  ]
+ }
+}
