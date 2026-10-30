@@ -13,10 +13,11 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from functools import lru_cache
 from typing import Any
 
+from . import countries
 from .config import Preferences
-from .countries import us
 from .salary import Salary, from_row
 
 # Fit: how well the role matches. These four sum to 1.0.
@@ -104,20 +105,24 @@ def dedup_key(company_id: int, title: str, location: str | None = None) -> str:
     for match in reversed(list(_QUALIFIER_RE.finditer(base))):
         if regional_qualifier(match.group(1), location):
             base = base[:match.start()] + " " + base[match.end():]
-    base = re.sub(r"\s*[-–—,]\s*(remote|us|usa|emea|apac|latam)\b.*$", "", base, flags=re.I)
+    base = _pattern(_pack().TITLE_REGION_SUFFIX).sub("", base)
     return f"{company_id}:{' '.join(_norm(base).split())}"
+
+
+# Where a posting is depends on the working country: its own signal ("Remote
+# (US)"), the places abroad, the words a title uses for a region, and its
+# states or provinces all come from its pack (jsa/countries), read at call time.
+def _pack():
+    return countries.active()
+
+
+@lru_cache(maxsize=None)
+def _pattern(text: str) -> re.Pattern:
+    return re.compile(text, re.I)
 
 
 _QUALIFIER_RE = re.compile(r"[\(\[]([^\)\]]*)[\)\]]")
 
-# Words that say where, or how, and never name a team. A foreign country or
-# city is caught by _NON_US_RE; a US state by its name or code.
-_REGION_WORDS = {
-    "remote", "hybrid", "onsite", "on-site", "in office", "in-office",
-    "us", "usa", "u.s.", "uk", "emea", "apac", "latam", "europe", "americas",
-    "amer", "north america", "east coast", "west coast", "middle east",
-    "global", "worldwide", "anywhere", "bay area", "sf bay area",
-}
 _ARRANGEMENT_RE = re.compile(
     r"^(hybrid|remote|onsite|on-site|in[- ]office)\b\s*[-–—:]?\s*", re.I)
 _CITY_ST_RE = re.compile(r"^[A-Za-z .'-]+,\s*[A-Za-z]{2}$")
@@ -157,9 +162,9 @@ def _names_a_place(part: str, location: str | None) -> bool:
     if not part:
         return True
     lowered = part.lower()
-    if lowered in _REGION_WORDS:
+    if lowered in _pack().REGION_WORDS:
         return True
-    foreign = _NON_US_RE.search(part)
+    foreign = _pattern(_pack().ABROAD).search(part)
     if foreign and foreign.group(0).lower() == lowered:
         return True
     if lowered in places.region_by_name() or part.upper() in places.region_codes():
@@ -201,45 +206,6 @@ def title_score(title: str, targets: list[str]) -> tuple[float, str | None]:
     return best, best_target
 
 
-# A "remote" role is only useful if it is remote in the candidate's country.
-# This build assumes US-based. Boards
-# advertise plenty of "Remote - Singapore". Whitelisting every US city is
-# hopeless, so: look for a positive US signal first, then for a foreign one.
-# Only strong, unambiguous US markers — deliberately NOT two-letter state codes,
-# which collide with country codes ("Berlin, DE" would read as Delaware).
-_US_RE = re.compile(
-    r"(\bunited states\b|\busa\b|\bu\.s\.a?\.?\b|\bus[- ]remote\b|"
-    r"\bremote[ ,–-]*\(?us\b|\bus only\b)",
-    re.I,
-)
-_NON_US_RE = re.compile(
-    r"\b(canada|toronto|vancouver|montreal|ottawa|"
-    r"u\.?k\.?|united kingdom|london|manchester|edinburgh|"
-    r"ireland|dublin|france|paris|germany|berlin|munich|"
-    r"netherlands|amsterdam|spain|madrid|barcelona|portugal|lisbon|"
-    r"italy|rome|milan|switzerland|zurich|geneva|austria|vienna|"
-    r"belgium|brussels|sweden|stockholm|norway|oslo|denmark|copenhagen|"
-    r"finland|helsinki|poland|warsaw|czech|prague|hungary|budapest|"
-    r"romania|bucharest|greece|athens|turkey|istanbul|ukraine|kyiv|"
-    r"israel|tel aviv|uae|dubai|abu dhabi|saudi|qatar|doha|egypt|cairo|"
-    r"india|bangalore|bengaluru|mumbai|delhi|hyderabad|pune|"
-    r"china|beijing|shanghai|shenzhen|hong kong|taiwan|taipei|"
-    r"japan|tokyo|osaka|korea|seoul|singapore|malaysia|kuala lumpur|"
-    r"indonesia|jakarta|thailand|bangkok|vietnam|hanoi|philippines|manila|"
-    r"australia|sydney|melbourne|new zealand|auckland|"
-    r"brazil|sao paulo|mexico|argentina|buenos aires|chile|santiago|"
-    r"colombia|bogota|peru|lima|costa rica|"
-    r"south africa|nigeria|lagos|kenya|nairobi|"
-    # Counted in the author's tracker: "England - Cambridge" and "Middle East"
-    # were being scored as US locations, because the list held "united kingdom"
-    # but not the constituent countries, and no region names below continent
-    # size.
-    r"england|scotland|wales|northern ireland|middle east|"
-    r"emea|apac|latam|europe|asia)\b",
-    re.I,
-)
-
-
 def _fold(text: str) -> str:
     """Strip diacritics so an accented city still matches its plain spelling.
 
@@ -252,19 +218,28 @@ def _fold(text: str) -> str:
                    if not unicodedata.combining(c))
 
 
-def is_non_us(location: str) -> bool:
-    """True when a location names somewhere clearly outside the US."""
+def outside_home_country(location: str) -> bool:
+    """True when a location names somewhere clearly outside the working
+    country: no signal of home ("Remote (US)"), and a place abroad named."""
+    pack = _pack()
     loc = _fold(location)
-    if _US_RE.search(loc):
+    if _pattern(pack.HOME_SIGNAL).search(loc):
         return False
-    return bool(_NON_US_RE.search(loc))
+    return bool(_pattern(pack.ABROAD).search(loc))
 
 
-# All fifty states and DC, from the US pack. The first version held
-# nineteen, because those were the states the author's own search touched --
-# which is exactly the kind of thing that makes a tool work for one person and
-# quietly misrank for everyone else.
-_STATE_NAMES = {code.lower(): name.lower() for code, name in us.STATES.items()}
+# The name the docs and tests use; with the US pack it means exactly this.
+is_non_us = outside_home_country
+
+
+def _state_names() -> dict[str, str]:
+    """The working country's states (or provinces) scoring counts, as
+    lowercase code -> lowercase name: all fifty states and DC for the US.
+
+    The first version held nineteen, because those were the states the
+    author's own search touched -- which is exactly the kind of thing that
+    makes a tool work for one person and quietly misrank for everyone else."""
+    return {code.lower(): name.lower() for code, name in _pack().SCORING_REGIONS.items()}
 
 
 def preferred_states(locations: list[str]) -> set[str]:
@@ -273,12 +248,13 @@ def preferred_states(locations: list[str]) -> set[str]:
     "Austin, TX" gives {"tx"}; "Columbus, Ohio" gives {"oh"}. Used for the
     consolation prize below: your state, but not your city.
     """
-    by_name = {name: abbr for abbr, name in _STATE_NAMES.items()}
+    names = _state_names()
+    by_name = {name: abbr for abbr, name in names.items()}
     found: set[str] = set()
     for entry in locations or []:
         parts = [p.strip().lower() for p in str(entry).split(",")]
         for part in parts[1:] or parts:
-            if part in _STATE_NAMES:
+            if part in names:
                 found.add(part)
             elif part in by_name:
                 found.add(by_name[part])
@@ -299,7 +275,7 @@ def in_state(location: str, state: str) -> bool:
     """
     loc = _fold(location).lower()
     state = (state or "").strip().lower()
-    full = _STATE_NAMES.get(state, state)
+    full = _state_names().get(state, state)
     return bool(re.search(r",\s*" + re.escape(state) + r"\b", loc)
                 or re.search(r"\b" + re.escape(full) + r"\b", loc))
 
@@ -333,7 +309,7 @@ def _matches_city(location: str, pref: str) -> bool:
     if len(parts) < 2:
         return True
     state = parts[1]
-    full = _STATE_NAMES.get(state, state)
+    full = _state_names().get(state, state)
     if (re.search(rf"\b{re.escape(state)}\b", loc)
             or re.search(rf"\b{re.escape(full)}\b", loc)):
         return True
@@ -341,12 +317,14 @@ def _matches_city(location: str, pref: str) -> bool:
 
 
 def names_a_state(location: str) -> bool:
-    """Does this location name a US state at all, by code or by name?"""
+    """Does this location name one of the working country's states (or
+    provinces) at all, by code or by name?"""
     loc = _fold(location).lower()
+    names = _state_names()
     return bool(
-        any(re.search(rf",\s*{abbr}\b", loc) for abbr in _STATE_NAMES)
+        any(re.search(rf",\s*{abbr}\b", loc) for abbr in names)
         or any(re.search(rf"\b{re.escape(name)}\b", loc)
-               for name in _STATE_NAMES.values()))
+               for name in names.values()))
 
 
 # How a posting scores by distance. Beyond the radius it is ranked lower, not
@@ -366,8 +344,8 @@ def location_score(
     location: str, remote: str, prefs: Preferences
 ) -> tuple[float, str]:
     loc = (location or "").lower()
-    if is_non_us(location):
-        return 0.0, f"location {location!r} is outside the US"
+    if outside_home_country(location):
+        return 0.0, f"location {location!r} is outside {_pack().IN_TEXT}"
     if remote == "remote":
         if any("remote" in p.lower() for p in prefs.locations):
             return 1.0, "remote role and remote is acceptable"
@@ -395,7 +373,8 @@ def location_score(
     # state above a reader's own city.
     for state in sorted(preferred_states(prefs.locations)):
         if in_state(location, state):
-            named = f"in {_STATE_NAMES[state].title()}, a state you listed"
+            named = (f"in {_state_names()[state].title()}, "
+                     f"a {_pack().REGION_WORD} you listed")
             if distance is None:
                 return 0.6, named
             # Both are true. Take the better score and say both things: a

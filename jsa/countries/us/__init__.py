@@ -72,6 +72,61 @@ def postal_key(code: str) -> str:
     return (code or "").strip()[:5]
 
 
+# --- scoring ----------------------------------------------------------------------
+# What the reason lines call the country and its regions.
+IN_TEXT = "the US"
+REGION_WORD = "state"
+# The regions scoring's "your state, not your city" bonus counts.
+SCORING_REGIONS = STATES
+
+# A "remote" role is only useful if it is remote in the candidate's country.
+# Boards advertise plenty of "Remote - Singapore". Whitelisting every US city
+# is hopeless, so: look for a positive US signal first, then for a foreign one.
+# Only strong, unambiguous US markers — deliberately NOT two-letter state codes,
+# which collide with country codes ("Berlin, DE" would read as Delaware).
+HOME_SIGNAL = (
+    r"(\bunited states\b|\busa\b|\bu\.s\.a?\.?\b|\bus[- ]remote\b|"
+    r"\bremote[ ,–-]*\(?us\b|\bus only\b)"
+)
+ABROAD = (
+    r"\b(canada|toronto|vancouver|montreal|ottawa|"
+    r"u\.?k\.?|united kingdom|london|manchester|edinburgh|"
+    r"ireland|dublin|france|paris|germany|berlin|munich|"
+    r"netherlands|amsterdam|spain|madrid|barcelona|portugal|lisbon|"
+    r"italy|rome|milan|switzerland|zurich|geneva|austria|vienna|"
+    r"belgium|brussels|sweden|stockholm|norway|oslo|denmark|copenhagen|"
+    r"finland|helsinki|poland|warsaw|czech|prague|hungary|budapest|"
+    r"romania|bucharest|greece|athens|turkey|istanbul|ukraine|kyiv|"
+    r"israel|tel aviv|uae|dubai|abu dhabi|saudi|qatar|doha|egypt|cairo|"
+    r"india|bangalore|bengaluru|mumbai|delhi|hyderabad|pune|"
+    r"china|beijing|shanghai|shenzhen|hong kong|taiwan|taipei|"
+    r"japan|tokyo|osaka|korea|seoul|singapore|malaysia|kuala lumpur|"
+    r"indonesia|jakarta|thailand|bangkok|vietnam|hanoi|philippines|manila|"
+    r"australia|sydney|melbourne|new zealand|auckland|"
+    r"brazil|sao paulo|mexico|argentina|buenos aires|chile|santiago|"
+    r"colombia|bogota|peru|lima|costa rica|"
+    r"south africa|nigeria|lagos|kenya|nairobi|"
+    # Counted in the author's tracker: "England - Cambridge" and "Middle East"
+    # were being scored as US locations, because the list held "united kingdom"
+    # but not the constituent countries, and no region names below continent
+    # size.
+    r"england|scotland|wales|northern ireland|middle east|"
+    r"emea|apac|latam|europe|asia)\b"
+)
+
+# Words that say where, or how, and never name a team: a title's "(US)" or
+# "(EMEA)" qualifier. A foreign country or city is caught by ABROAD; a state
+# by its name or code.
+REGION_WORDS = {
+    "remote", "hybrid", "onsite", "on-site", "in office", "in-office",
+    "us", "usa", "u.s.", "uk", "emea", "apac", "latam", "europe", "americas",
+    "amer", "north america", "east coast", "west coast", "middle east",
+    "global", "worldwide", "anywhere", "bay area", "sf bay area",
+}
+# A title's trailing " - Remote", ", US": a regional copy of one req.
+TITLE_REGION_SUFFIX = r"\s*[-–—,]\s*(remote|us|usa|emea|apac|latam)\b.*$"
+
+
 # The shipped data files (Census, Natural Earth, BLS and O*NET).
 DATA = Path(__file__).resolve().parents[2] / "resources" / "data" / "us"
 PLACES_FILE = DATA / "us_places.csv.gz"

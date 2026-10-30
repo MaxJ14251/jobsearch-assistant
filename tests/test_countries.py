@@ -50,9 +50,9 @@ class TestOneStateTable(unittest.TestCase):
         self.assertEqual(places.region_codes(), set(us.SUBDIVISIONS))
 
     def test_scoring_reads_the_pack_without_puerto_rico_as_before(self):
-        self.assertEqual(scoring._STATE_NAMES,
+        self.assertEqual(scoring._state_names(),
                          {c.lower(): n.lower() for c, n in us.STATES.items()})
-        self.assertNotIn("pr", scoring._STATE_NAMES)
+        self.assertNotIn("pr", scoring._state_names())
 
     def test_the_map_builder_reads_the_pack(self):
         spec = importlib.util.spec_from_file_location(

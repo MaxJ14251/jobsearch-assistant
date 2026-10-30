@@ -349,7 +349,7 @@ def check_market(profile: dict[str, Any], con: sqlite3.Connection | None,
     """
     if con is None:
         return
-    from .scoring import in_state, is_non_us, preferred_states
+    from .scoring import in_state, outside_home_country, preferred_states
 
     prefs = profile.get("job_search_preferences") or {}
     states = preferred_states(prefs.get("locations") or [])
@@ -391,7 +391,7 @@ def check_market(profile: dict[str, Any], con: sqlite3.Connection | None,
     remote = sum(1 for r in rows if (r["remote"] or "") == "remote")
     local = sum(1 for r in rows
                 if (r["remote"] or "") != "remote"
-                and not is_non_us(r["location"] or "")
+                and not outside_home_country(r["location"] or "")
                 and any(in_state(r["location"] or "", s) for s in states))
     report.checked.append(f"what your tracker holds near you "
                           f"({local} local, {remote} remote)")
