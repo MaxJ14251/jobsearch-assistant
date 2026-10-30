@@ -1,6 +1,7 @@
 # ADR 0037 — Canada, the second country pack
 
-Status: proposed; measurements done, pack not built (2026-10-30)
+Status: built 2026-10-30; accepted when the owner has looked at it in the
+dashboard
 Date: 2026-10-30
 Relates to: ADR 0036 (country packs), ADR 0013 and 0029 (nationwide
 sources), ADR 0020 (postings the tool may not read), ADR 0006 (pay).
@@ -102,7 +103,54 @@ figure, and two figures that are not pay. The same fixes moved 3 of the
 2,219 postings in the owner's US tracker (read-only check, 2026-10-30),
 each from USD to the CAD the posting states.
 
-## Decision (to be completed when the pack is built)
+## Decision
 
-Recorded here as the plan for phases 3 to 7; this ADR is accepted when the
-pack ships.
+1. **`jsa/countries/ca`** is the second pack, filled from the measurements
+   above. A profile says `country: CA`.
+2. **Places** are Statistics Canada's census subdivisions, each placed on
+   the smaller of its own area and the population centre of the same name;
+   a town beats a parish of the same name. Accents fold ("Montreal"), a
+   French hyphenated name is never cut into an alias ("Saint"), and
+   Toronto's former cities and Quebec City are aliases.
+3. **Postal areas only.** A home "M5V 2T6" is looked up and stored as
+   "M5V"; the data holds nothing finer. The resume import still removes a
+   full postal code wherever it appears.
+4. **Home and abroad.** A location naming Canada or a province is home,
+   checked first, so "Remote (United States | Canada)" stays. The US (its
+   name, states, big cities, "City, ST", "Remote (US)") and the rest of the
+   world are abroad. State codes that are also words after a comma (IN, OR,
+   ME, HI, OK) and CA are left out of "City, ST".
+5. **Pay** is CAD with the US pay band, which the measured Canadian figures
+   fit. A figure followed by another currency's code keeps that currency
+   and is not compared with a CAD floor.
+6. **Kilometres** (default radius 65 km), "legally entitled to work in
+   Canada", Letter paper, year-first numeric dates, no role education line.
+7. **No nationwide source.** Job Bank is refused; The Muse is left out.
+   Until the owner picks Canadian employers, a new Canadian install starts
+   from the shipped list, and its Canadian postings score.
+8. **The national map** uses Canada Albers (parallels 50 and 70, origin
+   40 N 96 W) over the province outline; no ground layer is built yet, so
+   the live map draws without one.
+
+Three pack names made this possible without touching the US:
+`FOLD_ACCENTS`, `ALIAS_SPLIT` and `POSTAL_AREA_ONLY`.
+
+## How it is held
+
+- `tests/test_canada.py`: places, scoring, pay shapes, setup, the map, and
+  every pack's contact samples removed in every working country.
+- `tests/test_canada_e2e.py`: a made-up Toronto profile over Canadian and
+  US postings, scored and rendered.
+- `tests/test_country_guard.py`: Canadian strings (Canada, CAD, provinces,
+  km, postal areas) only inside the Canada pack, as US ones are only in
+  the US pack.
+- The US golden pages are identical to before Canada, apart from the map
+  script's unit factor (phase 2), and the US baseline is unchanged.
+
+## Not done
+
+- French pay text ("80 000 $") and French page wording.
+- A Canadian employer list (the owner picks from the 22 measured).
+- A ground layer under the live map (roads, water).
+- Role education data for Canada (Statistics Canada publishes a candidate
+  table; not checked).

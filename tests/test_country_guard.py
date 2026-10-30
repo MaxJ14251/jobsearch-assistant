@@ -4,6 +4,7 @@ Everything the app assumes about a country lives in jsa/countries. These
 fail when a string outside it names the US again: a dollar sign, USD, "the
 US", a ZIP, "City, ST", "Remote (US)", a US state's name. Docstrings and
 comments may talk about the US; what the app says and matches may not.
+Canada's (ADR 0037) stay in the Canada pack the same way.
 """
 
 import io
@@ -12,7 +13,7 @@ import tokenize
 import unittest
 from pathlib import Path
 
-from jsa.countries import us
+from jsa.countries import ca, us
 
 ROOT = Path(__file__).resolve().parents[1]
 JSA = ROOT / "jsa"
@@ -49,6 +50,36 @@ def _strings(path: Path):
             if tok.string.lstrip("rbfuRBFU").startswith(('"""', "'''")):
                 continue                                  # a docstring
             yield tok.start[0], tok.string
+
+
+# Canada's own assumptions (ADR 0037) stay in its pack the same way.
+_PROVINCES = "|".join(re.escape(n) for n in ca.SUBDIVISIONS.values() if n != "Quebec")
+CANADA_PATTERNS = {
+    "Canada": re.compile(r"\bCanad(a|ian)\b"),
+    "CAD": re.compile(r"\bCAD\b"),
+    "a province": re.compile(rf"\b({_PROVINCES}|Québec|Quebec)\b"),
+    "a postal area": re.compile(r"\bFSA\b|\bpostal area\b|\[A-Z\]\d\[A-Z\]"),
+    "km": re.compile(r"\bkm\b"),
+}
+
+
+class TestNoCanadaOutsideItsPack(unittest.TestCase):
+    def test_python_strings(self):
+        found = []
+        for path in sorted(JSA.rglob("*.py")):
+            rel = path.relative_to(ROOT).as_posix()
+            if rel.startswith("jsa/countries/"):
+                continue
+            for line, text in _strings(path):
+                for name, rx in CANADA_PATTERNS.items():
+                    if rx.search(text):
+                        found.append(f"{rel}:{line} names {name}: {text[:70]}")
+        self.assertEqual(found, [], "\n".join(found))
+
+    def test_the_guard_bites(self):
+        for text, name in (('"outside Canada"', "Canada"), ('"$90,000 CAD"', "CAD"),
+                           ('"in Ontario"', "a province"), ('"12 km away"', "km")):
+            self.assertTrue(CANADA_PATTERNS[name].search(text), text)
 
 
 class TestNoUSOutsideThePack(unittest.TestCase):
