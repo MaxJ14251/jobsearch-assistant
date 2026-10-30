@@ -31,6 +31,21 @@ def codes() -> list[str]:
     return sorted(PACKS)
 
 
+def country_of_source(kind: str) -> str | None:
+    """The country a source kind searches, or None for an employer's own
+    board, which belongs to no country."""
+    for code, pack in PACKS.items():
+        if kind in pack.SOURCE_KINDS:
+            return code
+    return None
+
+
+def source_is_elsewhere(kind: str) -> bool:
+    """A source that searches some other country than the working one."""
+    home = country_of_source(kind)
+    return home is not None and home != active().CODE
+
+
 # The pack the running app works in. One profile is served at a time, so the
 # country is set where the profile is loaded (config.load_profile) and read
 # at call time by everything country-specific.

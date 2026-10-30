@@ -111,6 +111,22 @@ class TestTheWorkingCountry(unittest.TestCase):
                 config.load_profile(live)
 
 
+class TestSourcesBelongToCountries(unittest.TestCase):
+    def test_us_only_sources_and_employer_boards(self):
+        self.assertEqual(countries.country_of_source("usajobs"), "US")
+        self.assertEqual(countries.country_of_source("themuse"), "US")
+        for board in ("greenhouse", "lever", "ashby", "workday"):
+            self.assertIsNone(countries.country_of_source(board))
+
+    def test_nothing_is_elsewhere_while_working_in_the_us(self):
+        for kind in ("usajobs", "themuse", "greenhouse"):
+            self.assertFalse(countries.source_is_elsewhere(kind))
+
+    def test_the_seed_list_is_the_packs(self):
+        from jsa import config
+        self.assertEqual(us.SEED_COMPANIES, config.SEED_COMPANIES)
+
+
 class TestTheFloorRename(unittest.TestCase):
     """compensation_floor_usd became compensation_floor (in the country's
     currency); a profile written before keeps working."""

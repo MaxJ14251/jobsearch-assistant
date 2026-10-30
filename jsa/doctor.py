@@ -406,7 +406,10 @@ def check_market(profile: dict[str, Any], con: sqlite3.Connection | None,
                    "your state but not your city cannot be recognised.")
         return
     named = ", ".join(sorted(s.upper() for s in states))
-    if local < THIN_MARKET:
+    if local < THIN_MARKET and "themuse" not in countries.active().SOURCE_KINDS:
+        report.add(False, f"Only {plural(local, 'on-site posting')} in {named}",
+                   f"Add employers near you to {COMPANIES_PATH}.")
+    elif local < THIN_MARKET:
         import os
 
         if os.environ.get("MUSE_API_KEY", "").strip():
@@ -436,6 +439,8 @@ def check_usajobs(report: Report) -> None:
     """Both USAJOBS settings or neither. Presence only, never the values."""
     import os
 
+    if "usajobs" not in countries.active().SOURCE_KINDS:
+        return                                 # a US-only source
     have = [v for v in ("USAJOBS_API_KEY", "USAJOBS_EMAIL")
             if os.environ.get(v, "").strip()]
     if len(have) == 1:

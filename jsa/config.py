@@ -71,6 +71,9 @@ EXAMPLE_PROFILE = RESOURCES / "master_profile.example.yaml"
 ENV_EXAMPLE = RESOURCES / ".env.example"
 SCHEMA_PATH = RESOURCES / "schema.sql"
 DATA_DIR = RESOURCES / "data"
+# The shipped starter list of employers. It is the US pack's
+# (countries.us.SEED_COMPANIES, the same file); another country's pack ships
+# its own, copied by seed_companies() for an install working there.
 SEED_COMPANIES = RESOURCES / "companies.yaml"
 # The companies list is both shipped and yours: `jsa verify --write` edits it.
 # A clone edits the tracked file itself, as before; an installed copy gets its
@@ -420,10 +423,13 @@ def load_coach(path: Path | None = None) -> dict[str, Any]:
 def seed_companies(path: Path | None = None) -> Path:
     """An installed copy's own companies list, copied from the shipped seed
     the first time it is needed. Never overwrites."""
+    from . import countries
+
     path = Path(path or COMPANIES_PATH)
-    if not path.exists() and path != SEED_COMPANIES and SEED_COMPANIES.exists():
+    seed = countries.active().SEED_COMPANIES
+    if not path.exists() and path != SEED_COMPANIES and seed.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(SEED_COMPANIES.read_bytes())
+        path.write_bytes(seed.read_bytes())
     return path
 
 

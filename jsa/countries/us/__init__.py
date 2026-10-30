@@ -140,6 +140,15 @@ HOURLY_BOUNDS = (10, 500)
 PAY_LOW = 50_000
 PAY_HIGH = 200_000
 
+# --- job sources --------------------------------------------------------------
+# Sources that search one country, asked about the operator's own cities:
+# USAJOBS is federal US jobs; The Muse's listings are overwhelmingly US. A
+# kind another country's pack names is skipped when this one is not working.
+# Employer boards (greenhouse, lever, ashby, workday...) belong to no country.
+SOURCE_KINDS = frozenset({"themuse", "usajobs"})
+# The starter list of employers a new install copies (resources/companies.yaml).
+SEED_COMPANIES = Path(__file__).resolve().parents[2] / "resources" / "companies.yaml"
+
 # --- forms --------------------------------------------------------------------
 # The locations entry that means "remote, in this country": setup's checkbox
 # writes it, and scoring treats any "remote" entry as accepting remote roles.

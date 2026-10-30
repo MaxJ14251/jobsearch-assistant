@@ -9,6 +9,7 @@ from typing import Any
 import json
 
 from . import db, salary, sources
+from . import countries
 from .config import Preferences, load_profile, load_sources
 from .scoring import dedup_key, job_track
 
@@ -180,6 +181,9 @@ def discover(
                 continue
             if only_verified and not entry.get("verified"):
                 reports.append(SourceReport(company, kind, "skipped (unverified)"))
+                continue
+            if countries.source_is_elsewhere(kind):
+                reports.append(SourceReport(company, kind, "skipped (another country)"))
                 continue
 
             company_id = db.upsert_company(
