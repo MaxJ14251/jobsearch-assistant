@@ -37,11 +37,11 @@ W_SENIORITY = 0.10
 W_FIT = 0.90
 W_COMPENSATION = 0.10
 
-# The pay component rises linearly across this band of ANNUAL pay, on the
+# The pay component rises linearly across a band of ANNUAL pay, on the
 # posting's minimum (the likeliest entry-level offer, and immune to a senior
-# level inflating the range). US figures, consistent with ADR 0002.
-PAY_LOW = 50_000
-PAY_HIGH = 200_000
+# level inflating the range). The band is the working country's
+# (countries.<pack>.PAY_LOW / PAY_HIGH): 50,000 to 200,000 dollars in the US,
+# consistent with ADR 0002.
 # ADR 0001 decision 4: unknown pay is neutral, which means the MIDPOINT of the
 # pay component. Zero would sink the ~half of postings that state no pay.
 PAY_UNKNOWN = 0.5
@@ -415,11 +415,12 @@ def pay_score(pay: Salary | None) -> tuple[float, str]:
     if pay is None:
         return PAY_UNKNOWN, "pay not stated (scored neutral)"
     annual = pay.annual_minimum()
-    value = (annual - PAY_LOW) / (PAY_HIGH - PAY_LOW)
+    pack = _pack()
+    value = (annual - pack.PAY_LOW) / (pack.PAY_HIGH - pack.PAY_LOW)
     value = min(max(value, 0.0), 1.0)
     note = f"pays {pay.label()}"
     if pay.period == "hour":
-        note += f" (about ${annual:,}/yr)"
+        note += f" (about {pack.CURRENCY_SYMBOL}{annual:,}/yr)"
     elif pay.minimum != pay.maximum:
         note += " (ranked on the low end)"
     return value, note
@@ -513,8 +514,9 @@ def score_job(job: dict[str, Any], prefs: Preferences) -> tuple[float, list[str]
         floor = floor_setting.for_region(region)
         if floor is not None and pay.annual_maximum() < floor:
             where = f" for {region}" if region else ""
-            return 0.0, [f"rejected: pays at most ${pay.annual_maximum():,}/yr, "
-                         f"below your floor of ${floor:,}{where}"]
+            sym = _pack().CURRENCY_SYMBOL
+            return 0.0, [f"rejected: pays at most {sym}{pay.annual_maximum():,}/yr, "
+                         f"below your floor of {sym}{floor:,}{where}"]
 
     # --- weighted signals ----------------------------------------------
     # Engineering titles are tier 1. Only if none match do we consider the

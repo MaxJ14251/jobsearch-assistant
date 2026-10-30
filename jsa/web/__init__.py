@@ -34,7 +34,7 @@ from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
                                PlainTextResponse, RedirectResponse)
 from jinja2 import DictLoader, Environment
 
-from .. import approvals, db, review
+from .. import approvals, countries, db, review
 from ..prep import INTERVIEW_ROUNDS
 
 HOST = "127.0.0.1"          # never 0.0.0.0
@@ -86,6 +86,9 @@ env.filters["localdate"] = lambda stamp: str(db.local_date(stamp) or stamp or ""
 # The degree flag on cards comes from the posting's own text (ADR 0032), never
 # the model's degree_required.
 env.globals["degree_flag"] = lambda level: _degree_flag(level)
+# The working country's pack (jsa/countries), for pages that show its
+# currency, units or wording.
+env.globals["country"] = countries.active
 
 
 def _degree_flag(level: Any) -> tuple[str, str] | None:
@@ -285,24 +288,24 @@ STATUS_GROUP = {
 
 
 def _annual(row: dict[str, Any]) -> tuple[int | None, int | None]:
-    """The posting's pay as yearly dollars, or (None, None) when it states none.
+    """The posting's pay as a yearly figure in the working currency (dollars
+    in the US), or (None, None) when it states none.
 
     Hourly figures are multiplied out the same way jsa.salary does, so the
     dashboard's pay ranges compare like with like.
     """
-    from ..salary import HOURS_PER_YEAR
-
+    pack = countries.active()
     low, high = row.get("salary_min"), row.get("salary_max")
     if low is None and high is None:
         return None, None
     # Dollars compare with dollars; a figure in another currency is not
-    # averaged into a USD median (n22).
-    if (row.get("salary_currency") or "USD").upper() != "USD":
+    # averaged into the median (n22).
+    if (row.get("salary_currency") or pack.CURRENCY).upper() != pack.CURRENCY:
         return None, None
     low = low if low is not None else high
     high = high if high is not None else low
     if row.get("salary_period") == "hour":
-        return low * HOURS_PER_YEAR, high * HOURS_PER_YEAR
+        return low * pack.HOURS_PER_YEAR, high * pack.HOURS_PER_YEAR
     return low, high
 
 

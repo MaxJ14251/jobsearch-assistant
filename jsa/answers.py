@@ -123,7 +123,9 @@ def _salary_note(job: dict[str, Any]) -> str:
     text = ""
     if job.get("salary_min"):
         low, high = job.get("salary_min"), job.get("salary_max")
-        text = f"${low:,.0f}" + (f"–${high:,.0f}" if high and high != low else "")
+        from . import countries
+        sym = countries.active().CURRENCY_SYMBOL
+        text = f"{sym}{low:,.0f}" + (f"–{sym}{high:,.0f}" if high and high != low else "")
         if job.get("salary_period"):
             text += f" per {job['salary_period']}"
     text = text or (job.get("salary_text") or "").strip()

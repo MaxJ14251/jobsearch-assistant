@@ -265,7 +265,8 @@ class TestAStartupBoardsCompensationLine(unittest.TestCase):
 class TestPayRanking(unittest.TestCase):
     def test_e_unknown_pay_scores_exactly_the_midpoint(self):
         """Scenario e. ADR 0001 decision 4's trap, tested directly."""
-        midpoint = (scoring.PAY_LOW + scoring.PAY_HIGH) // 2
+        from jsa.countries import us          # the pay band is the country's
+        midpoint = (us.PAY_LOW + us.PAY_HIGH) // 2
         known, _ = scoring.score_job(job(pay(midpoint, midpoint + 40_000)), prefs())
         unknown, _ = scoring.score_job(job(None), prefs())
         self.assertEqual(known, unknown)

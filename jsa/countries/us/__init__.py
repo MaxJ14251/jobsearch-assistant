@@ -127,6 +127,19 @@ REGION_WORDS = {
 TITLE_REGION_SUFFIX = r"\s*[-–—,]\s*(remote|us|usa|emea|apac|latam)\b.*$"
 
 
+# --- pay ----------------------------------------------------------------------
+# Postings state pay in dollars: "$90,000 - $120,000", "Zone 1: $98,700 USD".
+CURRENCY = "USD"
+CURRENCY_SYMBOL = "$"
+HOURS_PER_YEAR = 2080
+# What a plausible figure is for its period, in dollars (ADR 0006).
+ANNUAL_BOUNDS = (20_000, 1_000_000)
+HOURLY_BOUNDS = (10, 500)
+# The pay ranking's scale: a yearly minimum at or under PAY_LOW scores 0, at
+# or over PAY_HIGH scores 1. US figures; another country needs its own.
+PAY_LOW = 50_000
+PAY_HIGH = 200_000
+
 # The shipped data files (Census, Natural Earth, BLS and O*NET).
 DATA = Path(__file__).resolve().parents[2] / "resources" / "data" / "us"
 PLACES_FILE = DATA / "us_places.csv.gz"

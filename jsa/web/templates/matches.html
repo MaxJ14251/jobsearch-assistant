@@ -220,7 +220,7 @@
     return r ? h + ' h ' + r + ' min' : h + ' h';
   }
   function fmtMiles(r) { return (r % 1 ? r.toFixed(1) : String(r)) + ' mi'; }
-  function money(n) { return '$' + Math.round(n / 1000) + 'k'; }
+  function money(n) { return '{{ country().CURRENCY_SYMBOL }}' + Math.round(n / 1000) + 'k'; }
   function median(xs) {
     if (!xs.length) { return null; }
     var s = xs.slice().sort(function (a, b) { return a - b; }), m = s.length >> 1;
@@ -1191,7 +1191,7 @@
     var pay = bars(an, 'Pay, by midpoint', pays.length + ' of ' + shownCards.length + ' state it',
       BANDS.map(function (b) { return [b[2], pays.filter(function (v) { return v >= b[0] && v < b[1]; }).length]; }));
     var mp = median(pays);
-    if (mp !== null) { text(pay, 'p', 'Median ' + money(mp) + ' a year. Hourly pay is counted at 2,080 hours.', 'foot'); }
+    if (mp !== null) { text(pay, 'p', 'Median ' + money(mp) + ' a year. Hourly pay is counted at {{ "{:,}".format(country().HOURS_PER_YEAR) }} hours.', 'foot'); }
     var withSkills = shownCards.filter(function (d) { return d.skills && d.skills.length; });
     bars(an, 'Skills asked for', 'from ' + withSkills.length + ' read by enrich',
       tally([].concat.apply([], withSkills.map(function (d) { return d.skills; }))).slice(0, 8), 'skill');
