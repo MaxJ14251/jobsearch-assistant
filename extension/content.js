@@ -349,6 +349,8 @@
       button.close { width: 44px; }
       .card .row button { flex: 1 1 100%; }
     }
+    /* In a short window the pinned bars would leave no room for the content. */
+    @media (max-height: 480px) { .top, .foot { position: static; } }
     @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
   `;
   const box = document.createElement("div");
