@@ -1186,7 +1186,8 @@ jobsearch/
       master_profile.example.yaml  # the template `jsa init` copies
       .env.example              #   the .env template
       coach.yaml                #   the resume report's word lists
-      data/                     #   Census centroids, outline, basemap; public domain
+      data/us/                  #   Census centroids, outline, basemap; public domain
+      data/ca/                  #   Statistics Canada towns, postal areas, outline
     config.py                   # paths, .env loading, preferences
     db.py                       # all SQLite access + additive migrations
     sources.py                  # Greenhouse/Lever/Ashby/Workday/Workable/Recruitee/RSS/custom
@@ -1205,6 +1206,7 @@ jobsearch/
     cli.py                      # python -m jsa ...
   extension/                    # the Chrome extension: fills a form, never submits
   tools/build_map_data.py       # rebuilds jsa/resources/data/ from its public sources
+  tools/build_ca_data.py        # rebuilds jsa/resources/data/ca/ (Statistics Canada)
   tools/build_role_data.py      # rebuilds the role education data (BLS, O*NET)
   tests/                        # about 1,890 tests
 ```
@@ -1275,3 +1277,12 @@ usable by a radius. See
 [ADR 0014](docs/decisions/0014-distance-not-place-names.md). The User-Agent sent to job boards names the tool and
 links to this project; it adds a contact address only if you set
 `JSA_CONTACT_EMAIL`, and never sends your profile's email.
+
+For Canada (ADR 0037), `jsa/resources/data/ca/` holds 3,782 towns, the
+1,643 three-character postal areas (never full postal codes) and a province
+outline, rebuilt with `python tools/build_ca_data.py`. Adapted from
+Statistics Canada, 2021 Census boundary files, 2021, under the
+[Statistics Canada Open Licence](https://www.statcan.gc.ca/en/terms-conditions/open-licence).
+This does not constitute an endorsement by Statistics Canada of this
+product. The postal-area file includes data copied with permission from
+Canada Post Corporation.

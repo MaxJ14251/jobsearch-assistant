@@ -70,6 +70,9 @@ NEVER_SCAN = {
 # not about the operator. Key and home-path detection still run on them, so a
 # key pasted into one is still caught. The basemap (n23) is a few million
 # coordinate integers; some of them are bound to spell anybody's ZIP.
+# Statistics Canada's towns, postal areas and outline (ADR 0037) are the same
+# kind of public list: Toronto's longitudes alone begin -79.2..., which is
+# a run of digits in somebody's phone number.
 SKIP_PERSONAL_FILES = {
     ".env.example",
     "master_profile.example.yaml",
@@ -78,6 +81,9 @@ SKIP_PERSONAL_FILES = {
     "us_basemap_coarse.json.gz",
     "us_basemap_medium.json.gz",
     "us_basemap_fine.json.gz",
+    "ca_places.csv.gz",
+    "ca_fsa.csv.gz",
+    "ca_outline.json.gz",
 }
 
 # Credential shapes that are never acceptable, regardless of whose they are.
