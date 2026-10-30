@@ -93,6 +93,15 @@ French "80 000 $". The plan's phase 5 is revised to the shapes measured.
 on a Canadian location, so an explicit "USD" must stay USD in a Canadian
 profile, never be read as CAD.
 
+### Pay, after phase 5
+
+With the Canada pack and the three fixes (an upper-case TO, minimum and
+maximum written out, a currency code after a figure), 183 of the 202
+stated pay figures read, up from 151. Left: one "OTE" range, one per-month
+figure, and two figures that are not pay. The same fixes moved 3 of the
+2,219 postings in the owner's US tracker (read-only check, 2026-10-30),
+each from USD to the CAD the posting states.
+
 ## Decision (to be completed when the pack is built)
 
 Recorded here as the plan for phases 3 to 7; this ADR is accepted when the

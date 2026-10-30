@@ -61,7 +61,7 @@ def _patterns(code: str) -> SimpleNamespace:
     return SimpleNamespace(
         range=re.compile(
             sym + r"\s?" + _NUMBER + r"\s?([kK])?"
-            + rf"(?:\s?(?:{cur}|{low}))?\s*(?:-|–|—|to)\s*(?:{cur}\s*)?{sym}?\s?"
+            + rf"(?:\s?(?:{cur}|{low}))?\s*(?:-|–|—|[Tt][Oo])\s*(?:{cur}\s*)?{sym}?\s?"
             + _NUMBER + r"\s?([kK])?"),
         # Wording that says the number is pay. Checked in the text just before
         # the range, which is where "Pay Range:" sits even when a level name
@@ -77,6 +77,12 @@ def _patterns(code: str) -> SimpleNamespace:
             r"\b(pay|salary|compensation|wage|rate|earnings|ote|starting at|zone \d)\b"
             rf"[^{sym}.]{{0,40}}$",
             re.I),
+        # "a minimum annual salary of $98,300, a midpoint of $115,700, and a
+        # maximum of $133,100": a range written out in words. One Canadian
+        # employer posts every role this way (14 of 578 measured, ADR 0037).
+        min_max=re.compile(
+            r"\bminimum\b[^.$]{0,40}?" + sym + r"\s?" + _NUMBER
+            + r"[^.]{0,80}?\bmaximum\b[^.$]{0,20}?" + sym + r"\s?" + _NUMBER, re.I),
         unit_after=re.compile(
             rf"^\s?(?:{low})?\s?(?:/\s?h(?:ou)?r\b|per\s+hour|an\s+hour|/\s?year|"
             r"per\s+year|annually|a\s+year)",
@@ -167,9 +173,10 @@ class Salary:
     def label(self) -> str:
         unit = "/hr" if self.period == "hour" else "/yr"
         sym = _pack().CURRENCY_SYMBOL
+        code = "" if self.currency == _pack().CURRENCY else f" {self.currency}"
         if self.minimum == self.maximum:
-            return f"{sym}{self.minimum:,}{unit}"
-        return f"{sym}{self.minimum:,}–{sym}{self.maximum:,}{unit}"
+            return f"{sym}{self.minimum:,}{unit}{code}"
+        return f"{sym}{self.minimum:,}–{sym}{self.maximum:,}{unit}{code}"
 
 
 def _amount(digits: str, k: str | None) -> int:
@@ -177,6 +184,25 @@ def _amount(digits: str, k: str | None) -> int:
     # figures for anyone who needs them.
     value = float(digits.replace(",", ""))
     return round(value * 1000 if k else value)
+
+
+# A currency code right after a figure ("$120,000 - $150,000 USD"): a
+# Canadian employer posting a US range for a US location says so, and that
+# figure is not Canadian dollars (73 of 578 Canadian postings mention USD,
+# ADR 0037). Anything else is the working currency.
+# Every pack's currency, and the few other dollar-and-pound codes postings use.
+OTHER_CODES = ("EUR", "GBP", "AUD")
+
+
+@lru_cache(maxsize=None)
+def _code_after(codes: tuple[str, ...]) -> re.Pattern:
+    return re.compile(r"^\s?(" + "|".join(codes) + r")\b", re.I)
+
+
+def _currency_after(text: str, end: int) -> str:
+    codes = tuple(sorted({p.CURRENCY for p in countries.PACKS.values()} | set(OTHER_CODES)))
+    m = _code_after(codes).match(text[end:end + 8])
+    return m.group(1).upper() if m else _pack().CURRENCY
 
 
 def _candidates(text: str):
@@ -225,7 +251,18 @@ def _candidates(text: str):
         if high > low * 4:
             continue
         last_accepted_end = m.end()
-        yield low, high, period, _snippet(text, m.start(), m.end())
+        yield (low, high, period, _snippet(text, m.start(), m.end()),
+               _currency_after(text, m.end()))
+    for m in rx.min_max.finditer(text):
+        low, high = _amount(m.group(1), None), _amount(m.group(2), None)
+        for period in ("year", "hour"):
+            lo, hi = _bounds(period)
+            if lo <= low <= high <= hi and high <= low * 4 and not _VETO.search(m.group(0)):
+                if period == "hour" and not _HOURLY.search(text[m.start():m.end() + 40]):
+                    break
+                yield (low, high, period, _snippet(text, m.start(), m.end()),
+                       _currency_after(text, m.end()))
+                break
 
 
 # A single figure is pay only with stronger evidence than a range needs: the
@@ -278,7 +315,8 @@ def _singles(text: str, taken: list[tuple[int, int]]):
         else:
             continue
         last_end, last_period = m.end(), period
-        yield value, value, period, _snippet(text, m.start(), m.end())
+        yield (value, value, period, _snippet(text, m.start(), m.end()),
+               _currency_after(text, m.end()))
 
 
 def _snippet(text: str, start: int, end: int) -> str:
@@ -308,10 +346,14 @@ def extract(text: str | None) -> Salary | None:
         found = list(_singles(text, taken))
     if not found:
         return None
+    # Figures in the working currency win over figures in another; a posting
+    # stating only another currency's is kept in that currency.
+    home = [c for c in found if c[4] == _pack().CURRENCY]
+    found = home or found
     annual = [c for c in found if c[1] and c[2] == "year"]
     chosen = annual or found
     period = chosen[0][2]
-    chosen = [c for c in chosen if c[2] == period]
+    chosen = [c for c in chosen if c[2] == period and c[4] == chosen[0][4]]
     text_out = chosen[0][3]
     distinct = {(c[0], c[1]) for c in chosen}
     if len(distinct) > 1:
@@ -321,7 +363,7 @@ def extract(text: str | None) -> Salary | None:
         maximum=max(c[1] for c in chosen),
         period=period,
         text=text_out[:300],
-        currency=_pack().CURRENCY,
+        currency=chosen[0][4],
     )
 
 

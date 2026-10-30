@@ -30,6 +30,11 @@ version number lives in one place, `jsa/__init__.py`.
 - **The radius is `radius`, in your country's unit** (miles in the US; a
   country pack can use km). `radius_miles` still works and is always miles;
   setting both is an error. Distances are still measured in miles inside.
+- Pay reading: "$100,000 TO $140,000" (an upper-case TO), "a minimum annual
+  salary of $X ... and a maximum of $Z", and a currency code after a figure
+  ("$132,000 - $151,000 CAD" is CAD, not your currency, so it is shown but
+  not compared). In the owner's tracker this changed 3 of 2,219 readings,
+  each a posting that said CAD.
 
 ## [0.3.0] - 2026-10-26
 

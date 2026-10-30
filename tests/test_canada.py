@@ -81,6 +81,48 @@ class TestPay(InCanada):
         self.assertEqual(pay.label(), "$90,000–$120,000/yr")
 
 
+class TestPayShapesMeasured(InCanada):
+    """The shapes Canadian postings used that the parser missed (ADR 0037)."""
+
+    def test_an_upper_case_to(self):
+        from jsa import salary
+        pay = salary.extract("We reasonably expect the total compensation for this position "
+                             "to be in the range of $100,000 TO $140,000 CAD.")
+        self.assertEqual((pay.minimum, pay.maximum, pay.currency), (100000, 140000, "CAD"))
+
+    def test_minimum_midpoint_maximum_in_words(self):
+        from jsa import salary
+        pay = salary.extract("This role has a minimum annual salary of $98,300, a midpoint "
+                             "of $115,700, and a maximum of $133,100.")
+        self.assertEqual((pay.minimum, pay.maximum, pay.period), (98300, 133100, "year"))
+
+    def test_a_usd_range_stays_usd_and_is_not_compared(self):
+        from jsa import salary
+        pay = salary.extract("Pay range: $120,000 - $150,000 USD")
+        self.assertEqual(pay.currency, "USD")
+        self.assertEqual(pay.label(), "$120,000–$150,000/yr USD")
+        self.assertIsNone(salary.from_row(salary.columns(pay)))
+
+    def test_canadian_dollars_win_over_us_ones(self):
+        from jsa import salary
+        pay = salary.extract("Salary range: $90,000 - $110,000 CAD in Toronto; "
+                             "$100,000 - $125,000 USD in Seattle.")
+        self.assertEqual((pay.minimum, pay.maximum, pay.currency), (90000, 110000, "CAD"))
+
+
+class TestPayInTheUS(unittest.TestCase):
+    def test_a_cad_range_is_cad_in_the_us_too(self):
+        from jsa import salary
+        pay = salary.extract("Salary: $132,000—$151,000 CAD")
+        self.assertEqual(pay.currency, "CAD")
+        self.assertEqual(pay.label(), "$132,000–$151,000/yr CAD")
+
+    def test_an_upper_case_to_in_the_us(self):
+        from jsa import salary
+        pay = salary.extract("Salary range: $90,000 TO $120,000 per year.")
+        self.assertEqual((pay.minimum, pay.maximum, pay.currency), (90000, 120000, "USD"))
+
+
 class TestSetupAndForms(InCanada):
     def test_setup_keeps_only_the_postal_area(self):
         from jsa import setup
