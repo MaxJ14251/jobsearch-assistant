@@ -263,6 +263,7 @@
       --ink: #0E2233; --ink-2: #2B4256; --mute: #4A6072; --rule: #CFE0EA;
       --copper: #0B7A65; --accent-text: #07654F; --surface: #fff; --surface-2: #E8F3FA;
       --sage: #2E7322; --sage-soft: #E4F4D8; --amber: #8A5110; --amber-soft: #FCEBD3;
+      --pink: #FF2D55; --pink-ink: #B8133A;
       --btn: #0B7A65; --btn-top: #34B597; --btn-bottom: #08705C;
       --glass: rgba(255,255,255,.94); --glass-edge: rgba(255,255,255,.95);
       --glass-shadow: 0 10px 30px rgba(20,100,160,.22), inset 0 1px 0 rgba(255,255,255,.95); }
@@ -271,6 +272,7 @@
         --ink: #E4F3FA; --ink-2: #BDD6E3; --mute: #8FAABB; --rule: #1E3A50;
         --copper: #4FD1B5; --accent-text: #5EDCC0; --surface: #0C1E2E; --surface-2: #12293B;
         --sage: #8EDB6A; --sage-soft: #132A18; --amber: #F0B86A; --amber-soft: #33270F;
+        --pink: #FF375F; --pink-ink: #FF7D96;
         --btn: #0F7A65; --btn-top: #2BB79A; --btn-bottom: #0A6553;
         --glass: rgba(12,32,50,.96); --glass-edge: rgba(120,210,255,.16);
         --glass-shadow: 0 12px 34px rgba(0,0,0,.5), inset 0 1px 0 rgba(150,225,255,.12); }
@@ -298,7 +300,9 @@
     li .meta { margin-left: 4px; }
     .note { border-radius: 14px; padding: 10px 12px; margin: 8px 0; font-size: 13.5px; }
     .note.good { background: var(--sage-soft); color: var(--sage); }
-    .note.warn { background: var(--amber-soft); color: var(--amber); }
+    /* The dashboard's system pink, as on its status pills (the ink on this
+       tint measures 5.34:1 light, 6.14:1 dark). */
+    .note.warn { background: color-mix(in srgb, var(--pink) 15%, var(--surface)); color: var(--pink-ink); }
     .note strong { font-weight: 600; }
     .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
     .foot { position: sticky; bottom: -16px; display: flex; flex-wrap: wrap; gap: 8px;
