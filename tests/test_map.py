@@ -225,16 +225,13 @@ class TestDegenerate(unittest.TestCase):
         self.assertEqual(mapview.build(SPREAD, home(), None).kind, "national")
 
     def test_a_missing_outline_file_draws_no_map_rather_than_a_bad_one(self):
-        original = mapview.OUTLINE_FILE
-        mapview.outline.cache_clear()
-        mapview.OUTLINE_FILE = Path("does-not-exist.json.gz")
-        try:
+        from unittest import mock
+
+        from jsa.countries import us           # the outline is the country's
+        with mock.patch.object(us, "OUTLINE_FILE", Path("does-not-exist.json.gz")):
             view = mapview.national(SPREAD)
             self.assertEqual(view.kind, "none")
             self.assertFalse(view.drawn)
-        finally:
-            mapview.OUTLINE_FILE = original
-            mapview.outline.cache_clear()
 
 
 class TestNothingHereReachesTheNetwork(unittest.TestCase):
@@ -332,7 +329,8 @@ class TestTheBuildRule(unittest.TestCase):
         self.assertIn((2, 2), thinned)          # a corner
 
     def test_the_outline_covers_the_lower_48(self):
-        drawn = set(mapview.outline()) - set(mapview.OFFSHORE)
+        from jsa.countries import us
+        drawn = set(mapview.outline()) - set(us.MAP_OFFSHORE)
         self.assertEqual(len(drawn), 49, "48 states and DC")
 
 

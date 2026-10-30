@@ -38,21 +38,15 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
-from . import places
-from .countries import us
+from . import countries, places
 
-OUTLINE_FILE = us.OUTLINE_FILE
 
-# Not drawn on the national map, and counted in words instead. Alaska and
-# Hawaii at their true position turn the lower 48 into a thumbnail, and an
-# inset is a second scale on one picture. Measured 2026-09-27: 0 of 998
-# unreviewed postings place in either, so an inset would be decoration.
-OFFSHORE = ("AK", "HI", "PR", "VI", "GU", "MP", "AS")
-
-# Albers equal-area conic for the United States: the parameters everybody
-# uses, so the shape is the one people recognise.
-ALBERS_PARALLELS = (29.5, 45.5)
-ALBERS_ORIGIN = (37.5, -96.0)
+# The national map is the working country's (jsa/countries): its outline, the
+# regions drawn apart from it (MAP_OFFSHORE: Alaska, Hawaii and the
+# territories for the US) and its Albers projection (MAP_PARALLELS,
+# MAP_ORIGIN). The local map is azimuthal about home and works anywhere.
+def _pack():
+    return countries.active()
 
 LOCAL_SIZE = (560, 440)
 NATIONAL_SIZE = (900, 540)
@@ -192,15 +186,17 @@ def albers_turn(origin: places.Place) -> float:
     it zooms out to the country, and back to north-up as it zooms in. A turn
     about home moves no distance, so nothing the filter decides changes.
     """
-    lat1, lat2 = map(math.radians, ALBERS_PARALLELS)
+    pack = _pack()
+    lat1, lat2 = map(math.radians, pack.MAP_PARALLELS)
     n = 0.5 * (math.sin(lat1) + math.sin(lat2))
-    return n * math.radians(origin.lon - ALBERS_ORIGIN[1])
+    return n * math.radians(origin.lon - pack.MAP_ORIGIN[1])
 
 
 def albers(lat: float, lon: float) -> tuple[float, float]:
     """Albers equal-area conic, in unit-radius map coordinates (x east, y north)."""
-    lat1, lat2 = map(math.radians, ALBERS_PARALLELS)
-    lat0, lon0 = math.radians(ALBERS_ORIGIN[0]), math.radians(ALBERS_ORIGIN[1])
+    pack = _pack()
+    lat1, lat2 = map(math.radians, pack.MAP_PARALLELS)
+    lat0, lon0 = math.radians(pack.MAP_ORIGIN[0]), math.radians(pack.MAP_ORIGIN[1])
     n = 0.5 * (math.sin(lat1) + math.sin(lat2))
     c = math.cos(lat1) ** 2 + 2 * n * math.sin(lat1)
     rho0 = math.sqrt(c - 2 * n * math.sin(lat0)) / n
@@ -210,12 +206,18 @@ def albers(lat: float, lon: float) -> tuple[float, float]:
     return rho * math.sin(theta), rho0 - rho * math.cos(theta)
 
 
-@lru_cache(maxsize=1)
 def outline() -> dict[str, list[list[list[float]]]]:
-    """State rings as [[lon, lat], ...], or {} when the file is missing."""
-    if not OUTLINE_FILE.exists():
+    """Region rings as [[lon, lat], ...] (states, for the US), or {} when the
+    file is missing."""
+    pack = _pack()
+    return _outline_of(pack.CODE, pack.OUTLINE_FILE)
+
+
+@lru_cache(maxsize=None)
+def _outline_of(code: str, path: Path) -> dict[str, list[list[list[float]]]]:
+    if not path.exists():
         return {}
-    with gzip.open(OUTLINE_FILE, "rt", encoding="utf-8") as fh:
+    with gzip.open(path, "rt", encoding="utf-8") as fh:
         return json.load(fh)
 
 
@@ -320,7 +322,7 @@ def national(rows, origin: places.Place | None = None,
     view = MapView("national", width, height)
     shapes = outline()
     lower48 = {code: rings for code, rings in shapes.items()
-               if code not in OFFSHORE}
+               if code not in _pack().MAP_OFFSHORE}
     if not lower48:
         # No outline file. A scatter of dots with nothing behind it is not a
         # map of anything, so say there is no map rather than draw a bad one.
@@ -354,7 +356,7 @@ def national(rows, origin: places.Place | None = None,
     placed: list[Bubble] = []
     for group in sorted(groups.values(), key=lambda g: -g["count"]):
         spot = group["place"]
-        if spot.state in OFFSHORE:
+        if spot.state in _pack().MAP_OFFSHORE:
             view.off_map += group["count"]
             continue
         x, y = project(spot.lat, spot.lon)
@@ -364,7 +366,7 @@ def national(rows, origin: places.Place | None = None,
                              title=group["title"]))
     view.bubbles = placed
     view.labels = _labels(placed)
-    if origin is not None and origin.state not in OFFSHORE:
+    if origin is not None and origin.state not in _pack().MAP_OFFSHORE:
         view.home = project(origin.lat, origin.lon)
         view.home_name = str(origin)
 
@@ -373,9 +375,9 @@ def national(rows, origin: places.Place | None = None,
     # and the pixels between them where they land. A conic projection's scale
     # varies with latitude, so this is the scale in the middle of the map and
     # the bar is honest to a few percent, not to the mile.
-    lat = ALBERS_ORIGIN[0]
-    west = places.Place("", "", lat, ALBERS_ORIGIN[1] - 5)
-    east = places.Place("", "", lat, ALBERS_ORIGIN[1] + 5)
+    lat, lon = _pack().MAP_ORIGIN
+    west = places.Place("", "", lat, lon - 5)
+    east = places.Place("", "", lat, lon + 5)
     wx, wy = project(west.lat, west.lon)
     ex, ey = project(east.lat, east.lon)
     per_mile = math.hypot(ex - wx, ey - wy) / places.miles(west, east)

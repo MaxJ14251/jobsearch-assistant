@@ -24,16 +24,18 @@ import math
 from array import array
 from functools import lru_cache
 
-from . import mapview, places
-from .countries import us
+from . import countries, mapview, places
 
-DATA = us.DATA
+# The working country's basemap folder (jsa/countries) unless a test points
+# this somewhere else.
+DATA = None
 TIERS = ("coarse", "medium", "fine")
 
 # How far around the requested point each tier is cut, in miles. Wide enough
 # for the whole view at the smallest scale the tier is used at, with room to
 # pan before the page asks for more: fine is used from 4 px/mi, where a
-# 1,400 x 720 map is 200 miles corner to centre. Coarse is the whole country.
+# 1,400 x 720 map is 200 miles corner to centre. Coarse is the whole country
+# (whichever country the app is working in).
 REACH = {"coarse": None, "medium": 1300.0, "fine": 300.0}
 
 # Decimal places of a mile in the paths: rounding stays a tenth of the tier's
@@ -50,7 +52,8 @@ LAYERS = ("land", "urban", "county", "lake", "road")
 
 
 def path(tier: str):
-    return DATA / us.basemap_file(tier).name     # DATA: tests point it elsewhere
+    pack = countries.active()
+    return (DATA or pack.DATA) / pack.basemap_file(tier).name
 
 
 def available() -> bool:
@@ -64,9 +67,10 @@ def version() -> str:
     return format(abs(hash(tuple((s.st_size, s.st_mtime_ns) for s in stats))) % 16**8, "08x")
 
 
-@lru_cache(maxsize=len(TIERS))
-def _tier(tier: str) -> dict | None:
-    """The tier as shipped, or None when its file is missing."""
+@lru_cache(maxsize=2 * len(TIERS))
+def _tier(tier: str, country: str = "") -> dict | None:
+    """The tier as shipped, or None when its file is missing. `country` is
+    only part of the cache's key: each country's tier is its own."""
     file = path(tier)
     if not file.exists():
         return None
@@ -84,7 +88,7 @@ def warm() -> None:
     """Load every tier now, so the first zoom does not wait for the fine
     one (about 2 s to read). Run in the background when the server starts."""
     for tier in TIERS:
-        _tier(tier)
+        _tier(tier, countries.active().CODE)
 
 
 def _box(centre: tuple[float, float], reach: float | None):
@@ -154,13 +158,13 @@ def layers(origin: places.Place, tier: str, at: tuple[float, float] = (0.0, 0.0)
     # Snap the centre, so panning a few miles reuses what was just built.
     step = (reach or 1.0) / 4
     snapped = (round(at[0] / step) * step, round(at[1] / step) * step) if reach else (0.0, 0.0)
-    return _layers(origin, tier, snapped, reach)
+    return _layers(origin, tier, snapped, reach, countries.active().CODE)
 
 
 @lru_cache(maxsize=24)
 def _layers(origin: places.Place, tier: str, at: tuple[float, float],
-            reach: float | None) -> dict | None:
-    data = _tier(tier)
+            reach: float | None, country: str = "") -> dict | None:
+    data = _tier(tier, country)
     if data is None:
         return None
     q = data["q"]

@@ -140,6 +140,18 @@ HOURLY_BOUNDS = (10, 500)
 PAY_LOW = 50_000
 PAY_HIGH = 200_000
 
+# --- the national map -----------------------------------------------------------
+# Not drawn on the national map, and counted in words instead. Alaska and
+# Hawaii at their true position turn the lower 48 into a thumbnail, and an
+# inset is a second scale on one picture. Measured 2026-09-27: 0 of 998
+# unreviewed postings place in either, so an inset would be decoration.
+MAP_OFFSHORE = ("AK", "HI", "PR", "VI", "GU", "MP", "AS")
+# Albers equal-area conic for the United States: the parameters everybody
+# uses, so the shape is the one people recognise. (standard parallels, and
+# the origin as (latitude, longitude))
+MAP_PARALLELS = (29.5, 45.5)
+MAP_ORIGIN = (37.5, -96.0)
+
 # --- job sources --------------------------------------------------------------
 # Sources that search one country, asked about the operator's own cities:
 # USAJOBS is federal US jobs; The Muse's listings are overwhelmingly US. A
