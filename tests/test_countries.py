@@ -111,5 +111,30 @@ class TestTheWorkingCountry(unittest.TestCase):
                 config.load_profile(live)
 
 
+class TestTheFloorRename(unittest.TestCase):
+    """compensation_floor_usd became compensation_floor (in the country's
+    currency); a profile written before keeps working."""
+
+    def test_the_new_name(self):
+        floor = Preferences.from_profile(profile(compensation_floor=95000)).compensation_floor
+        self.assertEqual(floor.for_region(), 95000)
+
+    def test_the_old_name_still_works(self):
+        floor = Preferences.from_profile(profile(compensation_floor_usd="no_floor"))
+        self.assertTrue(floor.compensation_floor.no_floor)
+
+    def test_both_set_is_a_plain_message(self):
+        with self.assertRaises(ConfigError) as caught:
+            Preferences.from_profile(profile(compensation_floor=90000,
+                                             compensation_floor_usd=95000))
+        self.assertIn("both compensation_floor and compensation_floor_usd", str(caught.exception))
+
+    def test_a_message_names_the_key_the_profile_used(self):
+        for key in ("compensation_floor", "compensation_floor_usd"):
+            with self.subTest(key=key), self.assertRaises(ConfigError) as caught:
+                Preferences.from_profile(profile(**{key: "lots"}))
+            self.assertIn(f"{key} is 'lots'", str(caught.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

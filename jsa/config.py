@@ -108,9 +108,33 @@ class ConfigError(RuntimeError):
 NO_FLOOR = "no_floor"
 
 
+# The pay floor's profile key, in the working country's currency (one country
+# per profile). Before countries it was compensation_floor_usd, which is still
+# read; a profile may not set both.
+FLOOR_KEY = "compensation_floor"
+OLD_FLOOR_KEY = "compensation_floor_usd"
+
+
+def floor_setting(prefs: dict[str, Any]) -> tuple[Any, str]:
+    """(the floor as written, the key it is under). A key present but empty
+    reads as unset, so a profile mid-rename still works."""
+    new, old = prefs.get(FLOOR_KEY), prefs.get(OLD_FLOOR_KEY)
+    if new is not None and old is not None:
+        raise ConfigError(
+            f"master_profile.yaml: both {FLOOR_KEY} and {OLD_FLOOR_KEY} are set. Keep "
+            f"{FLOOR_KEY} (the same figure, in your country's currency) and delete "
+            f"{OLD_FLOOR_KEY}.")
+    if new is not None:
+        return new, FLOOR_KEY
+    if old is not None:
+        return old, OLD_FLOOR_KEY
+    return None, (OLD_FLOOR_KEY if OLD_FLOOR_KEY in prefs and FLOOR_KEY not in prefs
+                  else FLOOR_KEY)
+
+
 @dataclass(frozen=True)
 class CompFloor:
-    """A parsed compensation_floor_usd -- a THRESHOLD, not a preference.
+    """A parsed pay floor (`compensation_floor`) -- a THRESHOLD, not a preference.
 
     It answers "below what number would I not take the job". Whether you
     *prefer* more money is a different question, is true of everyone, and is
@@ -144,8 +168,10 @@ class CompFloor:
         return self.default
 
 
-def parse_compensation_floor(value: Any, regions: dict[str, Any]) -> CompFloor | None:
-    """Validate the SHAPE of compensation_floor_usd. None means undecided.
+def parse_compensation_floor(value: Any, regions: dict[str, Any],
+                             key: str = FLOOR_KEY) -> CompFloor | None:
+    """Validate the SHAPE of the floor. None means undecided. `key` is the
+    name it was found under, so a message names what the profile says.
 
     Raises ConfigError on anything malformed rather than guessing, because a
     floor that silently reads as zero is indistinguishable from no floor.
@@ -156,21 +182,21 @@ def parse_compensation_floor(value: Any, regions: dict[str, Any]) -> CompFloor |
     # not a compensation floor.
     if isinstance(value, bool):
         raise ConfigError(
-            "master_profile.yaml: compensation_floor_usd is true/false. Use "
+            f"master_profile.yaml: {key} is true/false. Use "
             f"{NO_FLOOR!r} if you have no floor, or a number."
         )
     if isinstance(value, str):
         if value.strip() == NO_FLOOR:
             return CompFloor(no_floor=True)
         raise ConfigError(
-            f"master_profile.yaml: compensation_floor_usd is {value!r}. The only "
+            f"master_profile.yaml: {key} is {value!r}. The only "
             f"string accepted is {NO_FLOOR!r}; otherwise use a number or a map "
             "keyed to job_search_preferences.regions."
         )
     if isinstance(value, int):
         if value < 0:
             raise ConfigError(
-                f"master_profile.yaml: compensation_floor_usd is {value}, which "
+                f"master_profile.yaml: {key} is {value}, which "
                 "is negative."
             )
         return CompFloor(default=value)
@@ -178,30 +204,30 @@ def parse_compensation_floor(value: Any, regions: dict[str, Any]) -> CompFloor |
         known = set(regions) | {"default"}
         floors: dict[str, int] = {}
         default: int | None = None
-        for key, amount in value.items():
-            if key not in known:
+        for region, amount in value.items():
+            if region not in known:
                 raise ConfigError(
-                    f"master_profile.yaml: compensation_floor_usd has key "
-                    f"{key!r}, which is not 'default' and not one of your "
+                    f"master_profile.yaml: {key} has key "
+                    f"{region!r}, which is not 'default' and not one of your "
                     f"regions ({', '.join(sorted(regions)) or 'none defined'})."
                 )
             if isinstance(amount, bool) or not isinstance(amount, int) or amount < 0:
                 raise ConfigError(
-                    f"master_profile.yaml: compensation_floor_usd[{key!r}] is "
+                    f"master_profile.yaml: {key}[{region!r}] is "
                     f"{amount!r}, which is not a non-negative number."
                 )
-            if key == "default":
+            if region == "default":
                 default = amount
             else:
-                floors[key] = amount
+                floors[region] = amount
         if default is None and not floors:
             raise ConfigError(
-                "master_profile.yaml: compensation_floor_usd is an empty map. "
+                f"master_profile.yaml: {key} is an empty map. "
                 f"Give a 'default', a region, or use {NO_FLOOR!r}."
             )
         return CompFloor(default=default, by_region=floors)
     raise ConfigError(
-        f"master_profile.yaml: compensation_floor_usd is a "
+        f"master_profile.yaml: {key} is a "
         f"{type(value).__name__}, which is not a number, a map, or {NO_FLOOR!r}."
     )
 
@@ -333,6 +359,7 @@ class Preferences:
                 "is empty. Fill it in before running discovery — guessing here "
                 "would silently skew every result."
             )
+        floor, floor_key = floor_setting(prefs)
         return cls(
             target_titles=list(prefs.get("target_titles") or []),
             seniority=list(prefs.get("seniority") or []),
@@ -350,8 +377,7 @@ class Preferences:
             radius_miles=parse_radius(prefs.get("radius_miles")),
             regions={k: list(v) for k, v in (prefs.get("regions") or {}).items()},
             compensation_floor=parse_compensation_floor(
-                prefs.get("compensation_floor_usd"), prefs.get("regions") or {}
-            ),
+                floor, prefs.get("regions") or {}, floor_key),
             work_authorization=(prefs.get("work_authorization") or None),
             needs_visa_sponsorship=parse_tristate(
                 prefs.get("needs_visa_sponsorship"), "needs_visa_sponsorship"

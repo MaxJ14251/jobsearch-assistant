@@ -137,8 +137,10 @@ def check_preferences(profile: dict[str, Any], report: Report) -> None:
                    "Write how you can work in the US, e.g. 'US citizen'. "
                    "Drafting a document refuses until this is answered.",
                    "profile/master_profile.yaml")
-    if prefs.get("compensation_floor_usd") is None:
-        report.add(True, "compensation_floor_usd is undecided",
+    from .config import floor_setting
+    floor, floor_key = floor_setting(prefs)
+    if floor is None:
+        report.add(True, f"{floor_key} is undecided",
                    "Use no_floor if you have no minimum, or a number. "
                    "Undecided is not the same as no minimum, so drafting "
                    "refuses rather than guessing.",

@@ -381,7 +381,7 @@ class TestPreferencesNeverReachThePrompt(unittest.TestCase):
             summary="A summary drawn from the profile.",
             bullets="- [exp_1] Did a thing.",
         ).lower()
-        for name in ("work_authorization", "compensation_floor_usd"):
+        for name in ("work_authorization", "compensation_floor", "compensation_floor_usd"):
             value = prefs.get(name)
             if isinstance(value, str) and value.strip():
                 self.assertNotIn(value.lower(), built,

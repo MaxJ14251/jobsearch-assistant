@@ -73,7 +73,10 @@ class TestPreferencesInPlace(Folder):
         parsed = Preferences.from_profile(data)
         self.assertEqual(parsed.target_titles, ["Support Engineer", "Data Analyst"])
         self.assertEqual(parsed.locations, ["Remote (US)", "Boise, ID"])
-        self.assertEqual(data["job_search_preferences"]["compensation_floor_usd"], "no_floor")
+        # Setup writes the floor under its name since countries (country pack
+        # split): compensation_floor, never the old compensation_floor_usd too.
+        self.assertEqual(data["job_search_preferences"]["compensation_floor"], "no_floor")
+        self.assertNotIn("compensation_floor_usd", data["job_search_preferences"])
 
     def test_an_example_shaped_draft(self):
         self.check_only_the_block_changes(setup.start_from_example())

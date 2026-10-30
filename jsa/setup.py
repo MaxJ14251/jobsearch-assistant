@@ -111,7 +111,8 @@ def validate(form: dict[str, str]) -> tuple[dict[str, Any], dict[str, str]]:
     """The form's fields through the profile's own parsers. Returns
     (preferences, errors); nothing is written while errors is non-empty."""
     from . import places
-    from .config import (ConfigError, parse_compensation_floor, parse_radius,
+    from .config import (FLOOR_KEY, OLD_FLOOR_KEY, ConfigError, parse_compensation_floor,
+                         parse_radius,
                          parse_tristate, parse_years_filter)
 
     def lines(name: str) -> list[str]:
@@ -164,11 +165,13 @@ def validate(form: dict[str, str]) -> tuple[dict[str, Any], dict[str, str]]:
         if "floor" not in errors:
             try:
                 parse_compensation_floor(value, {})
-                prefs["compensation_floor_usd"] = value
+                prefs[FLOOR_KEY] = value
+                prefs.pop(OLD_FLOOR_KEY, None)
             except ConfigError as exc:
                 errors["floor"] = str(exc)
     else:
-        prefs["compensation_floor_usd"] = None
+        prefs[FLOOR_KEY] = None
+        prefs.pop(OLD_FLOOR_KEY, None)
     years = (form.get("max_years") or "").strip()
     if years:
         try:

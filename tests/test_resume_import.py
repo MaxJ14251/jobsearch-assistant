@@ -305,7 +305,7 @@ class TestCommand(Base):
         draft = yaml.safe_load(self.draft.read_text(encoding="utf-8"))
         whats = [f.what for f in doctor.run(draft, None).blocking]
         for expected in ("work_authorization is unanswered",
-                         "compensation_floor_usd is undecided",
+                         "compensation_floor is undecided",
                          "No summary variants"):
             self.assertIn(expected, whats)
         self.assertTrue(any("credential" in w for w in whats))

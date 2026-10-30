@@ -104,7 +104,7 @@ class TestExampleProfileStillWorks(unittest.TestCase):
 
     def test_example_declares_all_four_fields(self):
         keys = _prefs(EXAMPLE_PATH)
-        for name in ("compensation_floor_usd", "work_authorization",
+        for name in ("compensation_floor", "work_authorization",
                      "needs_visa_sponsorship", "willing_to_relocate"):
             self.assertIn(name, keys, f"{name} missing from the example")
 
@@ -119,7 +119,12 @@ class TestProfileDrift(unittest.TestCase):
 
     @unittest.skipUnless(REAL_PATH.exists(), "no personal profile on this machine")
     def test_key_sets_match(self):
-        real, example = set(_prefs(REAL_PATH)), set(_prefs(EXAMPLE_PATH))
+        # The pay floor was renamed (country pack split); a profile written
+        # before still says compensation_floor_usd, which is read the same.
+        def keys(path):
+            return {"compensation_floor" if k == "compensation_floor_usd" else k
+                    for k in _prefs(path)}
+        real, example = keys(REAL_PATH), keys(EXAMPLE_PATH)
         self.assertEqual(
             real, example,
             "job_search_preferences drifted:\n"

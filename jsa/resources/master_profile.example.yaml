@@ -98,10 +98,10 @@ job_search_preferences:
   #
   # Three forms:
   #     no_floor          you have no threshold. Most people.
-  #     95000             one figure, in USD
+  #     95000             one figure, in your country's currency (dollars in the US)
   #     a map keyed to the `regions` block below, for when the honest answer
   #     is two numbers (rent-free in one place, renting in another):
-  #         compensation_floor_usd:
+  #         compensation_floor:
   #           default: 95000
   #           pa: 85000
   #           sd: 110000
@@ -112,7 +112,9 @@ job_search_preferences:
   # A job whose TOP stated pay is below the floor scores 0, with the reason
   # shown. A job that states no pay is never rejected. Run `jsa rescore` after
   # changing this. See docs/decisions/0006-salary-extraction-and-pay-ranking.md.
-  compensation_floor_usd: null   # no_floor | a number | a per-region map
+  # (Profiles written before countries call it compensation_floor_usd; that
+  # name still works.)
+  compensation_floor: null       # no_floor | a number | a per-region map
   work_authorization: null       # e.g. "US citizen - no sponsorship required"
   # Optional: a plain yes/no for forms that ask "Are you authorized to work in
   # the US?" The browser extension never reads one out of the text above.

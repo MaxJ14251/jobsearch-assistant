@@ -24,7 +24,11 @@ def register(app, ctx) -> None:
         p = (draft or {}).get("job_search_preferences") or {}
         locs = [str(x) for x in p.get("locations") or []]
         home = str(p.get("home_location") or "")
-        floor = p.get("compensation_floor_usd")
+        from ..config import ConfigError, floor_setting
+        try:
+            floor = floor_setting(p)[0]
+        except ConfigError:
+            floor = None
         tri = {True: "yes", False: "no"}
         return {
             "target_titles": NL.join(map(str, p.get("target_titles") or [])),

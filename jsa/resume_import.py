@@ -655,7 +655,7 @@ def render_draft(ident: Identity, v: Verified, source: str) -> str:
     w(f"    - \"Remote (US)\"{SUGGESTED}")
     if ident.city and ident.state:
         w(f"    - {_q(f'{ident.city}, {ident.state}')}{SUGGESTED}")
-    w("  compensation_floor_usd: null  # TODO no_floor | a number (see the example file)")
+    w("  compensation_floor: null  # TODO no_floor | a number (see the example file)")
     w("  work_authorization: null      # TODO e.g. \"US citizen - no sponsorship required\"")
     w("  needs_visa_sponsorship: null  # TODO true/false")
     w("  willing_to_relocate: null     # TODO true/false")
