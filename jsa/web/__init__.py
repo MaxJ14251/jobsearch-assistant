@@ -34,7 +34,7 @@ from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
                                PlainTextResponse, RedirectResponse)
 from jinja2 import DictLoader, Environment
 
-from .. import approvals, countries, db, review
+from .. import approvals, countries, db, review, sources
 from ..prep import INTERVIEW_ROUNDS
 
 HOST = "127.0.0.1"          # never 0.0.0.0
@@ -89,6 +89,28 @@ env.globals["degree_flag"] = lambda level: _degree_flag(level)
 # The working country's pack (jsa/countries), for pages that show its
 # currency, units or wording.
 env.globals["country"] = countries.active
+
+
+def posting_flag(closed_at: Any, kind: Any, polled_at: Any) -> dict[str, str] | None:
+    """What is known about whether a posting is still up, for a flag on its
+    card and its page. It only informs: nothing here changes a job's stage."""
+    if closed_at:
+        on = db.local_date(closed_at) or closed_at
+        if kind in sources.WINDOWED_KINDS:
+            return {"text": "dropped off the feed",
+                    "title": f"Gone from this feed on {on}. Feeds show only their latest "
+                             "postings, so it may still be open: check the listing."}
+        return {"text": "posting taken down",
+                "title": f"The employer's board stopped listing it on {on}. "
+                         "Often it was filled; it is not a reply."}
+    if not polled_at:
+        return {"text": "not checked automatically",
+                "title": "Added by hand, so discovery doesn't look at it: "
+                         "if the posting is taken down, nothing here will say so."}
+    return None
+
+
+env.globals["posting_flag"] = posting_flag
 # Miles (how distances are measured) as a whole number in the country's unit.
 env.filters["shown"] = lambda miles: round(countries.shown(miles))
 

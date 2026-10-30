@@ -911,6 +911,11 @@ def fetch_usajobs(entry: dict[str, Any]) -> FetchResult:
 
 # --- dispatch ---------------------------------------------------------------
 
+# Sources that show a window of postings, not everything open: a feed's latest
+# items, or a capped number of search pages per city. A posting gone from one may
+# only have scrolled off, where gone from an employer's own board means taken down.
+WINDOWED_KINDS = frozenset({"rss", "themuse", "usajobs"})
+
 FETCHERS: dict[str, Callable[[dict[str, Any]], FetchResult]] = {
     "greenhouse": fetch_greenhouse,
     "lever": fetch_lever,

@@ -19,6 +19,9 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Changed
 
+- Whether a posting is still up now shows on its job page as well as in
+  Pipeline. A job gone from a feed says "dropped off the feed", since it may
+  still be open; a job added by hand says "not checked automatically".
 - A job page's title links straight to where you apply: the board's own form
   on Greenhouse, Lever and Ashby, otherwise the listing. "Open the original
   posting" stays at the bottom.

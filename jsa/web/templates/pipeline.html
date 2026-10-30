@@ -52,7 +52,7 @@
     {% if r.quiet %}<span class="flag warn">quiet {{ r.quiet }}d</span>{% endif %}
     {% if stage == 'saved' %}<span class="flag">{{ '%d+ yrs'|format(r.years_required) if r.years_required is not none else 'years not stated' }}</span>
     <span class="flag">{{ 'posted %s'|format(r.posted_on) if r.posted_on else 'posting date unknown' }}</span>{% endif %}
-    {% if r.closed_at %}<span class="flag" title="The employer's board stopped listing it on {{ r.closed_at|localdate }}. Often it was filled; it is not a reply.">posting taken down</span>{% endif %}
+    {% set pf = posting_flag(r.closed_at, r.source_kind, r.source_polled) %}{% if pf %}<span class="flag" title="{{ pf.title }}">{{ pf.text }}</span>{% endif %}
   </div>
   {% if r.status in ('saved', 'drafting', 'ready') %}<div class="status-line">{% if r.drafts.pending %}<a class="flag warn" href="/review">{{ r.drafts.pending|plural('draft') }} to review</a>
     {% elif r.drafts.approved %}<span class="flag ok">resume approved</span>

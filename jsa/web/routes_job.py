@@ -49,7 +49,8 @@ def register(app, ctx) -> None:
             row = con.execute(
                 "SELECT j.*, c.name AS company, "
                 "(SELECT kind FROM sources WHERE id = j.source_id) AS source_kind, "
-                "(SELECT url FROM sources WHERE id = j.source_id) AS source_url "
+                "(SELECT url FROM sources WHERE id = j.source_id) AS source_url, "
+                "(SELECT last_polled_at FROM sources WHERE id = j.source_id) AS source_polled "
                 "FROM jobs j JOIN companies c ON c.id = j.company_id WHERE j.id = ?",
                 (job_id,)).fetchone()
             if row is None:

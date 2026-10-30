@@ -3,6 +3,7 @@
 <p class="sub">{{ job.company }} · {{ job.location or 'location not stated' }} · {{ job.remote }}</p>
 <div class="flags" style="margin-bottom:14px">
   {% if application %}<span class="flag ok">application: {{ application.status }}</span>{% endif %}
+  {% set pf = posting_flag(job.closed_at, job.source_kind, job.source_polled) %}{% if pf %}<span class="flag" title="{{ pf.title }}">{{ pf.text }}</span>{% endif %}
   {% set dflag = degree_flag(job.degree_level) %}{% if dflag %}<span class="flag {{ dflag[1] }}" title="Read from the posting's text. Shown so you know, never used to hide or rank a job">{{ dflag[0] }}</span>{% endif %}
   {% if job.clearance_required == 1 %}<span class="flag warn">clearance</span>{% endif %}
   {% if job.years_required is not none %}<span class="flag">{{ job.years_required }}+ yrs</span>{% endif %}

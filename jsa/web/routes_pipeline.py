@@ -49,9 +49,11 @@ def register(app, ctx) -> None:
                 "SELECT a.id AS application_id, a.job_id, a.status, a.next_action, "
                 "       a.next_action_due, a.last_activity_at, j.title, j.closed_at, "
                 "       j.years_required, j.posted_at, "
-                "       c.name AS company "
+                "       c.name AS company, s.kind AS source_kind, "
+                "       s.last_polled_at AS source_polled "
                 "  FROM applications a JOIN jobs j ON j.id = a.job_id "
                 "  LEFT JOIN companies c ON c.id = j.company_id "
+                "  LEFT JOIN sources s ON s.id = j.source_id "
                 " WHERE a.archived_at IS NULL").fetchall()]
             # Outreach per job, by status, for a line on each card. A
             # discarded draft is history, not news.

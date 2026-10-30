@@ -87,6 +87,60 @@ class TestPostingTakenDown(Base):
         card = page[page.index('id="app-1"'):]
         self.assertIn("posting taken down", card[:card.index("</form>")])
 
+    def source(self, kind, polled):
+        con = self.box.connect()
+        con.execute("INSERT INTO sources (id,name,kind,url,company_id,last_polled_at) "
+                    "VALUES (90,'s',?,'https://x/feed',1,?)", (kind, polled))
+        con.execute("UPDATE jobs SET source_id = 90 WHERE id = 1")
+        con.commit()
+        con.close()
+
+    def close(self):
+        con = self.box.connect()
+        con.execute("UPDATE jobs SET closed_at = '2026-10-20T12:00:00Z' WHERE id = 1")
+        con.commit()
+        con.close()
+
+    def both_pages(self):
+        return self.client.get("/pipeline").text, self.client.get("/job/1").text
+
+    def test_a_board_that_dropped_it_says_taken_down_on_both_pages(self):
+        self.source("greenhouse", "2026-10-27T00:00:00Z")
+        for page in self.both_pages():
+            self.assertNotIn("posting taken down", page)
+            self.assertNotIn("not checked automatically", page)
+        self.close()
+        for page in self.both_pages():
+            self.assertIn("posting taken down", page)
+            self.assertIn("2026-10-20", page)
+
+    def test_a_feed_that_dropped_it_says_it_may_still_be_open(self):
+        self.source("rss", "2026-10-27T00:00:00Z")
+        self.close()
+        for page in self.both_pages():
+            self.assertIn("dropped off the feed", page)
+            self.assertIn("may still be open", page)
+            self.assertNotIn("posting taken down", page)
+
+    def test_a_job_nothing_rechecks_says_so(self):
+        self.source("manual", None)
+        for page in self.both_pages():
+            self.assertIn("not checked automatically", page)
+
+    def test_the_flag_never_changes_the_stage(self):
+        self.source("greenhouse", "2026-10-27T00:00:00Z")
+        self.close()
+
+        def stage():
+            con = self.box.connect()
+            try:
+                return con.execute("SELECT status FROM applications WHERE job_id = 1").fetchone()[0]
+            finally:
+                con.close()
+        before = stage()
+        self.both_pages()
+        self.assertEqual(stage(), before)
+
 
 if __name__ == "__main__":
     unittest.main()
