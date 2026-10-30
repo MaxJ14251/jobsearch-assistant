@@ -25,10 +25,12 @@ import json
 import re
 import sqlite3
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
-from . import llm
+from . import countries, llm
 from .config import ConfigError, Preferences
 
 REDACTED = "[contact]"
@@ -45,19 +47,29 @@ _SECTION = re.compile(
     r"technical\s+skills|licenses?)\b", re.I)
 
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
-_PHONE = re.compile(
-    r"(?<!\d)(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)")
 _URL = re.compile(
     r"(?:https?://)?(?:www\.)?(?:linkedin\.com|github\.com)/[^\s,|]+"
     r"|https?://[^\s,|]+", re.I)
-# Not inside a word or link: a handle such as github.com/name12345 has five
-# digits too (found on the first real run).
-_ZIP = re.compile(r"(?<![\w/.@-])\d{5}(?:-\d{4})?(?![\w/])")
-_CITY_ST = re.compile(r"\b([A-Z][A-Za-z.'-]+(?: [A-Z][A-Za-z.'-]+){0,2}), ([A-Z]{2})\b")
-_STREET = re.compile(
-    r"\b\d{1,6} [A-Za-z0-9.' ]{2,40}? (?:St|Street|Ave|Avenue|Rd|Road|Blvd|"
-    r"Boulevard|Dr|Drive|Ln|Lane|Way|Ct|Court|Pl|Place|Ter|Terrace|Pkwy|"
-    r"Circle|Cir)\b\.?(?:,? (?:Apt|Unit|Suite|#) ?\w+)?")
+
+
+# Phone numbers, postal codes, "City, Region" and street addresses are each
+# country's own (jsa/countries). The working country's are tried first, so
+# the draft's fields come from them; every other country's are tried too, so
+# that a resume written elsewhere still has its contact details removed.
+@lru_cache(maxsize=None)
+def _contact(code: str) -> SimpleNamespace:
+    pack = countries.get(code)
+    return SimpleNamespace(phone=re.compile(pack.CONTACT_PHONE),
+                           postal=re.compile(pack.CONTACT_POSTAL),
+                           city_region=re.compile(pack.CONTACT_CITY_REGION),
+                           street=re.compile(pack.CONTACT_STREET))
+
+
+def _contacts() -> list[SimpleNamespace]:
+    first = countries.active().CODE
+    return [_contact(first)] + [_contact(c) for c in countries.codes() if c != first]
+
+
 # Name particles that are lowercase inside a name: Ludwig van Beethoven.
 _PARTICLES = {"van", "von", "de", "der", "den", "da", "das", "dos", "del", "della",
               "di", "du", "la", "le", "bin", "binti", "al", "el", "y", "e", "ter"}
@@ -326,21 +338,23 @@ def split_identity(lines: list[str], known: list[str] | None = None
             if ident.links[key] is None:
                 ident.links[key] = url if low.startswith("http") else "https://" + url
             found.append(url)
-        for m in _PHONE.finditer(line):
-            ident.phone = ident.phone or m.group(0).strip()
-            found.append(m.group(0).strip())
+        for rx in _contacts():
+            for m in rx.phone.finditer(line):
+                ident.phone = ident.phone or m.group(0).strip()
+                found.append(m.group(0).strip())
 
     for line in contact_block:
-        for m in _STREET.finditer(line):
-            ident.street = ident.street or m.group(0)
-            found.append(m.group(0))
-        for m in _ZIP.finditer(line):
-            ident.postal_code = ident.postal_code or m.group(0)
-            found.append(m.group(0))
-        m = _CITY_ST.search(line)
-        if m and ident.city is None:
-            ident.city, ident.state = m.group(1), m.group(2)
-            found.append(m.group(0))
+        for rx in _contacts():
+            for m in rx.street.finditer(line):
+                ident.street = ident.street or m.group(0)
+                found.append(m.group(0))
+            for m in rx.postal.finditer(line):
+                ident.postal_code = ident.postal_code or m.group(0)
+                found.append(m.group(0))
+            m = rx.city_region.search(line)
+            if m and ident.city is None:
+                ident.city, ident.state = m.group(1), m.group(2)
+                found.append(m.group(0))
         name = None if _SECTION.match(line) else name_on(line)
         if ident.full_name is None and name:
             ident.full_name = name

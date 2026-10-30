@@ -140,6 +140,21 @@ HOURLY_BOUNDS = (10, 500)
 PAY_LOW = 50_000
 PAY_HIGH = 200_000
 
+# --- contact details on a resume ----------------------------------------------
+# What a resume import finds and removes before any text reaches the model.
+# Missing a format here is a privacy leak, not just a parsing miss: the
+# import also applies every other country's patterns, so a resume from
+# elsewhere is still cleaned.
+CONTACT_PHONE = r"(?<!\d)(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)"
+# Not inside a word or link: a handle such as github.com/name12345 has five
+# digits too (found on the first real run).
+CONTACT_POSTAL = r"(?<![\w/.@-])\d{5}(?:-\d{4})?(?![\w/])"
+CONTACT_CITY_REGION = r"\b([A-Z][A-Za-z.'-]+(?: [A-Z][A-Za-z.'-]+){0,2}), ([A-Z]{2})\b"
+CONTACT_STREET = (
+    r"\b\d{1,6} [A-Za-z0-9.' ]{2,40}? (?:St|Street|Ave|Avenue|Rd|Road|Blvd|"
+    r"Boulevard|Dr|Drive|Ln|Lane|Way|Ct|Court|Pl|Place|Ter|Terrace|Pkwy|"
+    r"Circle|Cir)\b\.?(?:,? (?:Apt|Unit|Suite|#) ?\w+)?")
+
 # The shipped data files (Census, Natural Earth, BLS and O*NET).
 DATA = Path(__file__).resolve().parents[2] / "resources" / "data" / "us"
 PLACES_FILE = DATA / "us_places.csv.gz"
