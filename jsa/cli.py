@@ -15,8 +15,8 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from . import approvals, countries, db, discover
-from .config import COMPANIES_PATH, DB_PATH, ConfigError, Preferences, load_profile
+from . import approvals, config, countries, db, discover
+from .config import DB_PATH, ConfigError, Preferences, load_profile
 from .words import plural
 
 
@@ -378,11 +378,11 @@ def cmd_verify(args: argparse.Namespace) -> int:
 
     if args.write:
         try:
-            turned_on, kept = discover.record_verified(COMPANIES_PATH, reports)
+            turned_on, kept = discover.record_verified(config.companies_path(), reports)
         except ValueError as exc:
             print(f"not written: {exc}", file=sys.stderr)
             return 1
-        print(f"{COMPANIES_PATH.name}: {len(turned_on)} newly verified"
+        print(f"{config.companies_path().name}: {len(turned_on)} newly verified"
               + (f" ({', '.join(turned_on)})" if turned_on else "")
               + "; nothing else in the file changed")
         for company in kept:
@@ -1142,7 +1142,7 @@ def find_lines(report) -> list[str]:
     for board in report.boards:
         if board.yaml:
             out += [f"A guessed {board.kind.title()} board answered: {board.confirm}",
-                    f"  If it is theirs, add this to {COMPANIES_PATH} and run "
+                    f"  If it is theirs, add this to {config.companies_path()} and run "
                     "`jsa verify`:", ""]
             out += ["  " + line for line in board.yaml.splitlines()]
             out.append("")

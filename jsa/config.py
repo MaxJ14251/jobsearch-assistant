@@ -458,7 +458,17 @@ def seed_companies(path: Path | None = None) -> Path:
     return path
 
 
-def load_sources(path: Path = COMPANIES_PATH) -> list[dict[str, Any]]:
+def companies_path() -> Path:
+    """The employer list in use. An installed copy has its own (seeded from
+    its country's list). A clone works on the shipped file itself, and that
+    is the working country's: Canada ships its own employers (ADR 0037)."""
+    if COMPANIES_PATH == SEED_COMPANIES:
+        return countries.active().SEED_COMPANIES
+    return COMPANIES_PATH
+
+
+def load_sources(path: Path | None = None) -> list[dict[str, Any]]:
+    path = Path(path) if path else companies_path()
     if path == COMPANIES_PATH:
         seed_companies(path)
     if not path.exists():

@@ -198,9 +198,8 @@ MAP_OFFSHORE_NAMES = "the North"
 # refuse automated access, and The Muse placed 0-23 of 100 postings in
 # Canadian cities. Employer boards belong to no country and run here too.
 SOURCE_KINDS: frozenset = frozenset()
-# Until the Canadian employer list is picked (ADR 0037), a new install starts
-# from the shipped list; its Canadian postings score and the rest are abroad.
-SEED_COMPANIES = Path(__file__).resolve().parents[2] / "resources" / "companies.yaml"
+# Canada's own employers: 22 confirmed boards with Canadian postings (ADR 0037).
+SEED_COMPANIES = Path(__file__).resolve().parents[2] / "resources" / "companies_ca.yaml"
 
 # --- forms --------------------------------------------------------------------
 REMOTE_LABEL = "Remote (Canada)"

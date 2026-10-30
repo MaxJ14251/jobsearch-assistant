@@ -25,7 +25,7 @@ from typing import Any
 import yaml
 
 from . import countries
-from .config import (COMPANIES_PATH, ENV_PATH, EXAMPLE_PROFILE, PROFILE_PATH,
+from .config import (ENV_PATH, EXAMPLE_PROFILE, PROFILE_PATH, companies_path,
                      running_from_clone)
 from .words import plural
 
@@ -411,7 +411,7 @@ def check_market(profile: dict[str, Any], con: sqlite3.Connection | None,
     named = ", ".join(sorted(s.upper() for s in states))
     if local < THIN_MARKET and "themuse" not in countries.active().SOURCE_KINDS:
         report.add(False, f"Only {plural(local, 'on-site posting')} in {named}",
-                   f"Add employers near you to {COMPANIES_PATH}.")
+                   f"Add employers near you to {companies_path()}.")
     elif local < THIN_MARKET:
         import os
 
@@ -420,7 +420,7 @@ def check_market(profile: dict[str, Any], con: sqlite3.Connection | None,
                    f"nationwide source is configured, so run `jsa discover` "
                    f"again -- it asks about your own cities. If it stays thin "
                    f"after that, the local market for these titles is thin, "
-                   f"and adding employers near you to {COMPANIES_PATH} "
+                   f"and adding employers near you to {companies_path()} "
                    f"is the next lever.")
         else:
             fix = (f"{plural(remote, 'remote role')} {'is' if remote == 1 else 'are'} in your tracker, and local "
@@ -430,7 +430,7 @@ def check_market(profile: dict[str, Any], con: sqlite3.Connection | None,
                    f"source asks about YOUR cities across many employers. "
                    f"Measured 2026-09-26, it returned 9 Boise postings per "
                    f"run where these feeds had none at all. You can also add "
-                   f"employers near you to {COMPANIES_PATH}.")
+                   f"employers near you to {companies_path()}.")
         if not (os.environ.get("USAJOBS_API_KEY", "").strip()
                 and os.environ.get("USAJOBS_EMAIL", "").strip()):
             fix += (" For federal jobs in your cities, set USAJOBS_API_KEY and "

@@ -95,7 +95,7 @@ class TestRecordVerified(unittest.TestCase):
         reports = [report("Riverton Grid", status="FAIL 429", fetched=0),
                    report("Example (Labs)")]
         out = io.StringIO()
-        with mock.patch.object(cli, "COMPANIES_PATH", self.path), \
+        with mock.patch("jsa.config.companies_path", return_value=self.path), \
              mock.patch.object(discover, "verify_sources", return_value=reports), \
              redirect_stdout(out), redirect_stderr(io.StringIO()):
             code = cli.cmd_verify(argparse.Namespace(write=True))

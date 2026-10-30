@@ -14,7 +14,8 @@ version number lives in one place, `jsa/__init__.py`.
   Canada", Canadian contact formats removed from imported resumes, and a
   national map in Canada's own projection
   ([ADR 0037](docs/decisions/0037-canada.md)). No nationwide job source:
-  employer boards only. French pay text is not read yet.
+  22 Canadian employers' own boards (`companies_ca.yaml`), each confirmed
+  and verified. French pay text is not read yet.
 
 ### Changed
 

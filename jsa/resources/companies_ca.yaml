@@ -1,0 +1,197 @@
+# Employers for a Canadian profile (country: CA; ADR 0037).
+#
+# The US list (companies.yaml) is the US pack's starter list; this is the
+# Canada pack's. A clone working in Canada reads and `jsa verify --write`s
+# this file; an installed copy is seeded from it.
+#
+# How these 22 were chosen (2026-10-30): about 50 Canadian-headquartered
+# employers were tried on Greenhouse, Lever and Ashby; these 22 answered
+# with postings located in Canada (448 of them that day). Each board was
+# then confirmed to be that employer's own -- a guessed token can be
+# someone else's board: Greenhouse's board name matched the company, and
+# for Lever and Ashby every posting names the company or its product.
+# The count after each is the listings that day.
+#
+# No nationwide source is listed: Job Bank's terms refuse automated access,
+# and The Muse placed 0 to 23 of 100 postings in Canadian cities (ADR 0037).
+#
+# Fields by kind:
+#   greenhouse/lever/ashby   board
+
+sources:
+
+  - company: Lightspeed
+    slug: lightspeed
+    kind: ashby
+    board: lightspeedhq
+    hq: Montréal, QC
+    priority: 2
+    verified: true          # 120 listings
+
+  - company: 1Password
+    slug: 1password
+    kind: ashby
+    board: 1password
+    hq: Toronto, ON
+    priority: 2
+    verified: true          # 90 listings
+
+  - company: Neo Financial
+    slug: neo-financial
+    kind: ashby
+    board: neofinancial
+    hq: Calgary, AB
+    priority: 2
+    verified: true          # 63 listings
+
+  - company: PointClickCare
+    slug: pointclickcare
+    kind: lever
+    board: pointclickcare
+    hq: Mississauga, ON
+    priority: 2
+    verified: true          # 72 listings
+
+  - company: Jobber
+    slug: jobber
+    kind: ashby
+    board: jobber
+    hq: Edmonton, AB
+    priority: 2
+    verified: true          # 39 listings
+
+  - company: Later
+    slug: later
+    kind: greenhouse
+    board: later
+    hq: Vancouver, BC
+    priority: 3
+    verified: true          # 38 listings
+
+  - company: Benevity
+    slug: benevity
+    kind: ashby
+    board: benevity
+    hq: Calgary, AB
+    priority: 3
+    verified: true          # 23 listings
+
+  - company: Float
+    slug: float
+    kind: ashby
+    board: float
+    hq: Toronto, ON
+    priority: 3
+    verified: true          # 20 listings
+
+  - company: Trulioo
+    slug: trulioo
+    kind: ashby
+    board: trulioo
+    hq: Vancouver, BC
+    priority: 3
+    verified: true          # 25 listings
+
+  - company: D2L
+    slug: d2l
+    kind: greenhouse
+    board: d2l
+    hq: Kitchener, ON
+    priority: 3
+    verified: true          # 21 listings
+
+  - company: Geotab
+    slug: geotab
+    kind: greenhouse
+    board: geotab
+    hq: Oakville, ON
+    priority: 2
+    verified: true          # 61 listings
+
+  - company: Faire
+    slug: faire
+    kind: greenhouse
+    board: faire
+    hq: San Francisco, with its largest office in Kitchener, ON
+    priority: 3
+    verified: true          # 67 listings
+
+  - company: Achievers
+    slug: achievers
+    kind: lever
+    board: achievers
+    hq: Toronto, ON
+    priority: 3
+    verified: true          # 16 listings
+
+  - company: Procurify
+    slug: procurify
+    kind: ashby
+    board: procurify
+    hq: Vancouver, BC
+    priority: 3
+    verified: true          # 10 listings
+
+  - company: Klue
+    slug: klue
+    kind: ashby
+    board: klue
+    hq: Vancouver, BC
+    priority: 3
+    verified: true          # 7 listings
+
+  - company: Hopper
+    slug: hopper
+    kind: ashby
+    board: hopper
+    hq: Montréal, QC
+    priority: 3
+    verified: true          # 18 listings
+
+  - company: Clearco
+    slug: clearco
+    kind: ashby
+    board: clearco
+    hq: Toronto, ON
+    priority: 3
+    verified: true          # 5 listings
+
+  - company: Rewind
+    slug: rewind
+    kind: ashby
+    board: rewind
+    hq: Ottawa, ON
+    priority: 3
+    verified: true          # 3 listings
+
+  - company: Wattpad
+    slug: wattpad
+    kind: lever
+    board: wattpad
+    hq: Toronto, ON
+    priority: 3
+    verified: true          # 16 listings
+
+  - company: Hootsuite
+    slug: hootsuite
+    kind: greenhouse
+    board: hootsuite
+    hq: Vancouver, BC
+    priority: 3
+    verified: true          # 4 listings
+
+  - company: Unbounce
+    slug: unbounce
+    kind: greenhouse
+    board: unbounce
+    hq: Vancouver, BC
+    priority: 3
+    verified: true          # 1 listing
+
+  - company: Visier
+    slug: visier
+    kind: ashby
+    board: visier
+    hq: Vancouver, BC
+    priority: 3
+    verified: true          # 3 listings

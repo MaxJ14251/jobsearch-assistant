@@ -126,8 +126,12 @@ each from USD to the CAD the posting states.
 6. **Kilometres** (default radius 65 km), "legally entitled to work in
    Canada", Letter paper, year-first numeric dates, no role education line.
 7. **No nationwide source.** Job Bank is refused; The Muse is left out.
-   Until the owner picks Canadian employers, a new Canadian install starts
-   from the shipped list, and its Canadian postings score.
+   Canada ships its own employer list, `jsa/resources/companies_ca.yaml`:
+   all 22 measured employers, the owner's choice (2026-10-30). Each board
+   was confirmed as that employer's (Greenhouse's board name; for Lever and
+   Ashby, every posting names the company or its product) and passed
+   `jsa verify` (22 of 22). A clone working in Canada reads and verifies
+   that file; the US list is untouched.
 8. **The national map** uses Canada Albers (parallels 50 and 70, origin
    40 N 96 W) over the province outline; no ground layer is built yet, so
    the live map draws without one.
@@ -150,7 +154,6 @@ Three pack names made this possible without touching the US:
 ## Not done
 
 - French pay text ("80 000 $") and French page wording.
-- A Canadian employer list (the owner picks from the 22 measured).
 - A ground layer under the live map (roads, water).
 - Role education data for Canada (Statistics Canada publishes a candidate
   table; not checked).

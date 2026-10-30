@@ -47,7 +47,7 @@ def register(app, ctx) -> None:
                            "location": report.city, "link": report.link})
         from .. import config
         return render("find", "add", title="Find a listing", report=report,
-                      companies_path=str(config.COMPANIES_PATH),
+                      companies_path=str(config.companies_path()),
                       live=True, paste_query=paste)
 
     def back_to_add(msg: str) -> RedirectResponse:

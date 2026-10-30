@@ -146,6 +146,22 @@ class TestSetupAndForms(InCanada):
         self.assertEqual(facts[0].question, "Are you legally entitled to work in Canada?")
 
 
+class TestEmployers(InCanada):
+    def test_canada_ships_its_own_22_employers(self):
+        from jsa import config
+        self.assertEqual(config.companies_path().name, "companies_ca.yaml")
+        entries = config.load_sources(countries.get("CA").SEED_COMPANIES)
+        self.assertEqual(len(entries), 22)
+        self.assertTrue(all(e["verified"] and e["kind"] in ("greenhouse", "lever", "ashby")
+                            for e in entries))
+        self.assertFalse(any(countries.source_is_elsewhere(e["kind"]) for e in entries))
+
+    def test_the_us_keeps_its_list(self):
+        from jsa import config
+        countries.activate("US")
+        self.assertEqual(config.companies_path(), config.SEED_COMPANIES)
+
+
 class TestMap(InCanada):
     def test_the_national_map_draws_canada(self):
         from jsa import mapview
