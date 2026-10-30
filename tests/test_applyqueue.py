@@ -144,5 +144,49 @@ class TestPipeline(Queue):
         self.assertIn("1 to apply by hand", page)
 
 
+class TestTheJobPagesTitle(Queue):
+    """The title at the top of a job's page goes straight to where you apply."""
+
+    def title_link(self, job_id):
+        page = self.client.get(f"/job/{job_id}").text
+        heading = page[page.index("<h1>"):page.index("</h1>")]
+        return heading[heading.index('href="') + 6:heading.index('" rel=')] \
+            if 'href="' in heading else None
+
+    def test_a_board_this_knows_opens_its_form(self):
+        self.add_job(50, "greenhouse", "riverton", "4012350")
+        self.add_job(51, "lever", "riverton", "0a1b2c3d-0000-4000-8000-000000000051")
+        self.add_job(52, "ashby", "riverton", "0a1b2c3d-0000-4000-8000-000000000052")
+        self.assertEqual(self.title_link(50),
+                         "https://job-boards.greenhouse.io/riverton/jobs/4012350")
+        self.assertEqual(self.title_link(51), "https://jobs.lever.co/riverton/"
+                                              "0a1b2c3d-0000-4000-8000-000000000051/apply")
+        self.assertEqual(self.title_link(52), "https://jobs.ashbyhq.com/riverton/"
+                                              "0a1b2c3d-0000-4000-8000-000000000052/application")
+
+    def test_any_other_job_opens_its_listing(self):
+        self.add_job(53, "workday", "x", "R-53")
+        self.add_job(54, "manual", "pasted", "p-54")
+        self.assertEqual(self.title_link(53), "https://example.com/careers")
+        self.assertEqual(self.title_link(54), "https://example.com/careers")
+
+    def test_a_job_added_by_its_link_opens_the_form_too(self):
+        link = "https://jobs.ashbyhq.com/riverton/0a1b2c3d-0000-4000-8000-000000000057"
+        self.assertEqual(applyqueue.form_link("ashby", link, "x", link), link + "/application")
+        figma = "https://boards.greenhouse.io/riverton/jobs/4012358?gh_jid=4012358"
+        self.assertEqual(applyqueue.form_link("greenhouse", figma, "4012358", figma),
+                         "https://job-boards.greenhouse.io/riverton/jobs/4012358")
+
+    def test_a_link_that_isnt_a_web_address_is_plain_text(self):
+        self.add_job(55, "manual", "pasted", "p-55")
+        self.con.execute("UPDATE jobs SET url = 'javascript:alert(1)' WHERE id = 55")
+        self.con.commit()
+        self.assertIsNone(self.title_link(55))
+
+    def test_the_posting_link_stays_at_the_bottom(self):
+        self.add_job(56, "greenhouse", "riverton", "4012356")
+        self.assertIn("Open the original posting", self.client.get("/job/56").text)
+
+
 if __name__ == "__main__":
     unittest.main()

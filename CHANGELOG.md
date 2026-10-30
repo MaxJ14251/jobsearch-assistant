@@ -19,6 +19,9 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Changed
 
+- A job page's title links straight to where you apply: the board's own form
+  on Greenhouse, Lever and Ashby, otherwise the listing. "Open the original
+  posting" stays at the bottom.
 - **The extension looks like the dashboard**: its colours, frosted panel and
   buttons, in light and dark, on the panel and the options page. The panel is
   simpler: one main action pinned at the bottom, a × instead of Hide buttons,

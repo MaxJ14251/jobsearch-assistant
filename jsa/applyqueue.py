@@ -51,6 +51,21 @@ def apply_url(kind: str, board: str, external_id: str) -> str | None:
     return None
 
 
+def form_link(kind: str | None, source_url: str | None, external_id: str | None,
+              listing: str | None) -> str | None:
+    """Where to apply: the board's form when it is one this knows, otherwise
+    the listing itself (Workday, USAJOBS, a careers page). A job added by its
+    link has no API address to read the board from, so its link names it."""
+    from .intake import parse_link
+
+    board = board_of(kind or "", source_url)
+    found = apply_url(kind or "", board or "", external_id or "")
+    if found:
+        return found
+    link = parse_link(listing or "")
+    return (apply_url(link.kind, link.board, link.job_id) if link else None) or listing
+
+
 def _status(con: sqlite3.Connection, document_id: int) -> str:
     """The latest decision on a document. "approved" only when it is a
     person's standing approval, checked by the same gate every send uses."""

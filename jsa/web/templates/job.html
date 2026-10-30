@@ -1,5 +1,5 @@
 {% extends "base" %}{% block body %}
-<h1>{{ job.title }}</h1>
+<h1>{% if apply_link|safe_url %}<a href="{{ apply_link|safe_url }}" rel="noopener" style="font-weight:inherit" title="Go to the application">{{ job.title }}</a>{% else %}{{ job.title }}{% endif %}</h1>
 <p class="sub">{{ job.company }} · {{ job.location or 'location not stated' }} · {{ job.remote }}</p>
 <div class="flags" style="margin-bottom:14px">
   {% if application %}<span class="flag ok">application: {{ application.status }}</span>{% endif %}

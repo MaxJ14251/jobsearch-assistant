@@ -11,7 +11,7 @@ from urllib.parse import urlencode
 from fastapi import Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from .. import approvals
+from .. import applyqueue, approvals
 from ..inbox import BEFORE_APPLIED
 from ..prep import INTERVIEW_ROUNDS
 from . import APPLY_BY_HAND_STAGES, _json_list, plural
@@ -48,7 +48,8 @@ def register(app, ctx) -> None:
         try:
             row = con.execute(
                 "SELECT j.*, c.name AS company, "
-                "(SELECT kind FROM sources WHERE id = j.source_id) AS source_kind "
+                "(SELECT kind FROM sources WHERE id = j.source_id) AS source_kind, "
+                "(SELECT url FROM sources WHERE id = j.source_id) AS source_url "
                 "FROM jobs j JOIN companies c ON c.id = j.company_id WHERE j.id = ?",
                 (job_id,)).fetchone()
             if row is None:
@@ -138,6 +139,8 @@ def register(app, ctx) -> None:
         # The sidebar marks where the job lives: Pipeline once it is yours.
         return render("job", "pipeline" if application else "matches",
                       title=row["title"], job=dict(row),
+                      apply_link=applyqueue.form_link(row["source_kind"], row["source_url"],
+                                                      row["external_id"], row["url"]),
                       thin=posting.thin(row["description"], job_id),
                       min_chars=intake.MIN_PASTED_CHARS,
                       max_chars=intake.MAX_PASTED_CHARS,
