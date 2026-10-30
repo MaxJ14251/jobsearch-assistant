@@ -24,9 +24,10 @@
     : LOCAL ? window.__jsaTestBoard || null : null;
   if (!BOARD) return;
 
-  const AMBER = "2px solid #d18b00";
-  const GREEN = "2px solid rgba(47, 111, 94, 0.55)";
-  const BLUE = "2px dashed #3b6fb6";        // an answer you chose: review it
+  // The dashboard's status colours, on the employer's own form.
+  const AMBER = "2px solid #E9A800";         // left for you
+  const GREEN = "2px solid rgba(11, 122, 101, 0.55)";  // filled
+  const BLUE = "2px dashed #0789BC";         // an answer you chose: review it
 
   let data = null;           // the dashboard's /ext/fill answer
   let undo = [];             // what to put back
@@ -188,9 +189,9 @@
     for (const q of questions()) {
       const key = F.keyFor({ board: BOARD, id: q.id, name: q.name, label: q.label });
       const required = F.isRequired(q);
-      const name = q.label || q.name || q.id || "a field";
+      const name = q.label.replace(/\s*\*\s*$/, "") || q.name || q.id || "a field";
       if (key === "salary") {
-        skipped.push(name + ": salary is never filled for you");
+        skipped.push(name + " (salary is never filled for you)");
         q.els.forEach((el) => mark(el, AMBER));
         continue;
       }
@@ -251,55 +252,100 @@
   const panelHost = document.createElement("div");
   const shadow = panelHost.attachShadow({ mode: "closed" });
   const style = document.createElement("style");
+  // The dashboard's look (jsa/web/templates/base.html): its tokens, frosted
+  // panel, glossy primary and quiet ghost buttons, notes and pills. Only the
+  // glass is nearly opaque here: it sits on an employer's page, not on the
+  // dashboard's sky, and the text has to read over whatever is underneath.
+  // The theme follows the computer's setting; the dashboard's own choice
+  // lives in its browser storage, which this can't read.
   style.textContent = `
-    :host { all: initial; }
+    :host { all: initial;
+      --ink: #0E2233; --ink-2: #2B4256; --mute: #4A6072; --rule: #CFE0EA;
+      --copper: #0B7A65; --accent-text: #07654F; --surface: #fff; --surface-2: #E8F3FA;
+      --sage: #2E7322; --sage-soft: #E4F4D8; --amber: #8A5110; --amber-soft: #FCEBD3;
+      --btn: #0B7A65; --btn-top: #34B597; --btn-bottom: #08705C;
+      --glass: rgba(255,255,255,.94); --glass-edge: rgba(255,255,255,.95);
+      --glass-shadow: 0 10px 30px rgba(20,100,160,.22), inset 0 1px 0 rgba(255,255,255,.95); }
+    @media (prefers-color-scheme: dark) {
+      :host {
+        --ink: #E4F3FA; --ink-2: #BDD6E3; --mute: #8FAABB; --rule: #1E3A50;
+        --copper: #4FD1B5; --accent-text: #5EDCC0; --surface: #0C1E2E; --surface-2: #12293B;
+        --sage: #8EDB6A; --sage-soft: #132A18; --amber: #F0B86A; --amber-soft: #33270F;
+        --btn: #0F7A65; --btn-top: #2BB79A; --btn-bottom: #0A6553;
+        --glass: rgba(12,32,50,.96); --glass-edge: rgba(120,210,255,.16);
+        --glass-shadow: 0 12px 34px rgba(0,0,0,.5), inset 0 1px 0 rgba(150,225,255,.12); }
+    }
+    * { box-sizing: border-box; }
     .box { position: fixed; right: 16px; bottom: 16px; z-index: 2147483646;
            width: min(380px, calc(100vw - 16px)); max-height: 80vh; overflow: auto;
-           box-sizing: border-box; overflow-wrap: anywhere;
-           font: 13px/1.45 system-ui, sans-serif; color: #1f2420; background: #fbfcfa;
-           border: 1px solid #c9d0c8; border-radius: 6px; box-shadow: 0 6px 24px rgba(0,0,0,.18);
-           padding: 12px 14px; }
-    a { color: #2f6f5e; }
-    @media (prefers-color-scheme: dark) {
-      .box { color: #e7ebe6; background: #1c211d; border-color: #3a413c; }
-      .meta { color: #a3aba4 !important; }
-      a { color: #7cc2ad; }
-    }
-    h2 { font-size: 14px; margin: 0 0 6px; }
-    .meta { color: #5d655f; }
-    ul { margin: 6px 0 8px; padding-left: 18px; }
-    .warn { color: #a05a00; }
+           overscroll-behavior: contain; scrollbar-width: thin; overflow-wrap: anywhere;
+           padding: 0 16px 16px;
+           font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+           color: var(--ink); background: var(--glass); border: 1px solid var(--glass-edge);
+           border-radius: 20px; box-shadow: var(--glass-shadow);
+           backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+    .top { position: sticky; top: 0; z-index: 1; display: flex; align-items: center;
+           justify-content: space-between; gap: 8px; margin: 0 -16px 2px; padding: 12px 12px 6px 16px;
+           background: var(--surface); }
+    .brand { font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+    h2 { font-size: 16px; font-weight: 600; line-height: 1.3; margin: 6px 0 0; }
+    p { margin: 8px 0; }
+    .co { color: var(--mute); font-size: 13px; margin: 2px 0 8px; }
+    .meta { color: var(--mute); font-size: 12.5px; }
+    a { color: var(--accent-text); font-weight: 500; text-underline-offset: 3px; }
+    ul { margin: 4px 0 0; padding-left: 16px; }
+    li { margin: 2px 0; }
+    li .meta { margin-left: 4px; }
+    .note { border-radius: 14px; padding: 10px 12px; margin: 8px 0; font-size: 13.5px; }
+    .note.good { background: var(--sage-soft); color: var(--sage); }
+    .note.warn { background: var(--amber-soft); color: var(--amber); }
+    .note strong { font-weight: 600; }
     .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-    button { font: inherit; padding: 6px 10px; border-radius: 4px; cursor: pointer;
-             border: 1px solid #2f6f5e; background: #2f6f5e; color: #fff; }
-    button.quiet { background: transparent; color: inherit; border-color: currentColor; }
-    button:focus-visible { outline: 2px solid #d18b00; outline-offset: 2px; }
-    details.about { margin-top: 10px; border-top: 1px solid #c9d0c8; padding-top: 8px; }
-    details.about summary { cursor: pointer; font-weight: 600; }
-    details.about p { margin: 6px 0; }
-    details.questions { margin-top: 10px; border-top: 1px solid #c9d0c8; padding-top: 8px; }
-    details.questions > summary { cursor: pointer; font-weight: 600; }
-    .question { margin: 10px 0 4px; }
+    .foot { position: sticky; bottom: -16px; display: flex; flex-wrap: wrap; gap: 8px;
+            margin: 12px -16px -16px; padding: 12px 16px 16px; background: var(--surface);
+            border-top: 1px solid var(--rule); }
+    .foot button { flex: 1 1 auto; }
+    .foot button:not(.quiet) { flex-basis: 55%; }
+    button { font: inherit; font-size: 14px; font-weight: 600; min-height: 36px; padding: 8px 16px;
+             border: 0; border-radius: 12px; color: #fff; cursor: pointer; background: var(--btn);
+             background-image: linear-gradient(180deg, var(--btn-top) 0%, var(--btn) 35%, var(--btn-bottom) 100%);
+             box-shadow: inset 0 1px 0 rgba(255,255,255,.5),
+                         0 3px 10px color-mix(in srgb, var(--btn) 30%, transparent); }
+    button.quiet, .question > .row button { background: var(--surface); background-image: none;
+             color: var(--ink-2); border: 1px solid var(--rule); box-shadow: none; }
+    button.close { flex: none; width: 32px; min-height: 32px; padding: 0; border-radius: 50%;
+             font-size: 18px; font-weight: 400; line-height: 1; color: var(--mute);
+             background: transparent; background-image: none; border: 0; box-shadow: none; }
+    button.close:hover { background: var(--surface-2); }
+    :focus-visible { outline: 2px solid var(--copper); outline-offset: 2px; }
+    details { margin-top: 10px; border-top: 1px solid var(--rule); padding-top: 10px; }
+    details details { border-top: 0; padding-top: 0; margin-top: 4px; }
+    summary { cursor: pointer; color: var(--accent-text); font-size: 13px; font-weight: 500; }
+    .glance { display: block; color: var(--mute); font-size: 12.5px; font-weight: 400; }
+    details > p { font-size: 13.5px; }
+    details > ul { font-size: 13.5px; color: var(--ink-2); }
+    .question { margin: 12px 0 4px; }
     .question > p { margin: 0 0 4px; }
-    .card { border: 1px solid #c9d0c8; border-radius: 4px; padding: 8px; margin: 6px 0; }
-    .card p { margin: 4px 0; }
+    .question > .row { margin-top: 6px; }
+    .q { font-weight: 600; }
+    .card { padding: 10px 12px; margin: 8px 0; background: var(--surface);
+            border: 1px solid var(--rule); border-radius: 14px; }
+    .card p { margin: 4px 0; font-size: 13.5px; }
     .answer { white-space: pre-wrap; }
     .clamp { display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical;
              overflow: hidden; }
-    .chip { display: inline-block; padding: 0 6px; border-radius: 9px; font-size: 12px;
-            border: 1px solid currentColor; }
-    .chip.model { color: #2f6f5e; }
-    .chip.composed, .chip.yours { color: #5d655f; }
-    @media (prefers-color-scheme: dark) {
-      .card, details.questions { border-color: #3a413c; }
-      .chip.model { color: #7cc2ad; }
-      .chip.composed, .chip.yours { color: #a3aba4; }
-    }
+    .flag { display: inline-block; font-size: 12px; font-weight: 500; padding: 1px 8px;
+            border-radius: 999px; color: var(--ink-2);
+            background: color-mix(in srgb, var(--ink) 6%, transparent); }
+    .flag.model { background: var(--sage-soft); color: var(--sage); }
+    .flag.required { background: var(--amber-soft); color: var(--amber); font-weight: 600; }
     @media (max-width: 600px) {
       .box { left: 8px; right: 8px; bottom: 8px; width: auto; max-height: 60vh; }
       button { min-height: 44px; }
+      button.close { width: 44px; }
       .card .row button { flex: 1 1 100%; }
     }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
   `;
   const box = document.createElement("div");
   box.className = "box";
@@ -314,8 +360,8 @@
     return node;
   }
 
-  function list(items, cls) {
-    return el("ul", { className: cls || "" }, items.map((t) => el("li", { textContent: t })));
+  function list(items) {
+    return el("ul", {}, items.map((t) => el("li", { textContent: t })));
   }
 
   function button(label, action, quiet) {
@@ -323,6 +369,29 @@
     b.addEventListener("click", action);
     return b;
   }
+
+  // A screen's actions, pinned to the bottom of the panel: one primary, the
+  // rest quiet.
+  function foot(buttons) {
+    return el("div", { className: "foot" }, buttons);
+  }
+
+  function heading(job) {
+    return [el("h2", { textContent: job.title }), el("p", { className: "co", textContent: job.company })];
+  }
+
+  function note(kind, title, items) {
+    const parts = title ? [el("strong", { textContent: title })] : [];
+    if (items) parts.push(list(items));
+    return el("div", { className: "note " + kind }, parts);
+  }
+
+  const closeButton = el("button", { type: "button", className: "close", textContent: "×",
+                                     title: "Hide (the toolbar icon brings it back)" });
+  closeButton.setAttribute("aria-label", "Hide the panel");
+  closeButton.addEventListener("click", () => hidePanel());
+  const panelTop = el("div", { className: "top" }, [el("span", { className: "brand", textContent: "Job Search" }),
+                                                     closeButton]);
 
   // Some boards (Greenhouse's job-boards pages) rebuild the whole document
   // once their script loads, which throws out the panel a moment after it
@@ -344,9 +413,14 @@
     panelHost.remove();
   }
 
+  // The research section sits after a screen's content, above its actions.
+  function placeAbout() {
+    box.insertBefore(aboutBox, box.querySelector(":scope > .foot"));
+  }
+
   function show(children) {
-    box.replaceChildren(...children);
-    if (aboutShown) box.append(aboutBox);
+    box.replaceChildren(panelTop, ...children);
+    if (aboutShown) placeAbout();
     panelWanted = true;
     if (!panelHost.isConnected) document.documentElement.append(panelHost);
     keepPanel();
@@ -368,8 +442,9 @@
 
   function renderAbout(data, status) {
     const line = R.summary(data);
-    const parts = [el("summary", { textContent: "About this company and role" +
-                                                (line ? ": " + line : "") })];
+    const head = el("summary", { textContent: "About this company and role" });
+    if (line) head.append(el("span", { className: "glance", textContent: line }));
+    const parts = [head];
     if (status) parts.push(el("p", { className: "meta", textContent: status }));
     for (const part of R.sections(data)) {
       parts.push(el("p", {}, [el("strong", { textContent: part.heading + ": " }),
@@ -391,7 +466,7 @@
     if (!data || data.state === "unsupported") return;
     aboutShown = true;
     renderAbout(data);
-    box.append(aboutBox);
+    placeAbout();
     if (!R.shouldRefresh(data)) return;
     const name = data.board ? data.board.board : "the company";
     renderAbout(data, "Checking " + name + "'s job board…");
@@ -421,24 +496,30 @@
     return now && S.itemKey(now) === PAGE ? now : null;
   }
 
-  function sessionBar() {
+  function sessionStep() {
+    return "Apply session · job " + (session.state.index + 1) + " of " + session.state.items.length;
+  }
+
+  // `first` goes ahead of the session's own buttons. When it is the screen's
+  // primary action (Fill), "I submitted this, next" waits as a quiet one.
+  function sessionBar(first, nextIsQuiet) {
     const now = S.current(session.state);
     const n = session.state.index + 1;
-    const total = session.state.items.length;
     if (sessionJob()) {
       return [
-        el("p", { className: "meta", textContent: "Apply session · job " + n + " of " + total }),
-        el("div", { className: "row" }, [
-          button("I submitted this, next", nextAfterSubmit),
+        el("p", { className: "meta", textContent: sessionStep() }),
+        foot([
+          ...(first || []),
+          button("I submitted this, next", nextAfterSubmit, nextIsQuiet),
           button("Skip, next", skipNext, true),
           button("End session", endSession, true),
         ]),
       ];
     }
     return [
-      el("p", { textContent: "Apply session: you are on job " + n + " of " + total + ", " +
-                             now.title + " at " + now.company + "." }),
-      el("div", { className: "row" }, [
+      el("p", { className: "meta", textContent: sessionStep() }),
+      el("p", { textContent: "You are on " + now.title + " at " + now.company + "." }),
+      foot([
         button("Back to job " + n, backToCurrent),
         button("End session", endSession, true),
       ]),
@@ -541,7 +622,7 @@
     }, true);
     const parts = [
       el("p", {}, [el("strong", { textContent: option.angle }), document.createTextNode(" "),
-                   el("span", { className: "chip " + kind, textContent: SOURCE_LABEL[kind] })]),
+                   el("span", { className: "flag " + kind, textContent: SOURCE_LABEL[kind] })]),
       body,
     ];
     if (option.note && option.note !== SOURCE_LABEL[kind]) {
@@ -631,7 +712,9 @@
       "from your profile. Most are made from your own sentences: drafted ones rarely pass " +
       "the check against your profile (1 of 20 when measured), so edit the one you pick " +
       "into an answer. Salary and demographic questions are yours to answer." });
-    const parts = [questionsHead, questionsNote];
+    const how = el("details", {}, [el("summary", { textContent: "How suggestions work" }),
+                                   questionsNote]);
+    const parts = [questionsHead, how];
     if (openQuestions.length > 1) {
       parts.push(el("div", { className: "row" },
                     [button("Suggest for all (" + openQuestions.length + ")", suggestAll, true)]));
@@ -639,9 +722,13 @@
     for (const q of openQuestions) {
       q.status = el("p", { className: "meta" });
       q.box = el("div");
+      const label = [el("span", { className: "q", textContent: q.label })];
+      if (q.required) {
+        label.push(document.createTextNode(" "),
+                   el("span", { className: "flag required", textContent: "Required" }));
+      }
       parts.push(el("div", { className: "question" }, [
-        el("p", {}, [el("strong", { textContent: q.label }),
-                     document.createTextNode(q.required ? " (required)" : "")]),
+        el("p", {}, label),
         el("div", { className: "row" }, [button("Suggest", () => suggestFor(q))]),
         q.status, q.box]));
     }
@@ -668,21 +755,17 @@
   function intro(message) {
     const now = session && S.current(session.state);
     const mine = sessionJob();
-    const head = el("h2", { textContent: mine ? mine.title + " at " + mine.company
-                                              : "Job Search Assistant" });
     if (now && !mine) {
-      show([head, ...sessionBar()]);
+      show(sessionBar());
       return;
     }
-    const parts = [head, el("p", { className: "meta", textContent: message || (mine
+    const parts = [...(mine ? heading(mine) : []), el("p", { textContent: message || (mine
       ? "Fill the form, check it, press its Submit, then tell the session below."
-      : "Fill this application from your tracker. You check it and press Submit yourself.") })];
-    if (mine && mine.warnings.length) parts.push(list(mine.warnings, "warn"));
-    const row = [];
-    if (hasForm()) row.push(button("Fill this application", run));
-    if (!mine) row.push(button("Hide", hidePanel, true));
-    if (row.length) parts.push(el("div", { className: "row" }, row));
-    if (mine) parts.push(...sessionBar());
+      : "Fills this application from your tracker. You check it and press Submit yourself.") })];
+    if (mine && mine.warnings.length) parts.push(note("warn", "", mine.warnings));
+    const fill = hasForm() ? [button("Fill this application", run)] : [];
+    if (mine) parts.push(...sessionBar(fill, fill.length > 0));
+    else if (fill.length) parts.push(foot(fill));
     show(parts);
   }
 
@@ -696,29 +779,34 @@
       intro(d.message || "Nothing to fill here.");
       return;
     }
+    const count = filled.length === 1 ? "1 field" : filled.length + " fields";
     const parts = [
-      el("h2", { textContent: d.job.title + " at " + d.job.company }),
-      el("p", { className: "meta", textContent: "Filled " + filled.length + " field(s). Check " +
-        "every one against the form, then press the page's Submit yourself." }),
+      ...heading(d.job),
+      note("good", "Filled " + count + ". Check them, then press the page's Submit yourself."),
     ];
-    if (filled.length) parts.push(list(filled.map((f) => f.name + " (" + f.source + ")")));
-    if (missing.length) {
-      parts.push(el("p", { textContent: "Required, left for you (outlined):" }), list(missing));
-    }
-    const notes = [...(d.warnings || []), ...skipped,
-                   ...(d.left_out || []).map((x) => x.note)];
+    // What needs you comes first; what went fine folds away.
+    const forYou = [...missing, ...skipped, ...(d.left_out || []).map((x) => x.note),
+                    ...(d.warnings || [])];
     if (BOARD === "ashby") {
-      notes.push("Questions answered with Yes/No buttons are left for you: " +
-                 "this never clicks anything on the page.");
+      forYou.push("Questions answered with Yes/No buttons: this never clicks anything on the page.");
     }
-    if (notes.length) parts.push(list(notes, "warn"));
+    if (forYou.length) parts.push(note("warn", "Needs you", forYou));
     parts.push(...questionsSection());
+    if (filled.length) {
+      parts.push(el("details", {}, [
+        el("summary", { textContent: "What was filled (" + filled.length + ")" }),
+        el("ul", {}, filled.map((f) => el("li", {}, [
+          document.createTextNode(f.name),
+          el("span", { className: "meta", textContent: f.source })]))),
+      ]));
+    }
     const undoButton = button("Undo fill", () => { undoFill(); intro("Fill undone."); }, true);
     if (sessionJob()) {
-      parts.push(el("div", { className: "row" }, [undoButton]), ...sessionBar());
+      const bar = sessionBar();
+      bar[bar.length - 1].append(undoButton);
+      parts.push(...bar);
     } else {
-      parts.push(el("div", { className: "row" }, [undoButton,
-                                                  button("I submitted this", submitted)]));
+      parts.push(foot([button("I submitted this", submitted), undoButton]));
     }
     show(parts);
   }
@@ -731,16 +819,11 @@
   function offerPrepare(d) {
     const left = typeof d.drafts_left === "number" ? " (" + d.drafts_left + " left today)" : "";
     show([
-      el("h2", { textContent: d.job ? d.job.title + " at " + d.job.company
-                                    : "Not in your tracker yet" }),
-      el("p", { textContent: (d.state === "unknown" ? "This job isn't in your tracker yet. "
-                                                    : "You haven't saved this job yet. ") +
-        "The panel can add it from the job board, save it and draft a resume for you " +
-        "to read and approve in Review. Drafting is one model call" + left + "." }),
-      el("div", { className: "row" }, [
-        button("Add, save and draft a resume", prepareJob),
-        button("Hide", hidePanel, true),
-      ]),
+      ...(d.job ? heading(d.job) : [el("h2", { textContent: "Not in your tracker yet" })]),
+      el("p", { textContent: (d.state === "unknown" ? "" : "You haven't saved this job yet. ") +
+        "Add it from the job board, save it and draft a resume to read and approve in Review." }),
+      el("p", { className: "meta", textContent: "Drafting is one model call" + left + "." }),
+      foot([button("Add, save and draft a resume", prepareJob)]),
     ]);
   }
 
@@ -754,7 +837,6 @@
         parts.push(el("p", {}, [el("a", { href: answer.review_url, textContent: "Open Review",
                                           target: "_blank", rel: "noopener" })]));
       }
-      parts.push(el("div", { className: "row" }, [button("Hide", hidePanel, true)]));
       show(parts);
     } catch (err) {
       show([el("p", { textContent: err.message })]);
@@ -819,9 +901,9 @@
     }
     let state = null;
     try { state = await ask({ type: "fill" }); } catch (err) { state = null; }
-    const head = el("h2", { textContent: memory.title + " at " + memory.company });
+    const head = heading(memory);
     if (state && state.state === "past") {
-      show([head, el("p", { textContent: state.status === "applied" && state.applied_at
+      show([...head, el("p", { textContent: state.status === "applied" && state.applied_at
         ? "Already recorded as applied on " + state.applied_at.slice(0, 10) + "."
         : state.message || "Already recorded." }),
             ...(sessionJob() ? sessionBar() : [])]);
@@ -835,10 +917,10 @@
     const row = sessionJob()
       ? [button("Record as applied, next", nextAfterSubmit), button("Not yet", notYet, true)]
       : [button("Record as applied", recordFromPrompt), button("Not yet", notYet, true)];
-    show([head,
+    show([...head,
           el("p", { textContent: "Looks like your application went through. Record it as " +
                                  "applied, with " + docs + "?" }),
-          el("div", { className: "row" }, row)]);
+          foot(row)]);
   }
 
   async function recordFromPrompt() {

@@ -19,6 +19,11 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Changed
 
+- **The extension looks like the dashboard**: its colours, frosted panel and
+  buttons, in light and dark, on the panel and the options page. The panel is
+  simpler: one main action pinned at the bottom, a × instead of Hide buttons,
+  what needs you first, and the filled fields folded away. What it does is
+  unchanged, and it still never submits.
 - **Everything the tool assumes about the US is in one country pack**
   (`jsa/countries/`), and a profile names its country with
   `job_search_preferences.country` (default US). Nothing changes for a US
