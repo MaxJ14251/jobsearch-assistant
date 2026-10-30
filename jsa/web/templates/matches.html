@@ -35,12 +35,12 @@
   </label>
   <label class="pair-in" for="f-home">of
     <input type="search" name="home" id="f-home" value="{{ home_text }}"
-           placeholder="ZIP or City, ST" size="16"
+           placeholder="{{ country().POSTAL_NAME }} or {{ country().PLACE_FORM }}" size="16"
            aria-label="Where you are">
   </label>
   <label class="pair-in" for="f-anywhere">
     <input type="checkbox" name="anywhere" id="f-anywhere" value="1"
-           {{ 'checked' if not radius }}> anywhere in the US
+           {{ 'checked' if not radius }}> anywhere in {{ country().IN_TEXT }}
   </label>
   <input type="search" name="q" id="f-q" value="{{ q }}" size="26"
          placeholder="Search roles, e.g. support, data analyst"
@@ -311,7 +311,7 @@
   });
   var foot = node('div', {'class': 'mapfoot'}, box);
   var northEl = node('div', {'class': 'mapnorth', hidden: '', 'aria-hidden': 'true',
-                              title: 'North. Zoomed out, the map turns to match the usual map of the US.'}, box);
+                              title: 'North. Zoomed out, the map turns to match the usual map of {{ country().IN_TEXT }}.'}, box);
   northEl.textContent = 'N';
   var bmNote = node('div', {'class': 'bm-note', hidden: ''}, box);
   bmNote.textContent = 'Map detail ends at this zoom';

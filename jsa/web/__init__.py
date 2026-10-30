@@ -158,9 +158,11 @@ def _origin(typed: str, profile: dict[str, Any] | None = None):
     if typed:
         found = places.origin(typed)
         if found is None:
+            pack = countries.active()
             return None, typed, (
-                f"{typed!r} is not a ZIP code or a US town this recognises, "
-                "so the radius is off. Try a ZIP, or \"City, ST\".")
+                f"{typed!r} is not a {pack.POSTAL_NAME} code or a {pack.ADJECTIVE} town "
+                "this recognises, so the radius is off. "
+                f"Try a {pack.POSTAL_NAME}, or \"{pack.PLACE_FORM}\".")
         return found, typed, ""
     try:
         from ..config import Preferences

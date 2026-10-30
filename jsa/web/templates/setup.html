@@ -27,7 +27,7 @@
       <textarea name="fallback_titles" id="s-fallback" rows="4" maxlength="4000">{{ f.fallback_titles }}</textarea></label>
   </div>
   <div class="two">
-    <label for="s-home">Home: a ZIP or "City, ST"
+    <label for="s-home">Home: a {{ country().POSTAL_NAME }} or "{{ country().PLACE_FORM }}"
       <input type="text" name="home" id="s-home" value="{{ f.home }}" maxlength="80">
       {% if errors.home %}<span class="err">{{ errors.home }}</span>{% endif %}</label>
     <label for="s-radius">How far you'd commute, in miles
@@ -35,7 +35,7 @@
       {% if errors.radius %}<span class="err">{{ errors.radius }}</span>{% endif %}</label>
   </div>
   <label class="check" for="s-remote"><input type="checkbox" name="remote" id="s-remote" value="1" {{ 'checked' if f.remote }}> Remote jobs in {{ country().IN_TEXT }} are fine</label>
-  <label for="s-locs">Other cities you'd work in, one per line ("City, ST")
+  <label for="s-locs">Other cities you'd work in, one per line ("{{ country().PLACE_FORM }}")
     <textarea name="locations" id="s-locs" rows="2" maxlength="2000">{{ f.locations }}</textarea>
     {% if errors.locations %}<span class="err">{{ errors.locations }}</span>{% endif %}</label>
   <label for="s-auth">How you can work in {{ country().IN_TEXT }}, in your words (e.g. "{{ country().AUTH_EXAMPLE }}")

@@ -163,7 +163,7 @@ def check_preferences(profile: dict[str, Any], report: Report) -> None:
                    "suits you.", "profile/master_profile.yaml")
     elif len(unedited) == len(places):
         report.add(True, "Your locations are still the example's placeholders",
-                   "Replace them with real cities, written 'City, ST'.",
+                   f"Replace them with real cities, written '{pack.PLACE_FORM}'.",
                    "profile/master_profile.yaml")
     elif unedited:
         report.add(False, f"{plural(len(unedited), 'location')} {'is' if len(unedited) == 1 else 'are'} still placeholders",
@@ -401,9 +401,11 @@ def check_market(profile: dict[str, Any], con: sqlite3.Connection | None,
                           f"({local} local, {remote} remote)")
 
     if not states:
-        report.add(False, "Your locations name no state",
-                   "Write them 'City, ST'. Without a state, a posting in "
-                   "your state but not your city cannot be recognised.")
+        pack = countries.active()
+        report.add(False, f"Your locations name no {pack.REGION_WORD}",
+                   f"Write them '{pack.PLACE_FORM}'. Without a {pack.REGION_WORD}, "
+                   f"a posting in your {pack.REGION_WORD} but not your city cannot be "
+                   "recognised.")
         return
     named = ", ".join(sorted(s.upper() for s in states))
     if local < THIN_MARKET and "themuse" not in countries.active().SOURCE_KINDS:

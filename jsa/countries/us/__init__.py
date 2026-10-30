@@ -73,9 +73,14 @@ def postal_key(code: str) -> str:
 
 
 # --- scoring ----------------------------------------------------------------------
-# What the reason lines call the country and its regions.
+# What pages and messages call the country, its regions, its postal codes
+# and the way a place is written.
 IN_TEXT = "the US"
+ADJECTIVE = "US"
 REGION_WORD = "state"
+POSTAL_NAME = "ZIP"
+POSTAL_EXAMPLE = "a 5-digit ZIP"
+PLACE_FORM = "City, ST"
 # The regions scoring's "your state, not your city" bonus counts.
 SCORING_REGIONS = STATES
 

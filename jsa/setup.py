@@ -129,8 +129,10 @@ def validate(form: dict[str, str]) -> tuple[dict[str, Any], dict[str, str]]:
     home = (form.get("home") or "").strip()
     if home:
         if places.origin(home) is None:
-            errors["home"] = (f"{home!r} isn't a ZIP or a \"City, ST\" this can place. "
-                              "Try a 5-digit ZIP.")
+            pack = countries.active()
+            errors["home"] = (f"{home!r} isn't a {pack.POSTAL_NAME} or a "
+                              f"\"{pack.PLACE_FORM}\" this can place. "
+                              f"Try {pack.POSTAL_EXAMPLE}.")
         else:
             prefs["home_location"] = home
             if "," in home and home not in locations:
@@ -140,7 +142,7 @@ def validate(form: dict[str, str]) -> tuple[dict[str, Any], dict[str, str]]:
     stand_ins = [x for x in locations if _is_placeholder(x)]
     if stand_ins:
         errors["locations"] = (f"{stand_ins[0]!r} is the example's stand-in: replace it "
-                               "with a real \"City, ST\", or delete the line.")
+                               f"with a real \"{countries.active().PLACE_FORM}\", or delete the line.")
     elif not locations:
         errors["locations"] = "Tick remote, or give a home location or a city."
     radius = (form.get("radius") or "").strip()

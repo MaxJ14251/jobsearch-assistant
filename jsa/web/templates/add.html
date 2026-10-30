@@ -38,7 +38,7 @@
     <label for="paste-title">Job title<input type="text" name="title" id="paste-title" required value="{{ prefill.title }}"></label>
   </div>
   <div class="two">
-    <label for="paste-location">Location<input type="text" name="location" id="paste-location" placeholder="{{ country().REMOTE_LABEL }}, or City, ST" value="{{ prefill.location }}"></label>
+    <label for="paste-location">Location<input type="text" name="location" id="paste-location" placeholder="{{ country().REMOTE_LABEL }}, or {{ country().PLACE_FORM }}" value="{{ prefill.location }}"></label>
     <label for="paste-link">Where it is posted (optional)<input type="url" name="link" id="paste-link" value="{{ prefill.link }}"></label>
   </div>
   <label for="paste-text">The whole posting, requirements included
