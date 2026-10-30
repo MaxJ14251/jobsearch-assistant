@@ -6,6 +6,16 @@ version number lives in one place, `jsa/__init__.py`.
 
 ## [Unreleased]
 
+### Added
+
+- **Canada** as a second country (`country: CA`): Statistics Canada towns,
+  three-character postal areas (a full postal code is never kept), province
+  scoring, Canadian dollars, kilometres, "legally entitled to work in
+  Canada", Canadian contact formats removed from imported resumes, and a
+  national map in Canada's own projection
+  ([ADR 0037](docs/decisions/0037-canada.md)). No nationwide job source:
+  employer boards only. French pay text is not read yet.
+
 ### Changed
 
 - **Everything the tool assumes about the US is in one country pack**

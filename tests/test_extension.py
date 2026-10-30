@@ -285,8 +285,8 @@ class TestManifest(unittest.TestCase):
 class TestNotShipped(unittest.TestCase):
     def test_the_extension_is_not_in_the_wheel_or_the_image(self):
         pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-        self.assertIn('packages = ["jsa", "jsa.web", "jsa.countries", "jsa.countries.us"]',
-                      pyproject)
+        self.assertIn('packages = ["jsa", "jsa.web", "jsa.countries", "jsa.countries.us", '
+                      '"jsa.countries.ca"]', pyproject)
         dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
         self.assertNotIn("extension", dockerfile)
 

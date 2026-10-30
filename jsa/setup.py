@@ -11,6 +11,7 @@ It never overwrites a personal profile.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import tempfile
 import threading
@@ -134,6 +135,9 @@ def validate(form: dict[str, str]) -> tuple[dict[str, Any], dict[str, str]]:
                               f"\"{pack.PLACE_FORM}\" this can place. "
                               f"Try {pack.POSTAL_EXAMPLE}.")
         else:
+            pack = countries.active()
+            if pack.POSTAL_AREA_ONLY and re.fullmatch(pack.POSTAL_CODE, home):
+                home = pack.postal_key(home)
             prefs["home_location"] = home
             if "," in home and home not in locations:
                 locations.append(home)

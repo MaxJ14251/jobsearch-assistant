@@ -56,6 +56,12 @@ PLACE_ALIASES = {
 # indexed. Written as pairs so it works in both directions.
 FIRST_WORD = (("st.", "saint"), ("st", "saint"), ("ste.", "sainte"),
               ("mt.", "mount"), ("ft.", "fort"))
+# Whether "Espanola" also finds "Española". Not in the US: the Census names
+# were matched as written before countries existed, and still are.
+FOLD_ACCENTS = False
+# Where an alias may be cut from a place's own name: "Nashville-Davidson",
+# "Louisville/Jefferson County".
+ALIAS_SPLIT = r"[-/]"
 
 # Country noise around the real text: "US - Schaumburg, United States".
 COUNTRY_NOISE = (
@@ -65,6 +71,9 @@ COUNTRY_NOISE = (
 # A home given as a ZIP code, and the key the ZIP file is read by.
 POSTAL_CODE = r"\d{5}(-\d{4})?"
 POSTAL_COLUMN = "zip"
+# Whether setup keeps only postal_key() of a home postal code (Canada keeps
+# the three-character area). The US keeps what was typed.
+POSTAL_AREA_ONLY = False
 
 
 def postal_key(code: str) -> str:

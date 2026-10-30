@@ -22,13 +22,14 @@ def profile(**prefs):
 
 
 class TestThePacks(unittest.TestCase):
-    def test_the_us_is_the_default_and_the_only_pack(self):
+    def test_the_us_is_the_default_and_canada_the_second_pack(self):
         self.assertEqual(countries.DEFAULT, "US")
-        self.assertEqual(countries.codes(), ["US"])
+        self.assertEqual(countries.codes(), ["CA", "US"])
         self.assertIs(countries.get(), us)
         self.assertIs(countries.get("us"), us)
+        self.assertEqual(countries.get("ca").NAME, "Canada")
         with self.assertRaises(KeyError):
-            countries.get("CA")
+            countries.get("GB")
 
     def test_the_us_pack_ships_its_data(self):
         for path in (us.PLACES_FILE, us.POSTAL_FILE, us.OUTLINE_FILE,

@@ -15,9 +15,9 @@ from contextlib import contextmanager
 from types import ModuleType
 from typing import Iterator
 
-from . import us
+from . import ca, us
 
-PACKS: dict[str, ModuleType] = {us.CODE: us}
+PACKS: dict[str, ModuleType] = {us.CODE: us, ca.CODE: ca}
 DEFAULT = us.CODE
 
 

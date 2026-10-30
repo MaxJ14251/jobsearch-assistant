@@ -1,6 +1,7 @@
 # ADR 0036 — Country packs
 
-Status: accepted; the US is the only pack (2026-10-29)
+Status: accepted; the US is the only pack (2026-10-29). Canada added as
+the second, 2026-10-30 (ADR 0037).
 Date: 2026-10-29
 Relates to: ADR 0001 (the pay floor, renamed here), ADR 0006 (pay
 extraction), ADR 0013 and 0029 (the nationwide sources), ADR 0019 (the

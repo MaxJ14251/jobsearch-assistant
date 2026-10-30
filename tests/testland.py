@@ -21,6 +21,9 @@ REGION_BY_NAME = {name.lower(): code for code, name in SUBDIVISIONS.items()}
 
 PLACE_ALIASES = {"nville": ("Northville", "NO")}
 FIRST_WORD: tuple = ()
+FOLD_ACCENTS = False
+ALIAS_SPLIT = r"[-/]"
+POSTAL_AREA_ONLY = False
 COUNTRY_NOISE = r"^(testland)\s*[-–—,]\s*|\s*[-–—,]\s*(testland)$"
 POSTAL_CODE = r"[A-Z]\d[A-Z] ?\d[A-Z]\d"
 POSTAL_COLUMN = "code"

@@ -23,6 +23,7 @@ import csv
 import gzip
 import math
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -67,6 +68,11 @@ ADDRESS = re.compile(r"^\d+\s+\S")
 # place. 25 postings in the author's tracker start this way.
 ARRANGEMENT = re.compile(
     r"^(hybrid|onsite|on-site|in[- ]office|in[- ]person|office)\s*[-–—:,]\s*", re.I)
+
+
+def fold(text: str) -> str:
+    """"Montréal" -> "montreal": the accents a posting may leave off."""
+    return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().lower()
 
 
 @dataclass(frozen=True)
@@ -117,6 +123,9 @@ def _places_of(code: str) -> tuple[dict[tuple[str, str], Place], dict[str, list[
             for short in _also_known_as(key, pack):
                 by_key.setdefault((short, place.state), place)
                 by_name.setdefault(short, []).append(place)
+            if pack.FOLD_ACCENTS and fold(key) != key:
+                by_key.setdefault((fold(key), place.state), place)
+                by_name.setdefault(fold(key), []).append(place)
     return by_key, by_name
 
 
@@ -141,7 +150,7 @@ def _also_known_as(key: str, pack=None) -> list[str]:
     out = []
     candidates = [re.sub(r"\s+city$", "", key),
                   re.sub(r"\s+county$", "", key),
-                  re.split(r"[-/]", key, 1)[0].strip()]
+                  re.split(pack.ALIAS_SPLIT, key, 1)[0].strip()]
     head, _, tail = key.partition(" ")
     if tail:
         for short, long in pack.FIRST_WORD:
@@ -211,6 +220,8 @@ def resolve(name: str, state: str | None = None) -> Place | None:
         alias_name, alias_state = pack.PLACE_ALIASES[key]
         name, key = alias_name, alias_name.lower()
         state = state or alias_state
+    if pack.FOLD_ACCENTS and key not in by_name:
+        key = fold(key)
     if state:
         state = state.strip().upper()
         if state not in pack.SUBDIVISIONS:
