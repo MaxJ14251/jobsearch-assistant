@@ -140,6 +140,13 @@ HOURLY_BOUNDS = (10, 500)
 PAY_LOW = 50_000
 PAY_HIGH = 200_000
 
+# --- resumes and letters --------------------------------------------------------
+# Paper: "letter" (8.5 x 11 in, python-docx's own default, so nothing is
+# set) or "a4" (set on every section).
+PAPER = "letter"
+# The "numeric" resume.date_style: month then year, as US forms write it.
+NUMERIC_DATE = "{month:02d}/{year}"
+
 # --- who holds each kind of job -----------------------------------------------
 # The education mix by occupation (BLS table 5.3 by O*NET title, plan 33)
 # ships for the US. A country without such data says False, and pages show

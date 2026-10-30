@@ -27,7 +27,7 @@ from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Pt
 
-from . import db
+from . import countries, db
 from .config import OUTPUT_DIR, load_coach
 from .tailor import (UNPRINTED_SKILLS, TailoredDraft, collect_bullets, entry_key,
                      public_repo)
@@ -97,10 +97,22 @@ def format_date(value: Any, style: str = "month_year") -> str:
             return text
         year, month = int(m[1]), int(m[2])
     if style == "numeric":
-        return f"{month:02d}/{year}"
+        return countries.active().NUMERIC_DATE.format(month=month, year=year)
     if style == "iso":
         return f"{year}-{month:02d}"
     return f"{MONTHS[month - 1]} {year}"
+
+
+# A4, in EMU (210 x 297 mm), for a country whose pack says so. Letter is
+# python-docx's own default page and is left as it is.
+_A4 = (7560000, 10692000)
+
+
+def _paper(doc) -> None:
+    """The working country's paper size, on every section."""
+    if countries.active().PAPER == "a4":
+        for section in doc.sections:
+            section.page_width, section.page_height = _A4
 
 
 def date_style(profile: dict[str, Any]) -> str:
@@ -140,6 +152,7 @@ def render_resume(
     draft: TailoredDraft, profile: dict[str, Any], job: dict[str, Any], out: Path
 ) -> Path:
     doc = Document()
+    _paper(doc)
     style = doc.styles["Normal"]
     style.font.name = "Calibri"
     style.font.size = Pt(BODY_PT)
@@ -332,6 +345,7 @@ def render_cover_letter(
     body: str, out: Path
 ) -> Path:
     doc = Document()
+    _paper(doc)
     doc.styles["Normal"].font.name = "Calibri"
     doc.styles["Normal"].font.size = Pt(BODY_PT)
 

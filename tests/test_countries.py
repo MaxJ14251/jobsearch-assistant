@@ -138,6 +138,30 @@ class TestRoleDataIsOptional(unittest.TestCase):
             self.assertIsNone(roles.for_title("Software Engineer"))
 
 
+class TestResumePaper(unittest.TestCase):
+    def test_letter_is_left_alone_and_a4_is_set(self):
+        from unittest import mock
+
+        from docx import Document
+
+        from jsa import render
+        doc = Document()
+        before = (doc.sections[0].page_width, doc.sections[0].page_height)
+        render._paper(doc)                       # the US: Letter, untouched
+        self.assertEqual((doc.sections[0].page_width, doc.sections[0].page_height), before)
+        with mock.patch.object(us, "PAPER", "a4"):
+            doc = Document()
+            render._paper(doc)
+        # Word keeps page sizes in twips, so compare to the millimetre.
+        section = doc.sections[0]
+        self.assertEqual((round(section.page_width.mm), round(section.page_height.mm)),
+                         (210, 297))
+
+    def test_numeric_dates_follow_the_pack(self):
+        from jsa import render
+        self.assertEqual(render.format_date("2022-03", "numeric"), "03/2022")
+
+
 class TestTheFloorRename(unittest.TestCase):
     """compensation_floor_usd became compensation_floor (in the country's
     currency); a profile written before keeps working."""
