@@ -1190,6 +1190,9 @@
     var shownCards = cards().filter(function (c) { return !c.hidden; }).map(info);
     clear(an);
     var pays = shownCards.filter(function (d) { return d.pay; }).map(function (d) { return (d.pay[0] + d.pay[1]) / 2; });
+{#- The bands are in the working currency. Checked for Canada (ADR 0037): its
+   postings' yearly minimums run $55,000 to $215,040 (5th to 95th percentile),
+   the US range, so one set of bands serves both. #}
     var BANDS = [[0, 60000, 'under 60k'], [60000, 90000, '60-90k'], [90000, 120000, '90-120k'],
                  [120000, 150000, '120-150k'], [150000, 200000, '150-200k'], [200000, Infinity, '200k and up']];
     var pay = bars(an, 'Pay, by midpoint', pays.length + ' of ' + shownCards.length + ' state it',

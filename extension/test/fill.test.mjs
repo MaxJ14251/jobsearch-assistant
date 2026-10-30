@@ -48,6 +48,7 @@ test("labels map to keys", () => {
     "GitHub URL": "github", "Portfolio": "portfolio", "Website": "website",
     "Resume/CV": "resume", "Cover Letter": "cover_letter",
     "Location (City)": "location", "Where are you based?": "location",
+    "City and state": "location", "City and province": "location",
     "Will you now or in the future require visa sponsorship?": "sponsorship",
     "Are you willing to relocate?": "relocation",
     "Are you legally authorized to work in the United States?": "authorized",

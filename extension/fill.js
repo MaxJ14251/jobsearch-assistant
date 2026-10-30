@@ -42,7 +42,7 @@
     ["why_role", /\bwhy\b.*\b(role|position|this job|opportunity)\b|\binterest(ed)? in (this|the) (role|position)\b/],
     ["why_company", /\bwhy\b.*\b(work|join|company|us|here)\b|\bwhat (draws|attracts) you\b/],
     ["relevant_project", /\b(project|accomplishment)s?\b.*\b(proud|relevant|tell|describe)\b|\b(tell|describe)\b.*\b(project|accomplishment)\b/],
-    ["location", /\b(current )?location\b|\bwhere are you (located|based)\b|^city$|\bcity( and|,) state\b/],
+    ["location", /\b(current )?location\b|\bwhere are you (located|based)\b|^city$|\bcity( and|,) (state|province)\b/],
   ];
 
   // Two of these in one label ("Are you authorized to work here, and will

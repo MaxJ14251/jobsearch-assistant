@@ -103,9 +103,10 @@ without changing anything for the existing US user.
 ## Consequences
 
 - Nothing changed for a US profile; an existing profile needs no edit.
-- Not yet moved, and to be done with the first real country: the map's pay
-  bands in `matches.html` ("under 60k"…) are US-sized; the extension's
-  field matching is English and says "state". Distances moved on
+- Left for the first real country, and settled with Canada (2026-10-30,
+  ADR 0037): the map's pay bands ("under 60k"…) stay one set, because
+  Canadian postings' measured pay spans the same range; the extension also
+  reads "City and province". Its field matching is still English. Distances moved on
   2026-10-30 (Canada plan, phase 2): the app still measures in miles, and a
   pack's `DISTANCE_UNIT(S)`, `DISTANCE_SHORT`, `MILES_PER_UNIT` and
   `DEFAULT_RADIUS` decide what a person types and reads; the profile key is
