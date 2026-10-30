@@ -474,10 +474,10 @@ def check_basemap(report: Report) -> None:
 
     if not basemap.available():
         report.add(False, "The map has no land, water or roads under it",
-                   "The basemap files are missing from data/. Rebuild them "
+                   "The basemap files are missing from data/us/. Rebuild them "
                    "with `python tools/build_map_data.py --only basemap` "
                    "(downloads public Census and Natural Earth files once), "
-                   "or restore data/us_basemap_*.json.gz from the repository.")
+                   "or restore data/us/us_basemap_*.json.gz from the repository.")
     report.checked.append("map data")
 
 

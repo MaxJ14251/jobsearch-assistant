@@ -28,28 +28,14 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Iterable
 
-from .config import DATA_DIR
+from .countries import us
 
-DATA = DATA_DIR
+DATA = us.DATA
 EARTH_MILES = 3958.7613
 
-STATE_CODES = {
-    "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR",
-    "california": "CA", "colorado": "CO", "connecticut": "CT",
-    "delaware": "DE", "district of columbia": "DC", "florida": "FL",
-    "georgia": "GA", "hawaii": "HI", "idaho": "ID", "illinois": "IL",
-    "indiana": "IN", "iowa": "IA", "kansas": "KS", "kentucky": "KY",
-    "louisiana": "LA", "maine": "ME", "maryland": "MD", "massachusetts": "MA",
-    "michigan": "MI", "minnesota": "MN", "mississippi": "MS",
-    "missouri": "MO", "montana": "MT", "nebraska": "NE", "nevada": "NV",
-    "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM",
-    "new york": "NY", "north carolina": "NC", "north dakota": "ND",
-    "ohio": "OH", "oklahoma": "OK", "oregon": "OR", "pennsylvania": "PA",
-    "rhode island": "RI", "south carolina": "SC", "south dakota": "SD",
-    "tennessee": "TN", "texas": "TX", "utah": "UT", "vermont": "VT",
-    "virginia": "VA", "washington": "WA", "west virginia": "WV",
-    "wisconsin": "WI", "wyoming": "WY", "puerto rico": "PR",
-}
+# Every US region a place can sit in, from the US pack (one table for the
+# whole app): lowercase name -> code.
+STATE_CODES = {name.lower(): code for code, name in us.SUBDIVISIONS.items()}
 CODES = set(STATE_CODES.values())
 
 # Names a posting uses that the Census file does not. Each one is a place
@@ -121,7 +107,7 @@ def _places() -> tuple[dict[tuple[str, str], Place], dict[str, list[Place]]]:
     """(by name+state, by name). Loaded once, from the shipped file."""
     by_key: dict[tuple[str, str], Place] = {}
     by_name: dict[str, list[Place]] = {}
-    path = DATA / "us_places.csv.gz"
+    path = us.PLACES_FILE
     if not path.exists():
         return by_key, by_name
     with gzip.open(path, "rt", encoding="utf-8", newline="") as fh:
@@ -175,7 +161,7 @@ def _also_known_as(key: str) -> list[str]:
 @lru_cache(maxsize=1)
 def _zips() -> dict[str, Place]:
     out: dict[str, Place] = {}
-    path = DATA / "us_zips.csv.gz"
+    path = us.POSTAL_FILE
     if not path.exists():
         return out
     with gzip.open(path, "rt", encoding="utf-8", newline="") as fh:

@@ -256,6 +256,21 @@ def parse_years_filter(value: Any) -> str:
     return text
 
 
+def parse_country(value: Any) -> str:
+    """The profile's home country, as a pack code. Unset means the US, which
+    is what every profile meant before countries existed."""
+    from . import countries
+
+    if value is None or str(value).strip() == "":
+        return countries.DEFAULT
+    code = str(value).strip().upper()
+    if code not in countries.PACKS:
+        raise ConfigError(
+            f"master_profile.yaml: job_search_preferences.country is {value!r}. "
+            f"Use one of: {', '.join(countries.codes())} (a two-letter country code).")
+    return code
+
+
 @dataclass
 class Preferences:
     """The subset of the master profile that drives discovery."""
@@ -289,6 +304,8 @@ class Preferences:
     work_authorization: str | None = None
     needs_visa_sponsorship: bool | None = None
     willing_to_relocate: bool | None = None
+    # The one home country this profile searches in (a countries pack code).
+    country: str = "US"
 
     def home(self):
         """The operator's origin as a Place, or None if it cannot be placed.
@@ -342,6 +359,7 @@ class Preferences:
             willing_to_relocate=parse_tristate(
                 prefs.get("willing_to_relocate"), "willing_to_relocate"
             ),
+            country=parse_country(prefs.get("country")),
         )
 
 

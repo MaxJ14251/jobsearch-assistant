@@ -40,6 +40,9 @@ links:
 # These are NOT on the resume; they are unanswered until you set them.
 # ---------------------------------------------------------------------------
 job_search_preferences:
+  # Your home country, as a two-letter code. One per profile; left out, it is
+  # the US. Only US is available so far (more countries are planned).
+  # country: US
   target_titles:
     - "AI Engineer"
     - "LLM Engineer"

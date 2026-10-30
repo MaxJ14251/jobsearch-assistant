@@ -1,6 +1,6 @@
-"""Rebuild the shipped data files in jsa/resources/data/ from their public sources.
+"""Rebuild the shipped data files in jsa/resources/data/us/ from their public sources.
 
-`data/` holds 7.5 MB of compressed binary that decides where every job
+`data/us/` holds 7.5 MB of compressed binary that decides where every job
 posting is placed on a map, and what ground is drawn under it. Until this
 script existed there was no way for anybody reading the repository to check
 it: the files had to be taken on trust, which is not a thing to ask of
@@ -23,9 +23,9 @@ asserts that the drawing path cannot.
 Sources. US Census Bureau files are public domain (17 USC 105); Natural
 Earth is dedicated to the public domain by its makers.
   2024 Gazetteer places,
-  2023 place bounds 1:500k   -> data/us_places.csv.gz   (town points; see OFFSHORE_MILES)
-  2024 Gazetteer ZCTAs       -> data/us_zips.csv.gz     (ZIP centroids)
-  2023 states 1:20m          -> data/us_outline.json.gz (the national map's outline)
+  2023 place bounds 1:500k   -> data/us/us_places.csv.gz   (town points; see OFFSHORE_MILES)
+  2024 Gazetteer ZCTAs       -> data/us/us_zips.csv.gz     (ZIP centroids)
+  2023 states 1:20m          -> data/us/us_outline.json.gz (the national map's outline)
   2023 states and counties
   1:500k, 2020 urban areas
   1:500k, 2024 TIGER primary
@@ -33,7 +33,7 @@ Earth is dedicated to the public domain by its makers.
   lakes and populated places,
   2024 TIGER area water for
   the counties those lakes
-  touch                      -> data/us_basemap_{coarse,medium,fine}.json.gz
+  touch                      -> data/us/us_basemap_{coarse,medium,fine}.json.gz
                                 (the ground under the live map, n23, ADR 0019)
 """
 
@@ -52,6 +52,9 @@ import sys
 import urllib.request
 import zipfile
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from jsa.countries import us  # noqa: E402  (stdlib only; no other jsa imports)
 
 GAZ = ("https://www2.census.gov/geo/docs/maps-data/data/gazetteer/"
        "2024_Gazetteer/2024_Gaz_{}_national.zip")
@@ -115,23 +118,8 @@ CITY_MIN_POP = {"coarse": 500_000, "medium": 150_000, "fine": 50_000}
 # so there is no point to put its name on -- it stays off the map rather
 # than borrow a neighbour's.
 CITY_ALIASES = {("Barlett", "TN"): "Bartlett", ("Wilkes Barre", "PA"): "Wilkes-Barre"}
-STATE_CODES = {
-    "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR",
-    "California": "CA", "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE",
-    "District of Columbia": "DC", "Florida": "FL", "Georgia": "GA",
-    "Hawaii": "HI", "Idaho": "ID", "Illinois": "IL", "Indiana": "IN",
-    "Iowa": "IA", "Kansas": "KS", "Kentucky": "KY", "Louisiana": "LA",
-    "Maine": "ME", "Maryland": "MD", "Massachusetts": "MA", "Michigan": "MI",
-    "Minnesota": "MN", "Mississippi": "MS", "Missouri": "MO", "Montana": "MT",
-    "Nebraska": "NE", "Nevada": "NV", "New Hampshire": "NH", "New Jersey": "NJ",
-    "New Mexico": "NM", "New York": "NY", "North Carolina": "NC",
-    "North Dakota": "ND", "Ohio": "OH", "Oklahoma": "OK", "Oregon": "OR",
-    "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC",
-    "South Dakota": "SD", "Tennessee": "TN", "Texas": "TX", "Utah": "UT",
-    "Vermont": "VT", "Virginia": "VA", "Washington": "WA",
-    "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY",
-    "Puerto Rico": "PR",
-}
+# One table of US states for the whole app, from the US pack: name -> code.
+STATE_CODES = {name: code for code, name in us.SUBDIVISIONS.items()}
 
 MILES_PER_DEGREE = 69.05          # of latitude; the tolerances below are in it
 
@@ -673,8 +661,8 @@ def as_csv(header: tuple[str, ...], rows) -> bytes:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--out", default="jsa/resources/data", type=Path,
-                        help="where to write the files (default: jsa/resources/data)")
+    parser.add_argument("--out", default="jsa/resources/data/us", type=Path,
+                        help="where to write the files (default: jsa/resources/data/us)")
     parser.add_argument("--cache", type=Path, default=None,
                         help="keep the downloaded archives here and reuse them")
     parser.add_argument("--only", choices=("places", "zips", "outline", "basemap"),

@@ -35,14 +35,14 @@ jsa = "jsa.cli:main"
 Homepage = "https://github.com/MaxJ14251/jobsearch-assistant"
 
 [tool.setuptools]
-packages = ["jsa", "jsa.web"]
+packages = ["jsa", "jsa.web", "jsa.countries", "jsa.countries.us"]
 include-package-data = false
 
 [tool.setuptools.package-data]
 # What ships with the code: the schema, the map data, the seed companies list,
 # the example profile and .env template, and the dashboard's page templates.
 jsa = ["resources/*.sql", "resources/*.yaml", "resources/.env.example",
-       "resources/data/*.gz"]
+       "resources/data/*/*.gz"]
 "jsa.web" = ["templates/*.html"]
 
 [tool.setuptools.dynamic]

@@ -25,9 +25,9 @@ from array import array
 from functools import lru_cache
 
 from . import mapview, places
-from .config import DATA_DIR
+from .countries import us
 
-DATA = DATA_DIR
+DATA = us.DATA
 TIERS = ("coarse", "medium", "fine")
 
 # How far around the requested point each tier is cut, in miles. Wide enough
@@ -50,7 +50,7 @@ LAYERS = ("land", "urban", "county", "lake", "road")
 
 
 def path(tier: str):
-    return DATA / f"us_basemap_{tier}.json.gz"
+    return DATA / us.basemap_file(tier).name     # DATA: tests point it elsewhere
 
 
 def available() -> bool:

@@ -85,7 +85,8 @@ class TestWhereHomeIs(Home):
                      config.SEED_COMPANIES, config.COACH_PATH):
             self.assertTrue(path.is_file(), path)
             self.assertEqual(path.parent, config.RESOURCES)
-        self.assertTrue((config.DATA_DIR / "us_places.csv.gz").is_file())
+        # Country data ships in one folder per country pack.
+        self.assertTrue((config.DATA_DIR / "us" / "us_places.csv.gz").is_file())
 
 
 class TestInit(Home):

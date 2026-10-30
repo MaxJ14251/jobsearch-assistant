@@ -1,4 +1,4 @@
-"""Rebuild the shipped role-education data in jsa/resources/data/ (plan 33).
+"""Rebuild the shipped role-education data in jsa/resources/data/us/ (plan 33).
 
 Run by a maintainer, never at runtime. Writes:
 
@@ -22,7 +22,7 @@ from the published page in a browser:
 
 Usage:
   python tools/build_role_data.py --bls bls_table_5_3.txt [--year 2023-24]
-                                  [--onet-dir DIR] [--out jsa/resources/data]
+                                  [--onet-dir DIR] [--out jsa/resources/data/us]
 """
 
 from __future__ import annotations
@@ -139,7 +139,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--year", default="2023-24", help="the table's survey years")
     parser.add_argument("--onet-dir", type=Path, default=None,
                         help="a folder with the three O*NET CSV files, instead of downloading")
-    parser.add_argument("--out", type=Path, default=ROOT / "jsa" / "resources" / "data")
+    parser.add_argument("--out", type=Path, default=ROOT / "jsa" / "resources" / "data" / "us")
     args = parser.parse_args(argv)
 
     education = read_bls(args.bls)

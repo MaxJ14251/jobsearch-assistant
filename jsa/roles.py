@@ -20,7 +20,10 @@ import io
 import re
 from dataclasses import dataclass
 
-from .config import DATA_DIR
+from .countries import us
+
+# BLS and O*NET are US data: the files live in the US pack's folder.
+DATA_DIR = us.DATA
 
 EDUCATION_FILE = "role_education.csv.gz"
 TITLES_FILE = "role_titles.csv.gz"
