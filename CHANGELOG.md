@@ -6,6 +6,18 @@ version number lives in one place, `jsa/__init__.py`.
 
 ## [Unreleased]
 
+### Changed
+
+- **Everything the tool assumes about the US is in one country pack**
+  (`jsa/countries/`), and a profile names its country with
+  `job_search_preferences.country` (default US). Nothing changes for a US
+  profile; another country can now be added as a pack
+  ([ADR 0036](docs/decisions/0036-country-packs.md)).
+- **The pay floor is `compensation_floor`**, in your country's currency.
+  `compensation_floor_usd` still works; setting both is an error.
+- The resume import removes every country's contact formats, not only the
+  working country's.
+
 ## [0.3.0] - 2026-10-26
 
 Everything below landed after 0.2.0.

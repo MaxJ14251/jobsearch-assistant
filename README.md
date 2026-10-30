@@ -347,7 +347,9 @@ treated as unstated. Higher pay ranks higher for everyone, on the *bottom*
 of the stated range, and moves a score by at most ±0.05 — enough to order
 similar roles, never enough to lift a poor fit over a good one. A posting that
 states no pay scores exactly as if it paid the middle of the band, so saying
-nothing is not a penalty. If you set `compensation_floor_usd`, a job whose
+nothing is not a penalty. If you set `compensation_floor` (in your country's
+currency; profiles written before call it `compensation_floor_usd`, which
+still works), a job whose
 *top* figure is below it is rejected, with the reason shown; unknown pay is
 never rejected.
 
@@ -1224,7 +1226,15 @@ init` copies it to `profile/master_profile.yaml` (and `.env.example` to
 does: `reject` drops it, `rank` keeps it ranked lower, `off` ignores years),
 `exclude_keywords`, `home_location` and `radius_miles` (below), and `regions`
 (named groups for the `matches --near` filter; the dashboard uses a radius
-instead).
+instead), and `country`.
+
+**Your country.** `country` is a two-letter code, one per profile, and left
+out it is the US. The US is the only country so far: everything the tool
+assumes about one (places and postal codes, pay and its currency, the
+work-authorization question, nationwide job sources, the map, contact
+formats on a resume) sits in one country pack, so another country can be
+added without touching the rest. See
+[ADR 0036](docs/decisions/0036-country-packs.md).
 A degree requirement is never a filter: it is shown on the job as "asks for a
 degree" and changes neither whether a job appears nor its score.
 

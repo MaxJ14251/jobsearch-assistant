@@ -9,6 +9,10 @@ ranking". That is not what most people want and was caught before publication.
 Decided by: /software-design-council, chaired during the "make comp and work
 authorization real scoring inputs" goal.
 
+Note, 2026-10-29 (ADR 0036): the floor's key is now `compensation_floor`,
+in the profile's own country's currency; `compensation_floor_usd`, the name
+used below, is still read. Nothing else here changed.
+
 ## Context
 
 `job_search_preferences` carried four nulls since the profile was written:
