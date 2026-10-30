@@ -162,7 +162,7 @@ def _names_a_place(part: str, location: str | None) -> bool:
     foreign = _NON_US_RE.search(part)
     if foreign and foreign.group(0).lower() == lowered:
         return True
-    if lowered in places.STATE_CODES or part.upper() in places.CODES:
+    if lowered in places.region_by_name() or part.upper() in places.region_codes():
         return True
     if _CITY_ST_RE.match(part):
         return bool(places.parse(part).places)

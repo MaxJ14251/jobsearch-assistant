@@ -35,6 +35,42 @@ STATES = {
 TERRITORIES = {"PR": "Puerto Rico"}
 # Every region a place can sit in: what place parsing and the map data use.
 SUBDIVISIONS = {**STATES, **TERRITORIES}
+REGION_BY_NAME = {name.lower(): code for code, name in SUBDIVISIONS.items()}
+
+# --- places ---------------------------------------------------------------------
+# Names a posting uses that the Census file does not. Each one is a place
+# the Gazetteer knows under a different name, not a guess about a region.
+PLACE_ALIASES = {
+    "nyc": ("New York", "NY"),
+    "new york city": ("New York", "NY"),
+    "washington dc": ("Washington", "DC"),
+    "washington d.c.": ("Washington", "DC"),
+    "washington, d.c.": ("Washington", "DC"),
+    "d.c.": ("Washington", "DC"),
+    # The Census calls it "Urban Honolulu"; no posting ever will.
+    "honolulu": ("Urban Honolulu", "HI"),
+}
+
+# The first word of a place name, abbreviated or not. The Census picks one
+# ("St. Paul", "Mount Vernon") and a posting picks either, so both are
+# indexed. Written as pairs so it works in both directions.
+FIRST_WORD = (("st.", "saint"), ("st", "saint"), ("ste.", "sainte"),
+              ("mt.", "mount"), ("ft.", "fort"))
+
+# Country noise around the real text: "US - Schaumburg, United States".
+COUNTRY_NOISE = (
+    r"^(us|usa|u\.s\.|u\.s\.a\.|united states( of america)?)\s*[-–—,]\s*|"
+    r"\s*[-–—,]\s*(usa|u\.s\.a\.|united states( of america)?)$")
+
+# A home given as a ZIP code, and the key the ZIP file is read by.
+POSTAL_CODE = r"\d{5}(-\d{4})?"
+POSTAL_COLUMN = "zip"
+
+
+def postal_key(code: str) -> str:
+    """ZIP+4 and plain ZIP find the same point."""
+    return (code or "").strip()[:5]
+
 
 # The shipped data files (Census, Natural Earth, BLS and O*NET).
 DATA = Path(__file__).resolve().parents[2] / "resources" / "data" / "us"

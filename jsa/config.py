@@ -367,7 +367,15 @@ def load_profile(path: Path = PROFILE_PATH) -> dict[str, Any]:
     if not path.exists():
         raise ConfigError(f"master profile not found at {path}")
     with path.open(encoding="utf-8") as fh:
-        return yaml.safe_load(fh)
+        profile = yaml.safe_load(fh)
+    if path == PROFILE_PATH and isinstance(profile, dict):
+        # The live profile sets the country the app works in (one per
+        # profile); a draft being read or previewed does not.
+        from . import countries
+        prefs = profile.get("job_search_preferences") or {}
+        countries.activate(parse_country(prefs.get("country") if isinstance(prefs, dict)
+                                         else None))
+    return profile
 
 
 COACH_PATH = RESOURCES / "coach.yaml"

@@ -11,7 +11,9 @@ exactly as before. docs/decisions (the country-pack ADR) records the split.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from types import ModuleType
+from typing import Iterator
 
 from . import us
 
@@ -27,3 +29,32 @@ def get(code: str | None = None) -> ModuleType:
 
 def codes() -> list[str]:
     return sorted(PACKS)
+
+
+# The pack the running app works in. One profile is served at a time, so the
+# country is set where the profile is loaded (config.load_profile) and read
+# at call time by everything country-specific.
+_active = DEFAULT
+
+
+def active() -> ModuleType:
+    return PACKS[_active]
+
+
+def activate(code: str | None) -> ModuleType:
+    """Make `code` the working country (unset: the default). Unknown codes
+    raise KeyError, as get() does."""
+    global _active
+    pack = get(code)
+    _active = pack.CODE
+    return pack
+
+
+@contextmanager
+def using(code: str) -> Iterator[ModuleType]:
+    """Work in another country for a block, then put the previous one back."""
+    before = _active
+    try:
+        yield activate(code)
+    finally:
+        activate(before)

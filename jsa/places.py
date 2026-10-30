@@ -28,43 +28,35 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Iterable
 
-from .countries import us
+from . import countries
 
-DATA = us.DATA
 EARTH_MILES = 3958.7613
 
-# Every US region a place can sit in, from the US pack (one table for the
-# whole app): lowercase name -> code.
-STATE_CODES = {name.lower(): code for code, name in us.SUBDIVISIONS.items()}
-CODES = set(STATE_CODES.values())
 
-# Names a posting uses that the Census file does not. Each one is a place
-# the Gazetteer knows under a different name, not a guess about a region.
-ALIASES = {
-    "nyc": ("New York", "NY"),
-    "new york city": ("New York", "NY"),
-    "washington dc": ("Washington", "DC"),
-    "washington d.c.": ("Washington", "DC"),
-    "washington, d.c.": ("Washington", "DC"),
-    "d.c.": ("Washington", "DC"),
-    # The Census calls it "Urban Honolulu"; no posting ever will.
-    "honolulu": ("Urban Honolulu", "HI"),
-}
+# What a place means depends on the country: its regions, the names postings
+# use for its towns, the noise around them and its postal codes all come from
+# the working country's pack (jsa/countries), read at call time.
+def _pack():
+    return countries.active()
 
-# The first word of a place name, abbreviated or not. The Census picks one
-# ("St. Paul", "Mount Vernon") and a posting picks either, so both are
-# indexed. Written as pairs so it works in both directions.
-FIRST_WORD = (("st.", "saint"), ("st", "saint"), ("ste.", "sainte"),
-              ("mt.", "mount"), ("ft.", "fort"))
+
+def region_by_name() -> dict[str, str]:
+    """Lowercase region name -> code ("california" -> "CA")."""
+    return _pack().REGION_BY_NAME
+
+
+def region_codes() -> set[str]:
+    return set(_pack().SUBDIVISIONS)
+
+
+@lru_cache(maxsize=None)
+def _noise(pattern: str) -> re.Pattern:
+    return re.compile(pattern, re.I)
+
 
 # "Remote", "Flexible", "Anywhere" -- a place-shaped word that is not a place.
 REMOTE = re.compile(
     r"\b(remote|flexible|anywhere|work from home|wfh|virtual|telecommute)\b", re.I)
-
-# Country noise around the real text: "US - Schaumburg, United States".
-COUNTRY = re.compile(
-    r"^(us|usa|u\.s\.|u\.s\.a\.|united states( of america)?)\s*[-–—,]\s*|"
-    r"\s*[-–—,]\s*(usa|u\.s\.a\.|united states( of america)?)$", re.I)
 
 SPLIT = re.compile(r"\s*(?:;|\||/(?!\s*\d)| or )\s*", re.I)
 
@@ -102,12 +94,17 @@ class Placement:
         return bool(self.places)
 
 
-@lru_cache(maxsize=1)
 def _places() -> tuple[dict[tuple[str, str], Place], dict[str, list[Place]]]:
-    """(by name+state, by name). Loaded once, from the shipped file."""
+    return _places_of(_pack().CODE)
+
+
+@lru_cache(maxsize=None)
+def _places_of(code: str) -> tuple[dict[tuple[str, str], Place], dict[str, list[Place]]]:
+    """(by name+state, by name). Loaded once per country, from its shipped file."""
+    pack = countries.get(code)
     by_key: dict[tuple[str, str], Place] = {}
     by_name: dict[str, list[Place]] = {}
-    path = us.PLACES_FILE
+    path = pack.PLACES_FILE
     if not path.exists():
         return by_key, by_name
     with gzip.open(path, "rt", encoding="utf-8", newline="") as fh:
@@ -117,13 +114,13 @@ def _places() -> tuple[dict[tuple[str, str], Place], dict[str, list[Place]]]:
             key = place.name.lower()
             by_key[(key, place.state)] = place
             by_name.setdefault(key, []).append(place)
-            for short in _also_known_as(key):
+            for short in _also_known_as(key, pack):
                 by_key.setdefault((short, place.state), place)
                 by_name.setdefault(short, []).append(place)
     return by_key, by_name
 
 
-def _also_known_as(key: str) -> list[str]:
+def _also_known_as(key: str, pack=None) -> list[str]:
     """Other names for the same town, from the Census name alone.
 
     The Gazetteer records the legal name of a place, and a job posting uses
@@ -140,34 +137,42 @@ def _also_known_as(key: str) -> list[str]:
     never produced: "Oklahoma City" must not answer to "Oklahoma", or a
     posting that named the state lands 1,100 miles from it.
     """
+    pack = pack or _pack()
     out = []
     candidates = [re.sub(r"\s+city$", "", key),
                   re.sub(r"\s+county$", "", key),
                   re.split(r"[-/]", key, 1)[0].strip()]
     head, _, tail = key.partition(" ")
     if tail:
-        for short, long in FIRST_WORD:
+        for short, long in pack.FIRST_WORD:
             if head == short:
                 candidates.append(f"{long} {tail}")
             elif head == long:
                 candidates.append(f"{short} {tail}")
     for short in candidates:
-        if short and short != key and short not in STATE_CODES:
+        if short and short != key and short not in pack.REGION_BY_NAME:
             if short not in out:
                 out.append(short)
     return out
 
 
-@lru_cache(maxsize=1)
 def _zips() -> dict[str, Place]:
+    return _zips_of(_pack().CODE)
+
+
+@lru_cache(maxsize=None)
+def _zips_of(code: str) -> dict[str, Place]:
+    """Postal code -> its centre, for the country's shipped postal file."""
+    pack = countries.get(code)
     out: dict[str, Place] = {}
-    path = us.POSTAL_FILE
+    path = pack.POSTAL_FILE
     if not path.exists():
         return out
+    column = pack.POSTAL_COLUMN
     with gzip.open(path, "rt", encoding="utf-8", newline="") as fh:
         for row in csv.DictReader(fh):
-            out[row["zip"]] = Place(row["zip"], "", float(row["lat"]),
-                                    float(row["lon"]))
+            out[row[column]] = Place(row[column], "", float(row["lat"]),
+                                     float(row["lon"]))
     return out
 
 
@@ -192,6 +197,7 @@ def resolve(name: str, state: str | None = None) -> Place | None:
     guessing the bigger Bellevue would put a job 1,600 miles from where the
     operator thinks it is.
     """
+    pack = _pack()
     by_key, by_name = _places()
     key = (name or "").strip().lower()
     if not key:
@@ -199,46 +205,48 @@ def resolve(name: str, state: str | None = None) -> Place | None:
     # A bare state name is a state. Pennsylvania has a borough called
     # Oklahoma, and placing a posting that said "Oklahoma" there would be
     # 1,100 miles wrong and invisible.
-    if state is None and key in STATE_CODES:
+    if state is None and key in pack.REGION_BY_NAME:
         return None
-    if key in ALIASES:
-        alias_name, alias_state = ALIASES[key]
+    if key in pack.PLACE_ALIASES:
+        alias_name, alias_state = pack.PLACE_ALIASES[key]
         name, key = alias_name, alias_name.lower()
         state = state or alias_state
     if state:
         state = state.strip().upper()
-        if state not in CODES:
-            state = STATE_CODES.get(state.lower(), "")
+        if state not in pack.SUBDIVISIONS:
+            state = pack.REGION_BY_NAME.get(state.lower(), "")
         return by_key.get((key, state)) if state else None
     matches = by_name.get(key) or []
     return matches[0] if len(matches) == 1 else None
 
 
 def from_zip(code: str) -> Place | None:
-    return _zips().get((code or "").strip()[:5])
+    return _zips().get(_pack().postal_key(code))
 
 
 def origin(text: str) -> Place | None:
-    """Where the operator is: a ZIP, or a "City, ST" / "City, State"."""
+    """Where the operator is: a postal code (a ZIP in the US), or a
+    "City, ST" / "City, State"."""
     text = (text or "").strip()
     if not text:
         return None
-    if re.fullmatch(r"\d{5}(-\d{4})?", text):
+    if re.fullmatch(_pack().POSTAL_CODE, text):
         return from_zip(text)
     return _one(text)
 
 
 def _state_of(token: str) -> str | None:
+    pack = _pack()
     token = token.strip().rstrip(".")
-    if token.upper() in CODES:
+    if token.upper() in pack.SUBDIVISIONS:
         return token.upper()
-    return STATE_CODES.get(token.lower())
+    return pack.REGION_BY_NAME.get(token.lower())
 
 
 def _one(part: str) -> Place | None:
     """One comma-separated fragment: "Los Angeles, California", "Bellevue - 1 Main"."""
     part = ARRANGEMENT.sub("", part)
-    part = COUNTRY.sub("", part).strip(" ,-–—")
+    part = _noise(_pack().COUNTRY_NOISE).sub("", part).strip(" ,-–—")
     if not part:
         return None
     # "US - California - San Diego": a state named in the middle, the town at

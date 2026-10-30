@@ -45,9 +45,9 @@ class TestOneStateTable(unittest.TestCase):
     """Three hand-copied tables became one: each reader derives its own view."""
 
     def test_places_reads_the_pack(self):
-        self.assertEqual(places.STATE_CODES,
+        self.assertEqual(places.region_by_name(),
                          {n.lower(): c for c, n in us.SUBDIVISIONS.items()})
-        self.assertEqual(places.CODES, set(us.SUBDIVISIONS))
+        self.assertEqual(places.region_codes(), set(us.SUBDIVISIONS))
 
     def test_scoring_reads_the_pack_without_puerto_rico_as_before(self):
         self.assertEqual(scoring._STATE_NAMES,
@@ -75,6 +75,45 @@ class TestTheCountrySetting(unittest.TestCase):
             Preferences.from_profile(profile(country="Narnia"))
         self.assertIn("job_search_preferences.country", str(caught.exception))
         self.assertIn("US", str(caught.exception))
+
+
+class TestTheWorkingCountry(unittest.TestCase):
+    def setUp(self):
+        self.addCleanup(countries.activate, countries.DEFAULT)
+
+    def test_the_us_until_a_profile_says_otherwise(self):
+        self.assertIs(countries.active(), us)
+
+    def test_using_puts_the_previous_country_back(self):
+        with countries.using("us") as pack:
+            self.assertIs(pack, us)
+        self.assertIs(countries.active(), us)
+
+    def test_the_live_profile_sets_it_and_a_draft_does_not(self):
+        import tempfile
+        from unittest import mock
+
+        from jsa import config
+        folder = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, folder, True)
+        live, draft = folder / "master_profile.yaml", folder / "draft.yaml"
+        live.write_text("job_search_preferences:
+  country: us
+", encoding="utf-8")
+        draft.write_text("job_search_preferences:
+  country: Narnia
+", encoding="utf-8")
+        with mock.patch.object(config, "PROFILE_PATH", live):
+            config.load_profile(live)
+            self.assertIs(countries.active(), us)
+            config.load_profile(draft)               # read, never activated
+            self.assertIs(countries.active(), us)
+            live.write_text("job_search_preferences:
+  country: Narnia
+",
+                            encoding="utf-8")
+            with self.assertRaises(ConfigError):
+                config.load_profile(live)
 
 
 if __name__ == "__main__":
