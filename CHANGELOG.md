@@ -19,6 +19,10 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Fixed
 
+- Suggested answers in the extension are now asked to answer the question, in
+  their first sentence. Filler made of a stock opening and your bullets is gone:
+  you get up to three checked answers, or, if none passes, your own sentences
+  marked as not an answer. The check on what's said about you is unchanged.
 - The extension attaches your cover letter to Greenhouse's custom upload
   questions ("Portfolio or Cover Letter"). It was reading each one as "Attach",
   the name of its button. An upload with no letter drafted for the job now says

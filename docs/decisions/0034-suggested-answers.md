@@ -112,3 +112,39 @@ before. The company option is drafted too. The panel says: "Most are drafted
 and checked against your profile and the posting (26 of 30 when measured);
 the rest are made from your own sentences and labelled." The wording comes
 from the dashboard (`suggest.panel_note`), so it follows the switch.
+
+## Options have to answer the question, 2026-10-31
+
+The owner reported that options didn't truly answer "Why do you want to work
+at <company>?" or "Walk us through your proudest achievement". Across the 14
+real presses on record, 25 of 42 options were drafted and 17 composed, against
+the 26 of 30 measured above; on the "why" press, all three were composed. Two
+separate causes:
+
+- **Composed options never read the question.** A stock lead, one bullet and
+  the summary, whatever was asked, offered as if it were an answer.
+- **Drafts weren't asked to answer.** The prompt described each option by
+  topic, so passing drafts listed the person's work and recited the posting.
+  10 of the 30 drafts saved on 2026-10-11 open with a sentence about the
+  employer. The check can't see this: it tests that claims are supported, not
+  that they respond.
+
+Decided, with the check itself unchanged, including its word lists and bounds:
+
+- The split prompt says each answer responds to what is asked, in its first
+  sentence, about the candidate. "I want to work at <company> because…" already
+  passes the check. "Proudest" and "excited" don't, so the prompt says plain
+  words.
+- A draft refused only for words in some sentences loses those sentences, if
+  its first sentence stands and is about the person and what's left passes the
+  whole check. Any other refusal (a degree, a do-not-claim term) drops the draft.
+- Up to three drafted answers are shown, never composed filler beside them. If
+  none passes, one block of the person's own sentences is shown, with no lead,
+  marked "Not an answer to the question". The panel note no longer quotes 26 of
+  30, which real use didn't bear out.
+
+With the switch off, all of this is as it was. Replaying sentence removal on
+the 30 saved drafts changes little: 4 were refused, and the only one it could
+save opens about the employer, so it stays out. Those drafts came from the old
+prompt. **Whether the new prompt gets answers that respond has not been
+measured**: that takes paid model calls.

@@ -119,8 +119,9 @@ class TestTheSplitPrompt(On):
     def test_a_claim_about_the_person_in_the_postings_words_is_still_refused(self):
         claim = GOOD + " I built microgrid orchestration software for utilities."
         result, _ = self.run_suggest([{"role": claim, "project": GOOD}])
-        got = {o["angle"]: o for o in result["options"]}
-        self.assertEqual(got["about the role"]["source"], "composed")
+        self.assertTrue(result["options"])
+        for o in result["options"]:
+            self.assertNotIn("microgrid orchestration", o["text"])
 
     def test_the_stated_length_sits_inside_the_checks(self):
         for cap in (None, 60, 100, 200, 300, 420, 500, 1000, 5000):

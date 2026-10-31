@@ -15,11 +15,12 @@ The rules (ADR 0034):
   fenced block the system text calls data, never instructions. It is never
   added to the words an answer may use: a question naming a tool the person
   never used cannot make claiming that tool pass.
-- **Every option is checked or is the person's own sentences.** The two
-  drafted options (about the role, about a project) are held to the written
-  answers' checks (answers.check). One that fails, after one retry naming the
-  refused words, is replaced by one composed from the profile and labelled
-  so. The company option is composed only (ADR 0027 measured 0 of 5).
+- **Every option is checked, or says it is not an answer.** The drafted options
+  answer the question and are held to the written answers' checks
+  (answers.check). One that fails after one retry keeps what passes if only
+  some sentences' words were refused and its first sentence stands; otherwise
+  it is left out. If none is left, the person gets their own sentences to write
+  from, marked as not an answer (ADR 0034 note, 2026-10-31).
 - **Earlier answers come back.** At "I submitted this" the extension sends
   the text of each question the person answered; it is offered again for the
   same question. Drafted and composed entries are re-checked against the new
@@ -74,10 +75,10 @@ PANEL_NOTE_OFF = (
     "when measured), so edit the one you pick into an answer. Salary and "
     "demographic questions are yours to answer.")
 PANEL_NOTE_ON = (
-    "Suggest gives three options from your profile. Most are drafted and checked "
-    "against your profile and the posting (26 of 30 when measured); the rest are "
-    "made from your own sentences and labelled. Edit the one you pick into an "
-    "answer. Salary and demographic questions are yours to answer.")
+    "Suggest drafts up to three answers to the question and checks each against "
+    "your profile and the posting. If none passes, it shows your own sentences to "
+    "write from, marked as not an answer. Edit what you pick so it sounds like you. "
+    "Salary and demographic questions are yours to answer.")
 
 
 def panel_note() -> str:
@@ -233,9 +234,26 @@ _SPLIT_KEYS = {
     "project": '- "project": built around one specific project or job from the notes, what '
                'it does and what part they did; at most one sentence, starting with '
                '"{company}" or "This role", links it to the posting.',
-    "company": '- "company": sentences starting with "{company}" on what the posting '
-               'excerpt says about it, and sentences about what in the notes fits it.',
+    "company": '- "company": at most two sentences starting with "{company}" on what the '
+               'posting excerpt says about it, each followed by a sentence about what in '
+               'the notes fits it.',
 }
+# What makes it an answer. The options differ in what they lean on, not in
+# whether they respond: asked "Why do you want to work at Baseten?", drafts
+# described the person and recited the posting without ever saying why, and
+# the check can't see that (2026-10-31). "I want to work at Baseten because I
+# build LLM pipelines" passes the check unchanged; "proudest" and "excited" are
+# refused as words the notes don't use, so the prompt says to leave them out.
+_ANSWER_IT = (
+    "Each answer must respond to what the question actually asks, and its first "
+    "sentence, about the candidate, says the answer outright. Asked why they want "
+    "this job or employer, begin \"I want to work at {company} because\" or \"I want "
+    "this role because\", then give a reason from the notes. Asked about a project "
+    "or achievement, name it first, then say what they did and how it connects to "
+    "this role. Don't borrow the question's own adjectives (\"proudest\", \"excited\", "
+    "\"passionate\"): use plain words. Never just list what the candidate has done or "
+    "what the employer does: every sentence serves the answer. The keys below only "
+    "change what the answer leans on.")
 _SHORT = 60          # under this many words, an answer has no room for both kinds
 _SHORT_KEYS = {
     "role": '- "role": from what the notes show they do, tied to this role.',
@@ -268,7 +286,8 @@ def _ask(angles: tuple[str, ...], company: str, least: int, most: int,
     keys = ", ".join(f'"{a}": "..."' for a in angles)
     count = {2: "two", 3: "three"}.get(len(angles), str(len(angles)))
     return (f"Write {count} different answers to the question, each "
-            f"{least}-{target} words{chars}, keeping the two kinds of sentence apart:\n"
+            f"{least}-{target} words{chars}, keeping the two kinds of sentence apart. "
+            + _ANSWER_IT.replace("{company}", company) + "\n"
             + "\n".join(lines) + "\n\nReturn JSON: {" + keys + "}")
 
 
@@ -427,8 +446,42 @@ def composed(angle: str, profile: dict[str, Any], job: dict[str, Any], bullet: A
     return _fit([lead, text, summary], max_chars)
 
 
+def salvage(text: str, problems: list[str], profile: dict[str, Any], job: dict[str, Any],
+            posting_text: str | None, least: int, most: int,
+            max_chars: int | None) -> str | None:
+    """A refused draft without its refused sentences, or None.
+
+    One word nothing supports used to throw away the whole answer ("works" in
+    a sentence about the employer). Only word refusals qualify: a degree or
+    do-not-claim problem refuses the draft whole. The first sentence must
+    stand and be about the person, since it is the one that answers, and what
+    is left goes through the whole check again, so nothing here is looser than
+    the check."""
+    from .letter import checked_sentences
+
+    if posting_text is None or not problems or not all(
+            p.startswith(("sentence ", "employer sentence ")) for p in problems):
+        return None
+    sentences = checked_sentences(text, profile, job, posting_text)
+    if sentences[0]["problems"] or sentences[0]["kind"] == "employer":
+        return None
+    kept = " ".join(s["text"] for s in sentences if not s["problems"])
+    if answers.check(kept, profile, job, min_words=least, max_words=most,
+                     max_chars=max_chars, posting_text=posting_text):
+        return None
+    return kept
+
+
+def starting_point(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
+                   max_chars: int | None = None) -> str:
+    """The person's own sentences, with no lead pretending they answer anything."""
+    return _fit([b.text for b in _ordered(bullets)[:2]] + [answers._summary(profile, job)],
+                max_chars)
+
+
 ANGLES = {"role": "about the role", "project": "about your project",
           "company": "about the company"}
+START = "your own sentences to start from"
 
 
 def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
@@ -485,6 +538,29 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
                         found[k] = problems(text)
     except llm.LLMError as exc:
         failure = f"the model call failed ({exc})"
+
+    if split:
+        answered: list[dict[str, Any]] = []
+        for angle in ("role", "project", "company"):
+            text, note = drafted.get(angle, ""), "drafted and checked"
+            if text and found.get(angle):
+                refused_part = found[angle][0]
+                text = salvage(text, found[angle], profile, job, posting_text,
+                               least, most, max_chars) or ""
+                note = f"drafted and checked; refused sentences taken out ({refused_part})"
+            if text and text not in {o["text"] for o in answered}:
+                answered.append({"angle": ANGLES[angle], "text": text, "source": "model",
+                                 "note": note})
+        if answered:
+            return answered, model
+        why = failure or "; ".join(p[0] for p in found.values() if p) or "no answer came back"
+        body = starting_point(profile, job, bullets, max_chars)
+        if not body:
+            return [], model
+        note = f"Not an answer to the question: no draft passed the check ({why})."
+        if max_chars and len(body) > max_chars:
+            note += f" Longer than the field's {max_chars} characters, so shorten it."
+        return [{"angle": START, "text": body, "source": "composed", "note": note}], model
 
     pool = _ordered(bullets)
     used: set[str] = set()

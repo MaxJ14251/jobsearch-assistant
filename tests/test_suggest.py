@@ -1,7 +1,7 @@
 """Suggested answers to a form's open-ended questions (plan 35, ADR 0034).
 
 On request only; the question is untrusted page text; every option is
-checked or the person's own sentences; earlier answers come back, the
+checked or says it is not an answer; earlier answers come back, the
 person's own words unchanged; salary and demographic questions are never
 suggested. Fiction only (the Riverton example).
 """
@@ -122,23 +122,76 @@ class TestOptions(Press):
             "I'd like to work at Riverton Grid."))
         self.assertEqual(len(seen), 1)
 
-    def test_a_refused_draft_is_retried_once_then_composed(self):
+    def test_a_refused_draft_is_retried_once_then_loses_only_its_refused_sentence(self):
         invented = GOOD + " I led a team of forty engineers at Google."
-        result, seen = self.press([{"role": invented, "project": GOOD},
+        other = GOOD.replace("this", "the")
+        result, seen = self.press([{"role": invented, "project": other},
                                    {"role": invented}])
         self.assertEqual(len(seen), 2)
         self.assertIn("google", seen[1].lower())          # the retry names the words
         got = self.by_angle(result)
-        self.assertEqual(got["about the role"]["source"], "composed")
-        self.assertIn("from your own sentences", got["about the role"]["note"])
-        self.assertEqual(got["about your project"]["source"], "model")
+        self.assertEqual(got["about the role"]["source"], "model")
+        self.assertEqual(got["about the role"]["text"], GOOD)
+        self.assertIn("refused sentences taken out", got["about the role"]["note"])
+        self.assertEqual(got["about your project"]["note"], "drafted and checked")
 
-    def test_a_model_failure_still_gives_composed_options(self):
+    def test_a_refused_first_sentence_leaves_the_draft_out(self):
+        invented = "I led a team of forty engineers at Google. " + GOOD
+        other = GOOD.replace("this", "the")
+        result, _ = self.press([{"role": invented, "project": other}, {"role": invented}])
+        self.assertEqual([o["angle"] for o in result["options"]], ["about your project"])
+
+    def test_no_draft_passing_gives_sentences_marked_as_not_an_answer(self):
+        invented = "I led a team of forty engineers at Google."
+        result, _ = self.press([{"role": invented, "project": invented}] * 2)
+        self.assertEqual(len(result["options"]), 1)
+        only = result["options"][0]
+        self.assertEqual((only["angle"], only["source"]), (suggest.START, "composed"))
+        self.assertIn("Not an answer to the question", only["note"])
+        self.assertNotIn("Google", only["text"])
+        self.assertFalse(only["text"].startswith(("I'm applying", "I'd like to work")))
+
+    def test_a_model_failure_gives_sentences_marked_as_not_an_answer(self):
         result, _ = self.press(LLMError("down"))
-        self.assertTrue(result["options"])
-        for o in result["options"]:
-            self.assertEqual(o["source"], "composed")
-        self.assertIn("the model call failed", self.by_angle(result)["about the role"]["note"])
+        self.assertEqual(len(result["options"]), 1)
+        only = result["options"][0]
+        self.assertEqual(only["source"], "composed")
+        self.assertIn("Not an answer to the question", only["note"])
+        self.assertIn("the model call failed", only["note"])
+
+    def test_the_prompt_asks_for_an_answer_and_the_check_accepts_one(self):
+        from jsa import answers
+        _, seen = self.press({"role": GOOD, "project": GOOD.replace("this", "the"),
+                              "company": GOOD.replace("this", "a")},
+                             question="Why do you want to work at Riverton Grid?")
+        self.assertIn("says the answer outright", seen[0])
+        self.assertIn("I want to work at Riverton Grid because", seen[0])
+        # The sentence the prompt asks for is not refused for its own frame.
+        said = "I want to work at Riverton Grid because"
+        found = answers.check(said, self.profile, self.job(), min_words=1,
+                              posting_text="Riverton Grid builds software.")
+        self.assertEqual(found, [])
+        with mock.patch("jsa.answers.SUBJECT_AWARE", False):
+            _, off = self.press({"role": GOOD, "project": GOOD})
+        self.assertNotIn("says the answer outright", off[0])
+
+    def test_salvage_only_ever_returns_what_passes_the_whole_check(self):
+        from jsa import answers
+        job, posting = self.job(), "Riverton Grid builds software."
+
+        def saved(text):
+            found = answers.check(text, self.profile, job, posting_text=posting)
+            return suggest.salvage(text, found, self.profile, job, posting, 40, 150, None)
+
+        invented = " I led forty engineers at Google."
+        self.assertEqual(saved(GOOD + invented), GOOD)
+        # The opening sentence is the one that answers.
+        self.assertIsNone(saved("I led forty engineers at Google. " + GOOD))
+        self.assertIsNone(saved("Riverton Grid builds software. " + GOOD + invented))
+        # A degree claim refuses the draft whole, even beside a refused word.
+        self.assertIsNone(saved(GOOD + " I have a PhD." + invented))
+        # What is left has to be long enough on its own.
+        self.assertIsNone(saved(" ".join(GOOD.split()[:12]) + "." + invented))
 
     def test_no_two_options_are_the_same(self):
         result, _ = self.press(LLMError("down"))
@@ -151,7 +204,7 @@ class TestOptions(Press):
             if len(o["text"]) > 300:
                 self.assertIn("shorten it", o["note"])
         long = self.press({"role": GOOD, "project": GOOD}, maxlength=200)[0]
-        self.assertEqual(self.by_angle(long)["about the role"]["source"], "composed")
+        self.assertEqual(self.by_angle(long)[suggest.START]["source"], "composed")
 
 
 class TestSubjectAwareSwitch(Press):
@@ -179,7 +232,10 @@ class TestSubjectAwareSwitch(Press):
                                                        "software for utilities."}] * 2)
         got = self.by_angle(result)
         self.assertEqual(got["about the role"]["source"], "model")
-        self.assertEqual(got["about your project"]["source"], "composed")
+        self.assertIn("microgrid", got["about the role"]["text"])
+        # The same words as a claim about the person never reach the panel.
+        for o in result["options"]:
+            self.assertNotIn("I built microgrid", o["text"])
 
 
 class TestUntrustedQuestion(Press):
@@ -199,7 +255,9 @@ class TestUntrustedQuestion(Press):
         claim = GOOD + " I run Kubernetes clusters every day."
         result, _ = self.press([{"role": claim, "project": GOOD}] * 2,
                                question="How have you used Kubernetes in production?")
-        self.assertEqual(self.by_angle(result)["about the role"]["source"], "composed")
+        self.assertTrue(result["options"])
+        for o in result["options"]:
+            self.assertNotIn("Kubernetes", o["text"])
 
     def test_nothing_private_reaches_the_prompt(self):
         self.con.execute("INSERT INTO approvals (subject_type, subject_id, summary, decision, "
@@ -303,7 +361,8 @@ class TestRoutes(Press):
 
     def test_suggest_through_the_route(self):
         with mock.patch("jsa.suggest.llm.complete_json",
-                        return_value=({"role": GOOD, "project": GOOD}, Usage(model="t"))):
+                        return_value=({"role": GOOD, "project": GOOD.replace("this", "the"),
+                                       "company": GOOD.replace("this", "a")}, Usage(model="t"))):
             r = self.post("/ext/suggest", {"url": GREENHOUSE, "question": "Why Riverton Grid?",
                                            "maxlength": ""}).json()
         self.assertEqual(r["state"], "ok")

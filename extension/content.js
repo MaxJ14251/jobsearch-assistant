@@ -688,7 +688,7 @@
   }
 
   async function suggestFor(q) {
-    q.status.textContent = "Drafting three options…";
+    q.status.textContent = "Drafting answers…";
     try {
       showOptions(q, await ask({ type: "suggest", question: q.label, maxlength: q.maxlength }));
     } catch (err) {
