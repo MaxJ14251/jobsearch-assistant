@@ -217,3 +217,19 @@ its own template, a copied note, "This role involves", another copied note, in a
 sentences are still close to a bullet. One press turned "Designing" into "I designed
 and am iterating": the unfinished-work list leaves out a verb another project uses
 in its finished form, so the check can't see it. That gap is open.
+
+### A sentence linking the work to the duty, 2026-10-31
+
+Tried on the same 8 presses (16 paid calls): after the duty, one sentence saying what
+carries over. The check kept it in 1 of 12 options, and every press needed a
+paid retry. Read one by one, the refused sentences were not missing a harmless linking
+word: they claimed things in the posting's words ("retrieval", "deployment",
+"enterprise") or things the notes don't say ("verified", "reliable"). That is what the
+check is for, so **it stays as it is and the step is gone.** A list of linking words
+would not have saved them. Only the person can say how their work connects to a job,
+which is what the box beside each question is for.
+
+Repeated sentence uses fell to 16% and no answers to different jobs were 60% alike (0 of
+60 pairs), with 12 of 12 tied to their listing. Two answers said "I built" about work
+the notes call in progress. An answer's own notes now decide that, and words saying work
+is done are refused for it. Replaying the saved drafts catches both.

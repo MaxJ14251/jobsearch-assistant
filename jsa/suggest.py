@@ -326,15 +326,18 @@ def _ask_split(items: list[listing.Material], company: str, kind: str, least: in
                      "starting with \"I\" or \"My\", and no sentence about the employer.")
     else:
         # In the excerpt's words: 9 of 14 sentences removed on 2026-10-31 were
-        # refused for a verb form alone ("takes" where the posting says "Take"),
-        # which left bare resume bullets. The -ing form reads as a sentence and
-        # shares a stem ("creating", "create"); copied as written it read "This
-        # role involves Create".
-        lines.append('In each answer, exactly one sentence begins "This role involves" and goes '
-                     "on with one duty from the posting excerpt, word for word except that its "
-                     'verbs take the -ing form ("creating and managing"), that that '
-                     "answer's notes really speak to. It comes right before the note it connects to. "
-                     "Each answer picks a different duty, and never one the notes don't meet.")
+        # refused for a verb form alone ("takes" where the posting says "Take");
+        # the -ing form reads as a sentence and shares a stem. No sentence saying
+        # how the work and the duty connect: tried the same day, the check kept 1
+        # of 12, rightly, since they claimed things in the posting's words, and
+        # each cost a paid retry (ADR 0034).
+        lines.append(
+            "Build each answer in this order. (1) The first sentence, as above. (2) What the "
+            "candidate did, from that answer's notes, shortened to the part that matters. "
+            '(3) One sentence beginning "This role involves" or "The job involves", going on '
+            "with one duty from the posting excerpt, word for word except that its verbs take "
+            'the -ing form ("creating and managing"), that the notes really speak to, never '
+            "one the notes don't meet, and a different duty for each answer.")
     count = {1: "one", 2: "two", 3: "three"}.get(len(items), str(len(items)))
     keys = ", ".join(f'"{i.angle}": "..."' for i in items)
     return (f"Write {count} different answers to the question, each {least}-{target} "
@@ -350,13 +353,36 @@ def angles_for(question: str, company: str | None) -> tuple[str, ...]:
 
 
 def materials_for(profile: dict[str, Any], bullets: list[Any], question: str,
-                  company: str | None) -> tuple[str, ...]:
+                  company: str | None) -> tuple[listing.Material, ...]:
     """The answers this question has room for and the profile has notes for."""
     from .tailor import collect_bullets
-    wanted = angles_for(question, company)
     everything = list(collect_bullets(profile).values()) or bullets
-    return tuple(i.angle for i in listing.assign(wanted, everything, question,
-                                                 preferred=bullets)) or wanted
+    return tuple(listing.assign(angles_for(question, company), everything, question,
+                                preferred=bullets))
+
+
+# Words saying work is done, whatever verb its notes use: "Designing a pipeline"
+# became "I built a pipeline", and "built" isn't a form of "designing".
+_DONE = frozenset("built shipped launched released completed finished delivered "
+                  "deployed created developed".split())
+
+
+def unfinished_here(text: str, profile: dict[str, Any], notes: tuple[Any, ...]) -> list[str]:
+    """Finished forms of work this answer's own notes call unfinished. The
+    profile-wide list lets a verb through if any project uses it finished:
+    "Designing" became "I designed" because another project says "Designed"."""
+    from .letter import ongoing_verbs
+    from .tailor import _words as stem_words
+
+    status = {str(p.get("id") or p.get("name")): p.get("status")
+              for p in profile.get("projects") or []}
+    own = [{"text": b.text} for b in notes if b.origin == "project"
+           and status.get(b.parent) not in ("complete", "released")]
+    if not own:
+        return []
+    own_words = stem_words(" ".join(b.text for b in notes))
+    banned = ongoing_verbs({"projects": [{"bullets": own}]}) | (_DONE - own_words)
+    return sorted(stem_words(text) & banned)
 
 
 def build(job: dict[str, Any], profile: dict[str, Any], bullets: list[Any], question: str,
@@ -605,7 +631,10 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
         job["own_words"] = reason
     # With the switch off the company angle is composed only (ADR 0027), so
     # not asked for.
-    drafted_angles = (materials_for(profile, bullets, question, job.get("company")) if split
+    materials = (materials_for(profile, bullets, question, job.get("company")) if split
+                 else ())
+    notes_of = {m.angle: m.notes for m in materials}
+    drafted_angles = (tuple(notes_of) or angles_for(question, job.get("company")) if split
                       else ("role", "project"))
     prompt, system, excerpt = build(job, profile, bullets, question, maxlength=maxlength,
                                     angles=drafted_angles, split=split, reason=reason)
@@ -614,7 +643,7 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
     posting_text = answers.subject_aware(excerpt)
     scrub_prompt(prompt, profile)          # fails closed before any network call
 
-    def problems(text: str) -> list[str]:
+    def problems(angle: str, text: str) -> list[str]:
         if not text:
             return ["no answer came back"]
         found = answers.check(text, profile, job, min_words=least, max_words=most,
@@ -623,6 +652,8 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
                 == "employer":
             found.append("opens by describing the employer; open with the answer, about "
                          "the candidate")
+        for word in unfinished_here(text, profile, notes_of.get(angle, ())):
+            found.append(f"says \"{word}\", but its notes describe that work as ongoing")
         return found
 
     def mark_repeats() -> None:
@@ -647,7 +678,7 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
         model = usage.model or ""
         drafted = {k: " ".join(str((data if isinstance(data, dict) else {}).get(k) or "")
                                .split()) for k in drafted_angles}
-        found = {k: problems(v) for k, v in drafted.items()}
+        found = {k: problems(k, v) for k, v in drafted.items()}
         if split:
             mark_repeats()
         refused = {k: p for k, p in found.items() if p}
@@ -662,7 +693,7 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
                     text = " ".join(str(again.get(k) or "").split())
                     if text:
                         drafted[k] = text
-                        found[k] = problems(text)
+                        found[k] = problems(k, text)
             if split:
                 mark_repeats()
     except llm.LLMError as exc:

@@ -214,6 +214,34 @@ class TestThePress(Press):
         self.assertIn("I want to work at Riverton Grid because", prompt)
         self.assertNotIn("401(k)", prompt)
 
+    def test_no_sentence_asks_for_a_link_the_check_would_refuse(self):
+        _, seen = self.press([self.ALL])
+        self.assertNotIn("carries over", seen[0])
+
+    def test_a_verb_finished_elsewhere_stays_unfinished_in_this_answers_work(self):
+        profile = dict(self.profile, projects=[
+            {"id": "live", "status": "in_development", "bullets": [
+                {"id": "a", "text": "Designing a Python service."}]},
+            {"id": "done", "status": "released", "bullets": [
+                {"id": "b", "text": "Designed a Python service."},
+                {"id": "c", "text": "Built a Python service."}]}])
+        notes = {b.id: b for b in collect_bullets(profile).values()}
+        said = "I designed a Python service."
+        self.assertEqual(suggest.unfinished_here(said, profile, (notes["a"],)), ["designed"])
+        self.assertEqual(suggest.unfinished_here(said, profile, (notes["b"],)), [])
+        self.assertEqual(suggest.unfinished_here("I am designing it.", profile, (notes["a"],)), [])
+
+    def test_saying_unfinished_work_is_done_is_refused_whatever_the_verb(self):
+        profile = dict(self.profile, projects=[
+            {"id": "live", "status": "in_development", "bullets": [
+                {"id": "a", "text": "Designing a Python service."}]},
+            {"id": "done", "status": "released", "bullets": [
+                {"id": "c", "text": "Built a Python service."}]}])
+        notes = {b.id: b for b in collect_bullets(profile).values()}
+        said = "I built a Python service."
+        self.assertEqual(suggest.unfinished_here(said, profile, (notes["a"],)), ["built"])
+        self.assertEqual(suggest.unfinished_here(said, profile, (notes["c"],)), [])
+
     def test_the_question_changes_what_is_asked_for(self):
         _, seen = self.press([{"project": PROJECT, "role": GOOD}],
                              question="Walk us through your proudest achievement.")
