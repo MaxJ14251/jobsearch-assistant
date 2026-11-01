@@ -194,7 +194,26 @@ for a verb form alone ("takes" where the posting says "Take"); one named a
 requirement the person doesn't meet; several third options came from unrelated work.
 No claim about the person went beyond the profile.
 
-So the prompt now asks for a duty copied word for word, no whole notes, and no duty
-the notes don't meet; a question gets two options; and a question naming something
-some work touches uses only that work. **These last changes, and the person's own
-line on a real model, have not been measured:** that takes more paid calls.
+So the prompt then asked for a duty from the posting, no whole notes, and no duty
+the notes don't meet; a question got two options; and a question naming something
+some work touches uses only that work.
+
+### Measured again, 2026-10-31
+
+8 presses on 7 jobs (13 paid calls), two with a placeholder for the person's line;
+then one more press (2 calls) after the duty's verbs were put in the -ing form.
+
+| | First version | Second version |
+|---|---|---|
+| Sentence uses in a repeated sentence | 32% | 32% |
+| Options that lost a sentence to the check | 14 of 25 | 2 of 14 |
+| Tied to this listing | 22 of 25 | 14 of 14 |
+| Answers to different jobs at least 60% alike | 8 of 270 | 1 of 83 |
+
+The person's line went into the answers as asked, and answers built on it read most
+like answers. The author's reading: **still short of the goal.** The new prompt made
+its own template, a copied note, "This role involves", another copied note, in all
+14 answers, with nothing saying how the work and the duty connect. Most personal
+sentences are still close to a bullet. One press turned "Designing" into "I designed
+and am iterating": the unfinished-work list leaves out a verb another project uses
+in its finished form, so the check can't see it. That gap is open.

@@ -325,14 +325,16 @@ def _ask_split(items: list[listing.Material], company: str, kind: str, least: in
         lines.append("This field is short: write only sentences about the candidate, "
                      "starting with \"I\" or \"My\", and no sentence about the employer.")
     else:
-        # In the excerpt's exact words: 9 of 14 sentences removed on 2026-10-31
-        # were refused for a verb form alone ("takes" where the posting says
-        # "Take"), which left bare resume bullets.
+        # In the excerpt's words: 9 of 14 sentences removed on 2026-10-31 were
+        # refused for a verb form alone ("takes" where the posting says "Take"),
+        # which left bare resume bullets. The -ing form reads as a sentence and
+        # shares a stem ("creating", "create"); copied as written it read "This
+        # role involves Create".
         lines.append('In each answer, exactly one sentence begins "This role involves" and goes '
-                     "on with one duty copied word for word from the posting excerpt, keeping "
-                     "its verb forms, that that answer's notes really speak to. It comes right "
-                     "before the note it connects to. Each answer picks a different duty, and "
-                     "never one the notes don't meet.")
+                     "on with one duty from the posting excerpt, word for word except that its "
+                     'verbs take the -ing form ("creating and managing"), that that '
+                     "answer's notes really speak to. It comes right before the note it connects to. "
+                     "Each answer picks a different duty, and never one the notes don't meet.")
     count = {1: "one", 2: "two", 3: "three"}.get(len(items), str(len(items)))
     keys = ", ".join(f'"{i.angle}": "..."' for i in items)
     return (f"Write {count} different answers to the question, each {least}-{target} "

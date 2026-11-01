@@ -9,7 +9,7 @@ from unittest import mock
 
 from jsa import answers, listing, suggest
 from jsa.llm import Usage
-from jsa.tailor import collect_bullets
+from jsa.tailor import SourceBullet, collect_bullets
 from tests.test_answers import GOOD, ready
 from tests.test_ext import GREENHOUSE, Ext
 from tests.test_suggest import COMPANY, PROJECT
@@ -136,6 +136,21 @@ class TestAssign(unittest.TestCase):
                                preferred=self.bullets)
         self.assertEqual(self.parents(items), ["exp_riverton_sales"])
 
+    def test_a_word_a_stronger_match_already_covers_doesnt_bring_in_other_work(self):
+        def bullet(i, parent, text):
+            return SourceBullet(id=i, text=text, tags=(), family="", strength=1,
+                                origin="experience", parent=parent)
+        sales = bullet("a", "sales", "Managed sales through negotiation and close of deals.")
+        video = bullet("b", "video", "Wrote closed-caption logic for short clips.")
+        agents = bullet("c", "agents", "Built an agentic assistant in Python.")
+        pool = [sales, video, agents]
+        items = listing.assign(("role", "project"), pool, "Tell us about closing deals",
+                               preferred=pool)
+        self.assertEqual(self.parents(items), ["sales"])
+        items = listing.assign(("role", "project"), pool, "Tell us about closing deals and "
+                               "agentic systems", preferred=pool)
+        self.assertEqual(self.parents(items), ["sales", "agents"])
+
     def test_the_question_can_change_what_is_used(self):
         tickets = [b for b in self.bullets if b.parent == "proj_ticket_triage"]
         items = listing.assign(("role",), self.bullets, "Tell us about a transit feed you read",
@@ -193,7 +208,7 @@ class TestThePress(Press):
         prompt = seen[0]
         self.assertEqual(len(result["options"]), 2)
         self.assertIn('"company" uses only these notes:', prompt)
-        self.assertIn("copied word for word from the posting excerpt", prompt)
+        self.assertIn("word for word except that its verbs take the -ing form", prompt)
         self.assertIn("never one the notes don't meet", prompt)
         self.assertIn("Don't copy a whole note", prompt)
         self.assertIn("I want to work at Riverton Grid because", prompt)

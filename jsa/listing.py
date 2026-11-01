@@ -192,7 +192,8 @@ class Material:
 NOTES_PER_OPTION = 2     # a single bullet is often too short for the 40-word floor
 _THIN = _words("experience work working ability strong skills including across using new "
                "team teams build building ensure help support years role job company "
-               "looking great world well best high able etc various multiple")
+               "looking great world well best high able etc various multiple "
+               "tell about your you what how some")
 
 
 def _stems(text: str) -> set[str]:
@@ -229,7 +230,17 @@ def assign(angles: tuple[str, ...], bullets: list[Any], question: str,
     spare = [name for name in order if not useful(name)]
     # Asked about something specific ("closing enterprise deals"), work that
     # doesn't touch it isn't an answer, however good the rest of the resume is.
-    touching = [name for name in order if any(hits(b) for b in parents[name])]
+    # Weakest last, each only if it adds a word the stronger ones don't cover:
+    # "closing deals" is sales work, not "closed-caption" work, while "clients
+    # and agentic systems" is both a sales job and an agent project.
+    touching: list[str] = []
+    covered: set[str] = set()
+    for name in order:
+        found = {s for b in parents[name]
+                 for s in asked & (_stems(b.text) | _stems(" ".join(b.tags)))}
+        if found - covered:
+            touching.append(name)
+            covered |= found
     if touching:
         left, spare = touching, []
     out: list[Material] = []
