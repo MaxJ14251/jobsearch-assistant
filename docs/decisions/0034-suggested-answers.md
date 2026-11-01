@@ -148,3 +148,53 @@ the 30 saved drafts changes little: 4 were refused, and the only one it could
 save opens about the employer, so it stays out. Those drafts came from the old
 prompt. **Whether the new prompt gets answers that respond has not been
 measured**: that takes paid model calls.
+
+## Options have to be about this listing, 2026-10-31
+
+The owner reported that answers read as rewordings of one answer. Across 21 real
+presses on 8 jobs, 60% of sentence uses sat in a repeated sentence. Causes: the
+first 2,000 characters of a posting (18-50% of it) open with the company's blurb,
+the question chose nothing, every option drew on the same bullets, 4 of 13 question
+types asked for facts nothing can draft, and a profile holds no reason for wanting
+a particular job.
+
+Decided, with the check itself unchanged (`jsa/listing.py`):
+
+- The question is sorted first, with no model call. Education gets the profile's
+  exact line; start dates, deadlines and "where did you hear" are the person's.
+- The excerpt is chosen by section: the role and what it asks for, the blurb in
+  full only when the question is about the employer. Pay, perks and legal text
+  never go. The check reads the same excerpt.
+- Each option's notes come from a different project or job, by what the job's
+  resume uses and what the question names. Matching posting lines to bullets by
+  shared words was tried first and rejected before any model call: it paired a
+  Node.js line with an unrelated sales bullet over "security" and "solutions".
+  The model picks the duty, since that takes judgement.
+- An option that repeats another or opens by describing the employer is refused.
+  These only tighten.
+- An optional line typed by the person may be used in that press as their own
+  claim, after the degree and do-not-claim checks. It is not stored.
+
+### Measured, 2026-10-31
+
+13 presses on 8 jobs (25 paid calls), on the first version of this prompt, with
+three options for a "why" question:
+
+| | Before | First version |
+|---|---|---|
+| Sentence uses in a repeated sentence | 60% | 32% |
+| Options in one press opening alike | seen | 0 |
+| Options drafted, not composed | 42 of 55 | 25 of 25 |
+| Answers to different jobs at least 60% alike | | 8 of 270 pairs |
+
+The author's reading, which the numbers don't show: **this did not yet reach the
+goal.** Many answers put "because" in front of a copied bullet and followed it with
+an unrelated line of the posting; 14 of 25 lost a sentence to the check, 9 of those
+for a verb form alone ("takes" where the posting says "Take"); one named a
+requirement the person doesn't meet; several third options came from unrelated work.
+No claim about the person went beyond the profile.
+
+So the prompt now asks for a duty copied word for word, no whole notes, and no duty
+the notes don't meet; a question gets two options; and a question naming something
+some work touches uses only that work. **These last changes, and the person's own
+line on a real model, have not been measured:** that takes more paid calls.

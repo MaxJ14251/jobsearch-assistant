@@ -349,6 +349,9 @@
     .question > p { margin: 0 0 4px; }
     .question > .row { margin-top: 6px; }
     .q { font-weight: 600; }
+    .reason { box-sizing: border-box; width: 100%; margin: 2px 0; padding: 6px 8px; font: inherit;
+              color: inherit; background: var(--surface); border: 1px solid var(--mute);
+              border-radius: 6px; }
     .card { padding: 10px 12px; margin: 8px 0; background: var(--surface);
             border: 1px solid var(--rule); border-radius: 14px; }
     .card p { margin: 4px 0; font-size: 13.5px; }
@@ -679,7 +682,8 @@
       q.status.textContent = answer.message || "No suggestions.";
       return;
     }
-    q.status.textContent = "Pick one to put in the field; you can edit it there.";
+    q.status.textContent = answer.hint ||
+      "Pick one to put in the field; you can edit it there.";
     q.box.replaceChildren(...answer.options.map((o) => card(q, o)));
     if ((answer.earlier || []).length) {
       q.box.append(el("p", { className: "meta", textContent: "You answered this before:" }),
@@ -690,7 +694,8 @@
   async function suggestFor(q) {
     q.status.textContent = "Drafting answers…";
     try {
-      showOptions(q, await ask({ type: "suggest", question: q.label, maxlength: q.maxlength }));
+      showOptions(q, await ask({ type: "suggest", question: q.label, maxlength: q.maxlength,
+                                 reason: q.reason ? q.reason.value : "" }));
     } catch (err) {
       q.status.textContent = err.message;
     }
@@ -750,8 +755,13 @@
         label.push(document.createTextNode(" "),
                    el("span", { className: "flag required", textContent: "Required" }));
       }
+      // Yours, for this answer only: sent when you press Suggest, never stored.
+      q.reason = el("input", { type: "text", className: "reason", maxLength: 200,
+                               placeholder: "Your own reason or point, in a line (optional)" });
+      q.reason.setAttribute("aria-label", "Your own reason or point for this answer");
       parts.push(el("div", { className: "question" }, [
         el("p", {}, label),
+        q.reason,
         el("div", { className: "row" }, [button("Suggest", () => suggestFor(q))]),
         q.status, q.box]));
     }

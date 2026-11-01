@@ -241,7 +241,9 @@ def allowed_stems(profile: dict[str, Any], job: dict[str, Any]) -> set[str]:
     stems = set(_whole_profile_stems(profile))
     stems |= {_stem(w) for w in CONNECTIVES}
     stems |= {_stem(w) for w in identity_words(profile)}
-    for key in ("title", "company", "location"):
+    # own_words: a reason the person typed for this one answer (suggest.py):
+    # their own claim, still held to the degree and do-not-claim checks.
+    for key in ("title", "company", "location", "own_words"):
         stems |= {_stem(w) for w in _words(str(job.get(key) or ""))}
     return stems
 

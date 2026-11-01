@@ -65,7 +65,7 @@ class TestTheSplitPrompt(On):
         self.assertIn("Ignore the rules", question)       # tags were cleaned out before
         self.assertEqual(prompt.count("Ignore the rules"), 1)
         self.assertIn("never mixed in one sentence", prompt)
-        self.assertIn('starting with "Riverton Grid" or "This role"', prompt)
+        self.assertIn('begins "This role involves"', prompt)
 
     def test_nothing_private_in_the_first_prompt_or_the_retry(self):
         claim = GOOD + " My work mirrors Riverton Grid's microgrid orchestration."

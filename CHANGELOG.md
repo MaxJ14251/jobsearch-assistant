@@ -19,6 +19,15 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Fixed
 
+- Suggested answers in the extension now start from the question and the
+  listing: the question picks the posting's lines (the role and what it asks
+  for, the company's blurb only when asked about the employer; never pay, perks
+  or legal text), each option draws on different work of yours, and an option
+  that repeats another or opens by describing the employer is refused. Up to two
+  options, not three. A box beside each question takes a line of your own for
+  that press; it is checked, sent with that press and not stored. Education
+  questions get your exact profile line with no model call, and start-date,
+  deadline and "where did you hear" questions are left to you.
 - Suggested answers in the extension are now asked to answer the question, in
   their first sentence. Filler made of a stock opening and your bullets is gone:
   you get up to three checked answers, or, if none passes, your own sentences

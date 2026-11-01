@@ -40,6 +40,36 @@ class TestLetterReport(unittest.TestCase):
         self.assertIn("Letters passing ONLY under the new check: 2", out.getvalue())
 
 
+class TestPressesReport(unittest.TestCase):
+    """--presses: how alike real answers are; drafting is the paid half."""
+
+    def test_repeats_openings_and_ties_to_the_listing_are_counted(self):
+        from tests.test_suggest import COMPANY, PROJECT
+        profile = ready()
+        posting = "Riverton Grid builds microgrid software for utilities."
+        other = "Acme sells parts."
+        job = {"title": "Support Engineer", "company": "Riverton Grid", "description": posting}
+        tied = GOOD + " " + posting
+        saved = [{"press": True, "job_id": 1, "company": "Riverton Grid", "question": "Why?",
+                  "job": job, "excerpt": posting, "options": [
+                      {"angle": "about the role", "source": "model", "note": "", "text": tied},
+                      {"angle": "about your project", "source": "model", "note": "", "text": PROJECT},
+                      {"angle": "x", "source": "composed", "note": "Not an answer", "text": "y"}]},
+                 {"press": True, "job_id": 2, "company": "Acme", "question": "Why?",
+                  "job": dict(job, company="Acme"), "excerpt": other, "options": [
+                      {"angle": "about the role", "source": "model", "note": "", "text": PROJECT},
+                      {"angle": "about the company", "source": "model", "note": "", "text": COMPANY}]}]
+        out = io.StringIO()
+        with redirect_stdout(out):
+            found = measure_verifier.report_presses(profile, saved)
+        self.assertEqual(found["drafted"], 4)
+        self.assertEqual(found["same_opening"], 0)
+        self.assertEqual(found["tied"], 1)
+        self.assertEqual(found["repeated"], 4)        # PROJECT's two sentences, used twice
+        self.assertIn("NOT AN ANSWER", out.getvalue())
+        self.assertIn("Answers to different jobs at least 60% alike: 1 of", out.getvalue())
+
+
 class TestOutreachReport(unittest.TestCase):
     """--outreach (G8): the full check on saved messages, signed as sent."""
 

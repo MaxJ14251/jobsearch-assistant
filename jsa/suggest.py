@@ -21,6 +21,14 @@ The rules (ADR 0034):
   some sentences' words were refused and its first sentence stands; otherwise
   it is left out. If none is left, the person gets their own sentences to write
   from, marked as not an answer (ADR 0034 note, 2026-10-31).
+- **Each option is about this listing.** The question picks the posting's lines
+  and the person's notes, and each option gets notes of its own and ties them
+  to a requirement in the posting (listing.py). An option that repeats another,
+  or opens by describing the
+  employer, is refused like any other problem.
+- **A reason of the person's own.** What they type for this answer may be used
+  in it, as their own claim; it is checked for degree and do-not-claim terms,
+  goes only into this press's prompt, and is never stored.
 - **Earlier answers come back.** At "I submitted this" the extension sends
   the text of each question the person answered; it is offered again for the
   same question. Drafted and composed entries are re-checked against the new
@@ -38,12 +46,13 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from . import answers, llm
+from . import answers, listing, llm
 
 SUGGEST_DAILY = 20           # presses per 24 hours; profile: suggest.daily_limit
 MAX_QUESTION = 300
 MIN_QUESTION = 8
 MAX_BODY = 4000
+MAX_REASON = 200
 BANK_SHOWN = 2               # earlier answers shown beside the 3 fresh options
 SIMILAR = 0.8                # word overlap for "a similar question"
 
@@ -53,13 +62,15 @@ REFUSED = re.compile(
     r"\b(salary|compensation|pay expectations?|desired pay|expected pay|pay range"
     r"|gender|race|racial|ethnicity|ethnic|hispanic|latino|veteran|disabilit(y|ies)"
     r"|sexual orientation|transgender|pronouns?|date of birth|how old|your age"
-    r"|how did you (hear|learn|find out) about"
+    r"|(how|where) did you (first )?(hear|learn|find out) (about|of)"
     # When you can start: a fact only you know, not in the profile. Asked
     # "When would you be able to start work?" (Lever, 2026-10-24), the model
     # wrote about the job and the background instead.
     r"|start date|when (would|could|can|will) you (be able to |be available to )?"
     r"(start|begin|join)|earliest (start|available)|available to (start|begin)"
-    r"|date available|notice period|availability)\b", re.I)
+    r"|date available|notice period|availability"
+    # Found on real forms, 2026-10-31: each got a paragraph about the job.
+    r"|when are you available|any deadlines|timeline considerations)\b", re.I)
 
 # Leading words that don't change what is asked.
 _FILLER = re.compile(r"^(please |briefly |in a few sentences |tell us |in 2 3 sentences )+")
@@ -75,8 +86,10 @@ PANEL_NOTE_OFF = (
     "when measured), so edit the one you pick into an answer. Salary and "
     "demographic questions are yours to answer.")
 PANEL_NOTE_ON = (
-    "Suggest drafts up to three answers to the question and checks each against "
-    "your profile and the posting. If none passes, it shows your own sentences to "
+    "Suggest reads the question, picks the posting's lines and your notes that fit "
+    "it, and drafts up to two answers, each from its own material, checked against "
+    "your profile and the posting. A line of your own in the box goes into the "
+    "answers and is not stored. If no draft passes, it shows your own sentences to "
     "write from, marked as not an answer. Edit what you pick so it sounds like you. "
     "Salary and demographic questions are yours to answer.")
 
@@ -97,6 +110,13 @@ def clean_question(text: str | None) -> str:
     if len(text) < MIN_QUESTION:
         raise SuggestError("That doesn't look like a question to answer.")
     return text
+
+
+def clean_reason(text: str | None) -> str:
+    """What the person typed for this answer, as plain text; may be empty."""
+    text = re.sub(r"<[^>]*>", " ", str(text or ""))
+    text = re.sub(r"[\x00-\x1f\x7f]", " ", text)
+    return " ".join(text.split())[:MAX_REASON].strip()
 
 
 def refused_topic(question: str) -> str | None:
@@ -227,39 +247,53 @@ SYSTEM_SPLIT = (
     "mention a degree." + SPLIT_RULES + " Return only JSON."
 )
 
-_SPLIT_KEYS = {
-    "role": '- "role": 3-5 sentences. The sentences about the candidate come from what the '
-            'notes show they do; at most two sentences, starting with "{company}" or '
-            '"This role", say what this role involves, in the posting excerpt\'s words.',
-    "project": '- "project": built around one specific project or job from the notes, what '
-               'it does and what part they did; at most one sentence, starting with '
-               '"{company}" or "This role", links it to the posting.',
-    "company": '- "company": at most two sentences starting with "{company}" on what the '
-               'posting excerpt says about it, each followed by a sentence about what in '
-               'the notes fits it.',
+# Each answer has its own notes (listing.assign), so the options can't share
+# facts, and ties them to a requirement in this posting, so none could be sent
+# to another employer unchanged.
+_KEY_LINE = {
+    "role": "from its notes, tied to this role",
+    "project": "built around its project or job, what it does and what part they did",
+    "company": "why this employer, from its notes and what the excerpt says about the "
+               "company",
 }
-# What makes it an answer. The options differ in what they lean on, not in
-# whether they respond: asked "Why do you want to work at Baseten?", drafts
-# described the person and recited the posting without ever saying why, and
-# the check can't see that (2026-10-31). "I want to work at Baseten because I
-# build LLM pipelines" passes the check unchanged; "proudest" and "excited" are
-# refused as words the notes don't use, so the prompt says to leave them out.
+# What makes it an answer. Asked "Why do you want to work at Baseten?", drafts
+# described the person and recited the posting without ever saying why, and the
+# check can't see that (2026-10-31). "Proudest" and "excited" are refused as
+# words the notes don't use, so the prompt says to leave them out.
 _ANSWER_IT = (
     "Each answer must respond to what the question actually asks, and its first "
-    "sentence, about the candidate, says the answer outright. Asked why they want "
-    "this job or employer, begin \"I want to work at {company} because\" or \"I want "
-    "this role because\", then give a reason from the notes. Asked about a project "
-    "or achievement, name it first, then say what they did and how it connects to "
-    "this role. Don't borrow the question's own adjectives (\"proudest\", \"excited\", "
-    "\"passionate\"): use plain words. Never just list what the candidate has done or "
-    "what the employer does: every sentence serves the answer. The keys below only "
-    "change what the answer leans on.")
+    "sentence, about the candidate, says the answer outright. ")
+_ASKED = {
+    "why_company": "The question asks why this employer: each first sentence gives a reason "
+                   "from that answer's notes, for example \"I want to work at {company} "
+                   "because I ...\".",
+    "why_role": "The question asks why this role: each first sentence gives a reason from "
+                "that answer's notes, for example \"I want this role because I ...\".",
+    "project": "The question asks about a piece of work: each answer names it in the first "
+               "sentence, then says what the candidate did and how it connects to this role.",
+    "experience": "The question asks about experience: each first sentence says what "
+                  "experience, then the rest says what the candidate actually did.",
+    "skills": "The question asks which tools: each first sentence names tools its notes "
+              "name, then the rest says where the candidate uses them.",
+    "open": "Answer exactly what is asked, from that answer's notes.",
+}
+_PLAIN = (" Don't borrow the question's own adjectives (\"proudest\", \"excited\", "
+          "\"passionate\"): use plain words. Never just list what the candidate has done "
+          "or what the employer does: every sentence serves the answer. Don't copy a whole "
+          "note: say the part that answers the question, in the note's words. Say \"I want "
+          "... because\" at most once. No two answers open with the same words.")
+_REASON = (" The <candidate_reason> block is the candidate's own words and is true of them: "
+           "the first sentence of each answer says that reason, in those words.")
 _SHORT = 60          # under this many words, an answer has no room for both kinds
-_SHORT_KEYS = {
-    "role": '- "role": from what the notes show they do, tied to this role.',
-    "project": '- "project": one specific project or job from the notes, what it does and '
-               'what part they did.',
-    "company": '- "company": what in the notes fits this employer.',
+# Which answers a question has room for, the most useful first. Two: measured
+# 2026-10-31, a third often came from work unrelated to the job.
+_ANGLES_FOR = {
+    "why_company": ("company", "role"),
+    "why_role": ("role", "project"),
+    "project": ("project", "role"),
+    "experience": ("role", "project"),
+    "skills": ("role", "project"),
+    "open": ("role", "project"),
 }
 
 
@@ -269,55 +303,103 @@ def target_words(least: int, most: int) -> int:
     return min(most, max(least + 10, most - 25))
 
 
-def _ask(angles: tuple[str, ...], company: str, least: int, most: int,
-         chars: str, split: bool) -> str:
-    if not split:
-        if angles == ("role", "project"):
-            return PROMPT.split("Write two different answers")[1]
-        return _OLD_THREE
+def _ask(angles: tuple[str, ...]) -> str:
+    """The old prompts' request, kept byte for byte with the switch off."""
+    if angles == ("role", "project"):
+        return PROMPT.split("Write two different answers")[1]
+    return _OLD_THREE
+
+
+def _material(item: listing.Material) -> str:
+    """One answer's own notes."""
+    return "\n".join([f'"{item.angle}" uses only these notes:']
+                     + [f"- {_fence(b.text)}" for b in item.notes])
+
+
+def _ask_split(items: list[listing.Material], company: str, kind: str, least: int, most: int,
+               chars: str, reason: str) -> str:
     target = target_words(least, most)
-    if most < _SHORT:
-        # One or two sentences can't keep the share; all-employer is refused.
-        lines = [_SHORT_KEYS[a] for a in angles]
+    short = most < _SHORT
+    lines = [f'- "{i.angle}": {_KEY_LINE[i.angle]}.' for i in items]
+    if short:
         lines.append("This field is short: write only sentences about the candidate, "
                      "starting with \"I\" or \"My\", and no sentence about the employer.")
     else:
-        lines = [_SPLIT_KEYS[a].replace("{company}", company) for a in angles]
-    keys = ", ".join(f'"{a}": "..."' for a in angles)
-    count = {2: "two", 3: "three"}.get(len(angles), str(len(angles)))
-    return (f"Write {count} different answers to the question, each "
-            f"{least}-{target} words{chars}, keeping the two kinds of sentence apart. "
-            + _ANSWER_IT.replace("{company}", company) + "\n"
-            + "\n".join(lines) + "\n\nReturn JSON: {" + keys + "}")
+        # In the excerpt's exact words: 9 of 14 sentences removed on 2026-10-31
+        # were refused for a verb form alone ("takes" where the posting says
+        # "Take"), which left bare resume bullets.
+        lines.append('In each answer, exactly one sentence begins "This role involves" and goes '
+                     "on with one duty copied word for word from the posting excerpt, keeping "
+                     "its verb forms, that that answer's notes really speak to. It comes right "
+                     "before the note it connects to. Each answer picks a different duty, and "
+                     "never one the notes don't meet.")
+    count = {1: "one", 2: "two", 3: "three"}.get(len(items), str(len(items)))
+    keys = ", ".join(f'"{i.angle}": "..."' for i in items)
+    return (f"Write {count} different answers to the question, each {least}-{target} "
+            f"words{chars}, keeping the two kinds of sentence apart. {_ANSWER_IT}"
+            + _ASKED[kind].replace("{company}", company) + _PLAIN
+            + (_REASON if reason else "") + "\n" + "\n".join(lines)
+            + "\n\nReturn JSON: {" + keys + "}")
+
+
+def angles_for(question: str, company: str | None) -> tuple[str, ...]:
+    return tuple(a for a in _ANGLES_FOR[listing.kind(question, company)]
+                 if a != "company" or "why_company" not in answers.composed_only())
+
+
+def materials_for(profile: dict[str, Any], bullets: list[Any], question: str,
+                  company: str | None) -> tuple[str, ...]:
+    """The answers this question has room for and the profile has notes for."""
+    from .tailor import collect_bullets
+    wanted = angles_for(question, company)
+    everything = list(collect_bullets(profile).values()) or bullets
+    return tuple(i.angle for i in listing.assign(wanted, everything, question,
+                                                 preferred=bullets)) or wanted
 
 
 def build(job: dict[str, Any], profile: dict[str, Any], bullets: list[Any], question: str,
-          *, maxlength: int | None = None, angles: tuple[str, ...] = ("role", "project"),
-          split: bool | None = None) -> tuple[str, str, str]:
+          *, maxlength: int | None = None, angles: tuple[str, ...] | None = None,
+          split: bool | None = None, reason: str = "") -> tuple[str, str, str]:
     """(prompt, system, excerpt) for one question. `split` None follows the
-    switch; off, the prompt is today's, byte for byte."""
+    switch; off, the prompt is today's, byte for byte. On, `angles` None means
+    the answers this kind of question has room for."""
     from .posting import OUTREACH_CHARS, visible
+    from .tailor import collect_bullets
 
     split = answers.SUBJECT_AWARE if split is None else split
     least, most, max_chars = bounds(maxlength)
-    excerpt = visible(job.get("description"), budget=OUTREACH_CHARS).text
     company = job.get("company") or "the company"
-    head = PROMPT.split("Write two different answers")[0]
     chars = f", under {max_chars} characters" if max_chars else ""
-    ask = _ask(tuple(angles), company, least, most, chars, split)
-    if not split and angles == ("role", "project"):
+    if split:
+        kind = listing.kind(question, company)
+        excerpt = listing.excerpt(job.get("description"), kind)
+        wanted = angles or angles_for(question, company)
+        everything = list(collect_bullets(profile).values())
+        items = listing.assign(wanted, everything or bullets, question, preferred=bullets)
+        parts = [f"Role: {job.get('title') or 'the role'} at {company}.",
+                 f"<question>\n{_fence(question)}\n</question>",
+                 f"<posting_excerpt>\n{_fence(excerpt) or '(none)'}\n</posting_excerpt>"]
+        if reason:
+            parts.append(f"<candidate_reason>\n{_fence(reason)}\n</candidate_reason>")
+        parts.append("Each answer has its own material below. Every fact about the candidate "
+                     "in an answer comes only from that answer's notes, so no two answers "
+                     "share a fact.")
+        parts += [_material(i) for i in items]
+        parts.append(_ask_split(items, company, kind, least, most, chars, reason))
+        return "\n\n".join(parts), SYSTEM_SPLIT, excerpt
+    wanted = angles or ("role", "project")
+    excerpt = visible(job.get("description"), budget=OUTREACH_CHARS).text
+    head = PROMPT.split("Write two different answers")[0]
+    ask = _ask(tuple(wanted))
+    if tuple(wanted) == ("role", "project"):
         ask = "Write two different answers" + ask
-    text = (head + ask.replace("{", "{{").replace("}", "}}")
-            .replace("{{min_words}}", "{min_words}").replace("{{max_words}}", "{max_words}")
-            .replace("{{chars}}", "{chars}")
-            if split else head + ask)
-    prompt = text.format(
+    prompt = (head + ask).format(
         title=job.get("title") or "the role", company=company,
         question=_fence(question), posting=_fence(excerpt) or "(none)",
         summary=answers._summary(profile, job) or "(none)",
         bullets="\n".join(f"- {b.text}" for b in bullets) or "(none)",
         min_words=least, max_words=most, chars=chars)
-    return prompt, (SYSTEM_SPLIT if split else SYSTEM), excerpt
+    return prompt, SYSTEM, excerpt
 
 
 def _mixed(sentence: dict[str, Any], company: str) -> bool:
@@ -484,23 +566,47 @@ ANGLES = {"role": "about the role", "project": "about your project",
 START = "your own sentences to start from"
 
 
+def _sentences(text: str) -> list[str]:
+    from . import subject
+    return [_words(x) for x in subject.split(text) if len(x.split()) >= 6]
+
+
+def repeats(text: str, other: str, reason: str = "") -> bool:
+    """Whether an answer says what another already says: a whole sentence in
+    common, the same opening (a reason the person gave may open both), or most
+    of its words."""
+    mine, theirs = _sentences(text), _sentences(other)
+    if reason:
+        given = _words(reason)
+        mine = [x for x in mine if overlap(x, given) < 0.5]
+        theirs = [x for x in theirs if overlap(x, given) < 0.5]
+    if set(mine) & set(theirs):
+        return True
+    if mine and theirs and overlap(mine[0], theirs[0]) >= 0.7:
+        return True
+    return overlap(_words(text), _words(other)) >= 0.6
+
+
 def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
             question: str, maxlength: int | None = None,
-            models: list[str] | None = None) -> tuple[list[dict[str, Any]], str]:
-    """Three options for one question, each checked or composed. Returns
+            models: list[str] | None = None, reason: str = "") -> tuple[list[dict[str, Any]], str]:
+    """The options for one question, each checked or composed. Returns
     (options, model)."""
+    from .letter import checked_sentences
     from .tailor import scrub_prompt
 
     least, most, max_chars = bounds(maxlength)
     job = {k: job.get(k) for k in ("id", "title", "company", "location", "track",
                                    "description")}           # never the question
     split = answers.SUBJECT_AWARE
-    # The company angle is drafted only when the written answers draft theirs
-    # (one constant governs both, plan 39); while composed-only, not asked for.
-    drafted_angles = ("role", "project") + (
-        () if "why_company" in answers.composed_only() else ("company",))
+    if split and reason:
+        job["own_words"] = reason
+    # With the switch off the company angle is composed only (ADR 0027), so
+    # not asked for.
+    drafted_angles = (materials_for(profile, bullets, question, job.get("company")) if split
+                      else ("role", "project"))
     prompt, system, excerpt = build(job, profile, bullets, question, maxlength=maxlength,
-                                    angles=drafted_angles, split=split)
+                                    angles=drafted_angles, split=split, reason=reason)
     # The posting the prompt shows is the only extra word source, and only
     # for sentences about the employer (plan 37; off until measured).
     posting_text = answers.subject_aware(excerpt)
@@ -509,8 +615,25 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
     def problems(text: str) -> list[str]:
         if not text:
             return ["no answer came back"]
-        return answers.check(text, profile, job, min_words=least, max_words=most,
-                             max_chars=max_chars, posting_text=posting_text)
+        found = answers.check(text, profile, job, min_words=least, max_words=most,
+                              max_chars=max_chars, posting_text=posting_text)
+        if split and checked_sentences(text, profile, job, posting_text or "")[0]["kind"] \
+                == "employer":
+            found.append("opens by describing the employer; open with the answer, about "
+                         "the candidate")
+        return found
+
+    def mark_repeats() -> None:
+        """A later answer that repeats an earlier one is refused, for the retry
+        and for good: only what the check found can leave an answer out."""
+        for i, later in enumerate(drafted_angles):
+            found[later] = [p for p in found.get(later, []) if not p.startswith("repeats ")]
+            for earlier in drafted_angles[:i]:
+                if drafted.get(later) and drafted.get(earlier) \
+                        and repeats(drafted[later], drafted[earlier], reason):
+                    found[later].append(f"repeats the \"{earlier}\" answer; use only this "
+                                        "answer's own notes and posting line")
+                    break
 
     drafted: dict[str, str] = {}
     found: dict[str, list[str]] = {}
@@ -523,6 +646,8 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
         drafted = {k: " ".join(str((data if isinstance(data, dict) else {}).get(k) or "")
                                .split()) for k in drafted_angles}
         found = {k: problems(v) for k, v in drafted.items()}
+        if split:
+            mark_repeats()
         refused = {k: p for k, p in found.items() if p}
         if refused:
             retry = retry_text(prompt, drafted, refused, profile, job, posting_text, split)
@@ -536,12 +661,14 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
                     if text:
                         drafted[k] = text
                         found[k] = problems(text)
+            if split:
+                mark_repeats()
     except llm.LLMError as exc:
         failure = f"the model call failed ({exc})"
 
     if split:
         answered: list[dict[str, Any]] = []
-        for angle in ("role", "project", "company"):
+        for angle in drafted_angles:
             text, note = drafted.get(angle, ""), "drafted and checked"
             if text and found.get(angle):
                 refused_part = found[angle][0]
@@ -689,8 +816,8 @@ def remember(con: sqlite3.Connection, question: str, body: str, source: str,
 
 def suggest(con: sqlite3.Connection, profile: dict[str, Any], job: dict[str, Any],
             question: str, maxlength: int | None = None,
-            models: list[str] | None = None) -> dict[str, Any]:
-    """One Suggest press: three options and any earlier answers."""
+            models: list[str] | None = None, reason: str = "") -> dict[str, Any]:
+    """One Suggest press: the options and any earlier answers."""
     try:
         question = clean_question(question)
     except SuggestError as exc:
@@ -700,16 +827,41 @@ def suggest(con: sqlite3.Connection, profile: dict[str, Any], job: dict[str, Any
         return {"state": "refused", "message": topic}
     limit = daily_limit(profile)
     left = left_today(con, profile)
+    if answers.SUBJECT_AWARE and listing.is_education(question):
+        from .facts import education_line
+        line = education_line(profile)
+        if not line:
+            return {"state": "refused", "message": "Your profile has no education entry; "
+                                                   "this one is yours to answer."}
+        return {"state": "ok", "question": question, "left_today": left, "limit": limit,
+                "earlier": [], "options": [{
+                    "angle": "from your profile", "text": line, "source": "composed",
+                    "note": "Your education line, word for word. No model call, so this "
+                            "didn't use a suggestion."}]}
+    reason = clean_reason(reason) if answers.SUBJECT_AWARE else ""
+    if reason:
+        mine = answers.check(reason, profile, dict(job, own_words=reason), min_words=1,
+                             max_words=answers.MAX_WORDS)
+        if mine:
+            return {"state": "refused", "left_today": left, "limit": limit,
+                    "message": f"Your line can't go into an answer: {mine[0]}. "
+                               "Nothing was drafted."}
     if left <= 0:
         return {"state": "limit", "left_today": 0, "limit": limit,
                 "message": f"Today's {limit} suggestions are used up; they come back "
                            "over the next 24 hours."}
     bullets = answers.evidence(con, job, profile)
-    found, model = options(profile, job, bullets, question, maxlength, models)
+    found, model = options(profile, job, bullets, question, maxlength, models, reason)
     con.execute("INSERT INTO suggest_requests (job_id, question_key, options_json, model) "
                 "VALUES (?,?,?,?)",
                 (job.get("id"), question_key(question, job.get("company")),
                  json.dumps(found), model or None))
-    return {"state": "ok", "question": question, "options": found,
-            "earlier": earlier(con, question, profile, job, maxlength),
-            "left_today": left - 1, "limit": limit}
+    out = {"state": "ok", "question": question, "options": found,
+           "earlier": earlier(con, question, profile, job, maxlength),
+           "left_today": left - 1, "limit": limit}
+    if answers.SUBJECT_AWARE and not reason and listing.kind(
+            question, job.get("company")) in ("why_company", "why_role"):
+        # Nothing in a profile says why this employer; only the person can.
+        out["hint"] = ("These reasons come only from your resume. For one that's really "
+                       "yours, type a line in the box and press Suggest again.")
+    return out

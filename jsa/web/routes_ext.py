@@ -272,7 +272,7 @@ def register(app, ctx) -> None:
 
     @app.post("/ext/suggest")
     def ext_suggest(url: str = Form(""), question: str = Form(""),
-                    maxlength: str = Form("")):
+                    maxlength: str = Form(""), reason: str = Form("")):
         """One Suggest press: one model call, three checked options."""
         from .. import llm, suggest
         from ..tailor import IdentityLeakError
@@ -285,7 +285,8 @@ def register(app, ctx) -> None:
             if refusal:
                 return refusal
             try:
-                result = suggest.suggest(con, prof, job, question, maxlength_of(maxlength))
+                result = suggest.suggest(con, prof, job, question, maxlength_of(maxlength),
+                                         reason=reason)
             except (llm.LLMError, IdentityLeakError) as exc:
                 return {"state": "failed", "message": f"No suggestions: {exc}"}
             con.commit()

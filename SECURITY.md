@@ -84,7 +84,8 @@ you are filling, in your own browser. It never submits: there is no
 submit, click or key-press call in its code, and a test reads the files to
 hold it there.
 
-Its **Suggest** button (ADR 0034) sends one question's label text, cleaned
+Its **Suggest** button (ADR 0034) also sends any line you typed beside that
+question, for that press only and not stored, and one question's label text, cleaned
 and capped at 300 characters, to your dashboard, which sends it with a
 2,000-character excerpt of the posting and your profile's summary and
 bullets to the model API. Never the page's markup or any other field,

@@ -40,6 +40,13 @@ split prompt (outreach.build, switch on) and production's loop for one retry
 the retry. Each is held to the full check (verify_message), and the passing
 messages are printed for you to read.
 
+`--presses FILE` runs real Suggest presses, production's own code from the
+question to the options, and reports how alike the answers are: PAID, one call
+per press plus one retry when a draft is refused, stopping at `--max-calls`
+(default 24). FILE has one `job_id | question` or `job_id | question | your own
+reason` per line. Nothing is written to the tracker's suggestions, so no daily
+suggestion is used. `--presses-report SAVED.json` re-reads a saved run, no call.
+
 `--recheck` re-runs the checks on a saved file, with no model call.
 """
 
@@ -353,6 +360,111 @@ def report_outreach(profile, saved):
     return c, passing, shape
 
 
+def run_presses(profile, con, rows, max_calls):
+    """Production's path, one press at a time, until the call budget is spent."""
+    calls = [0]
+    inner = llm.recorder
+
+    def counted(*a, **k):
+        calls[0] += 1
+        return inner(*a, **k) if inner else None
+
+    llm.recorder = counted
+    saved = []
+    try:
+        for job_id, question, reason in rows:
+            if calls[0] >= max_calls:
+                print(f"stopped at {calls[0]} model calls; {len(rows) - len(saved)} presses not run")
+                break
+            job = _job(con, job_id)
+            if job is None:
+                print(f"no job {job_id}; skipped")
+                continue
+            question = suggest.clean_question(question)
+            bullets = answers.evidence(con, job, profile)
+            options, _ = suggest.options(profile, job, bullets, question, reason=reason)
+            excerpt = suggest.build(job, profile, bullets, question, split=True, reason=reason)[2]
+            saved.append({"job_id": job_id, "company": job.get("company"), "question": question,
+                          "reason": reason, "job": job, "excerpt": excerpt, "options": options,
+                          "press": True})
+            print(f"pressed {job_id} ({calls[0]} calls so far): {question[:50]}")
+    finally:
+        llm.recorder = inner
+    return saved, calls[0]
+
+
+def _own_words(sentence, excerpt, others):
+    """Words of a sentence that this listing's excerpt has and no other job's does."""
+    from jsa.tailor import _stem, _words
+    stems = {_stem(w) for w in _words(sentence)}
+    mine = {_stem(w) for w in _words(excerpt)}
+    theirs = {_stem(w) for text in others for w in _words(text)}
+    return sorted(stems & mine - theirs)
+
+
+def report_presses(profile, saved):
+    """How alike are the answers: within a press, across jobs; is each tied to
+    its listing; and every answer in full, for you to read."""
+    from difflib import SequenceMatcher
+
+    from jsa import subject
+    items = [i for i in saved if i.get("press")]
+    if not items:
+        return None
+    options = [(i, o) for i in items for o in i["options"]]
+    drafted = [(i, o) for i, o in options if o["source"] == "model"]
+    print(f"\nPresses {len(items)}, options {len(options)}, drafted and checked {len(drafted)}, "
+          f"not answers {len(options) - len(drafted)}, presses with no draft "
+          f"{sum(1 for i in items if not any(o['source'] == 'model' for o in i['options']))}")
+    counts = Counter(sentence for _, o in drafted for sentence in set(subject.split(o["text"])))
+    total = sum(counts.values())
+    repeated = sum(n for n in counts.values() if n > 1)
+    print(f"Sentences: {len(counts)} distinct of {total}; {repeated} sit in a repeated sentence "
+          f"({100 * repeated // max(total, 1)}%; the 21 presses before this were 60%)")
+    for sentence, n in counts.most_common(5):
+        if n > 1:
+            print(f"  {n}x {sentence[:110]}")
+    same_opening = 0
+    for item in items:
+        firsts = [" ".join(subject.tokens((subject.split(o["text"]) or [""])[0]))
+                  for o in item["options"] if o["source"] == "model"]
+        for a in range(len(firsts)):
+            for b in range(a + 1, len(firsts)):
+                same_opening += int(suggest.overlap(firsts[a], firsts[b]) >= 0.7)
+    print(f"Options in one press opening alike: {same_opening}")
+    alike = total_pairs = 0
+    for a in range(len(drafted)):
+        for b in range(a + 1, len(drafted)):
+            if drafted[a][0]["job_id"] != drafted[b][0]["job_id"]:
+                total_pairs += 1
+                alike += int(SequenceMatcher(None, drafted[a][1]["text"], drafted[b][1]["text"])
+                             .ratio() >= 0.6)
+    print(f"Answers to different jobs at least 60% alike: {alike} of {total_pairs} pairs")
+    excerpts = {i["job_id"]: i["excerpt"] for i in items}
+    tied = 0
+    lines = []
+    for item, option in drafted:
+        others = [t for j, t in excerpts.items() if j != item["job_id"]]
+        sentences = letter.checked_sentences(option["text"], profile, item["job"], item["excerpt"])
+        own = sorted({w for s in sentences if s["kind"] == "employer"
+                      for w in _own_words(s["text"], item["excerpt"], others)})
+        tied += int(bool(own))
+        lines.append((item, option, own))
+    print(f"Tied to this listing (a sentence about the employer using words only its posting "
+          f"has): {tied} of {len(drafted)}")
+    print("\nEvery answer, for you to read: any claim about you that isn't in your profile is "
+          "a leak.\n")
+    for item, option, own in lines:
+        print(f"--- {item['company']} | {item['question'][:60]} | {option['angle']} | "
+              f"{option['note'][:70]}\n{option['text']}\n    only this listing: {own[:8]}\n")
+    for item, option in options:
+        if option["source"] != "model":
+            print(f"--- NOT AN ANSWER: {item['company']} | {item['question'][:60]}\n"
+                  f"    {option['note'][:200]}\n")
+    return {"drafted": len(drafted), "same_opening": same_opening, "tied": tied,
+            "repeated": repeated, "total": total}
+
+
 def _rows_from(path):
     saved = json.loads(Path(path).read_text(encoding="utf-8"))
     seen, rows = set(), []
@@ -372,16 +484,42 @@ def main() -> int:
     group.add_argument("--questions", help="file of `job_id | question` lines (paid calls)")
     group.add_argument("--questions-from", help="the questions of a saved run (paid calls)")
     group.add_argument("--recheck", help="a saved measure file; no model call")
+    group.add_argument("--presses", help="file of `job_id | question | reason?` (paid calls)")
+    group.add_argument("--presses-report", help="a saved --presses file; no model call")
+    parser.add_argument("--max-calls", type=int, default=24, help="stop --presses here")
     parser.add_argument("--prompt", choices=["split", "old"], default="split")
     parser.add_argument("--written", default="", help="job ids for written answers, e.g. 421,484")
     parser.add_argument("--letters", default="", help="job ids for cover letters, e.g. 421,484")
     parser.add_argument("--outreach", default="", help="job ids for outreach, e.g. 421,452")
     args = parser.parse_args()
     if not (args.questions or args.questions_from or args.recheck or args.letters
-            or args.outreach):
-        parser.error("give --questions, --questions-from, --recheck, --letters or --outreach")
+            or args.outreach or args.presses or args.presses_report):
+        parser.error("give --questions, --questions-from, --recheck, --letters, --outreach, "
+                     "--presses or --presses-report")
     config.load_dotenv()
     profile = load_profile()
+    if args.presses_report:
+        report_presses(profile, json.loads(Path(args.presses_report).read_text(encoding="utf-8")))
+        return 0
+    if args.presses:
+        rows = []
+        for line in Path(args.presses).read_text(encoding="utf-8").splitlines():
+            if "|" in line and not line.lstrip().startswith("#"):
+                parts = [x.strip() for x in line.split("|")]
+                rows.append((int(parts[0]), parts[1], parts[2] if len(parts) > 2 else ""))
+        con = db.connect(config.DB_PATH)
+        previous = ledger.install(config.DB_PATH)
+        try:
+            saved, used = run_presses(profile, con, rows, args.max_calls)
+        finally:
+            llm.recorder = previous
+            con.close()
+        out = config.HOME / "logs" / f"suggest-presses-{dt.datetime.now():%Y-%m-%d-%H%M%S}.json"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(saved, indent=1), encoding="utf-8")
+        print(f"{used} model calls. Saved to {out} (gitignored; yours, never committed)")
+        report_presses(profile, saved)
+        return 0
     if args.recheck:
         saved = json.loads(Path(args.recheck).read_text(encoding="utf-8"))
         plain = [i for i in saved if not i.get("letter") and not i.get("outreach")]

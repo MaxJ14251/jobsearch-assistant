@@ -104,6 +104,7 @@
   let suggestLeft = 20;
   SESSION.suggest = (m) => {
     suggestLeft -= 1;
+    window.__jsaReason = m.reason;
     return { state: "ok", question: m.question, left_today: suggestLeft, limit: 20, earlier: [],
       options: [
         { angle: "about the role", source: "model", note: "drafted and checked",

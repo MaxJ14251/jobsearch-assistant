@@ -158,6 +158,7 @@ const HANDLERS = {
     form.set("url", (sender && sender.url) || "");
     form.set("question", String(message.question || "").slice(0, 300));
     form.set("maxlength", message.maxlength > 0 ? String(Number(message.maxlength)) : "");
+    form.set("reason", String(message.reason || "").slice(0, 200));   // what you typed for it
     return (await json("/ext/suggest", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
