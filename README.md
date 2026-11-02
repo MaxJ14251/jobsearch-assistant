@@ -789,7 +789,8 @@ match to a resume you can upload yourself:
   excites you about …?") are listed with **Suggest**: up to two answers,
   each from different work of yours, drawn from the posting's lines that fit
   the question and checked (what they say about you against your profile,
-  about the employer against the posting). An optional line of your own goes
+  about the employer against the posting, with anything your profile doesn't
+  back up marked for you to fix). An optional line of your own goes
   into the answers for that press and isn't stored. Inserted only when you
   choose one, 20 suggestions a day
   ([ADR 0034](docs/decisions/0034-suggested-answers.md)). Install and use:

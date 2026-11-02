@@ -250,3 +250,14 @@ The owner's question was whether to keep refining or change direction. Decided:
   drops the answer. This reverses "an option is never shown unchecked" for marked
   sentences only, so it waits for the owner's measurement and decision. Nothing
   reaches a form without the person's click either way.
+
+### Measured and switched on, 2026-11-02
+
+The same 8 presses on NVIDIA with marking on (12 calls): repeated sentence uses fell
+from 16% to 5%, no two options in a press opened alike, 0 of 81 pairs across jobs were
+60% alike, and the answers said how the work fits the duty. All 14 answers had marked
+sentences (30 in all). The author's reading: every invented skill was marked ("align
+stakeholders on requirements", "negotiate agreements") and no unmarked sentence claimed
+something new; about half the marks were harmless wording ("more than 900" for "900+").
+**The owner switched it on.** The strict path stays, one constant away. Suggest stays on
+NVIDIA; a Google key line sits empty in `.env` for later.

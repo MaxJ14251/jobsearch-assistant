@@ -756,10 +756,10 @@
     questionsHead = el("summary", { textContent: headText() });
     // The dashboard sends the current wording (plan 39); this is the fallback
     // for an older dashboard.
-    questionsNote = el("p", { className: "meta", textContent: "Suggest gives three options " +
-      "from your profile. Most are made from your own sentences: drafted ones rarely pass " +
-      "the check against your profile (1 of 20 when measured), so edit the one you pick " +
-      "into an answer. Salary and demographic questions are yours to answer." });
+    questionsNote = el("p", { className: "meta", textContent: "Suggest drafts up to two " +
+      "answers from your profile and the posting. Sentences your profile doesn't back up are " +
+      "marked: check or remove them before you submit. Salary and demographic questions are " +
+      "yours to answer." });
     const how = el("details", {}, [el("summary", { textContent: "How suggestions work" }),
                                    questionsNote]);
     const parts = [questionsHead, how];

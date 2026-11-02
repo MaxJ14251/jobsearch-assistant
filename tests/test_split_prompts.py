@@ -55,6 +55,7 @@ class On(Ext):
 
 
 class TestTheSplitPrompt(On):
+    @mock.patch("jsa.suggest.MARK_UNSUPPORTED", False)   # the strict path, still there off
     def test_the_posting_and_the_question_stay_in_their_fences(self):
         _, seen = self.run_suggest([{"role": GOOD, "project": GOOD}])
         prompt = seen[0]

@@ -296,13 +296,13 @@ _REASON = (" The <candidate_reason> block is the candidate's own words and is tr
            "the first sentence of each answer says that reason, in those words.")
 _SHORT = 60          # under this many words, an answer has no room for both kinds
 
-# Write freely; mark what isn't backed up (2026-11-02, off until the owner turns
-# it on). A sentence whose words the profile or the posting doesn't support is
+# Write freely; mark what isn't backed up (2026-11-02; on since that day, the
+# owner's choice after 8 presses read far better, ADR 0034). A sentence whose words the profile or the posting doesn't support is
 # kept and marked for the person to fix, not removed. Everything else the check
 # refuses still drops an answer: a degree, a do-not-claim term, unfinished work
 # called done, an answer that repeats another or opens about the employer. False
 # is the behaviour measured in ADR 0034.
-MARK_UNSUPPORTED = False
+MARK_UNSUPPORTED = True
 _FREE_PLAIN = (" Don't borrow the question's own adjectives (\"proudest\", \"excited\", "
                "\"passionate\"): use plain words. Write the way a person would, in your own "
                "words: paraphrase the notes, but add no fact, tool, number, outcome or quality "

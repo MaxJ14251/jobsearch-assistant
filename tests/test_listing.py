@@ -203,6 +203,7 @@ class Press(Ext):
 class TestThePress(Press):
     ALL = {"company": COMPANY, "role": GOOD}
 
+    @mock.patch("jsa.suggest.MARK_UNSUPPORTED", False)   # the strict path, still there off
     def test_each_answer_gets_its_own_notes_and_a_duty_to_name(self):
         result, seen = self.press([self.ALL])
         prompt = seen[0]
@@ -300,6 +301,7 @@ class TestYourOwnReason(Press):
                       "at home. " + COMPANY,
            "role": GOOD, "project": PROJECT}
 
+    @mock.patch("jsa.suggest.MARK_UNSUPPORTED", False)   # the strict path, still there off
     def test_its_words_are_allowed_in_that_press_only(self):
         result, seen = self.press([self.ALL], reason=self.REASON)
         self.assertIn(f"<candidate_reason>\n{self.REASON}\n</candidate_reason>", seen[0])

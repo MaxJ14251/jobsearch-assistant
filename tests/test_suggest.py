@@ -132,6 +132,7 @@ class TestOptions(Press):
             "I'd like to work at Riverton Grid."))
         self.assertEqual(len(seen), 1)
 
+    @mock.patch("jsa.suggest.MARK_UNSUPPORTED", False)   # the strict path, still there off
     def test_a_refused_draft_is_retried_once_then_loses_only_its_refused_sentence(self):
         invented = GOOD + " I led a team of forty engineers at Google."
         other = PROJECT
@@ -145,6 +146,7 @@ class TestOptions(Press):
         self.assertIn("refused sentences taken out", got["about the role"]["note"])
         self.assertEqual(got["about your project"]["note"], "drafted and checked")
 
+    @mock.patch("jsa.suggest.MARK_UNSUPPORTED", False)   # the strict path, still there off
     def test_a_refused_first_sentence_leaves_the_draft_out(self):
         invented = "I led a team of forty engineers at Google. " + GOOD
         result, _ = self.press([{"role": invented, "project": PROJECT}, {"role": invented}])
@@ -384,6 +386,7 @@ class TestRoutes(Press):
         self.assertEqual(r.json()["state"], "not_ready")
         call.assert_not_called()
 
+    @mock.patch("jsa.suggest.MARK_UNSUPPORTED", False)   # the strict path, still there off
     def test_the_panel_note_follows_the_switch(self):
         body = {"url": GREENHOUSE, "question": ["Why us, really?"], "maxlength": [""]}
         with mock.patch("jsa.answers.SUBJECT_AWARE", False):

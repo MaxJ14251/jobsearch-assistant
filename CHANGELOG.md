@@ -23,9 +23,9 @@ version number lives in one place, `jsa/__init__.py`.
   `JSA_SUGGEST_API_KEY`, `JSA_SUGGEST_MODELS`, optionally
   `JSA_SUGGEST_REASONING_EFFORT`): any OpenAI-compatible one, such as Google's
   Gemini. Unset, nothing changes.
-- A switch, off by default (`suggest.MARK_UNSUPPORTED`): the model writes in
-  plain words and a sentence your profile doesn't back up is marked in the panel
-  for you to check, not removed. A degree, a do-not-claim term or unfinished work
+- Suggested answers are written in plain words, and a sentence your profile
+  doesn't back up is marked in the panel for you to check, not removed
+  (`suggest.MARK_UNSUPPORTED`, on). A degree, a do-not-claim term or unfinished work
   called done still drops the answer.
 
 ### Fixed
