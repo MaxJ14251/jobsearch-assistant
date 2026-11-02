@@ -107,9 +107,13 @@
     window.__jsaReason = m.reason;
     return { state: "ok", question: m.question, left_today: suggestLeft, limit: 20, earlier: [],
       options: [
-        { angle: "about the role", source: "model", note: "drafted and checked",
+        { angle: "about the role", source: "model",
+          note: "drafted; 1 marked sentence(s) say things your profile doesn't (fixes). " +
+                "Check or remove them before you submit.",
+          marks: [{ text: "Turning them into fixes is what I do best.", words: ["fixes"] }],
           text: "I want this support role because I spend my days answering customers' " +
-                "hardest questions and turning them into fixes. (Fictional option.)" },
+                "hardest questions. Turning them into fixes is what I do best. " +
+                "(Fictional option.)" },
         { angle: "about your project", source: "composed",
           note: "from your own sentences; the drafted answer was refused: says words " +
                 "your profile does not: phd",

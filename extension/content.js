@@ -364,6 +364,7 @@
             border-radius: 999px; color: var(--ink-2);
             background: color-mix(in srgb, var(--ink) 6%, transparent); }
     .flag.model { background: var(--sage-soft); color: var(--sage); }
+    .flag.marked { background: var(--amber-soft); color: var(--amber); }
     .flag.required { background: var(--amber-soft); color: var(--amber); font-weight: 600; }
     @media (max-width: 600px) {
       .box { left: 8px; right: 8px; bottom: 8px; width: auto; max-height: 60vh; }
@@ -631,7 +632,7 @@
   // only from its Use this button; nothing here submits.
 
   const SOURCE_LABEL = { model: "drafted and checked", composed: "from your own sentences",
-                         yours: "your own words" };
+                         yours: "your own words", marked: "drafted: check the marked parts" };
   let questionsHead = null;  // the section's summary line
   let questionsNote = null;  // what the options are, in the dashboard's words
   let left = null;           // {left_today, limit}
@@ -642,7 +643,9 @@
   }
 
   function card(q, option) {
-    const kind = SOURCE_LABEL[option.source] ? option.source : "composed";
+    // A draft with marked sentences isn't "checked": its label says so.
+    const marked = Array.isArray(option.marks) && option.marks.length > 0;
+    const kind = marked ? "marked" : SOURCE_LABEL[option.source] ? option.source : "composed";
     const body = answerText(option);
     const more = button("Show all", () => {
       body.classList.toggle("clamp");
