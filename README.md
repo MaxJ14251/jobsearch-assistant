@@ -202,7 +202,10 @@ to the model — a check refuses the request if they appear in a prompt.
 
 Another OpenAI-compatible provider works too: set `JSA_LLM_BASE_URL`,
 `JSA_LLM_API_KEY` and `JSA_LLM_MODELS` (its model names, comma-separated, in
-the order to try), and `JSA_LLM_ENRICH_MODELS` for reading postings. The
+the order to try), and `JSA_LLM_ENRICH_MODELS` for reading postings.
+`JSA_SUGGEST_BASE_URL`, `JSA_SUGGEST_API_KEY` and `JSA_SUGGEST_MODELS` give the
+extension's suggested answers a provider of their own, such as Google's Gemini
+(see `jsa/resources/.env.example`); the rest stays where it is. The
 template explains each. `jsa env` shows the provider and models in use, and
 `jsa models` checks which answer. Drafting quality was measured on NVIDIA's
 models; another provider's will differ, and every draft is still checked.

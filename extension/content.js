@@ -349,6 +349,8 @@
     .question > p { margin: 0 0 4px; }
     .question > .row { margin-top: 6px; }
     .q { font-weight: 600; }
+    .answer mark { background: var(--amber-soft); color: inherit; border-bottom: 2px solid var(--amber);
+                   padding: 0 1px; }
     .reason { box-sizing: border-box; width: 100%; margin: 2px 0; padding: 6px 8px; font: inherit;
               color: inherit; background: var(--surface); border: 1px solid var(--mute);
               border-radius: 6px; }
@@ -641,7 +643,7 @@
 
   function card(q, option) {
     const kind = SOURCE_LABEL[option.source] ? option.source : "composed";
-    const body = el("p", { className: "answer clamp", textContent: option.text });
+    const body = answerText(option);
     const more = button("Show all", () => {
       body.classList.toggle("clamp");
       more.textContent = body.classList.contains("clamp") ? "Show all" : "Show less";
@@ -657,6 +659,24 @@
     parts.push(el("div", { className: "row" }, [button("Use this", () => useOption(q, option)),
                                                  more]));
     return el("div", { className: "card" }, parts);
+  }
+
+  // An answer's text, with any sentence your profile doesn't back up marked.
+  // Text nodes only: nothing from the dashboard is read as markup.
+  function answerText(option) {
+    const body = el("p", { className: "answer clamp" });
+    let rest = String(option.text || "");
+    const marks = Array.isArray(option.marks) ? option.marks : [];
+    for (const m of marks) {
+      const at = rest.indexOf(String(m.text || ""));
+      if (!m.text || at < 0) continue;
+      body.append(document.createTextNode(rest.slice(0, at)),
+                  el("mark", { textContent: m.text,
+                               title: "Not in your profile: " + (m.words || []).join(", ") }));
+      rest = rest.slice(at + m.text.length);
+    }
+    body.append(document.createTextNode(rest));
+    return body;
   }
 
   // The one way a suggestion reaches the page: your click on Use this.

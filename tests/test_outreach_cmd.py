@@ -133,8 +133,11 @@ class TestNothingCanSend(unittest.TestCase):
         following = source.split(".post(")
         for chunk in following[1:]:
             head = chunk[:120]
-            self.assertIn("base_url()", head,
-                          f"a POST goes somewhere other than the LLM endpoint: {head!r}")
+            self.assertTrue("base_url()" in head or head.lstrip().startswith('f"{url}/'),
+                            f"a POST goes somewhere other than the LLM endpoint: {head!r}")
+        # `url` is the configured endpoint or Suggest's own, from .env only
+        # (2026-11-02), and nothing else.
+        self.assertIn("url = route.url if route else base_url()", source)
         # base_url() is the configured endpoint and nothing else: the
         # JSA_LLM_BASE_URL setting, else BASE_URL (G3, 2026-10-24).
         import inspect
@@ -143,6 +146,9 @@ class TestNothingCanSend(unittest.TestCase):
         self.assertIn('os.environ.get("JSA_LLM_BASE_URL"', body)
         self.assertIn("BASE_URL", body.replace('"JSA_LLM_BASE_URL"', ""))
         self.assertNotRegex(body, r"https?://")
+        route = inspect.getsource(llm.route_for)
+        self.assertIn('os.environ.get("JSA_SUGGEST_BASE_URL"', route)
+        self.assertNotRegex(route, r"https?://")
 
     def test_mark_sent_only_records(self):
         import inspect

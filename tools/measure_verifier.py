@@ -46,6 +46,9 @@ per press plus one retry when a draft is refused, stopping at `--max-calls`
 (default 24). FILE has one `job_id | question` or `job_id | question | your own
 reason` per line. Nothing is written to the tracker's suggestions, so no daily
 suggestion is used. `--presses-report SAVED.json` re-reads a saved run, no call.
+Add `--mark` to run them with suggest.MARK_UNSUPPORTED on (sentences your profile
+doesn't back up are marked, not removed). The model is whatever .env says
+Suggest uses: JSA_SUGGEST_* when set, else the main provider.
 
 `--recheck` re-runs the checks on a saved file, with no model call.
 """
@@ -382,11 +385,11 @@ def run_presses(profile, con, rows, max_calls):
                 continue
             question = suggest.clean_question(question)
             bullets = answers.evidence(con, job, profile)
-            options, _ = suggest.options(profile, job, bullets, question, reason=reason)
+            options, model = suggest.options(profile, job, bullets, question, reason=reason)
             excerpt = suggest.build(job, profile, bullets, question, split=True, reason=reason)[2]
             saved.append({"job_id": job_id, "company": job.get("company"), "question": question,
                           "reason": reason, "job": job, "excerpt": excerpt, "options": options,
-                          "press": True})
+                          "model": model, "marking": suggest.MARK_UNSUPPORTED, "press": True})
             print(f"pressed {job_id} ({calls[0]} calls so far): {question[:50]}")
     finally:
         llm.recorder = inner
@@ -432,6 +435,11 @@ def report_presses(profile, saved):
             for b in range(a + 1, len(firsts)):
                 same_opening += int(suggest.overlap(firsts[a], firsts[b]) >= 0.7)
     print(f"Options in one press opening alike: {same_opening}")
+    marked = [m for _, o in drafted for m in o.get("marks") or []]
+    print(f"Answers with a marked sentence: {sum(1 for _, o in drafted if o.get('marks'))} "
+          f"of {len(drafted)}; marked sentences {len(marked)}")
+    models = Counter(i.get("model") or "?" for i in items)
+    print("Models: " + ", ".join(f"{m} {n}" for m, n in models.items()))
     alike = total_pairs = 0
     for a in range(len(drafted)):
         for b in range(a + 1, len(drafted)):
@@ -456,7 +464,11 @@ def report_presses(profile, saved):
           "a leak.\n")
     for item, option, own in lines:
         print(f"--- {item['company']} | {item['question'][:60]} | {option['angle']} | "
-              f"{option['note'][:70]}\n{option['text']}\n    only this listing: {own[:8]}\n")
+              f"{option['note'][:70]}\n{option['text']}\n    only this listing: {own[:8]}")
+        for m in option.get("marks") or []:
+            print(f"    MARKED: {m['text'][:140]}  (not in your profile: "
+                  f"{', '.join(m['words'][:6])})")
+        print()
     for item, option in options:
         if option["source"] != "model":
             print(f"--- NOT AN ANSWER: {item['company']} | {item['question'][:60]}\n"
@@ -487,6 +499,8 @@ def main() -> int:
     group.add_argument("--presses", help="file of `job_id | question | reason?` (paid calls)")
     group.add_argument("--presses-report", help="a saved --presses file; no model call")
     parser.add_argument("--max-calls", type=int, default=24, help="stop --presses here")
+    parser.add_argument("--mark", action="store_true",
+                        help="--presses with marking on (suggest.MARK_UNSUPPORTED)")
     parser.add_argument("--prompt", choices=["split", "old"], default="split")
     parser.add_argument("--written", default="", help="job ids for written answers, e.g. 421,484")
     parser.add_argument("--letters", default="", help="job ids for cover letters, e.g. 421,484")
@@ -509,6 +523,8 @@ def main() -> int:
                 rows.append((int(parts[0]), parts[1], parts[2] if len(parts) > 2 else ""))
         con = db.connect(config.DB_PATH)
         previous = ledger.install(config.DB_PATH)
+        if args.mark:
+            suggest.MARK_UNSUPPORTED = True
         try:
             saved, used = run_presses(profile, con, rows, args.max_calls)
         finally:

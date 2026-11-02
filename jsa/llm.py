@@ -157,6 +157,37 @@ def _thinking_switch() -> bool:
     return is_nvidia() or os.environ.get(THINKING_SWITCH_ENV, "").strip() == "1"
 
 
+# Suggest's own provider, when set: a better writer for the one feature that
+# writes in the person's voice, on its own usage limits. Unset, Suggest uses the
+# provider everything else does. The key is read from .env, never logged.
+SUGGEST_SETTINGS = ("JSA_SUGGEST_BASE_URL", "JSA_SUGGEST_API_KEY", "JSA_SUGGEST_MODELS")
+SUGGEST_EFFORT_ENV = "JSA_SUGGEST_REASONING_EFFORT"
+# Thinking counts against max_tokens on some providers; a short cap can be
+# spent before any answer is written. Room for both, at a fraction of a cent.
+ROUTED_MIN_TOKENS = 8000
+
+
+@dataclass
+class Route:
+    url: str
+    key: str
+    models: list[str]
+    effort: str
+
+
+def route_for(purpose: str) -> Route | None:
+    """The provider for this purpose when it has its own; else None."""
+    if purpose != "suggest" or not os.environ.get("JSA_SUGGEST_API_KEY", "").strip():
+        return None
+    url = os.environ.get("JSA_SUGGEST_BASE_URL", "").strip().rstrip("/")
+    models = _models_from("JSA_SUGGEST_MODELS", [])
+    if not url or not models:
+        raise LLMError("JSA_SUGGEST_API_KEY is set: also set JSA_SUGGEST_BASE_URL and "
+                       "JSA_SUGGEST_MODELS in .env, or remove it to use the main provider.")
+    return Route(url, os.environ["JSA_SUGGEST_API_KEY"].strip(), models,
+                 os.environ.get(SUGGEST_EFFORT_ENV, "").strip())
+
+
 def _strip_reasoning(text: str) -> str:
     """Drop chain-of-thought some models emit ahead of the answer.
 
@@ -196,14 +227,18 @@ def complete(
 
     `purpose` names the caller in the model-call ledger (plan 26); every
     caller in jsa/ passes one, and a test holds them to it."""
-    chain = models or drafting_models()
+    route = route_for(purpose)
+    chain = (route.models if route else None) or models or drafting_models()
+    url = route.url if route else base_url()
+    if route:
+        max_tokens = max(max_tokens, ROUTED_MIN_TOKENS)
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
 
     headers = {
-        "Authorization": f"Bearer {api_key()}",
+        "Authorization": f"Bearer {route.key if route else api_key()}",
         "Content-Type": "application/json",
     }
     errors: list[str] = []
@@ -224,7 +259,10 @@ def complete(
             # whole token budget thinking and never emit an answer: 44s and no
             # JSON at 2000 tokens, vs 2.2s and clean JSON with thinking off.
             # NVIDIA's field: sent there, or where the operator asks for it.
-            if _thinking_switch():
+            if route:
+                if route.effort:
+                    payload["reasoning_effort"] = route.effort
+            elif _thinking_switch():
                 payload["chat_template_kwargs"] = {"enable_thinking": thinking}
 
             for attempt in range(MAX_ATTEMPTS_PER_MODEL):
@@ -233,7 +271,7 @@ def complete(
                 common = {"purpose": purpose or "unspecified", "model": model,
                           "attempt": attempts, "fell_back": index > 0}
                 try:
-                    resp = client.post(f"{base_url()}/chat/completions",
+                    resp = client.post(f"{url}/chat/completions",
                                        headers=headers, json=payload)
                 except Exception as exc:  # noqa: BLE001
                     errors.append(f"{model}: {type(exc).__name__}")

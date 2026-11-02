@@ -233,3 +233,20 @@ Repeated sentence uses fell to 16% and no answers to different jobs were 60% ali
 60 pairs), with 12 of 12 tied to their listing. Two answers said "I built" about work
 the notes call in progress. An answer's own notes now decide that, and words saying work
 is done are refused for it. Replaying the saved drafts catches both.
+
+## Marked, not removed, and a writer of its own, 2026-11-02
+
+The owner's question was whether to keep refining or change direction. Decided:
+
+- **Suggest may use its own provider** (`JSA_SUGGEST_*` in `.env`), so the one
+  feature that writes in the person's voice can use a stronger writer and its own
+  usage limits; everything else stays on the main provider. The key lives in
+  `.env` only, and the scanner flags it anywhere else.
+- **A switch, `suggest.MARK_UNSUPPORTED`, off until the owner turns it on.** On,
+  the prompt asks for plain words with no new facts, and a sentence whose words
+  neither the profile nor the posting supports is kept and marked in the panel,
+  with the words, instead of being removed. A degree, a do-not-claim term,
+  unfinished work called done, a repeat, or an opening about the employer still
+  drops the answer. This reverses "an option is never shown unchecked" for marked
+  sentences only, so it waits for the owner's measurement and decision. Nothing
+  reaches a form without the person's click either way.

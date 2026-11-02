@@ -94,7 +94,17 @@ PANEL_NOTE_ON = (
     "Salary and demographic questions are yours to answer.")
 
 
+PANEL_NOTE_MARKED = (
+    "Suggest reads the question, picks the posting's lines and your notes that fit it, "
+    "and drafts up to two answers in plain words. Sentences your profile doesn't back up "
+    "are marked, not removed: check or remove them before you submit. A line of your own "
+    "in the box goes into the answers and is not stored. Salary and demographic questions "
+    "are yours to answer.")
+
+
 def panel_note() -> str:
+    if answers.SUBJECT_AWARE and MARK_UNSUPPORTED:
+        return PANEL_NOTE_MARKED
     return PANEL_NOTE_ON if answers.SUBJECT_AWARE and PANEL_NOTE_ON else PANEL_NOTE_OFF
 
 
@@ -285,6 +295,19 @@ _PLAIN = (" Don't borrow the question's own adjectives (\"proudest\", \"excited\
 _REASON = (" The <candidate_reason> block is the candidate's own words and is true of them: "
            "the first sentence of each answer says that reason, in those words.")
 _SHORT = 60          # under this many words, an answer has no room for both kinds
+
+# Write freely; mark what isn't backed up (2026-11-02, off until the owner turns
+# it on). A sentence whose words the profile or the posting doesn't support is
+# kept and marked for the person to fix, not removed. Everything else the check
+# refuses still drops an answer: a degree, a do-not-claim term, unfinished work
+# called done, an answer that repeats another or opens about the employer. False
+# is the behaviour measured in ADR 0034.
+MARK_UNSUPPORTED = False
+_FREE_PLAIN = (" Don't borrow the question's own adjectives (\"proudest\", \"excited\", "
+               "\"passionate\"): use plain words. Write the way a person would, in your own "
+               "words: paraphrase the notes, but add no fact, tool, number, outcome or quality "
+               "they don't state, and keep ongoing work ongoing. Say \"I want ... because\" at "
+               "most once. No two answers open with the same words.")
 # Which answers a question has room for, the most useful first. Two: measured
 # 2026-10-31, a third often came from work unrelated to the job.
 _ANGLES_FOR = {
@@ -324,6 +347,13 @@ def _ask_split(items: list[listing.Material], company: str, kind: str, least: in
     if short:
         lines.append("This field is short: write only sentences about the candidate, "
                      "starting with \"I\" or \"My\", and no sentence about the employer.")
+    elif MARK_UNSUPPORTED:
+        lines.append(
+            "Build each answer in this order. (1) The first sentence, as above. (2) What the "
+            "candidate did, from that answer's notes. (3) One specific duty from the posting "
+            "excerpt that the notes really speak to, never one they don't meet, a different "
+            "one for each answer. (4) In plain words, how that work prepares the candidate "
+            "for that duty, claiming nothing the notes don't state.")
     else:
         # In the excerpt's words: 9 of 14 sentences removed on 2026-10-31 were
         # refused for a verb form alone ("takes" where the posting says "Take");
@@ -342,7 +372,8 @@ def _ask_split(items: list[listing.Material], company: str, kind: str, least: in
     keys = ", ".join(f'"{i.angle}": "..."' for i in items)
     return (f"Write {count} different answers to the question, each {least}-{target} "
             f"words{chars}, keeping the two kinds of sentence apart. {_ANSWER_IT}"
-            + _ASKED[kind].replace("{company}", company) + _PLAIN
+            + _ASKED[kind].replace("{company}", company)
+            + (_FREE_PLAIN if MARK_UNSUPPORTED else _PLAIN)
             + (_REASON if reason else "") + "\n" + "\n".join(lines)
             + "\n\nReturn JSON: {" + keys + "}")
 
@@ -656,6 +687,14 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
             found.append(f"says \"{word}\", but its notes describe that work as ongoing")
         return found
 
+    marking = split and MARK_UNSUPPORTED
+
+    def blocking(found_here: list[str]) -> list[str]:
+        """What leaves an answer out. Marking, word problems are shown instead."""
+        if not marking:
+            return found_here
+        return [p for p in found_here if not p.startswith(("sentence ", "employer sentence "))]
+
     def mark_repeats() -> None:
         """A later answer that repeats an earlier one is refused, for the retry
         and for good: only what the check found can leave an answer out."""
@@ -681,7 +720,7 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
         found = {k: problems(k, v) for k, v in drafted.items()}
         if split:
             mark_repeats()
-        refused = {k: p for k, p in found.items() if p}
+        refused = {k: blocking(p) for k, p in found.items() if blocking(p)}
         if refused:
             retry = retry_text(prompt, drafted, refused, profile, job, posting_text, split)
             scrub_prompt(retry, profile)
@@ -703,6 +742,19 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
         answered: list[dict[str, Any]] = []
         for angle in drafted_angles:
             text, note = drafted.get(angle, ""), "drafted and checked"
+            if marking and text and found.get(angle) and not blocking(found[angle]):
+                marks = [{"text": x["text"], "words": x["refused"]}
+                         for x in checked_sentences(text, profile, job, posting_text or "")
+                         if x["problems"]]
+                words = sorted({w for m in marks for w in m["words"]})
+                if text not in {o["text"] for o in answered}:
+                    answered.append({
+                        "angle": ANGLES[angle], "text": text, "source": "model",
+                        "marks": marks,
+                        "note": (f"drafted; {len(marks)} marked sentence(s) say things your "
+                                 f"profile doesn't ({', '.join(words[:8])}). Check or remove "
+                                 "them before you submit.")})
+                continue
             if text and found.get(angle):
                 refused_part = found[angle][0]
                 text = salvage(text, found[angle], profile, job, posting_text,

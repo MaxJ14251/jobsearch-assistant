@@ -101,6 +101,11 @@ KEY_PATTERNS = [
     # Plan 29: the USAJOBS key with a value, anywhere but .env.
     ("USAJOBS API key in a settings line",
      re.compile(r"USAJOBS_API_KEY[ \t]*=[ \t]*[^\s#]+")),
+    # Suggest's own provider key (2026-11-02), with a value, anywhere but .env,
+    # and a Google API key's shape.
+    ("Suggest provider key in a settings line",
+     re.compile(r"JSA_SUGGEST_API_KEY[ \t]*=[ \t]*[^\s#]+")),
+    ("Google API key", re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b")),
     ("Gmail app password", re.compile(
         r"(?i:password)[^\n]*?(?<![A-Za-z])[a-z]{4} [a-z]{4} [a-z]{4} [a-z]{4}(?![A-Za-z])")),
 ]
