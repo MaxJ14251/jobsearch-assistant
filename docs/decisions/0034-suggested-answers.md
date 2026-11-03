@@ -261,3 +261,15 @@ stakeholders on requirements", "negotiate agreements") and no unmarked sentence 
 something new; about half the marks were harmless wording ("more than 900" for "900+").
 **The owner switched it on.** The strict path stays, one constant away. Suggest stays on
 NVIDIA; a Google key line sits empty in `.env` for later.
+
+### No closing "how this prepares me" sentence, 2026-11-02
+
+On real forms (two OpenAI postings, 4 presses, 8 options), every option ended with
+a sentence on how the candidate's work prepares them for the posting's duty, and
+in all 8 that was the sentence claiming things the profile doesn't say ("...a
+reliable silicon design flow"). **The owner had it dropped.** The prompt no longer
+asks for it, and a draft that still ends with a sentence about the candidate, after
+the one about the role, that the profile doesn't back up loses it before the check.
+On those 8 drafts the cut left 53 to 84 words each. A closing sentence the profile
+backs up stays. Also from these presses: "requires" and a number the profile states,
+spelled out ("fifty" for "50+"), are no longer marked.

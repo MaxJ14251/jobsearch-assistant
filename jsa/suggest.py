@@ -348,12 +348,16 @@ def _ask_split(items: list[listing.Material], company: str, kind: str, least: in
         lines.append("This field is short: write only sentences about the candidate, "
                      "starting with \"I\" or \"My\", and no sentence about the employer.")
     elif MARK_UNSUPPORTED:
+        # No closing sentence on how the work prepares the candidate: on every
+        # press of 2026-11-02 it was the sentence that claimed things the notes
+        # don't say ("...which translates to stitching EDA tools into reliable
+        # workflows"), so the owner had it dropped.
         lines.append(
             "Build each answer in this order. (1) The first sentence, as above. (2) What the "
             "candidate did, from that answer's notes. (3) One specific duty from the posting "
             "excerpt that the notes really speak to, never one they don't meet, a different "
-            "one for each answer. (4) In plain words, how that work prepares the candidate "
-            "for that duty, claiming nothing the notes don't state.")
+            "one for each answer. End there: no sentence on how the work prepares, fits or "
+            "translates to the role.")
     else:
         # In the excerpt's words: 9 of 14 sentences removed on 2026-10-31 were
         # refused for a verb form alone ("takes" where the posting says "Take");
@@ -414,6 +418,26 @@ def unfinished_here(text: str, profile: dict[str, Any], notes: tuple[Any, ...]) 
     own_words = stem_words(" ".join(b.text for b in notes))
     banned = ongoing_verbs({"projects": [{"bullets": own}]}) | (_DONE - own_words)
     return sorted(stem_words(text) & banned)
+
+
+def drop_closer(text: str, profile: dict[str, Any], job: dict[str, Any],
+                posting_text: str) -> str:
+    """The answer without a closing sentence on how the work fits the duty.
+
+    The prompt no longer asks for one; a draft that still ends with a sentence
+    about the candidate, after the one about the role, that says things the
+    profile doesn't, loses it (2026-11-02, the owner's choice). A closing
+    sentence the profile backs up stays.
+    """
+    from .letter import checked_sentences
+    sentences = checked_sentences(text, profile, job, posting_text or "")
+    if len(sentences) < 3:
+        return text
+    last = sentences[-1]
+    if last["kind"] == "employer" or not last["problems"]             or not any(s["kind"] == "employer" for s in sentences[:-1]):
+        return text
+    cut = text.rfind(last["text"])
+    return text[:cut].rstrip() if cut > 0 else text
 
 
 def build(job: dict[str, Any], profile: dict[str, Any], bullets: list[Any], question: str,
@@ -717,6 +741,9 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
         model = usage.model or ""
         drafted = {k: " ".join(str((data if isinstance(data, dict) else {}).get(k) or "")
                                .split()) for k in drafted_angles}
+        if marking:
+            drafted = {k: drop_closer(v, profile, job, posting_text) if v else v
+                       for k, v in drafted.items()}
         found = {k: problems(k, v) for k, v in drafted.items()}
         if split:
             mark_repeats()
@@ -730,6 +757,8 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
             if isinstance(again, dict):
                 for k in refused:
                     text = " ".join(str(again.get(k) or "").split())
+                    if text and marking:
+                        text = drop_closer(text, profile, job, posting_text)
                     if text:
                         drafted[k] = text
                         found[k] = problems(k, text)

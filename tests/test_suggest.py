@@ -162,6 +162,24 @@ class TestOptions(Press):
         for word in words:
             self.assertIn(word, note)
 
+    def test_a_closing_sentence_the_profile_does_not_back_is_left_off(self):
+        # Every press on 2026-11-02 ended "That work prepared me for <duty>",
+        # and that sentence was the one claiming things the notes don't say.
+        closer = "That work taught me quokka wrangling across narwhal boundaries."
+        drafted = GOOD + " This role involves support. " + closer
+        result, seen = self.press([{"role": drafted, "project": PROJECT}] * 2)
+        role = self.by_angle(result)["about the role"]["text"]
+        self.assertNotIn("quokka", role)
+        self.assertTrue(role.endswith("This role involves support."))
+        self.assertIn("End there", seen[0])
+        self.assertNotIn("prepares the candidate", seen[0])
+
+    def test_a_closing_sentence_the_profile_backs_stays(self):
+        drafted = GOOD + " This role involves support. I want this role."
+        result, _ = self.press([{"role": drafted, "project": PROJECT}] * 2)
+        self.assertTrue(self.by_angle(result)["about the role"]["text"]
+                        .endswith("I want this role."))
+
     def test_no_draft_passing_gives_sentences_marked_as_not_an_answer(self):
         invented = "I led a team of forty engineers at Google."
         result, _ = self.press([{"role": invented, "project": invented}] * 2)

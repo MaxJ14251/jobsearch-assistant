@@ -34,6 +34,9 @@ version number lives in one place, `jsa/__init__.py`.
   eight.
 - The word check no longer marks "requires", or a number your profile states
   written out in words ("fifty" for "50+").
+- Suggested answers no longer end with a sentence on how your work prepares you
+  for the role: on real forms it was the one that claimed things your profile
+  doesn't say.
 - Suggested answers in the extension now start from the question and the
   listing: the question picks the posting's lines (the role and what it asks
   for, the company's blurb only when asked about the employer; never pay, perks
