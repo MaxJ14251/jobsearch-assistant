@@ -548,6 +548,8 @@ CREATE TABLE IF NOT EXISTS company_degree_snapshots (
 -- Suggested answers to a form's open-ended questions (plan 35). One row per
 -- "Suggest" press: it is what the daily limit counts. The options are kept
 -- for the record; the question is the label text only, cleaned and capped.
+-- Drafts left out are kept too, with why, so a missing option can be
+-- explained (2026-11-03).
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS suggest_requests (
     id              INTEGER PRIMARY KEY,
@@ -555,7 +557,8 @@ CREATE TABLE IF NOT EXISTS suggest_requests (
     question_key    TEXT NOT NULL,
     requested_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
     options_json    TEXT NOT NULL,
-    model           TEXT
+    model           TEXT,
+    dropped_json    TEXT
 );
 
 -- Answers the person used and submitted, offered again for the same question.

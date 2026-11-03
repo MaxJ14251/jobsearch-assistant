@@ -696,9 +696,12 @@ def repeats(text: str, other: str, reason: str = "") -> bool:
 
 def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
             question: str, maxlength: int | None = None,
-            models: list[str] | None = None, reason: str = "") -> tuple[list[dict[str, Any]], str]:
+            models: list[str] | None = None, reason: str = "",
+            dropped: list[dict[str, Any]] | None = None) -> tuple[list[dict[str, Any]], str]:
     """The options for one question, each checked or composed. Returns
-    (options, model)."""
+    (options, model). A drafted answer left out is added to `dropped`, with
+    its text and why, so a missing option can be explained later."""
+    dropped = [] if dropped is None else dropped
     from .letter import checked_sentences
     from .tailor import scrub_prompt
 
@@ -795,6 +798,10 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
         answered: list[dict[str, Any]] = []
         for angle in drafted_angles:
             text, note = drafted.get(angle, ""), "drafted and checked"
+            if not text:
+                dropped.append({"angle": ANGLES[angle], "text": "",
+                                "why": failure or "no answer came back"})
+                continue
             if marking and text and found.get(angle) and not blocking(found[angle]):
                 marks = [{"text": x["text"], "words": x["refused"]}
                          for x in checked_sentences(text, profile, job, posting_text or "")
@@ -807,15 +814,26 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
                         "note": (f"drafted; {len(marks)} marked sentence(s) say things your "
                                  f"profile doesn't ({', '.join(words)}). Check or remove "
                                  "them before you submit.")})
+                else:
+                    dropped.append({"angle": ANGLES[angle], "text": text,
+                                    "why": "the same text as another option"})
                 continue
+            draft = text
             if text and found.get(angle):
                 refused_part = found[angle][0]
                 text = salvage(text, found[angle], profile, job, posting_text,
                                least, most, max_chars) or ""
                 note = f"drafted and checked; refused sentences taken out ({refused_part})"
-            if text and text not in {o["text"] for o in answered}:
+                if not text:
+                    dropped.append({"angle": ANGLES[angle], "text": draft, "why": "; ".join(
+                        blocking(found[angle]) or found[angle])})
+                    continue
+            if text not in {o["text"] for o in answered}:
                 answered.append({"angle": ANGLES[angle], "text": text, "source": "model",
                                  "note": note})
+            else:
+                dropped.append({"angle": ANGLES[angle], "text": draft,
+                                "why": "the same text as another option"})
         if answered:
             return answered, model
         why = failure or "; ".join(p[0] for p in found.values() if p) or "no answer came back"
@@ -989,11 +1007,13 @@ def suggest(con: sqlite3.Connection, profile: dict[str, Any], job: dict[str, Any
                 "message": f"Today's {limit} suggestions are used up; they come back "
                            "over the next 24 hours."}
     bullets = answers.evidence(con, job, profile)
-    found, model = options(profile, job, bullets, question, maxlength, models, reason)
-    con.execute("INSERT INTO suggest_requests (job_id, question_key, options_json, model) "
-                "VALUES (?,?,?,?)",
+    dropped: list[dict[str, Any]] = []
+    found, model = options(profile, job, bullets, question, maxlength, models, reason,
+                           dropped)
+    con.execute("INSERT INTO suggest_requests (job_id, question_key, options_json, "
+                "dropped_json, model) VALUES (?,?,?,?,?)",
                 (job.get("id"), question_key(question, job.get("company")),
-                 json.dumps(found), model or None))
+                 json.dumps(found), json.dumps(dropped) if dropped else None, model or None))
     out = {"state": "ok", "question": question, "options": found,
            "earlier": earlier(con, question, profile, job, maxlength),
            "left_today": left - 1, "limit": limit}

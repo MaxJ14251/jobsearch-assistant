@@ -37,6 +37,8 @@ version number lives in one place, `jsa/__init__.py`.
 - Suggested answers no longer end with a sentence on how your work prepares you
   for the role: on real forms it was the one that claimed things your profile
   doesn't say.
+- A suggested answer the check leaves out is now kept in the tracker with its
+  text and the reason, so a missing option can be explained.
 - Suggested answers no longer end with a duty copied from the posting with no
   subject ("Build and maintain infrastructure for ..."), which read as a claim
   about you. The duty sentence now starts with the company's name or "This

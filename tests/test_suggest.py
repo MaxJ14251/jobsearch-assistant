@@ -174,6 +174,23 @@ class TestOptions(Press):
         self.assertIn("End there", seen[0])
         self.assertNotIn("prepares the candidate", seen[0])
 
+    def test_a_dropped_draft_is_recorded_with_why(self):
+        # 2026-11-03: a press on job 357 gave one option of two, and nothing said why.
+        result, _ = self.press([{"role": GOOD, "project": GOOD}] * 2)
+        self.assertEqual([o["angle"] for o in result["options"]], ["about the role"])
+        row = self.con.execute("SELECT dropped_json FROM suggest_requests "
+                               "ORDER BY id DESC").fetchone()
+        dropped = json.loads(row["dropped_json"])
+        self.assertEqual([d["angle"] for d in dropped], ["about your project"])
+        self.assertEqual(dropped[0]["text"], GOOD)
+        self.assertIn("repeats", dropped[0]["why"])
+
+    def test_nothing_dropped_records_nothing(self):
+        self.press([{"role": GOOD, "project": PROJECT}] * 2)
+        row = self.con.execute("SELECT dropped_json FROM suggest_requests "
+                               "ORDER BY id DESC").fetchone()
+        self.assertIsNone(row["dropped_json"])
+
     def copied(self, last):
         self.con.execute("UPDATE jobs SET description = ? WHERE id = 1",
                          ("Orchestrate microgrid dispatch for utilities. " * 20,))
