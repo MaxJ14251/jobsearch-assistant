@@ -37,6 +37,10 @@ version number lives in one place, `jsa/__init__.py`.
 - Suggested answers no longer end with a sentence on how your work prepares you
   for the role: on real forms it was the one that claimed things your profile
   doesn't say.
+- Suggested answers no longer end with a duty copied from the posting with no
+  subject ("Build and maintain infrastructure for ..."), which read as a claim
+  about you. The duty sentence now starts with the company's name or "This
+  role".
 - Suggested answers in the extension now start from the question and the
   listing: the question picks the posting's lines (the role and what it asks
   for, the company's blurb only when asked about the employer; never pay, perks

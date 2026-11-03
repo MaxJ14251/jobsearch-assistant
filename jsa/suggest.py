@@ -356,8 +356,10 @@ def _ask_split(items: list[listing.Material], company: str, kind: str, least: in
             "Build each answer in this order. (1) The first sentence, as above. (2) What the "
             "candidate did, from that answer's notes. (3) One specific duty from the posting "
             "excerpt that the notes really speak to, never one they don't meet, a different "
-            "one for each answer. End there: no sentence on how the work prepares, fits or "
-            "translates to the role.")
+            "one for each answer, in a sentence that starts with \"{company}\" or \"This "
+            "role\", never a line copied from the posting with no subject. End there: no "
+            "sentence on how the work prepares, fits or translates to the role."
+            .replace("{company}", company))
     else:
         # In the excerpt's words: 9 of 14 sentences removed on 2026-10-31 were
         # refused for a verb form alone ("takes" where the posting says "Take");
@@ -420,6 +422,21 @@ def unfinished_here(text: str, profile: dict[str, Any], notes: tuple[Any, ...]) 
     return sorted(stem_words(text) & banned)
 
 
+# Share of a subjectless sentence's words that must be in the posting for it to
+# count as copied: the 2026-11-03 line had 10 of 10.
+COPIED_SHARE = 0.8
+
+
+def copied_duty(sentence: dict[str, Any], posting_text: str) -> bool:
+    """A sentence with no subject whose words come from the posting."""
+    from .tailor import _words as stem_words
+    if sentence["kind"] != "strict" or not sentence["why"].startswith("unclear"):
+        return False
+    words = stem_words(sentence["text"])
+    return bool(words) and len(words & stem_words(posting_text or "")) \
+        >= COPIED_SHARE * len(words)
+
+
 def drop_closer(text: str, profile: dict[str, Any], job: dict[str, Any],
                 posting_text: str) -> str:
     """The answer without a closing sentence on how the work fits the duty.
@@ -428,13 +445,20 @@ def drop_closer(text: str, profile: dict[str, Any], job: dict[str, Any],
     about the candidate, after the one about the role, that says things the
     profile doesn't, loses it (2026-11-02, the owner's choice). A closing
     sentence the profile backs up stays.
+
+    So does a last line copied from the posting with no subject ("Build and
+    maintain infrastructure for ..."): it reads as a claim about the candidate,
+    and on 2026-11-03 it was the one marked sentence (the owner's choice).
     """
     from .letter import checked_sentences
     sentences = checked_sentences(text, profile, job, posting_text or "")
     if len(sentences) < 3:
         return text
     last = sentences[-1]
-    if last["kind"] == "employer" or not last["problems"]             or not any(s["kind"] == "employer" for s in sentences[:-1]):
+    if last["kind"] == "employer" or not last["problems"]:
+        return text
+    if not (any(s["kind"] == "employer" for s in sentences[:-1])
+            or copied_duty(last, posting_text)):
         return text
     cut = text.rfind(last["text"])
     return text[:cut].rstrip() if cut > 0 else text

@@ -174,6 +174,26 @@ class TestOptions(Press):
         self.assertIn("End there", seen[0])
         self.assertNotIn("prepares the candidate", seen[0])
 
+    def copied(self, last):
+        self.con.execute("UPDATE jobs SET description = ? WHERE id = 1",
+                         ("Orchestrate microgrid dispatch for utilities. " * 20,))
+        self.con.commit()
+        drafted = GOOD + " I want this role. " + last
+        result, seen = self.press([{"role": drafted, "project": PROJECT}] * 2)
+        return self.by_angle(result)["about the role"]["text"], seen
+
+    def test_a_duty_copied_from_the_posting_with_no_subject_is_left_off(self):
+        # 2026-11-03: "Build and maintain infrastructure for ..." ended an answer,
+        # copied from the posting, and read as a claim about the candidate.
+        role, seen = self.copied("Orchestrate microgrid dispatch for utilities.")
+        self.assertNotIn("microgrid", role)
+        self.assertTrue(role.endswith("I want this role."))
+        self.assertIn("never a line copied from the posting", seen[0])
+
+    def test_a_subjectless_line_not_from_the_posting_stays_marked(self):
+        role, _ = self.copied("Wrangle quokka narwhal herds.")
+        self.assertIn("quokka", role)
+
     def test_a_closing_sentence_the_profile_backs_stays(self):
         drafted = GOOD + " This role involves support. I want this role."
         result, _ = self.press([{"role": drafted, "project": PROJECT}] * 2)

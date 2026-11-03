@@ -273,3 +273,17 @@ the one about the role, that the profile doesn't back up loses it before the che
 On those 8 drafts the cut left 53 to 84 words each. A closing sentence the profile
 backs up stays. Also from these presses: "requires" and a number the profile states,
 spelled out ("fifty" for "50+"), are no longer marked.
+
+### No duty copied from the posting with no subject, 2026-11-03
+
+The next press on the second OpenAI form ended one option with a line from the
+posting, word for word and with no subject ("Build and maintain infrastructure for
+reinforcement learning environments, ..."). With no "OpenAI" or "This role" in
+front, it was checked as a claim about the candidate and marked. **The owner had it
+stopped.** The prompt now says the duty sentence starts with the company's name or
+"This role", never a copied line with no subject. A draft that still ends with a
+sentence that has no subject, says things the profile doesn't, and takes at least
+80% of its words from the posting loses it before the check. A line with no subject
+whose words aren't from the posting stays, marked. On the stored drafts from both
+OpenAI forms the cut removed that line and still removed the 8 closing sentences of
+2026-11-02, and nothing else.
