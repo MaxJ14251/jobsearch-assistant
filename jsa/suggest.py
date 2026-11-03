@@ -752,7 +752,7 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
                         "angle": ANGLES[angle], "text": text, "source": "model",
                         "marks": marks,
                         "note": (f"drafted; {len(marks)} marked sentence(s) say things your "
-                                 f"profile doesn't ({', '.join(words[:8])}). Check or remove "
+                                 f"profile doesn't ({', '.join(words)}). Check or remove "
                                  "them before you submit.")})
                 continue
             if text and found.get(angle):

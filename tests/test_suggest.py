@@ -152,6 +152,16 @@ class TestOptions(Press):
         result, _ = self.press([{"role": invented, "project": PROJECT}, {"role": invented}])
         self.assertEqual([o["angle"] for o in result["options"]], ["about your project"])
 
+    def test_the_note_names_every_marked_word(self):
+        # A real press, 2026-11-02, marked 9 words and the note showed 8.
+        words = ["zebra", "quokka", "wombat", "narwhal", "axolotl", "pangolin",
+                 "platypus", "capybara", "okapi"]
+        stretched = GOOD + " I bring " + " ".join(words) + " to every project."
+        result, _ = self.press([{"role": stretched, "project": PROJECT, "company": COMPANY}] * 2)
+        note = self.by_angle(result)["about the role"]["note"]
+        for word in words:
+            self.assertIn(word, note)
+
     def test_no_draft_passing_gives_sentences_marked_as_not_an_answer(self):
         invented = "I led a team of forty engineers at Google."
         result, _ = self.press([{"role": invented, "project": invented}] * 2)
