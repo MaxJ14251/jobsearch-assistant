@@ -91,7 +91,34 @@ made make makes making meet meets met
 align aligns aligned match matches matched relate relates related
 translate translates reflect reflects involve involves involved
 draw draws drawn carry carries carried brought focus focuses focused
+require requires required requiring
 """.split())
+
+_ONES = ("zero one two three four five six seven eight nine ten eleven twelve "
+         "thirteen fourteen fifteen sixteen seventeen eighteen nineteen").split()
+_TENS = "_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()
+
+
+def number_words(n: int) -> set[str]:
+    """The words a number under 1,000 is written with: 50 -> {"fifty"}.
+
+    A profile that says "50+" may be written as "more than fifty"; the
+    spelled form is the same claim, not a new one.
+    """
+    if not 0 <= n < 1000:
+        return set()
+    words = set()
+    if n >= 100:
+        words |= {_ONES[n // 100], "hundred"}
+        n %= 100
+    if n >= 20:
+        words.add(_TENS[n // 10])
+        n %= 10
+        if n:
+            words.add(_ONES[n])
+    elif n or not words:
+        words.add(_ONES[n])
+    return words
 
 _DEGREE = re.compile(
     r"\b(degree|degrees|bachelor'?s?|bachelors|master'?s?|masters|b\.?s\.?|"
@@ -239,6 +266,8 @@ def identity_words(profile: dict[str, Any]) -> set[str]:
 def allowed_stems(profile: dict[str, Any], job: dict[str, Any]) -> set[str]:
     """Every stem a letter may use."""
     stems = set(_whole_profile_stems(profile))
+    for digits in {m.group() for s in stems if (m := re.match(r"\d+", s))}:
+        stems |= {_stem(w) for w in number_words(int(digits))}
     stems |= {_stem(w) for w in CONNECTIVES}
     stems |= {_stem(w) for w in identity_words(profile)}
     # own_words: a reason the person typed for this one answer (suggest.py):

@@ -265,6 +265,21 @@ class TestAllowedWords(unittest.TestCase):
                             "day to the work, and installed")
         self.assertEqual(letter.check(text, PROFILE, JOB), [])
 
+    def test_a_number_in_the_profile_may_be_spelled_out(self):
+        # Measured 2026-11-02: "more than fifty" was marked for a profile's "50+".
+        profile = copy.deepcopy(PROFILE)
+        profile["projects"][0]["bullets"][1]["text"] += " Uses 50+ job boards."
+        said = "I use more than fifty job boards."
+        self.assertEqual(letter.unsupported_words(said, profile, JOB), [])
+        self.assertEqual(letter.unsupported_words("I use sixty job boards.", profile, JOB),
+                         ["sixty"])
+        self.assertEqual(letter.number_words(912), {"nine", "hundred", "twelve"})
+        self.assertEqual(letter.number_words(1000), set())
+
+    def test_saying_what_a_role_requires_is_not_a_claim(self):
+        self.assertEqual(letter.unsupported_words(
+            "This role requires Python.", PROFILE, JOB), [])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -32,6 +32,8 @@ version number lives in one place, `jsa/__init__.py`.
 
 - A suggested answer's note names every word it marked, not only the first
   eight.
+- The word check no longer marks "requires", or a number your profile states
+  written out in words ("fifty" for "50+").
 - Suggested answers in the extension now start from the question and the
   listing: the question picks the posting's lines (the role and what it asks
   for, the company's blurb only when asked about the employer; never pay, perks
