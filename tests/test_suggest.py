@@ -206,6 +206,21 @@ class TestOptions(Press):
                                "ORDER BY id DESC").fetchone()
         self.assertIn("do-not-claim", json.loads(row["dropped_json"])[0]["why"])
 
+    def test_an_explain_question_asks_for_its_points_and_no_posting_duty(self):
+        # Cohere, 2026-11-03: asked about an agent's harness, both drafts listed
+        # features and ended on a posting duty; neither named a consideration.
+        _, seen = self.press([{"project": GOOD, "role": PROJECT}],
+                             question="Describe an example of an agent and the "
+                                      "considerations that shape its harness.")
+        self.assertIn("explain a piece of work", seen[0])
+        self.assertIn("Each thing the question asks about that work", seen[0])
+        self.assertIn("No sentence about the employer or the role", seen[0])
+        self.assertNotIn("One specific duty from the posting", seen[0])
+
+    def test_other_questions_keep_the_posting_duty(self):
+        _, seen = self.press([{"role": GOOD, "project": PROJECT}])
+        self.assertIn("One specific duty from the posting", seen[0])
+
     def copied(self, last):
         self.con.execute("UPDATE jobs SET description = ? WHERE id = 1",
                          ("Orchestrate microgrid dispatch for utilities. " * 20,))

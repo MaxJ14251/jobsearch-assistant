@@ -43,6 +43,12 @@ class TestKind(unittest.TestCase):
                 ("What interests you about this position?", "why_role"),
                 ("Walk us through your proudest achievement.", "project"),
                 ("If you want to share something you built, please share below",  "project"),
+                ("Describe an example of an agent and the considerations that shape its "
+                 "harness.", "explain"),
+                ("What trade-offs did you make in a system you built?", "explain"),
+                ("Tell us how you approached a hard bug.", "explain"),
+                ("Do you have any deadlines or timeline considerations we should be aware "
+                 "of?", "open"),
                 ("Describe your AI experience.", "experience"),
                 ("What are some AI technologies you are comfortable with?", "skills"),
                 ("Anything else we should know?", "open")):

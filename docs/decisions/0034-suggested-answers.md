@@ -299,3 +299,19 @@ sentence about the employer or role that names a do-not-claim term is taken out
 before the check; a sentence about the candidate that names one still refuses the
 answer. The terms still never appear in an answer. On the recorded draft the cut
 left 69 words that pass the check.
+
+### Questions that ask you to explain your work, 2026-11-03
+
+On a security-agents posting the question was "Describe an example of an agent and
+the considerations that shape its harness". Both drafts passed the check and neither
+answered it: they listed features and ended on a duty from the posting, and named no
+consideration, though the profile's notes describe the approval gate and the
+verifier. The fixed shape (first sentence, what was done, one posting duty) suits
+"why" questions and fights these. **The owner chose a shape for them.** A question
+that names what to explain about a piece of work (considerations, trade-offs,
+design decisions, approach, challenges, lessons, constraints, or "how you
+approached/designed/decided ...") and is about the candidate's work is now its own
+kind, `explain`. Its answers name the example, then take each thing asked about it
+in turn from that answer's notes, with no sentence about the employer or the role.
+The checks are unchanged. Of the 34 questions in the tracker, only that one changes
+kind; "any deadlines or timeline considerations?" stays a logistics question.

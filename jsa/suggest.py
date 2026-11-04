@@ -285,6 +285,9 @@ _ASKED = {
                   "experience, then the rest says what the candidate actually did.",
     "skills": "The question asks which tools: each first sentence names tools its notes "
               "name, then the rest says where the candidate uses them.",
+    "explain": "The question asks the candidate to explain a piece of work: each first "
+               "sentence names the example from that answer's notes, and the rest answers "
+               "each thing the question asks about it.",
     "open": "Answer exactly what is asked, from that answer's notes.",
 }
 _PLAIN = (" Don't borrow the question's own adjectives (\"proudest\", \"excited\", "
@@ -314,6 +317,7 @@ _ANGLES_FOR = {
     "why_company": ("company", "role"),
     "why_role": ("role", "project"),
     "project": ("project", "role"),
+    "explain": ("project", "role"),
     "experience": ("role", "project"),
     "skills": ("role", "project"),
     "open": ("role", "project"),
@@ -344,7 +348,18 @@ def _ask_split(items: list[listing.Material], company: str, kind: str, least: in
     target = target_words(least, most)
     short = most < _SHORT
     lines = [f'- "{i.angle}": {_KEY_LINE[i.angle]}.' for i in items]
-    if short:
+    if kind == "explain" and not short:
+        # The duty from the posting answered nothing here: asked about an agent's
+        # harness, both drafts listed features and ended on the posting, and
+        # neither named a consideration (Cohere, 2026-11-03; the owner's choice).
+        lines = [f'- "{i.angle}": built around one piece of work from its notes, not the '
+                 "other answer's." for i in items]
+        lines.append(
+            "Build each answer in this order. (1) The first sentence, as above. (2) Each "
+            "thing the question asks about that work, in turn, from that answer's notes "
+            "only: what the notes say was chosen or done and why. No sentence about the "
+            "employer or the role: the question is about the candidate's work.")
+    elif short:
         lines.append("This field is short: write only sentences about the candidate, "
                      "starting with \"I\" or \"My\", and no sentence about the employer.")
     elif MARK_UNSUPPORTED:

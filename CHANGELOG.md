@@ -37,6 +37,10 @@ version number lives in one place, `jsa/__init__.py`.
 - Suggested answers no longer end with a sentence on how your work prepares you
   for the role: on real forms it was the one that claimed things your profile
   doesn't say.
+- A question asking you to explain your work ("Describe an example of an
+  agent and the considerations that shape its harness") now gets answers that
+  cover what it asks about, from your notes, with no sentence about the
+  posting.
 - A sentence about the role that names something on your do-not-claim list
   ("This role requires ... C++") is now cut from a suggested answer instead of
   costing the whole answer. A sentence about you that names one still refuses

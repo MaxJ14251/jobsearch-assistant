@@ -39,6 +39,16 @@ _KINDS = (
     ("why_company", r"\bwhy\b.*\b(work|join|apply|applying)\b|\bwhy\s+" + _US + r"\b"
                     r"|\b(excites?|interests?|draws?|appeals?)\b.*\b" + _US + r"\b"
                     r"|\b(work|join)\b.*\b" + _US + r"\b.*\bwhy\b"),
+    # Asks what shaped a piece of work, not only for one: "Describe an example of
+    # an agent and the considerations that shape its harness" (2026-11-03). Only
+    # about work the candidate did: "any deadlines or timeline considerations?"
+    # is a question about logistics.
+    ("explain", r"(?=.*\b(describe|explain|walk|tell|share|example|you built|you made"
+                r"|did you|you faced)\b).*\b(considerations?|trade ?offs?|tradeoffs?"
+                r"|design decisions?|approach(es)?|challenges?|lessons?|constraints?"
+                r"|pitfalls?)\b"
+                r"|\bhow (you|did you|would you) (approached|approach|designed|design|decided"
+                r"|decide|handled|handle|solved|solve|chose|choose)\b"),
     ("skills", r"\b(technolog(y|ies)|tools?|languages?|frameworks?|tech stack|platforms?)\b"
                r".*\b" + _ME + r"\b|\b" + _ME + r"\b.*\b(technolog(y|ies)|tools?|languages?"
                r"|frameworks?|tech stack|platforms?)\b"),
@@ -58,7 +68,7 @@ def is_education(question: str) -> bool:
 
 
 def kind(question: str, company: str | None = None) -> str:
-    """why_role, why_company, skills, project, experience or open."""
+    """why_role, why_company, explain, skills, project, experience or open."""
     text = " ".join(re.sub(r"[^a-z0-9' ]+", " ", str(question or "").lower()
                            .replace("’", "'")).split())
     name = " ".join(re.sub(r"[^a-z0-9' ]+", " ", str(company or "").lower()).split())
