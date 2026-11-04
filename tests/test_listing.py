@@ -39,6 +39,9 @@ class TestKind(unittest.TestCase):
                 ("Why do you want to work at Riverton Grid?", "why_company"),
                 ("What excites you about Riverton Grid?", "why_company"),
                 ("Why us?", "why_company"),
+                ("In your own words, why are you interested in working at Riverton Grid "
+                 "as a Software Engineering Intern?", "why_company"),
+                ("Why are you interested in joining our team?", "why_company"),
                 ("Why do you want this role?", "why_role"),
                 ("What interests you about this position?", "why_role"),
                 ("Walk us through your proudest achievement.", "project"),

@@ -36,7 +36,10 @@ _US = r"(us|our|here|this company|the company|{company})"
 _KINDS = (
     ("why_role", r"\bwhy\b.*\b(role|position|job|opportunity)\b"
                  r"|\b(excites?|interests?|draws?|appeals?)\b.*\b(role|position|job|opportunity)\b"),
-    ("why_company", r"\bwhy\b.*\b(work|join|apply|applying)\b|\bwhy\s+" + _US + r"\b"
+    # "working": Riot's "why are you interested in working at Riot Games as a
+    # Software Engineering Intern?" read as an open question (2026-11-04).
+    ("why_company", r"\bwhy\b.*\b(work|working|join|joining|apply|applying)\b"
+                    r"|\bwhy\s+" + _US + r"\b"
                     r"|\b(excites?|interests?|draws?|appeals?)\b.*\b" + _US + r"\b"
                     r"|\b(work|join)\b.*\b" + _US + r"\b.*\bwhy\b"),
     # Asks what shaped a piece of work, not only for one: "Describe an example of
