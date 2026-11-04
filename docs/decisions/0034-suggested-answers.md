@@ -315,3 +315,27 @@ kind, `explain`. Its answers name the example, then take each thing asked about 
 in turn from that answer's notes, with no sentence about the employer or the role.
 The checks are unchanged. Of the 34 questions in the tracker, only that one changes
 kind; "any deadlines or timeline considerations?" stays a logistics question.
+
+### When the main model doesn't answer, 2026-11-04
+
+Of 19 presses on 2026-11-04, the first two used the main model; from 01:00 UTC
+it timed out on every call (35), the first backup timed out too (33), and a
+small backup model wrote the other 17. Its drafts put the prompt's
+instructions in as labels ("This role Own the technical win ...", "LangChain I
+co-architected ..."), said one sentence up to three times, and talked about the
+prompt ("My notes say ..."). One such answer passed the check. **The owner had
+these fixed.** Before the check, a label in front of "I" or "My" is taken off,
+so the sentence is checked as the claim it is; a label in front of a
+capitalized word is cut with its sentence; a sentence of six or more words
+that mostly repeats an earlier one is cut. Every option a backup model wrote
+says so in its note. Replayed on the saved drafts, the cuts changed 8 options
+and nothing else. These cuts only remove or shorten; the check is unchanged.
+
+The same night showed three questions sorted wrong. "Have you applied or
+interviewed here before?" is a yes or no only the candidate knows, so it gets
+no suggestions, like a start date. "Feel free to share any additional context
+... or interest in this role" leaves the subject open, so "anything else" and
+"additional context/information" are read as open whatever else they name. And
+"Which product are you most interested in working on?" asks to pick one
+thing: those answers may be 5 to 40 words, and get the short-field shape.
+The explain shape has not yet been tried on the main model.

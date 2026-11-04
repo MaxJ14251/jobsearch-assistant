@@ -33,6 +33,12 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Fixed
 
+- Suggested answers: "have you applied or interviewed here before?" gets no
+  suggestions; "anything else / additional context" questions are read as open;
+  "which product are you most interested in?" may be answered in a sentence;
+  labels from the prompt ("This role Own ...", "LangChain I ...") and sentences
+  said twice are taken out before the check; and an option written by a backup
+  model says so.
 - A suggested answer's note names every word it marked, not only the first
   eight.
 - The word check no longer marks "requires", or a number your profile states

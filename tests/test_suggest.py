@@ -527,5 +527,52 @@ class TestGuards(unittest.TestCase):
             self.assertNotIn(word, text)
 
 
+class TestWhatTheBackupModelWrote(Press):
+    """2026-11-04: the main model timed out from 01:00 on and a small backup
+    model wrote every draft: labels from the prompt, repeated sentences, and
+    ten-word answers to a question that wanted ten words."""
+
+    def test_a_label_before_i_is_taken_off_and_one_before_a_copied_line_is_cut(self):
+        text = ("Riverton Grid I sold replacement units to property managers. "
+                "This role Own the technical win in pre-sales. "
+                "My project Covered the assistant with tests. "
+                "Riverton Grid's team builds microgrids. This role involves support.")
+        self.assertEqual(suggest.drop_labels(text, "Riverton Grid"),
+                         "I sold replacement units to property managers. "
+                         "Riverton Grid's team builds microgrids. This role involves support.")
+
+    def test_a_sentence_said_again_is_cut_and_a_short_echo_stays(self):
+        once = "I sold fire alarm systems to residential and commercial clients."
+        text = f"{once} I want this role. {once} I am building a Python tool."
+        self.assertEqual(suggest.drop_repeats(text),
+                         f"{once} I want this role. I am building a Python tool.")
+
+    def test_a_question_asking_to_pick_one_thing_wants_a_short_answer(self):
+        question = "Which product are you most interested in working on?"
+        self.assertTrue(suggest.short_ask(question))
+        self.assertFalse(suggest.short_ask("What excites you about Riverton Grid?"))
+        self.assertEqual(suggest.bounds(None, short=True), (5, suggest.SHORT_MOST, None))
+        short = "I am most interested in the support tools, since I answer customers."
+        result, seen = self.press({"role": short, "project": short}, question=question)
+        self.assertEqual(result["options"][0]["text"], short)
+        self.assertIn("This field is short", seen[0])
+
+    def test_a_draft_from_a_backup_model_says_so(self):
+        def backup(prompt, **k):
+            return {"role": GOOD, "project": PROJECT}, Usage(model="small-30b", fell_back=True)
+
+        with mock.patch("jsa.suggest.llm.complete_json", side_effect=backup):
+            result = suggest.suggest(self.con, self.profile, self.job(),
+                                     "Anything else we should know?", None)
+        drafted = [o for o in result["options"] if o["source"] == "model"]
+        self.assertTrue(drafted)
+        for o in drafted:
+            self.assertIn("backup model (small-30b)", o["note"])
+
+    def test_the_main_models_draft_says_nothing_about_a_backup(self):
+        result, _ = self.press({"role": GOOD, "project": PROJECT})
+        self.assertNotIn("backup", json.dumps(result["options"]))
+
+
 if __name__ == "__main__":
     unittest.main()

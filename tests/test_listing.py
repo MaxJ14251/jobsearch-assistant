@@ -54,7 +54,10 @@ class TestKind(unittest.TestCase):
                  "of?", "open"),
                 ("Describe your AI experience.", "experience"),
                 ("What are some AI technologies you are comfortable with?", "skills"),
-                ("Anything else we should know?", "open")):
+                ("Anything else we should know?", "open"),
+                ("Feel free to share any additional context on your responses above or "
+                 "anything else you'd like us to know about your experience or interest in "
+                 "this role at Riverton Grid.", "open")):
             with self.subTest(question):
                 self.assertEqual(listing.kind(question, "Riverton Grid"), kind)
 
@@ -64,9 +67,13 @@ class TestKind(unittest.TestCase):
         self.assertFalse(listing.is_education("Tell us about a project you built"))
         for question in ("Where did you first hear about this role?",
                          "When are you available for full-time work?",
-                         "Do you have any deadlines we should know about?"):
+                         "Do you have any deadlines we should know about?",
+                         "Have you ever interviewed at Riverton Grid before?",
+                         "Have you previously applied to Riverton Grid?",
+                         "Have you previously worked for Riverton Grid?"):
             self.assertTrue(suggest.refused_topic(question), question)
-        for question in ("How did you learn Python?", "Tell us about a tight deadline you met"):
+        for question in ("How did you learn Python?", "Tell us about a tight deadline you met",
+                         "Have you ever worked with customers on an integration?"):
             self.assertIsNone(suggest.refused_topic(question), question)
 
 

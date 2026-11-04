@@ -70,7 +70,12 @@ REFUSED = re.compile(
     r"(start|begin|join)|earliest (start|available)|available to (start|begin)"
     r"|date available|notice period|availability"
     # Found on real forms, 2026-10-31: each got a paragraph about the job.
-    r"|when are you available|any deadlines|timeline considerations)\b", re.I)
+    r"|when are you available|any deadlines|timeline considerations"
+    # Whether you applied or interviewed before: a yes or no only you know.
+    # Asked "Have you ever interviewed at Anthropic before?", the model wrote
+    # "I want to join Anthropic because..." (2026-11-04).
+    r"|have you (ever )?(previously |already )?(applied|interviewed)"
+    r"|previously (been )?(employed|worked) (at|for|by))\b", re.I)
 
 # Leading words that don't change what is asked.
 _FILLER = re.compile(r"^(please |briefly |in a few sentences |tell us |in 2 3 sentences )+")
@@ -132,8 +137,8 @@ def clean_reason(text: str | None) -> str:
 def refused_topic(question: str) -> str | None:
     if REFUSED.search(question):
         return ("This one is yours to answer: salary, start date and availability, "
-                "demographic and \"how did you hear about us\" questions get no "
-                "suggestions.")
+                "demographic, \"how did you hear about us\" and \"have you applied "
+                "or interviewed here before\" questions get no suggestions.")
     return None
 
 
@@ -479,6 +484,56 @@ def drop_closer(text: str, profile: dict[str, Any], job: dict[str, Any],
     return text[:cut].rstrip() if cut > 0 else text
 
 
+# The backup model wrote the prompt's instructions in as labels: "LangChain I
+# co-architected...", "This role Own the technical win...", "My project
+# Covered the assistant..." (2026-11-04). One such answer passed the check.
+_LABELS = ("this role", "the role", "my project", "the project", "this job", "the job",
+           "my notes", "role", "project")
+
+
+def drop_labels(text: str, company: str | None) -> str:
+    """The answer with its label-led sentences mended or cut.
+
+    A label before "I" or "My" is taken off, so the sentence is checked as
+    the claim about the candidate it is. A label before a capitalized word
+    starts a line copied from somewhere with a heading stuck on: it is cut.
+    """
+    from . import subject
+    labels = sorted({*_LABELS, *([company.lower()] if company else [])}, key=len,
+                    reverse=True)
+    kept = []
+    for sentence in subject.split(text):
+        low = sentence.lower()
+        label = next((x for x in labels if low.startswith(x + " ")), None)
+        rest = sentence[len(label) + 1:].lstrip() if label else ""
+        if label and re.match(r"(I|My)\b", rest):
+            sentence = rest
+        elif label and re.match(r"[A-Z][a-z]+\b(?!')", rest):
+            continue
+        kept.append(sentence)
+    return " ".join(kept)
+
+
+REPEAT_SHARE = 0.8           # share of the shorter sentence's words in common
+REPEAT_MIN = 6               # words; "I want this role." may echo a longer opening
+
+
+def drop_repeats(text: str) -> str:
+    """The answer with sentences that say an earlier one again cut: the
+    backup model wrote one sentence three times in an answer (2026-11-04)."""
+    from . import subject
+    kept: list[str] = []
+    seen: list[set[str]] = []
+    for sentence in subject.split(text):
+        words = set(_words(sentence).split())
+        if len(sentence.split()) >= REPEAT_MIN and any(len(words & w) >= REPEAT_SHARE * min(len(words), len(w))
+                         for w in seen):
+            continue
+        seen.append(words)
+        kept.append(sentence)
+    return " ".join(kept)
+
+
 def drop_unclaimable(text: str, profile: dict[str, Any], job: dict[str, Any],
                      posting_text: str) -> str:
     """The answer without its sentences about the employer that name a
@@ -511,7 +566,7 @@ def build(job: dict[str, Any], profile: dict[str, Any], bullets: list[Any], ques
     from .tailor import collect_bullets
 
     split = answers.SUBJECT_AWARE if split is None else split
-    least, most, max_chars = bounds(maxlength)
+    least, most, max_chars = bounds(maxlength, short=split and short_ask(question))
     company = job.get("company") or "the company"
     chars = f", under {max_chars} characters" if max_chars else ""
     if split:
@@ -638,13 +693,31 @@ def _fence(text: str) -> str:
     return str(text or "").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def bounds(maxlength: int | None) -> tuple[int, int, int | None]:
-    """Word bounds, tightened to fit a field that caps its characters."""
+# Asks to pick one thing: "Which product are you most interested in working
+# on?" (Riot, 2026-11-04). Every draft was 10 words, rightly, and the 40-word
+# minimum dropped them all.
+SHORT_ASK = re.compile(
+    r"^(which|what) (\w+ ){0,2}(products?|teams?|games?|areas?|offices?|locations?"
+    r"|departments?|tracks?|groups?)\b.*\b(most|interested|prefer|like)\b", re.I)
+SHORT_MOST = 40              # words, for a question asking to pick one thing
+
+
+def short_ask(question: str | None) -> bool:
+    return bool(SHORT_ASK.search(" ".join(str(question or "").split())))
+
+
+def bounds(maxlength: int | None, short: bool = False) -> tuple[int, int, int | None]:
+    """Word bounds, tightened to fit a field that caps its characters, or a
+    question asking to pick one thing."""
     if not maxlength or maxlength <= 0:
-        return answers.MIN_WORDS, answers.MAX_WORDS, None
-    most = max(min(answers.MAX_WORDS, maxlength // 7), 8)
-    least = min(answers.MIN_WORDS, max(most // 2, 5))
-    return least, most, maxlength
+        least, most, cap = answers.MIN_WORDS, answers.MAX_WORDS, None
+    else:
+        most = max(min(answers.MAX_WORDS, maxlength // 7), 8)
+        least, cap = min(answers.MIN_WORDS, max(most // 2, 5)), maxlength
+    if short:
+        most = min(most, SHORT_MOST)
+        least = min(least, 5)
+    return least, most, cap
 
 
 def _ordered(bullets: list[Any]) -> list[Any]:
@@ -742,10 +815,10 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
     from .letter import checked_sentences
     from .tailor import scrub_prompt
 
-    least, most, max_chars = bounds(maxlength)
+    split = answers.SUBJECT_AWARE
+    least, most, max_chars = bounds(maxlength, short=split and short_ask(question))
     job = {k: job.get(k) for k in ("id", "title", "company", "location", "track",
                                    "description")}           # never the question
-    split = answers.SUBJECT_AWARE
     if split and reason:
         job["own_words"] = reason
     # With the switch off the company angle is composed only (ADR 0027), so
@@ -779,7 +852,8 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
 
     def trim(text: str) -> str:
         """Sentences taken out before the check, when marking."""
-        text = drop_unclaimable(text, profile, job, posting_text)
+        text = drop_repeats(drop_labels(text, job.get("company")))
+        text = drop_unclaimable(text, profile, job, posting_text) if text else text
         return drop_closer(text, profile, job, posting_text) if text else text
 
     def blocking(found_here: list[str]) -> list[str]:
@@ -803,11 +877,14 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
     drafted: dict[str, str] = {}
     found: dict[str, list[str]] = {}
     model, failure = "", ""
+    backup = ""                  # the model that answered, when it wasn't the first
     try:
         data, usage = llm.complete_json(prompt, system=system, models=models,
                                         purpose="suggest", max_tokens=900,
                                         temperature=0.4, thinking=False, attempts=2)
         model = usage.model or ""
+        if usage.fell_back:
+            backup = model
         drafted = {k: " ".join(str((data if isinstance(data, dict) else {}).get(k) or "")
                                .split()) for k in drafted_angles}
         if marking:
@@ -819,9 +896,11 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
         if refused:
             retry = retry_text(prompt, drafted, refused, profile, job, posting_text, split)
             scrub_prompt(retry, profile)
-            again, _ = llm.complete_json(retry, system=system, models=models,
+            again, retried = llm.complete_json(retry, system=system, models=models,
                                          purpose="suggest", max_tokens=900,
                                          temperature=0.3, thinking=False, attempts=2)
+            if retried.fell_back:
+                backup = backup or retried.model or "a backup model"
             if isinstance(again, dict):
                 for k in refused:
                     text = " ".join(str(again.get(k) or "").split())
@@ -876,7 +955,7 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
                 dropped.append({"angle": ANGLES[angle], "text": draft,
                                 "why": "the same text as another option"})
         if answered:
-            return answered, model
+            return backed_up(answered, backup), model
         why = failure or "; ".join(p[0] for p in found.values() if p) or "no answer came back"
         body = starting_point(profile, job, bullets, max_chars)
         if not body:
@@ -926,7 +1005,22 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
         out.append({"angle": ANGLES[angle], "text": body, "source": "composed", "note": note})
     order = ["about the role", "about your project", "about the company"]
     out.sort(key=lambda o: order.index(o["angle"]))
-    return out, model
+    return backed_up(out, backup), model
+
+
+def backed_up(opts: list[dict[str, Any]], backup: str) -> list[dict[str, Any]]:
+    """Drafts a backup model wrote, said so: the main model timed out on every
+    press after 01:00 on 2026-11-04, and the small one that answered wrote
+    labels, repeats and two-word answers nobody could tell apart from the
+    main model's."""
+    if not backup:
+        return opts
+    for o in opts:
+        if o.get("source") == "model":
+            o["backup"] = backup
+            o["note"] = (o.get("note", "") + f" Written by a backup model ({backup}) because "
+                         "the main model didn't answer, so read it closely.").strip()
+    return opts
 
 
 # --- earlier answers -------------------------------------------------------------------

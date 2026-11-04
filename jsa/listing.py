@@ -70,10 +70,20 @@ def is_education(question: str) -> bool:
     return bool(_EDUCATION.search(question or ""))
 
 
+# Leaves the subject to the candidate, whatever else it names: "Feel free to
+# share any additional context ... or anything else you'd like us to know about
+# your experience or interest in this role at LangChain" read as a
+# why-this-role question (2026-11-04).
+_OPEN_FIRST = re.compile(r"\b(anything else|additional (context|information|comments|details)"
+                         r"|feel free to share|is there anything)\b")
+
+
 def kind(question: str, company: str | None = None) -> str:
     """why_role, why_company, explain, skills, project, experience or open."""
     text = " ".join(re.sub(r"[^a-z0-9' ]+", " ", str(question or "").lower()
                            .replace("’", "'")).split())
+    if _OPEN_FIRST.search(text):
+        return "open"
     name = " ".join(re.sub(r"[^a-z0-9' ]+", " ", str(company or "").lower()).split())
     for found, pattern in _KINDS:
         if re.search(pattern.replace("{company}", re.escape(name) if name else "\0"), text):

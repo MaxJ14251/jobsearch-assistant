@@ -195,7 +195,10 @@
     "|start date|when (would|could|can|will) you (be able to |be available to )?" +
     "(start|begin|join)|earliest (start|available)|available to (start|begin)" +
     "|date available|notice period|availability" +
-    "|when are you available|any deadlines|timeline considerations)\\b", "i");
+    "|when are you available|any deadlines|timeline considerations" +
+    // Whether you applied or interviewed before (jsa/suggest.py says why).
+    "|have you (ever )?(previously |already )?(applied|interviewed)" +
+    "|previously (been )?(employed|worked) (at|for|by))\\b", "i");
 
   // Answered from the profile, a yes/no, a file, or never: not a question to
   // write an answer to.
