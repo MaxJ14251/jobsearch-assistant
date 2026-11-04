@@ -191,6 +191,21 @@ class TestOptions(Press):
                                "ORDER BY id DESC").fetchone()
         self.assertIsNone(row["dropped_json"])
 
+    def test_a_sentence_about_the_role_naming_a_do_not_claim_term_is_cut(self):
+        # Job 357, 2026-11-03: "This role requires ... C or C++" cost the whole answer.
+        result, seen = self.press([{"role": GOOD + " This role requires Kubernetes.",
+                                    "project": PROJECT}])
+        self.assertEqual(self.by_angle(result)["about the role"]["text"], GOOD)
+        self.assertEqual(len(seen), 1)                    # no retry spent on it
+
+    def test_a_sentence_about_you_naming_a_do_not_claim_term_still_refuses(self):
+        claim = GOOD + " I run Kubernetes clusters."
+        result, _ = self.press([{"role": claim, "project": PROJECT}] * 2)
+        self.assertNotIn("about the role", self.by_angle(result))
+        row = self.con.execute("SELECT dropped_json FROM suggest_requests "
+                               "ORDER BY id DESC").fetchone()
+        self.assertIn("do-not-claim", json.loads(row["dropped_json"])[0]["why"])
+
     def copied(self, last):
         self.con.execute("UPDATE jobs SET description = ? WHERE id = 1",
                          ("Orchestrate microgrid dispatch for utilities. " * 20,))

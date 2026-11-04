@@ -464,6 +464,28 @@ def drop_closer(text: str, profile: dict[str, Any], job: dict[str, Any],
     return text[:cut].rstrip() if cut > 0 else text
 
 
+def drop_unclaimable(text: str, profile: dict[str, Any], job: dict[str, Any],
+                     posting_text: str) -> str:
+    """The answer without its sentences about the employer that name a
+    do-not-claim term ("This role requires ... C or C++").
+
+    The check refuses those terms in every sentence, so one such line about
+    the posting cost the whole answer and a paid retry that named it again
+    (job 357, 2026-11-03); the owner had just that sentence cut. A sentence
+    about the candidate naming one still refuses the answer.
+    """
+    from .letter import checked_sentences
+    from .tailor import do_not_claim, term_pattern
+    terms = [t for t in do_not_claim(profile) if t]
+    if not terms:
+        return text
+    for s in checked_sentences(text, profile, job, posting_text or ""):
+        if s["kind"] == "employer" and any(term_pattern(t).search(s["text"].lower())
+                                           for t in terms):
+            text = text.replace(s["text"], "", 1)
+    return " ".join(text.split())
+
+
 def build(job: dict[str, Any], profile: dict[str, Any], bullets: list[Any], question: str,
           *, maxlength: int | None = None, angles: tuple[str, ...] | None = None,
           split: bool | None = None, reason: str = "") -> tuple[str, str, str]:
@@ -740,6 +762,11 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
 
     marking = split and MARK_UNSUPPORTED
 
+    def trim(text: str) -> str:
+        """Sentences taken out before the check, when marking."""
+        text = drop_unclaimable(text, profile, job, posting_text)
+        return drop_closer(text, profile, job, posting_text) if text else text
+
     def blocking(found_here: list[str]) -> list[str]:
         """What leaves an answer out. Marking, word problems are shown instead."""
         if not marking:
@@ -769,8 +796,7 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
         drafted = {k: " ".join(str((data if isinstance(data, dict) else {}).get(k) or "")
                                .split()) for k in drafted_angles}
         if marking:
-            drafted = {k: drop_closer(v, profile, job, posting_text) if v else v
-                       for k, v in drafted.items()}
+            drafted = {k: trim(v) if v else v for k, v in drafted.items()}
         found = {k: problems(k, v) for k, v in drafted.items()}
         if split:
             mark_repeats()
@@ -785,7 +811,7 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
                 for k in refused:
                     text = " ".join(str(again.get(k) or "").split())
                     if text and marking:
-                        text = drop_closer(text, profile, job, posting_text)
+                        text = trim(text)
                     if text:
                         drafted[k] = text
                         found[k] = problems(k, text)

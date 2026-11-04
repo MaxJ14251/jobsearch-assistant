@@ -37,6 +37,10 @@ version number lives in one place, `jsa/__init__.py`.
 - Suggested answers no longer end with a sentence on how your work prepares you
   for the role: on real forms it was the one that claimed things your profile
   doesn't say.
+- A sentence about the role that names something on your do-not-claim list
+  ("This role requires ... C++") is now cut from a suggested answer instead of
+  costing the whole answer. A sentence about you that names one still refuses
+  it.
 - A suggested answer the check leaves out is now kept in the tracker with its
   text and the reason, so a missing option can be explained.
 - Suggested answers no longer end with a duty copied from the posting with no

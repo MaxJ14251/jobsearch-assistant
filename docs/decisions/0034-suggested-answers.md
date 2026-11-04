@@ -287,3 +287,15 @@ sentence that has no subject, says things the profile doesn't, and takes at leas
 whose words aren't from the posting stays, marked. On the stored drafts from both
 OpenAI forms the cut removed that line and still removed the 8 closing sentences of
 2026-11-02, and nothing else.
+
+### A do-not-claim term in a sentence about the role, 2026-11-03
+
+With dropped drafts now recorded, the "about the role" answer missing on the Host
+Systems form had one cause: its last sentence, "This role requires strong
+programming skills in C or C++, ...", named a do-not-claim term. The check refuses
+those terms in every sentence, whoever it is about, so the whole answer went, after
+a paid retry that named it again. **The owner had just that sentence cut.** A
+sentence about the employer or role that names a do-not-claim term is taken out
+before the check; a sentence about the candidate that names one still refuses the
+answer. The terms still never appear in an answer. On the recorded draft the cut
+left 69 words that pass the check.
