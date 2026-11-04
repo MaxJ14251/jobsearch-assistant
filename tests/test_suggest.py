@@ -574,5 +574,31 @@ class TestWhatTheBackupModelWrote(Press):
         self.assertNotIn("backup", json.dumps(result["options"]))
 
 
+class TestLastShown(Press):
+    """A reloaded page or a restarted dashboard shows the last press's options
+    again, with no model call (2026-11-04)."""
+    Q = "What excites you about Riverton Grid?"
+
+    def earlier(self, url=GREENHOUSE):
+        with mock.patch("jsa.suggest.llm.complete_json") as call:
+            r = self.post("/ext/suggest/earlier", {"url": url, "question": [self.Q],
+                                                   "maxlength": [""]}).json()
+        call.assert_not_called()
+        return r
+
+    def test_the_last_press_comes_back_as_it_was_and_costs_nothing(self):
+        self.assertEqual(self.earlier()["last"], {})
+        first, _ = self.press({"role": GOOD, "company": COMPANY}, question=self.Q)
+        second, _ = self.press({"role": COMPANY, "company": GOOD}, question=self.Q)
+        r = self.earlier()
+        self.assertEqual(r["last"][self.Q]["options"], second["options"])
+        self.assertTrue(r["last"][self.Q]["at"])
+        self.assertEqual(r["left_today"], suggest.SUGGEST_DAILY - 2)
+
+    def test_another_question_gets_nothing(self):
+        self.press({"role": GOOD, "company": COMPANY}, question="Why do you want this role?")
+        self.assertEqual(self.earlier()["last"], {})
+
+
 if __name__ == "__main__":
     unittest.main()

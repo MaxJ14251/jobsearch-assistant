@@ -132,6 +132,13 @@
       .map((q) => [q.question, [{ angle: "you answered this before", source: "yours",
         note: "your own words, for Acme Fictional, 2026-10-01",
         text: "The ticket I'm proudest of was a billing bug I traced end to end. (Fictional.)" }]])),
+    // The last press's options, shown again with no model call (2026-11-04).
+    last: Object.fromEntries((m.questions || [])
+      .filter((q) => /excites/i.test(q.question))
+      .map((q) => [q.question, { at: "2026-11-04T01:52:22Z", options: [
+        { angle: "about the role", source: "model", note: "drafted and checked",
+          text: "I want this support role because I answer customers' hardest questions. " +
+                "(Fictional, from an earlier press.)" }] }])),
   });
   // What this tab filled (plan 36), kept across the fixture pages.
   SESSION.fill_memory_set = (m) => {

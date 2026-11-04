@@ -305,15 +305,16 @@ def register(app, ctx) -> None:
     @app.post("/ext/suggest/earlier")
     def ext_suggest_earlier(url: str = Form(""), question: list[str] = Form([]),
                             maxlength: list[str] = Form([])):
-        """Answers you gave before to these questions, and how many
-        suggestions are left today. Reads only; no model."""
+        """Answers you gave before to these questions, the options the last
+        press for each showed, and how many suggestions are left today. Reads
+        only; no model."""
         from .. import suggest
         prof = profile() or {}
         con = connect()
         try:
             job, refusal = applying_to(con, url)
             left = suggest.left_today(con, prof)
-            found = {}
+            found, last = {}, {}
             if not refusal:
                 for i, raw in enumerate(question[:40]):
                     try:
@@ -326,9 +327,12 @@ def register(app, ctx) -> None:
                     hits = suggest.earlier(con, q, prof, job, cap)
                     if hits:
                         found[raw] = hits
+                    shown = suggest.last_shown(con, q, job)
+                    if shown:
+                        last[raw] = shown
             return {"state": refusal["state"] if refusal else "ok",
                     "left_today": left, "limit": suggest.daily_limit(prof),
-                    "earlier": found, "note": suggest.panel_note()}
+                    "earlier": found, "last": last, "note": suggest.panel_note()}
         finally:
             con.close()
 

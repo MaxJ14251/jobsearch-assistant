@@ -339,3 +339,11 @@ no suggestions, like a start date. "Feel free to share any additional context
 "Which product are you most interested in working on?" asks to pick one
 thing: those answers may be 5 to 40 words, and get the short-field shape.
 The explain shape has not yet been tried on the main model.
+
+The same night the dashboard was restarted twice, and the panel, which keeps
+options only on the page, lost all 19 presses' options, though the tracker had
+every one. **The owner had them shown again.** When the panel opens, each
+question shows the options its last press for this job showed, as they were,
+with the time, at no cost: read from `suggest_requests`, no model call, not
+checked again. Seeing them again is not a new suggestion and does not count
+against the limit.

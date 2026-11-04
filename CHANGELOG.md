@@ -33,6 +33,8 @@ version number lives in one place, `jsa/__init__.py`.
 
 ### Fixed
 
+- The extension's panel shows the last suggestions for each question on
+  the form again, at no cost, after a reload or a dashboard restart.
 - Suggested answers: "have you applied or interviewed here before?" gets no
   suggestions; "anything else / additional context" questions are read as open;
   "which product are you most interested in?" may be answered in a sentence;

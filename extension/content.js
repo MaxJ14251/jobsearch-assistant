@@ -732,6 +732,13 @@
     for (const q of openQuestions) await suggestFor(q);
   }
 
+  // "2026-11-04T01:52:22Z" as the reader's own date and time.
+  function whenShown(at) {
+    const date = new Date(String(at || ""));
+    return isNaN(date) ? "earlier" : date.toLocaleString([], { month: "short", day: "numeric",
+                                                             hour: "numeric", minute: "2-digit" });
+  }
+
   async function loadEarlier() {
     let answer;
     try {
@@ -748,9 +755,19 @@
     }
     for (const q of openQuestions) {
       const hits = (answer.earlier || {})[q.label] || [];
-      if (!hits.length || q.box.childElementCount) continue;
-      q.box.replaceChildren(el("p", { className: "meta", textContent: "You answered this before:" }),
-                            ...hits.map((o) => card(q, o)));
+      const last = (answer.last || {})[q.label];
+      const shown = last && Array.isArray(last.options) ? last.options : [];
+      if ((!hits.length && !shown.length) || q.box.childElementCount) continue;
+      const parts = [];
+      if (shown.length) {
+        parts.push(el("p", { className: "meta", textContent: "Your last suggestions (" +
+          whenShown(last.at) + "), shown again at no cost:" }), ...shown.map((o) => card(q, o)));
+      }
+      if (hits.length) {
+        parts.push(el("p", { className: "meta", textContent: "You answered this before:" }),
+                   ...hits.map((o) => card(q, o)));
+      }
+      q.box.replaceChildren(...parts);
     }
   }
 

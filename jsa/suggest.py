@@ -1073,6 +1073,30 @@ def earlier(con: sqlite3.Connection, question: str, profile: dict[str, Any],
     return out
 
 
+def last_shown(con: sqlite3.Connection, question: str,
+               job: dict[str, Any]) -> dict[str, Any] | None:
+    """The options this job's last press for this question showed, as they
+    were, so a reloaded page or a restarted dashboard doesn't cost a paid
+    call to see them again (2026-11-04: 19 presses' options were gone from
+    the panel after two restarts). Read only; no model."""
+    if not job.get("id"):
+        return None
+    try:
+        row = con.execute("SELECT requested_at, options_json FROM suggest_requests "
+                          "WHERE job_id = ? AND question_key = ? ORDER BY id DESC LIMIT 1",
+                          (job["id"], question_key(question, job.get("company")))).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    if not row:
+        return None
+    try:
+        shown = json.loads(row[1] or "[]")
+    except ValueError:
+        return None
+    shown = [o for o in shown if isinstance(o, dict) and o.get("text")]
+    return {"at": row[0], "options": shown} if shown else None
+
+
 def remember(con: sqlite3.Connection, question: str, body: str, source: str,
              job: dict[str, Any]) -> int:
     """Keep the answer the person submitted, for the same question later.

@@ -79,8 +79,9 @@ from: one about the role, one about a project of yours, one about the
 company. Most are drafted and checked: what they say about you against
 your profile, what they say about the employer against the posting. The rest
 are made from your own sentences, and each says which. **Use this** puts it in the field for you to
-edit; nothing goes in by itself. Each Suggest is one model call, up to 20 a
-day. Salary and demographic questions are never suggested. When you press
+edit; nothing goes in by itself. Each Suggest is one model call, up to 20 in
+any 24 hours. The last suggestions for a question on this job come back
+when you open the form again, with no new call. Salary and demographic questions are never suggested. When you press
 **I submitted this**, what you wrote is kept and offered again the next time
 a form asks the same question. Why it works this way:
 [ADR 0034](../docs/decisions/0034-suggested-answers.md).
