@@ -152,6 +152,27 @@ class TestWhenItDoesNotDraft(Prepare):
         self.assertEqual(self.status(2), "saved")
 
 
+class TestAgainAfterDenying(Prepare):
+    """2026-11-04: a resume denied in the panel can be drafted again there."""
+
+    def test_a_waiting_resume_is_not_drafted_again(self):
+        self.doc(approve=False)
+        body = self.press(GREENHOUSE).json()
+        self.assertEqual(body["state"], "exists")
+        self.assertEqual(self.drafts, [])
+
+    def test_a_denied_resume_is_drafted_again(self):
+        from jsa import approvals
+        doc = self.doc(approve=False)
+        approval = self.con.execute("SELECT id FROM approvals WHERE subject_id = ?",
+                                    (doc,)).fetchone()[0]
+        approvals.reject(self.con, approval, "wrong project")
+        self.con.commit()
+        body = self.press(GREENHOUSE).json()
+        self.assertEqual(body["state"], "drafted", body)
+        self.assertEqual(self.drafts, [(1, "resume", True)])
+
+
 class TestItNeverApproves(Prepare):
     def test_no_approval_and_no_application_recorded(self):
         self.give_text(2)
@@ -184,7 +205,9 @@ class TestOnlyFromTheButton(unittest.TestCase):
         self.assertIn('type: "prepare"', body_of(self.source, "prepareJob"))
         wired = re.findall(r"button\([^;]*?,\s*prepareJob\)", self.source)
         calls = re.findall(r"(?<![.\w])prepareJob\s*\(", self.source)
-        self.assertEqual(len(wired), 1)
+        # Three buttons (2026-11-04): a job not saved yet, a saved one with no
+        # resume, and after you deny a resume.
+        self.assertEqual(len(wired), 3)
         self.assertEqual(len(calls), 1)            # its definition only
 
     def test_the_background_sends_only_the_page_address_and_the_confirm(self):

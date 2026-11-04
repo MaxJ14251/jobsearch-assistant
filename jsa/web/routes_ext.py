@@ -121,9 +121,14 @@ def register(app, ctx) -> None:
                                (job_id, kind)).fetchall()
             statuses = [(r, document_status(con, r["id"])[0]) for r in rows]
             approved = [r for r, s in statuses if s == "approved"]
-            pick = approved[0] if approved else (rows[0] if rows else None)
+            # Never a draft you denied (2026-11-04: the panel can deny one).
+            usable = [r for r, s in statuses if s != "rejected"]
+            pick = approved[0] if approved else (usable[0] if usable else None)
             if pick is None:
                 out[kind] = None
+                if rows:
+                    warnings.append(f"You denied the last {kind.replace('_', ' ')} "
+                                    "drafted for this job.")
                 continue
             out[kind] = {"id": pick["id"], "version": pick["version"],
                          "filename": str(pick["path"] or "").replace("\\", "/").rsplit("/", 1)[-1],
@@ -135,7 +140,8 @@ def register(app, ctx) -> None:
             elif any(s == "pending" and r["version"] > pick["version"] for r, s in statuses):
                 warnings.append(f"A newer {label} draft is waiting in Review; this "
                                 f"fills the approved v{pick['version']}.")
-        if out.get("resume") is None:
+        if out.get("resume") is None and not any("denied the last resume" in w
+                                                 for w in warnings):
             warnings.append("No resume drafted for this job yet.")
         return {"documents": out, "warnings": warnings}
 
@@ -174,6 +180,7 @@ def register(app, ctx) -> None:
                 return {"state": "no_profile", "job": summary,
                         "message": "No profile: run `jsa init` and fill it in."}
             docs = documents_for(con, job_id)
+            left = drafts_left(con, prof)
             try:
                 written = answers.stored(con, job_id)
             except sqlite3.OperationalError:          # an older tracker: no table yet
@@ -214,6 +221,7 @@ def register(app, ctx) -> None:
                          "source": a.source} for a in written],
             "documents": docs["documents"],
             "warnings": warnings,
+            "drafts_left": left,
         }
 
     @app.get("/ext/queue")
@@ -368,6 +376,81 @@ def register(app, ctx) -> None:
             con.close()
         result["review_url"] = "/review"
         return result
+
+    # --- reading and deciding a draft in the panel (2026-11-04) ---------------------
+    # The owner asked to approve or deny from the panel instead of switching to
+    # Review. The panel shows the draft's text and what the check flagged
+    # first; a decision is your button press and calls exactly what Review's
+    # buttons and `jsa approve` / `jsa reject` call (ADR 0003 decision 5).
+
+    def waiting_for(con: sqlite3.Connection, job_id: int, prof: dict | None) -> list[dict]:
+        rows = con.execute(
+            "SELECT a.id AS approval_id, d.* FROM approvals a JOIN documents d "
+            "ON d.id = a.subject_id WHERE a.subject_type = 'document' "
+            "AND a.decision = 'pending' AND d.job_id = ? "
+            "ORDER BY d.kind DESC, d.version DESC", (job_id,)).fetchall()
+        out = []
+        for r in rows:
+            info = ctx.inspect_document(r, prof)
+            flags = [info["problem"]] if info.get("problem") else []
+            for b in (info.get("compare") or {}).get("bullets") or []:
+                if b["status"] in ("flag", "unsourced"):
+                    flags.append(f"{b['note']}: {b['text'][:120]}")
+            summary = (info.get("compare") or {}).get("summary")
+            if summary and summary["status"] == "flag":
+                flags.append("the summary adds words your profile does not support")
+            flags += [str(p) for p in ((info.get("letter") or {}).get("problems") or [])]
+            out.append({"approval_id": r["approval_id"], "document_id": r["id"],
+                        "kind": r["kind"], "version": r["version"],
+                        "paragraphs": [p["text"] for p in info.get("paragraphs") or []][:200],
+                        "flags": flags})
+        return out
+
+    @app.get("/ext/review")
+    def ext_review(url: str = ""):
+        """Drafts for this page's job that wait for your decision. Reads only."""
+        con = connect()
+        try:
+            job, refusal = applying_to(con, url)
+            if refusal:
+                return refusal
+            return {"state": "ok", "waiting": waiting_for(con, job["id"], profile())}
+        finally:
+            con.close()
+
+    @app.post("/ext/decide")
+    def ext_decide(url: str = Form(""), approval_id: int = Form(...),
+                   decision: str = Form(""), confirm: str = Form(""),
+                   feedback: str = Form(""), reason: str = Form("")):
+        """Your Approve or Deny button in the panel. Only a draft of this
+        page's job that is still waiting; nothing is decided without the
+        panel's confirm."""
+        if confirm != "decide" or decision not in ("approve", "reject"):
+            return JSONResponse({"ok": False, "error": "Nothing decided: the request was "
+                                 "not confirmed from the panel's button."}, status_code=400)
+        con = connect()
+        try:
+            job, refusal = applying_to(con, url)
+            if refusal:
+                return JSONResponse({"ok": False, "error": refusal["message"]},
+                                    status_code=400)
+            mine = {w["approval_id"] for w in waiting_for(con, job["id"], None)}
+            if approval_id not in mine:
+                return JSONResponse({"ok": False, "error": "Nothing decided: that draft "
+                                     "is not one of this job's waiting drafts."},
+                                    status_code=400)
+            if decision == "approve":
+                approvals.approve(con, approval_id)
+            else:
+                approvals.reject(con, approval_id, feedback.strip()[:2000]
+                                 or "Denied from the extension's panel.", reason or None)
+            con.commit()
+        except approvals.ApprovalError as exc:
+            return JSONResponse({"ok": False, "error": f"Nothing decided: {exc}"},
+                                status_code=400)
+        finally:
+            con.close()
+        return {"ok": True, "decision": decision}
 
     @app.get("/ext/document/{document_id}")
     def ext_document(document_id: int):

@@ -293,3 +293,25 @@ form: Lever, and the apply session that walks several jobs in a row.
   which the first fix (08a1a7b) didn't cover; fixed in e1ace55. Nothing was
   submitted twice. Two applications were left at "saved" that way; the owner
   moves them back.
+
+## Approving in the panel, 2026-11-04
+
+**The owner reversed "Approval stays in the dashboard."** The panel now offers
+**Draft a resume** on a saved job with no resume (the same `/ext/prepare`), and
+shows any draft of this page's job that waits for a decision: what the check
+flagged, then the draft's own text under **Read it**, then **Approve** and
+**Deny** (`GET /ext/review`, `POST /ext/decide`). The concern the old rule
+answered, an unread resume approved with one click, is met by putting the
+text and the flags above the buttons and by a confirm on each ("Approve it
+only if you have read it and it says nothing that isn't true of you").
+
+- A decision calls `approvals.approve` / `approvals.reject`, exactly what
+  Review's buttons and `jsa approve` / `jsa reject` call (ADR 0003 decision
+  5); it is the person's press, sent only from those two buttons after the
+  confirm (`tests/test_ext_decide.py` reads `content.js`), with
+  `confirm=decide` and the page address from Chrome.
+- Only a waiting draft of the job whose application page asked; a decided
+  one is not decided again. A deny without a reason is recorded as "Denied
+  from the extension's panel."
+- A denied resume is never filled into a form (`/ext/fill` skips it and says
+  so), and `/ext/prepare` drafts a new version when the newest was denied.

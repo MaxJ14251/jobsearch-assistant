@@ -149,6 +149,27 @@ const HANDLERS = {
     return body;
   },
 
+  // --- reading and deciding a draft (2026-11-04) ---------------------------------
+  // The drafts this page's job waits on, to read in the panel; and your
+  // Approve or Deny, sent only from those buttons, after you confirm.
+  async review(message, sender) {
+    const url = (sender && sender.url) || "";
+    return (await json("/ext/review?url=" + encodeURIComponent(url))).body;
+  },
+  async decide(message, sender) {
+    const form = new URLSearchParams();
+    form.set("url", (sender && sender.url) || "");
+    form.set("approval_id", String(Number(message.approval_id)));
+    form.set("decision", message.decision === "approve" ? "approve" : "reject");
+    form.set("confirm", message.confirm === "decide" ? "decide" : "");
+    form.set("feedback", String(message.feedback || "").slice(0, 2000));
+    return (await json("/ext/decide", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    })).body;
+  },
+
   // --- suggested answers (plan 35) --------------------------------------------
   // Only a question's own label text goes, capped; never the page's markup
   // or any other field. One "suggest" is one paid model call: the panel sends

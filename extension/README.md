@@ -40,9 +40,14 @@ On an application page for a job that isn't in your tracker, or that you
 haven't saved, **Fill this application** offers **Add, save and draft a
 resume** instead. One press reads the posting from the board's own API (never
 from the page), saves the job and drafts one resume: one model call, at most
-10 a day (`extension.daily_drafts` in your profile). It never approves: read
-and approve the resume in the dashboard's Review, then reload the page and
-fill. A posting with almost no text is saved but not drafted.
+10 a day (`extension.daily_drafts` in your profile). A posting with almost no
+text is saved but not drafted.
+
+A saved job with no resume gets a **Draft a resume** button in the panel after
+you fill. A draft waiting for you shows in the panel with what the check
+flagged and its full text under **Read it**; **Approve** and **Deny** (with an
+optional reason) each ask you to confirm, and record the same decision Review
+does. A denied resume is never filled into a form, and can be drafted again.
 
 ## Record it as applied
 

@@ -847,6 +847,15 @@
       forYou.push("Questions answered with Yes/No buttons: this never clicks anything on the page.");
     }
     if (forYou.length) parts.push(note("warn", "Needs you", forYou));
+    if (!(d.documents && d.documents.resume)) {
+      parts.push(el("div", { className: "note warn" }, [
+        el("strong", { textContent: "No resume to attach" }),
+        el("p", { className: "meta", textContent: "Drafting one is one model call" +
+          (typeof d.drafts_left === "number" ? " (" + d.drafts_left + " left today)" : "") +
+          ". You read it here and approve or deny it." }),
+        button("Draft a resume", prepareJob)]));
+    }
+    parts.push(draftsSection());
     parts.push(...questionsSection());
     if (filled.length) {
       parts.push(el("details", {}, [
@@ -884,19 +893,102 @@
   }
 
   async function prepareJob() {
-    show([el("p", { textContent: "Adding, saving and drafting a resume. This can take " +
-                                 "up to a minute…" })]);
+    show([el("p", { textContent: "Drafting a resume. This can take up to a minute…" })]);
     try {
       const answer = await ask({ type: "prepare", confirm: "draft" });
       const parts = [el("p", { textContent: answer.message || "Nothing was done." })];
-      if (answer.review_url && (answer.state === "drafted" || answer.state === "exists")) {
-        parts.push(el("p", {}, [el("a", { href: answer.review_url, textContent: "Open Review",
-                                          target: "_blank", rel: "noopener" })]));
+      if (answer.state === "drafted" || answer.state === "exists") {
+        parts.push(draftsSection());
+        if (answer.review_url) {
+          parts.push(el("p", {}, [el("a", { href: answer.review_url, textContent: "Open Review",
+                                            target: "_blank", rel: "noopener" })]));
+        }
       }
+      parts.push(foot([button("Fill this application", run)]));
       show(parts);
     } catch (err) {
       show([el("p", { textContent: err.message })]);
     }
+  }
+
+  // --- read a draft, then approve or deny it (2026-11-04) -------------------------
+  // The draft's own text and what the check flagged, shown here so you can
+  // read it before deciding. A decision is only ever your Approve or Deny
+  // press, after a confirm; it is the same decision Review records.
+
+  const KIND_LABEL = { resume: "Resume", cover_letter: "Cover letter" };
+
+  function draftsSection() {
+    const holder = el("div", { className: "drafts" });
+    loadDrafts(holder);
+    return holder;
+  }
+
+  async function loadDrafts(holder) {
+    let answer;
+    try {
+      answer = await ask({ type: "review" });
+    } catch (err) {
+      holder.replaceChildren(el("p", { className: "meta", textContent: err.message }));
+      return;
+    }
+    const waiting = (answer && answer.waiting) || [];
+    holder.replaceChildren(...waiting.map((w) => draftCard(w, holder)));
+  }
+
+  function draftCard(w, holder) {
+    const label = (KIND_LABEL[w.kind] || "Draft") + " v" + w.version;
+    const reasonBox = el("input", { type: "text", maxLength: 300, className: "reason",
+                                    placeholder: "Why deny it? (optional, helps the next draft)" });
+    reasonBox.setAttribute("aria-label", "Why deny " + label);
+    const parts = [el("strong", { textContent: label + " is waiting for you" })];
+    if (w.flags.length) parts.push(note("warn", "The check flagged", w.flags));
+    parts.push(el("details", {}, [
+      el("summary", { textContent: "Read it (" + w.paragraphs.length + " lines)" }),
+      ...w.paragraphs.map((t) => el("p", { textContent: t }))]));
+    parts.push(reasonBox);
+    parts.push(el("div", { className: "row" }, [
+      button("Approve", () => approveDraft(w, label, holder)),
+      button("Deny", () => denyDraft(w, label, reasonBox, holder), true)]));
+    return el("div", { className: "note" }, parts);
+  }
+
+  async function approveDraft(w, label, holder) {
+    if (!window.confirm("Approve " + label + "? Approve it only if you have read it and " +
+                        "it says nothing that isn't true of you.")) return;
+    let answer;
+    try {
+      answer = await ask({ type: "decide", approval_id: w.approval_id,
+                           decision: "approve", confirm: "decide" });
+    } catch (err) {
+      answer = { ok: false, error: err.message };
+    }
+    await decided(holder, label, answer);
+  }
+
+  async function denyDraft(w, label, reasonBox, holder) {
+    if (!window.confirm("Deny " + label + "? You can draft a new one afterwards.")) return;
+    let answer;
+    try {
+      answer = await ask({ type: "decide", approval_id: w.approval_id,
+                           decision: "reject", confirm: "decide", feedback: reasonBox.value });
+    } catch (err) {
+      answer = { ok: false, error: err.message };
+    }
+    await decided(holder, label, answer);
+  }
+
+  async function decided(holder, label, answer) {
+    const denied = answer && answer.ok && answer.decision !== "approve";
+    const said = answer && answer.ok
+      ? label + (denied
+        ? " denied. Remove it from the form if it was attached, then draft a new one."
+        : " approved. If the form has an older file attached, press Undo fill, then " +
+          "Fill this application again.")
+      : (answer && answer.error) || "Nothing decided.";
+    await loadDrafts(holder);
+    holder.prepend(el("p", { className: "meta", textContent: said }));
+    if (denied && label.startsWith("Resume")) holder.append(button("Draft a resume", prepareJob));
   }
 
   let lastReport = null;

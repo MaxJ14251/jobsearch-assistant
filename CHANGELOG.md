@@ -27,6 +27,9 @@ version number lives in one place, `jsa/__init__.py`.
   doesn't back up is marked in the panel for you to check, not removed
   (`suggest.MARK_UNSUPPORTED`, on). A degree, a do-not-claim term or unfinished work
   called done still drops the answer.
+- The extension's panel can draft a resume for a saved job that has none, and
+  shows a waiting draft's text and flags with Approve and Deny buttons, so a
+  resume can be read and decided without switching to Review.
 
 ### Fixed
 
@@ -37,6 +40,8 @@ version number lives in one place, `jsa/__init__.py`.
 - Suggested answers no longer end with a sentence on how your work prepares you
   for the role: on real forms it was the one that claimed things your profile
   doesn't say.
+- A question like "why are you interested in working at <company>?" is now
+  read as a why-this-company question.
 - A question asking you to explain your work ("Describe an example of an
   agent and the considerations that shape its harness") now gets answers that
   cover what it asks about, from your notes, with no sentence about the

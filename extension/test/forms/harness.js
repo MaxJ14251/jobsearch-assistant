@@ -140,6 +140,24 @@
   };
   SESSION.fill_memory_get = () => JSON.parse(sessionStorage.getItem("jsa-fill-memory") || "null");
 
+  // Reading and deciding a draft (2026-11-04): a newer resume waits until you
+  // approve or deny it. "?noresume" opens a job with no resume drafted yet.
+  if (/[?&]noresume\b/.test(location.search)) FILL.documents.resume = null;
+  let decided = false;
+  SESSION.review = () => ({ state: "ok", waiting: decided ? [] : [{
+    approval_id: 41, document_id: 9, kind: "resume", version: 4,
+    flags: ["adds words your profile does not support: Led a team of forty engineers."],
+    paragraphs: ["Robin Q Example", "SUMMARY",
+                 "Support engineer who answers customers' hardest questions. (Fictional.)",
+                 "EXPERIENCE", "Answered 40 tickets a day across billing and setup. (Fictional.)"],
+  }] });
+  SESSION.decide = (m) => { decided = true; window.__jsaDecided = m;
+                            return { ok: true, decision: m.decision }; };
+  SESSION.prepare = () => { decided = false;
+                            return { state: "drafted", version: 4, review_url: "review-stand-in",
+                                     message: "Saved, and resume v4 drafted. Read it below " +
+                                              "and approve or deny it. (Fixture.)" }; };
+
   window.__jsaRemembered = [];
   SESSION.remember = (m) => { window.__jsaRemembered.push(m); return { ok: true, id: 1 }; };
 

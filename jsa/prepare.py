@@ -10,8 +10,10 @@ dashboard's Add page, Save button and resume button do, in that order:
 - one resume is drafted (`drafting.draft_document`), checked like any other,
   and queued in Review.
 
-Approval stays in the dashboard, where the resume can be read: nothing here
-approves, and nothing is submitted. A posting with almost no text is saved
+Nothing here approves, and nothing is submitted. Since 2026-11-04 the panel
+shows the drafted resume's text and its flags, and its Approve and Deny
+buttons are the person's decision (`/ext/decide`); a denied resume may be
+drafted again. A posting with almost no text is saved
 but not drafted (as Turbo does), and drafting is capped per day.
 """
 
@@ -79,12 +81,19 @@ def prepare(con: sqlite3.Connection, url: str, profile: dict[str, Any]) -> dict[
     if status not in OPEN_STAGES:
         return {"state": "past", "job": summary,
                 "message": f"This application is already {status.replace('_', ' ')}."}
-    existing = con.execute("SELECT MAX(version) FROM documents WHERE job_id = ? "
-                           "AND kind = 'resume'", (job_id,)).fetchone()[0]
-    if existing:
+    newest = con.execute("SELECT id, version FROM documents WHERE job_id = ? "
+                         "AND kind = 'resume' ORDER BY version DESC LIMIT 1",
+                         (job_id,)).fetchone()
+    existing = newest["version"] if newest else None
+    # A denied resume may be drafted again from the panel (2026-11-04).
+    denied = bool(newest) and (con.execute(
+        "SELECT decision FROM approvals WHERE subject_type = 'document' AND subject_id = ? "
+        "ORDER BY id DESC LIMIT 1", (newest["id"],)).fetchone() or {"decision": ""}
+    )["decision"] == "rejected"
+    if existing and not denied:
         return {"state": "exists", "job": summary,
                 "message": f"{done}. A resume (v{existing}) already exists for this job: "
-                           "approve it in Review, then reload this page."}
+                           "read and approve it in the panel or in Review."}
     blocker = drafting_blocker(profile)
     if blocker:
         return {"state": "saved", "job": summary,
@@ -101,7 +110,7 @@ def prepare(con: sqlite3.Connection, url: str, profile: dict[str, Any]) -> dict[
     con.execute("INSERT INTO ext_drafts (job_id) VALUES (?)", (job_id,))
     con.commit()
     try:
-        outcome = draft_document(con, job_id, "resume", force=False, profile=profile)
+        outcome = draft_document(con, job_id, "resume", force=denied, profile=profile)
     except DraftError as exc:
         prefix = "refused by a safety check: " if exc.refused else ""
         return {"state": "saved", "job": summary,
@@ -110,5 +119,5 @@ def prepare(con: sqlite3.Connection, url: str, profile: dict[str, Any]) -> dict[
         return {"state": "saved", "job": summary,
                 "message": f"{done}, not drafted: the model call failed: {exc}"}
     return {"state": "drafted", "job": summary, "version": outcome.version,
-            "message": f"{done}, and resume v{outcome.version} drafted. Read and "
-                       "approve it in Review, then reload this page to fill the form."}
+            "message": f"{done}, and resume v{outcome.version} drafted. Read it below "
+                       "and approve or deny it, or do that in Review."}
