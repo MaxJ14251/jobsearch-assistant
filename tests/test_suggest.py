@@ -247,6 +247,16 @@ class TestOptions(Press):
         short = first + extra
         self.assertEqual(suggest.keep_to_notes(short, notes, 40), short)
 
+    def test_the_candidates_from_a_note_becomes_my(self):
+        # Cohere, 2026-11-05: copied from the person's own note.
+        third = (" A person approves each reply, and no claim the candidate's own profile "
+                 "does not support goes out.")
+        result, _ = self.press([{"role": GOOD + third, "project": PROJECT}] * 2)
+        text = self.by_angle(result)["about the role"]["text"]
+        self.assertIn("no claim my own profile does not support", text)
+        self.assertNotIn("candidate's", text)
+        self.assertEqual(suggest.first_person("The candidate's notes."), "My notes.")
+
     def test_an_explain_question_asks_for_the_rules_not_the_features(self):
         _, seen = self.press([{"project": GOOD, "role": PROJECT}],
                              question="Describe an example of an agent and the "

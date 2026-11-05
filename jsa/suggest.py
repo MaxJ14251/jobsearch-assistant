@@ -502,6 +502,17 @@ _LABELS = ("this role", "the role", "my project", "the project", "this job", "th
            "my notes", "role", "project")
 
 
+# The person's own note says "a verifier rejects any claim the candidate's own
+# profile does not support", and drafts copied it into a first-person answer
+# (Cohere, 2026-11-05). Only the possessive: it reads the same in any position.
+_THIRD_PERSON = re.compile(r"\b(the|a) candidate's\b", re.I)
+
+
+def first_person(text: str) -> str:
+    """The answer with "the candidate's" as "my"."""
+    return _THIRD_PERSON.sub(lambda m: "My" if m.group(0)[0].isupper() else "my", text)
+
+
 def drop_labels(text: str, company: str | None) -> str:
     """The answer with its label-led sentences mended or cut.
 
@@ -940,7 +951,7 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
 
     def trim(text: str, angle: str) -> str:
         """Sentences taken out before the check, when marking."""
-        text = drop_repeats(drop_labels(text, job.get("company")))
+        text = drop_repeats(drop_labels(first_person(text), job.get("company")))
         text = drop_unclaimable(text, profile, job, posting_text) if text else text
         if text and explaining:
             text = keep_to_notes(text, notes_of.get(angle, ()), least)
