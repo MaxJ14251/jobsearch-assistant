@@ -189,8 +189,21 @@ class TestAssign(unittest.TestCase):
         self.assertEqual(len(plain), listing.NOTES_PER_OPTION)
         notes = listing.assign(("project",), pool, asked, preferred=pool,
                                explain=True)[0].notes
-        self.assertEqual(notes[0].id, "d")
-        self.assertEqual(len(notes), 4)
+        # What the work is, then its rules; the other features stay out.
+        self.assertEqual([b.id for b in notes], ["a", "d"])
+
+    def test_an_explain_question_offers_only_work_whose_notes_state_a_rule(self):
+        def bullet(i, parent, text):
+            return SourceBullet(id=i, text=text, tags=(), family="", strength=1,
+                                origin="project", parent=parent)
+        pool = [bullet("a", "agent", "Built an agent in Python."),
+                bullet("b", "agent", "A person approves every draft it writes."),
+                bullet("c", "game", "Integrating several AI APIs into one workflow."),
+                bullet("d", "game", "Goal: never miss a highlight.")]
+        items = listing.assign(("project", "role"), pool,
+                               "Describe an example of an agent and the considerations "
+                               "behind it.", preferred=pool, explain=True)
+        self.assertEqual(self.parents(items), ["agent"])
 
     def test_an_aim_is_not_what_an_answer_is_built_on(self):
         tickets = [b for b in self.bullets if b.parent == "proj_ticket_triage"]

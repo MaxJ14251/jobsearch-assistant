@@ -16,6 +16,7 @@ from unittest import mock
 from jsa import pairing, suggest
 from jsa.config import ROOT
 from jsa.llm import LLMError, Usage
+from jsa.tailor import SourceBullet
 from tests.test_answers import GOOD
 from tests.test_ext import FLOOR, GREENHOUSE, Ext
 
@@ -220,6 +221,31 @@ class TestOptions(Press):
     def test_other_questions_keep_the_posting_duty(self):
         _, seen = self.press([{"role": GOOD, "project": PROJECT}])
         self.assertIn("One specific duty from the posting", seen[0])
+
+    def test_an_explain_question_offers_only_work_with_rules_in_its_notes(self):
+        # Cohere, 2026-11-05: the game-data project, with no rule in its notes,
+        # could only call its API calls "the harness".
+        result, _ = self.press([{"project": GOOD, "role": PROJECT}],
+                               question="Describe an example of an agent and the "
+                                        "considerations that shape its harness.")
+        self.assertEqual([o["angle"] for o in result["options"]], ["about your project"])
+
+    def test_a_sentence_its_notes_dont_hold_is_left_off_an_explain_answer(self):
+        def bullet(text):
+            return SourceBullet(id="x", text=text, tags=(), family="", strength=1,
+                                origin="project", parent="p")
+        notes = (bullet("Designed a service where a person approves every reply a "
+                        "language model drafts for a support ticket."),)
+        first = ("I designed a support ticket service where a language model drafts each "
+                 "reply and a person approves every reply before it goes out to anyone.")
+        kept = first + " Every drafted reply waits for a person, who approves the reply."
+        extra = " A local dashboard shows a radius map with commute estimates."
+        self.assertEqual(suggest.keep_to_notes(first + " " + kept.split(". ", 1)[1] + extra,
+                                               notes, 20),
+                         kept)
+        # Never below the word floor.
+        short = first + extra
+        self.assertEqual(suggest.keep_to_notes(short, notes, 40), short)
 
     def test_an_explain_question_asks_for_the_rules_not_the_features(self):
         _, seen = self.press([{"project": GOOD, "role": PROJECT}],

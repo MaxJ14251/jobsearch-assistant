@@ -657,6 +657,30 @@ def drop_opener(text: str, profile: dict[str, Any], job: dict[str, Any],
     return " ".join(text[at + len(sentences[0]["text"]):].split())
 
 
+OWN_NOTES = 0.5        # share of a sentence's words its answer's notes must hold
+
+
+def keep_to_notes(text: str, notes: tuple[Any, ...], least: int) -> str:
+    """An explain answer without the sentences, after the first, that its own
+    notes don't hold: on Cohere's harness question the drafts ended on the
+    salary coverage and the dashboard's map, which answered nothing
+    (2026-11-05, the owner's choice). Never below the answer's word floor."""
+    from . import subject
+    held = listing._stems(" ".join(b.text for b in notes))
+    if not held:
+        return text
+    parts = subject.split(text)
+    keep = [True] * len(parts)
+    for i in range(len(parts) - 1, 0, -1):          # the last first
+        words = listing._stems(parts[i])
+        if not words or len(words & held) / len(words) >= OWN_NOTES:
+            continue
+        rest = sum(len(p.split()) for j, p in enumerate(parts) if keep[j] and j != i)
+        if rest >= least:
+            keep[i] = False
+    return " ".join(p for p, k in zip(parts, keep) if k)
+
+
 def _mixed(sentence: dict[str, Any], company: str) -> bool:
     """A sentence about the candidate that also names the employer or role."""
     from . import subject
@@ -912,10 +936,14 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
 
     marking = split and MARK_UNSUPPORTED
 
-    def trim(text: str) -> str:
+    explaining = split and listing.kind(question, job.get("company")) == "explain"
+
+    def trim(text: str, angle: str) -> str:
         """Sentences taken out before the check, when marking."""
         text = drop_repeats(drop_labels(text, job.get("company")))
         text = drop_unclaimable(text, profile, job, posting_text) if text else text
+        if text and explaining:
+            text = keep_to_notes(text, notes_of.get(angle, ()), least)
         return drop_closer(text, profile, job, posting_text) if text else text
 
     def blocking(found_here: list[str]) -> list[str]:
@@ -950,7 +978,7 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
         drafted = {k: " ".join(str((data if isinstance(data, dict) else {}).get(k) or "")
                                .split()) for k in drafted_angles}
         if marking:
-            drafted = {k: trim(v) if v else v for k, v in drafted.items()}
+            drafted = {k: trim(v, k) if v else v for k, v in drafted.items()}
         found = {k: problems(k, v) for k, v in drafted.items()}
         if split:
             mark_repeats()
@@ -967,7 +995,7 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
                 for k in refused:
                     text = " ".join(str(again.get(k) or "").split())
                     if text and marking:
-                        text = trim(text)
+                        text = trim(text, k)
                     if text:
                         drafted[k] = text
                         found[k] = problems(k, text)
@@ -978,10 +1006,12 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
 
     if split:
         answered: list[dict[str, Any]] = []
+        # Asked what shaped a piece of work, both answers are about work, not the role.
+        label = dict(ANGLES, role="about other work") if explaining else ANGLES
         for angle in drafted_angles:
             text, note = drafted.get(angle, ""), "drafted and checked"
             if not text:
-                dropped.append({"angle": ANGLES[angle], "text": "",
+                dropped.append({"angle": label[angle], "text": "",
                                 "why": failure or "no answer came back"})
                 continue
             cut = ""
@@ -1003,7 +1033,7 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
                 words = sorted({w for m in marks for w in m["words"]})
                 if text not in {o["text"] for o in answered}:
                     answered.append({
-                        "angle": ANGLES[angle], "text": text, "source": "model",
+                        "angle": label[angle], "text": text, "source": "model",
                         "marks": marks,
                         "note": (f"drafted; {len(marks)} marked sentence(s) say things your "
                                  f"profile doesn't ({', '.join(words)}). Check or remove "
@@ -1012,7 +1042,7 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
                                     "about, which your profile doesn't show, so it was "
                                     "taken out." if cut else ""))})
                 else:
-                    dropped.append({"angle": ANGLES[angle], "text": text,
+                    dropped.append({"angle": label[angle], "text": text,
                                     "why": "the same text as another option"})
                 continue
             draft = text
@@ -1022,14 +1052,14 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
                                least, most, max_chars) or ""
                 note = f"drafted and checked; refused sentences taken out ({refused_part})"
                 if not text:
-                    dropped.append({"angle": ANGLES[angle], "text": draft, "why": "; ".join(
+                    dropped.append({"angle": label[angle], "text": draft, "why": "; ".join(
                         blocking(found[angle]) or found[angle])})
                     continue
             if text not in {o["text"] for o in answered}:
-                answered.append({"angle": ANGLES[angle], "text": text, "source": "model",
+                answered.append({"angle": label[angle], "text": text, "source": "model",
                                  "note": note})
             else:
-                dropped.append({"angle": ANGLES[angle], "text": draft,
+                dropped.append({"angle": label[angle], "text": draft,
                                 "why": "the same text as another option"})
         if answered:
             return backed_up(answered, backup), model

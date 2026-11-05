@@ -218,11 +218,19 @@ NOTES_PER_OPTION = 2     # a single bullet is often too short for the 40-word fl
 # job assistant's polling and test notes, never the one saying a person approves
 # every draft and a check refuses unsupported claims (2026-11-05, the owner's
 # choice). So an explain question gets all of the work's notes (up to 4), the
-# ones stating a rule or a choice first.
+# ones stating a rule or a choice first. Not plain "design": "prompt design" is a
+# skill, not a choice (the game-data note, 2026-11-05).
 NOTES_TO_EXPLAIN = 4
-_RULE = re.compile(r"\b(design|designed|decid\w*|decision\w*|chose|choice\w*|verif\w*"
+_RULE = re.compile(r"\b(designed|decid\w*|decision\w*|chose|choice\w*|verif\w*"
                    r"|approv\w*|reject\w*|refus\w*|never|without|human|guard\w*|rules?"
                    r"|trade ?offs?|measured|scans?)\b", re.I)
+
+
+def _ruled(bullet: Any) -> bool:
+    """A note stating a rule or a choice; an aim ("Goal: ...") is not one."""
+    return bool(_RULE.search(bullet.text)) and not bullet.text.lower().startswith("goal:")
+
+
 _THIN = _words("experience work working ability strong skills including across using new "
                "team teams build building ensure help support years role job company "
                "looking great world well best high able etc various multiple "
@@ -276,6 +284,13 @@ def assign(angles: tuple[str, ...], bullets: list[Any], question: str,
             covered |= found
     if touching:
         left, spare = touching, []
+    if explain:
+        # Work whose notes state no rule or choice can't say what shaped it: on
+        # Cohere's harness question the game-data project could only call its
+        # API calls "the harness" (2026-11-05, the owner's choice).
+        ruled = [n for n in order if any(_ruled(b) for b in parents[n])]
+        if ruled:
+            left, spare = [n for n in left if n in ruled] or ruled, []
     out: list[Material] = []
     for angle in angles:
         wanted = left
@@ -293,6 +308,12 @@ def assign(angles: tuple[str, ...], bullets: list[Any], question: str,
         notes = sorted(parents[name], key=lambda b: (b.text.lower().startswith("goal:"),
                                                      explain and not _RULE.search(b.text),
                                                      -hits(b), rank.get(b.id, len(rank)), b.id))
+        if explain and any(_ruled(b) for b in notes):
+            # The rules, and one note saying what the work is; another feature
+            # ("raised salary coverage") only became a sentence answering nothing.
+            rules = [b for b in notes if _ruled(b)]
+            what = [b for b in notes if not _ruled(b)][:1]
+            notes = (what + rules)[:NOTES_TO_EXPLAIN]
         out.append(Material(angle, tuple(notes[:NOTES_TO_EXPLAIN if explain
                                                else NOTES_PER_OPTION])))
     return out
