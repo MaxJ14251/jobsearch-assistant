@@ -173,6 +173,25 @@ class TestAssign(unittest.TestCase):
                                preferred=tickets)
         self.assertEqual(items[0].notes[0].parent, "proj_transit_report")
 
+    def test_an_explain_question_gets_the_note_saying_what_was_decided(self):
+        # Cohere, 2026-11-05: asked about an agent's harness, the answer got the
+        # notes listing what the work does, not the one stating its rules.
+        def bullet(i, text):
+            return SourceBullet(id=i, text=text, tags=(), family="", strength=1,
+                                origin="project", parent="agent")
+        pool = [bullet("a", "Built an agent in Python that polls job boards."),
+                bullet("b", "Covered it with automated tests."),
+                bullet("c", "Raised coverage of posted pay."),
+                bullet("d", "Designed it so a person approves every draft and a check "
+                            "refuses unsupported claims.")]
+        asked = "Describe an example of an agent and the considerations behind it."
+        plain = listing.assign(("project",), pool, asked, preferred=pool)[0].notes
+        self.assertEqual(len(plain), listing.NOTES_PER_OPTION)
+        notes = listing.assign(("project",), pool, asked, preferred=pool,
+                               explain=True)[0].notes
+        self.assertEqual(notes[0].id, "d")
+        self.assertEqual(len(notes), 4)
+
     def test_an_aim_is_not_what_an_answer_is_built_on(self):
         tickets = [b for b in self.bullets if b.parent == "proj_ticket_triage"]
         goal = [b for b in tickets if b.text.startswith("Goal:")]

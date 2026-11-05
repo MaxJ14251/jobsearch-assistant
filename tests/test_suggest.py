@@ -221,6 +221,52 @@ class TestOptions(Press):
         _, seen = self.press([{"role": GOOD, "project": PROJECT}])
         self.assertIn("One specific duty from the posting", seen[0])
 
+    def test_an_explain_question_asks_for_the_rules_not_the_features(self):
+        _, seen = self.press([{"project": GOOD, "role": PROJECT}],
+                             question="Describe an example of an agent and the "
+                                      "considerations that shape its harness.")
+        self.assertIn("say the rules and choices the notes state", seen[0])
+
+    # LangChain, 2026-11-05: both drafts opened by claiming the question's own
+    # words ("proof-of-concept phases") as experience the notes never mention.
+    ASKED = "Describe your experience running outage drills with utility dispatchers."
+    ECHOING = "I have direct experience running outage drills with utility dispatchers. "
+
+    def test_never_claiming_what_the_question_asks_is_in_the_prompt(self):
+        _, seen = self.press([{"role": GOOD, "project": PROJECT}], question=self.ASKED)
+        self.assertIn("never use the question's words to say the candidate", seen[0])
+
+    def test_an_opening_echoing_the_question_is_retried(self):
+        result, seen = self.press([{"role": self.ECHOING + GOOD, "project": PROJECT},
+                                   {"role": GOOD}], question=self.ASKED)
+        self.assertEqual(len(seen), 2)
+        self.assertIn(suggest.ECHO, seen[1])
+        self.assertEqual(self.by_angle(result)["about the role"]["text"], GOOD)
+
+    def test_still_echoing_after_the_retry_loses_only_that_sentence(self):
+        result, seen = self.press([{"role": self.ECHOING + GOOD, "project": PROJECT},
+                                   {"role": self.ECHOING + GOOD}], question=self.ASKED)
+        role = self.by_angle(result)["about the role"]
+        self.assertEqual(role["text"], GOOD)
+        self.assertIn("first sentence claimed what the question asks", role["note"])
+
+    def test_a_claim_of_experience_in_other_words_is_retried_too(self):
+        # "POCs" asked, "proof-of-concept phases" claimed: not the question's words.
+        claim = "I have direct experience with customers during proof-of-concept phases. "
+        result, seen = self.press([{"role": claim + GOOD, "project": PROJECT},
+                                   {"role": GOOD}],
+                                  question="Describe your work with customers during POCs.")
+        self.assertEqual(len(seen), 2)
+        self.assertEqual(self.by_angle(result)["about the role"]["text"], GOOD)
+
+    def test_an_opening_with_other_unsupported_words_is_only_marked(self):
+        opener = "I spent earlier seasons doing rooftop crane lifts. "
+        result, seen = self.press([{"role": opener + GOOD, "project": PROJECT}])
+        self.assertEqual(len(seen), 1)
+        role = self.by_angle(result)["about the role"]
+        self.assertTrue(role["text"].startswith(opener.strip()))
+        self.assertTrue(role["marks"])
+
     def copied(self, last):
         self.con.execute("UPDATE jobs SET description = ? WHERE id = 1",
                          ("Orchestrate microgrid dispatch for utilities. " * 20,))

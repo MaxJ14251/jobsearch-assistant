@@ -275,9 +275,15 @@ _KEY_LINE = {
 # described the person and recited the posting without ever saying why, and the
 # check can't see that (2026-10-31). "Proudest" and "excited" are refused as
 # words the notes don't use, so the prompt says to leave them out.
+# Asked about "POCs, architecture reviews and technical evaluations", both drafts
+# opened "I have direct experience ... during technical evaluations and
+# proof-of-concept phases", which the notes never say (LangChain, 2026-11-05).
 _ANSWER_IT = (
     "Each answer must respond to what the question actually asks, and its first "
-    "sentence, about the candidate, says the answer outright. ")
+    "sentence, about the candidate, says the answer outright. If the notes don't show "
+    "what the question asks for, the first sentence says the closest thing they do "
+    "show, in the notes' words: never use the question's words to say the candidate "
+    "has done it. ")
 _ASKED = {
     "why_company": "The question asks why this employer: each first sentence gives a reason "
                    "from that answer's notes, for example \"I want to work at {company} "
@@ -287,7 +293,8 @@ _ASKED = {
     "project": "The question asks about a piece of work: each answer names it in the first "
                "sentence, then says what the candidate did and how it connects to this role.",
     "experience": "The question asks about experience: each first sentence says what "
-                  "experience, then the rest says what the candidate actually did.",
+                  "experience the notes show, then the rest says what the candidate "
+                  "actually did.",
     "skills": "The question asks which tools: each first sentence names tools its notes "
               "name, then the rest says where the candidate uses them.",
     "explain": "The question asks the candidate to explain a piece of work: each first "
@@ -362,8 +369,11 @@ def _ask_split(items: list[listing.Material], company: str, kind: str, least: in
         lines.append(
             "Build each answer in this order. (1) The first sentence, as above. (2) Each "
             "thing the question asks about that work, in turn, from that answer's notes "
-            "only: what the notes say was chosen or done and why. No sentence about the "
-            "employer or the role: the question is about the candidate's work.")
+            "only: what the notes say was chosen or done and why. Asked about "
+            "considerations, design or trade-offs, say the rules and choices the notes "
+            "state (what is checked, what needs a person's approval, what is never done), "
+            "not a list of what the work does. No sentence about the employer or the "
+            "role: the question is about the candidate's work.")
     elif short:
         lines.append("This field is short: write only sentences about the candidate, "
                      "starting with \"I\" or \"My\", and no sentence about the employer.")
@@ -415,7 +425,8 @@ def materials_for(profile: dict[str, Any], bullets: list[Any], question: str,
     from .tailor import collect_bullets
     everything = list(collect_bullets(profile).values()) or bullets
     return tuple(listing.assign(angles_for(question, company), everything, question,
-                                preferred=bullets))
+                                preferred=bullets,
+                                explain=listing.kind(question, company) == "explain"))
 
 
 # Words saying work is done, whatever verb its notes use: "Designing a pipeline"
@@ -574,7 +585,8 @@ def build(job: dict[str, Any], profile: dict[str, Any], bullets: list[Any], ques
         excerpt = listing.excerpt(job.get("description"), kind)
         wanted = angles or angles_for(question, company)
         everything = list(collect_bullets(profile).values())
-        items = listing.assign(wanted, everything or bullets, question, preferred=bullets)
+        items = listing.assign(wanted, everything or bullets, question, preferred=bullets,
+                               explain=kind == "explain")
         parts = [f"Role: {job.get('title') or 'the role'} at {company}.",
                  f"<question>\n{_fence(question)}\n</question>",
                  f"<posting_excerpt>\n{_fence(excerpt) or '(none)'}\n</posting_excerpt>"]
@@ -599,6 +611,50 @@ def build(job: dict[str, Any], profile: dict[str, Any], bullets: list[Any], ques
         bullets="\n".join(f"- {b.text}" for b in bullets) or "(none)",
         min_words=least, max_words=most, chars=chars)
     return prompt, SYSTEM, excerpt
+
+
+ECHO = "opens with a claim its notes don't support"
+
+
+def echoed(text: str, profile: dict[str, Any], job: dict[str, Any],
+           posting_text: str | None, question: str) -> list[str]:
+    """The question's own words the first sentence, about the candidate, uses
+    to claim something the profile doesn't back.
+
+    Marked sentences are kept for the person to fix, but an opening that
+    turns the question into a claim ("I have direct experience ... during
+    technical evaluations and proof-of-concept phases", LangChain, 2026-11-05)
+    is the easiest to leave in, so it is retried, then cut (the owner's
+    choice). Caught two ways: words from the question or the posting the
+    profile lacks ("architecture reviews"), or the shape "I have ... experience"
+    with any word the profile lacks ("proof-of-concept phases", which neither
+    the question's "POCs" nor the posting spelled out). Other words the profile
+    lacks ("previous") stay a mark."""
+    from .letter import checked_sentences
+    sentences = checked_sentences(text, profile, job, posting_text or "")
+    first = sentences[0] if sentences else None
+    if not first or first["kind"] == "employer" or not first["refused"]:
+        return []
+    if _CLAIMS_EXPERIENCE.search(first["text"]):
+        return list(first["refused"])
+    asked = listing._stems(question + " " + (posting_text or ""))
+    return [w for w in first["refused"] if listing._stems(w) & asked]
+
+
+_CLAIMS_EXPERIENCE = re.compile(
+    r"^\s*(I|I've|I have)\b.{0,40}\b(experience|expertise|background|track record)\b",
+    re.I)
+
+
+def drop_opener(text: str, profile: dict[str, Any], job: dict[str, Any],
+                posting_text: str | None) -> str:
+    """The answer without its first sentence, or "" when nothing is left."""
+    from .letter import checked_sentences
+    sentences = checked_sentences(text, profile, job, posting_text or "")
+    at = text.find(sentences[0]["text"]) if sentences else -1
+    if len(sentences) < 2 or at < 0:
+        return ""
+    return " ".join(text[at + len(sentences[0]["text"]):].split())
 
 
 def _mixed(sentence: dict[str, Any], company: str) -> bool:
@@ -846,6 +902,12 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
                          "the candidate")
         for word in unfinished_here(text, profile, notes_of.get(angle, ())):
             found.append(f"says \"{word}\", but its notes describe that work as ongoing")
+        if split and MARK_UNSUPPORTED:
+            words = echoed(text, profile, job, posting_text, question)
+            if words:
+                found.append(f"{ECHO} ({', '.join(words[:6])}); the first sentence says "
+                             "only what the notes show, never the question's words as "
+                             "something the candidate did")
         return found
 
     marking = split and MARK_UNSUPPORTED
@@ -922,6 +984,18 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
                 dropped.append({"angle": ANGLES[angle], "text": "",
                                 "why": failure or "no answer came back"})
                 continue
+            cut = ""
+            if marking and blocking(found.get(angle, [])) and all(
+                    p.startswith(ECHO) for p in blocking(found[angle])):
+                # Still opening with the question's words after the retry: the
+                # rest may stand, so only that sentence goes.
+                cut = drop_opener(text, profile, job, posting_text)
+                if cut:
+                    text = drafted[angle] = cut
+                    found[angle] = problems(angle, cut)
+                    note = ("drafted and checked; its first sentence claimed what the "
+                            "question asks about, which your profile doesn't show, so it "
+                            "was taken out")
             if marking and text and found.get(angle) and not blocking(found[angle]):
                 marks = [{"text": x["text"], "words": x["refused"]}
                          for x in checked_sentences(text, profile, job, posting_text or "")
@@ -933,7 +1007,10 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
                         "marks": marks,
                         "note": (f"drafted; {len(marks)} marked sentence(s) say things your "
                                  f"profile doesn't ({', '.join(words)}). Check or remove "
-                                 "them before you submit.")})
+                                 "them before you submit."
+                                 + (" Its first sentence claimed what the question asks "
+                                    "about, which your profile doesn't show, so it was "
+                                    "taken out." if cut else ""))})
                 else:
                     dropped.append({"angle": ANGLES[angle], "text": text,
                                     "why": "the same text as another option"})

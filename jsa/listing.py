@@ -213,6 +213,16 @@ class Material:
 
 
 NOTES_PER_OPTION = 2     # a single bullet is often too short for the 40-word floor
+# Asked what shaped a piece of work, an answer needs the note saying what was
+# decided, not the two that list what it does: Cohere's harness question got the
+# job assistant's polling and test notes, never the one saying a person approves
+# every draft and a check refuses unsupported claims (2026-11-05, the owner's
+# choice). So an explain question gets all of the work's notes (up to 4), the
+# ones stating a rule or a choice first.
+NOTES_TO_EXPLAIN = 4
+_RULE = re.compile(r"\b(design|designed|decid\w*|decision\w*|chose|choice\w*|verif\w*"
+                   r"|approv\w*|reject\w*|refus\w*|never|without|human|guard\w*|rules?"
+                   r"|trade ?offs?|measured|scans?)\b", re.I)
 _THIN = _words("experience work working ability strong skills including across using new "
                "team teams build building ensure help support years role job company "
                "looking great world well best high able etc various multiple "
@@ -224,7 +234,7 @@ def _stems(text: str) -> set[str]:
 
 
 def assign(angles: tuple[str, ...], bullets: list[Any], question: str,
-           preferred: list[Any] | None = None) -> list[Material]:
+           preferred: list[Any] | None = None, explain: bool = False) -> list[Material]:
     """One Material per angle while there is material: each from a project or
     job no other option uses. Parents the job's resume uses come first; a parent
     it doesn't use is used only to reach two options. When the question names
@@ -281,6 +291,8 @@ def assign(angles: tuple[str, ...], bullets: list[Any], question: str,
         # What the resume uses, then what the question asks about; an aim
         # ("Goal: ...") is the weakest thing to build an answer on.
         notes = sorted(parents[name], key=lambda b: (b.text.lower().startswith("goal:"),
+                                                     explain and not _RULE.search(b.text),
                                                      -hits(b), rank.get(b.id, len(rank)), b.id))
-        out.append(Material(angle, tuple(notes[:NOTES_PER_OPTION])))
+        out.append(Material(angle, tuple(notes[:NOTES_TO_EXPLAIN if explain
+                                               else NOTES_PER_OPTION])))
     return out
