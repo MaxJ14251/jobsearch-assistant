@@ -387,7 +387,9 @@ def _ask_split(items: list[listing.Material], company: str, kind: str, least: in
             "candidate did, from that answer's notes. (3) One specific duty from the posting "
             "excerpt that the notes really speak to, never one they don't meet, a different "
             "one for each answer, in a sentence that starts with \"{company}\" or \"This "
-            "role\", never a line copied from the posting with no subject. End there: no "
+            "role\", never a line copied from the posting with no subject. Say what the job "
+            "involves, never what it requires or expects of the candidate (no \"requires\", "
+            "\"expects\", \"seeks\" or \"is looking for\"). End there: no "
             "sentence on how the work prepares, fits or translates to the role."
             .replace("{company}", company))
     else:
@@ -509,7 +511,8 @@ _THIRD_PERSON = re.compile(r"\b(the|a) candidate's\b", re.I)
 
 
 def first_person(text: str) -> str:
-    """The answer with "the candidate's" as "my"."""
+    """The answer with "the candidate's" as "my", and "50-plus" as the notes' "50+"."""
+    text = _PLUS.sub(lambda m: m.group(1) + "+", text)
     return _THIRD_PERSON.sub(lambda m: "My" if m.group(0)[0].isupper() else "my", text)
 
 
@@ -554,6 +557,38 @@ def drop_repeats(text: str) -> str:
         seen.append(words)
         kept.append(sentence)
     return " ".join(kept)
+
+
+# A closing sentence that says what the employer wants either points at a gap
+# ("This role requires the ability to profile and optimize GPU workloads") or
+# says the question back ("LangChain requires comfort working directly with
+# customers during POCs"): 12 of 26 such sentences in the trial of 2026-11-05,
+# none useful (the owner's choice). A sentence describing the company answers
+# only "why us"; elsewhere it was filler ("OpenAI develops AI-native silicon").
+_WANTS = re.compile(r"\b(requires?|required|expects?|seeks?|looking for|must have|needs?"
+                    r"|ideal candidate)\b", re.I)
+
+
+def drop_wants(text: str, profile: dict[str, Any], job: dict[str, Any],
+               posting_text: str | None, kind: str, least: int) -> str:
+    """The answer without its sentences about the employer that state what the
+    employer wants, or describe the company when the question isn't why this
+    company. Never below the answer's word floor."""
+    from .letter import checked_sentences
+    company = (job.get("company") or "").lower()
+    for s in reversed(checked_sentences(text, profile, job, posting_text or "")):
+        if s["kind"] != "employer":
+            continue
+        about_company = bool(company) and s["text"].lower().startswith(company)
+        if not (_WANTS.search(s["text"]) or (about_company and kind != "why_company")):
+            continue
+        if len(text.split()) - len(s["text"].split()) >= least:
+            text = " ".join(text.replace(s["text"], "", 1).split())
+    return text
+
+
+# "50+" written out as "50-plus" was marked as a word the profile lacks.
+_PLUS = re.compile(r"\b(\d+)-plus\b", re.I)
 
 
 def drop_unclaimable(text: str, profile: dict[str, Any], job: dict[str, Any],
@@ -955,6 +990,9 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
         text = drop_unclaimable(text, profile, job, posting_text) if text else text
         if text and explaining:
             text = keep_to_notes(text, notes_of.get(angle, ()), least)
+        if text:
+            text = drop_wants(text, profile, job, posting_text,
+                              listing.kind(question, job.get("company")), least)
         return drop_closer(text, profile, job, posting_text) if text else text
 
     def blocking(found_here: list[str]) -> list[str]:
@@ -1279,6 +1317,12 @@ def suggest(con: sqlite3.Connection, profile: dict[str, Any], job: dict[str, Any
             return {"state": "refused", "left_today": left, "limit": limit,
                     "message": f"Your line can't go into an answer: {mine[0]}. "
                                "Nothing was drafted."}
+    if answers.SUBJECT_AWARE and short_ask(question) and not reason:
+        # Which product or team is a pick only the person can make: with none
+        # typed, the draft named installer work (Riot Games, 2026-11-05). No call.
+        return {"state": "need_reason", "left_today": left, "limit": limit,
+                "message": "This asks for your own pick. Type it in the box, with a few "
+                           "words on why, then press Suggest. No suggestion was used."}
     if left <= 0:
         return {"state": "limit", "left_today": 0, "limit": limit,
                 "message": f"Today's {limit} suggestions are used up; they come back "

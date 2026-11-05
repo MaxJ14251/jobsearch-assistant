@@ -247,6 +247,33 @@ class TestOptions(Press):
         short = first + extra
         self.assertEqual(suggest.keep_to_notes(short, notes, 40), short)
 
+    # Trial of 2026-11-05: 12 of 26 closing sentences said what the employer
+    # wants, pointing at a gap or saying the question back.
+    WANTS = " This role requires five years of Kubernetes administration."
+
+    def test_a_closing_sentence_on_what_the_employer_wants_is_cut(self):
+        result, seen = self.press([{"role": GOOD + self.WANTS, "project": PROJECT}])
+        self.assertEqual(self.by_angle(result)["about the role"]["text"], GOOD)
+        self.assertIn("never what it requires or expects", seen[0])
+
+    def test_never_below_the_word_floor(self):
+        job = {"company": "Riverton Grid"}
+        short = "I sold replacement units to property managers."
+        self.assertEqual(suggest.drop_wants(short + self.WANTS, self.profile, job, "",
+                                            "open", 40), short + self.WANTS)
+
+    def test_a_company_description_stays_only_for_why_this_company(self):
+        blurb = " Riverton Grid builds microgrid software for utilities."
+        job = {"company": "Riverton Grid", "title": "Support Engineer", "location": ""}
+        posting = "Riverton Grid builds microgrid software for utilities."
+        self.assertEqual(suggest.drop_wants(GOOD + blurb, self.profile, job, posting,
+                                            "open", 40), GOOD)
+        self.assertEqual(suggest.drop_wants(GOOD + blurb, self.profile, job, posting,
+                                            "why_company", 40), GOOD + blurb)
+
+    def test_fifty_plus_keeps_the_notes_form(self):
+        self.assertEqual(suggest.first_person("It polls 50-plus boards."), "It polls 50+ boards.")
+
     def test_the_candidates_from_a_note_becomes_my(self):
         # Cohere, 2026-11-05: copied from the person's own note.
         third = (" A person approves each reply, and no claim the candidate's own profile "
@@ -414,9 +441,11 @@ class TestSubjectAwareSwitch(Press):
 
     def test_on_the_employer_sentence_passes_and_a_claim_still_fails(self):
         with mock.patch("jsa.answers.SUBJECT_AWARE", True):
+            # A company description answers "why us" only (2026-11-05), so asked that.
             result, _ = self.press([{"role": GOOD + " " + self.EMPLOYER,
-                                     "project": GOOD + " I built microgrid orchestration "
-                                                       "software for utilities."}] * 2)
+                                     "company": COMPANY + " I built microgrid orchestration "
+                                                          "software for utilities."}] * 2,
+                                   question="Why do you want to work at Riverton Grid?")
         got = self.by_angle(result)
         self.assertEqual(got["about the role"]["source"], "model")
         self.assertIn("microgrid", got["about the role"]["text"])
@@ -634,10 +663,24 @@ class TestWhatTheBackupModelWrote(Press):
         self.assertTrue(suggest.short_ask(question))
         self.assertFalse(suggest.short_ask("What excites you about Riverton Grid?"))
         self.assertEqual(suggest.bounds(None, short=True), (5, suggest.SHORT_MOST, None))
+        # Without a pick typed in the box, nothing is drafted and nothing is used
+        # (Riot Games, 2026-11-05: the draft named installer work).
+        result, seen = self.press({"role": "x"}, question=question)
+        self.assertEqual(result["state"], "need_reason")
+        self.assertEqual(seen, [])
+        self.assertEqual(self.con.execute("SELECT COUNT(*) FROM suggest_requests")
+                         .fetchone()[0], 0)
         short = "I am most interested in the support tools, since I answer customers."
-        result, seen = self.press({"role": short, "project": short}, question=question)
+        calls = []
+
+        def reply(prompt, **k):
+            calls.append(prompt)
+            return {"role": short, "project": short}, Usage(model="test")
+        with mock.patch("jsa.suggest.llm.complete_json", side_effect=reply):
+            result = suggest.suggest(self.con, self.profile, self.job(), question,
+                                     reason="The support tools, since I answer customers.")
         self.assertEqual(result["options"][0]["text"], short)
-        self.assertIn("This field is short", seen[0])
+        self.assertIn("This field is short", calls[0])
 
     def test_a_draft_from_a_backup_model_says_so(self):
         def backup(prompt, **k):
