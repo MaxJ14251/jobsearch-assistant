@@ -321,8 +321,11 @@ MARK_UNSUPPORTED = True
 _FREE_PLAIN = (" Don't borrow the question's own adjectives (\"proudest\", \"excited\", "
                "\"passionate\"): use plain words. Write the way a person would, in your own "
                "words: paraphrase the notes, but add no fact, tool, number, outcome or quality "
-               "they don't state, and keep ongoing work ongoing. Say \"I want ... because\" at "
-               "most once. No two answers open with the same words.")
+               "they don't state, and keep ongoing work ongoing. Write numbers as digits, as "
+               "the notes do (\"56%\", not \"fifty-six percent\"). Say \"I want ... because\" "
+               "at most once. No two answers open with the same words.")
+# Digits: spelled-out figures ("eighty-one percent", "thirty of thirty") were
+# marked as words the profile lacks (trial of 2026-11-05).
 # Which answers a question has room for, the most useful first. Two: measured
 # 2026-10-31, a third often came from work unrelated to the job.
 _ANGLES_FOR = {
