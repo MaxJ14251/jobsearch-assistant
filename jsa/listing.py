@@ -234,7 +234,11 @@ def _ruled(bullet: Any) -> bool:
 _THIN = _words("experience work working ability strong skills including across using new "
                "team teams build building ensure help support years role job company "
                "looking great world well best high able etc various multiple "
-               "tell about your you what how some")
+               "tell about your you what how some "
+               # "AI solutions such as deep learning" matched "security system
+               # solutions", then "deep technical product knowledge", and gave a
+               # sales job, then an installer one, to an AI question (Cohere, 2026-11-05).
+               "solution solutions such deep")
 
 
 def _stems(text: str) -> set[str]:
