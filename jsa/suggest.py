@@ -483,8 +483,33 @@ def copied_duty(sentence: dict[str, Any], posting_text: str) -> bool:
         >= COPIED_SHARE * len(words)
 
 
+def _without(text: str, sentences: list[dict[str, Any]], cut: set[int]) -> str:
+    """The answer without the checked sentences numbered in `cut`, rebuilt from
+    its parts: a replace() of the sentence's text could take an earlier copy of
+    it inside another sentence (review of 2026-11-06)."""
+    from . import subject
+    parts = subject.split(text)
+    if len(parts) != len(sentences):        # never seen; leave the answer whole
+        return text
+    return _join_kept(parts, [i not in cut for i in range(1, len(parts) + 1)])
+
+
+def _join_kept(parts: list[str], keep: list[bool]) -> str:
+    """The kept parts, with a ";" left before a cut clause, or at the end, as "."."""
+    out: list[str] = []
+    for part, k in zip(parts, keep):
+        if not k:
+            if out and out[-1].endswith(";"):
+                out[-1] = out[-1][:-1] + "."
+            continue
+        out.append(part)
+    if out and out[-1].endswith(";"):
+        out[-1] = out[-1][:-1] + "."
+    return " ".join(" ".join(out).split())
+
+
 def drop_closer(text: str, profile: dict[str, Any], job: dict[str, Any],
-                posting_text: str) -> str:
+                posting_text: str, least: int = 0) -> str:
     """The answer without a closing sentence on how the work fits the duty.
 
     The prompt no longer asks for one; a draft that still ends with a sentence
@@ -506,8 +531,9 @@ def drop_closer(text: str, profile: dict[str, Any], job: dict[str, Any],
     if not (any(s["kind"] == "employer" for s in sentences[:-1])
             or copied_duty(last, posting_text)):
         return text
-    cut = text.rfind(last["text"])
-    return text[:cut].rstrip() if cut > 0 else text
+    if len(text.split()) - len(last["text"].split()) < least:
+        return text
+    return _without(text, sentences, {len(sentences)})
 
 
 # The backup model wrote the prompt's instructions in as labels: "LangChain I
@@ -520,7 +546,7 @@ _LABELS = ("this role", "the role", "my project", "the project", "this job", "th
 # The person's own note says "a verifier rejects any claim the candidate's own
 # profile does not support", and drafts copied it into a first-person answer
 # (Cohere, 2026-11-05). Only the possessive: it reads the same in any position.
-_THIRD_PERSON = re.compile(r"\b(the|a) candidate's\b", re.I)
+_THIRD_PERSON = re.compile(r"\b(the|a) candidate's(?= own\b)", re.I)
 
 
 def first_person(text: str) -> str:
@@ -578,8 +604,8 @@ def drop_repeats(text: str) -> str:
 # customers during POCs"): 12 of 26 such sentences in the trial of 2026-11-05,
 # none useful (the owner's choice). A sentence describing the company answers
 # only "why us"; elsewhere it was filler ("OpenAI develops AI-native silicon").
-_WANTS = re.compile(r"\b(requires?|required|expects?|seeks?|looking for|must have|needs?"
-                    r"|ideal candidate)\b", re.I)
+_WANTS = re.compile(r"\b(requires?|required|expects?|seeks?|looking for|must have"
+                    r"|needs? (?:someone|a|an|to)|ideal candidate)\b", re.I)
 
 
 def drop_wants(text: str, profile: dict[str, Any], job: dict[str, Any],
@@ -589,15 +615,18 @@ def drop_wants(text: str, profile: dict[str, Any], job: dict[str, Any],
     company. Never below the answer's word floor."""
     from .letter import checked_sentences
     company = (job.get("company") or "").lower()
-    for s in reversed(checked_sentences(text, profile, job, posting_text or "")):
+    sentences = checked_sentences(text, profile, job, posting_text or "")
+    words, cut = len(text.split()), set()
+    for i, s in reversed(list(enumerate(sentences, 1))):
         if s["kind"] != "employer":
             continue
         about_company = bool(company) and s["text"].lower().startswith(company)
         if not (_WANTS.search(s["text"]) or (about_company and kind != "why_company")):
             continue
-        if len(text.split()) - len(s["text"].split()) >= least:
-            text = " ".join(text.replace(s["text"], "", 1).split())
-    return text
+        if words - len(s["text"].split()) >= least:
+            words -= len(s["text"].split())
+            cut.add(i)
+    return _without(text, sentences, cut) if cut else text
 
 
 def drop_employer_end(text: str, profile: dict[str, Any], job: dict[str, Any],
@@ -641,11 +670,10 @@ def drop_unclaimable(text: str, profile: dict[str, Any], job: dict[str, Any],
     terms = [t for t in do_not_claim(profile) if t]
     if not terms:
         return text
-    for s in checked_sentences(text, profile, job, posting_text or ""):
-        if s["kind"] == "employer" and any(term_pattern(t).search(s["text"].lower())
-                                           for t in terms):
-            text = text.replace(s["text"], "", 1)
-    return " ".join(text.split())
+    sentences = checked_sentences(text, profile, job, posting_text or "")
+    cut = {i for i, s in enumerate(sentences, 1) if s["kind"] == "employer" and any(
+        term_pattern(t).search(s["text"].lower()) for t in terms)}
+    return _without(text, sentences, cut) if cut else " ".join(text.split())
 
 
 def build(job: dict[str, Any], profile: dict[str, Any], bullets: list[Any], question: str,
@@ -759,7 +787,7 @@ def keep_to_notes(text: str, notes: tuple[Any, ...], least: int) -> str:
         rest = sum(len(p.split()) for j, p in enumerate(parts) if keep[j] and j != i)
         if rest >= least:
             keep[i] = False
-    return " ".join(p for p, k in zip(parts, keep) if k)
+    return _join_kept(parts, keep)
 
 
 def _mixed(sentence: dict[str, Any], company: str) -> bool:
@@ -1028,7 +1056,7 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
         if text:
             text = drop_wants(text, profile, job, posting_text,
                               listing.kind(question, job.get("company")), least)
-        text = drop_closer(text, profile, job, posting_text) if text else text
+        text = drop_closer(text, profile, job, posting_text, least) if text else text
         if text and angle == "project":
             text = drop_employer_end(text, profile, job, posting_text, least)
         return text
@@ -1359,6 +1387,7 @@ def suggest(con: sqlite3.Connection, profile: dict[str, Any], job: dict[str, Any
         # Which product or team is a pick only the person can make: with none
         # typed, the draft named installer work (Riot Games, 2026-11-05). No call.
         return {"state": "need_reason", "left_today": left, "limit": limit,
+                "earlier": earlier(con, question, profile, job, maxlength),
                 "message": "This asks for your own pick. Type it in the box, with a few "
                            "words on why, then press Suggest. No suggestion was used."}
     if answers.SUBJECT_AWARE and not reason and listing.kind(
@@ -1368,6 +1397,7 @@ def suggest(con: sqlite3.Connection, profile: dict[str, Any], job: dict[str, Any
         # trials, and each cost a suggestion. Why this role stays drafted: the
         # notes do say what work the person wants (the owner's call, 2026-11-06).
         return {"state": "need_reason", "left_today": left, "limit": limit,
+                "earlier": earlier(con, question, profile, job, maxlength),
                 "message": "Why this company is yours to say: your resume can't. Type "
                            "your reason in the box, a few words is enough, then press "
                            "Suggest and it's built around them. No suggestion was used."}

@@ -703,6 +703,12 @@
     }
     if (answer.state !== "ok") {
       q.status.textContent = answer.message || "No suggestions.";
+      // Asked for a reason, your own earlier answers still come back.
+      if ((answer.earlier || []).length) {
+        q.box.replaceChildren(
+          el("p", { className: "meta", textContent: "You answered this before:" }),
+          ...answer.earlier.map((o) => card(q, o)));
+      }
       return;
     }
     q.status.textContent = answer.hint ||

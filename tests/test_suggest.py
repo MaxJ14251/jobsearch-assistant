@@ -290,6 +290,45 @@ class TestOptions(Press):
         self.assertEqual(suggest.drop_closer(GOOD + " " + PROJECT + mine, self.profile,
                                              job, posting), GOOD + " " + PROJECT + mine)
 
+    # Review of 2026-11-06.
+    RG = {"company": "Riverton Grid", "title": "Support Engineer", "location": ""}
+
+    def test_the_closing_cut_keeps_the_word_floor(self):
+        tail = " We orchestrate microgrid dispatch for utilities across our regions."
+        text = GOOD + tail
+        floor = len(text.split()) - 2
+        self.assertEqual(suggest.drop_closer(text, self.profile, self.RG, tail.strip(),
+                                             floor), text)
+
+    def test_only_the_notes_own_phrase_becomes_my(self):
+        self.assertEqual(suggest.first_person("It scores the candidate's resume."),
+                         "It scores the candidate's resume.")
+        self.assertEqual(suggest.first_person("No claim the candidate's own profile lacks."),
+                         "No claim my own profile lacks.")
+
+    def test_a_cut_takes_the_sentence_not_an_earlier_copy(self):
+        text = "I learned Python because Riverton Grid needs Python. " + GOOD +                " Riverton Grid needs a Python developer."
+        out = suggest.drop_wants(text, self.profile, self.RG, "", "open", 10)
+        self.assertTrue(out.startswith("I learned Python because Riverton Grid needs Python."))
+        self.assertNotIn("needs a Python developer", out)
+
+    def test_needs_as_a_noun_is_not_a_want(self):
+        blurb = " Riverton Grid builds microgrid software for the needs of utilities."
+        self.assertEqual(suggest.drop_wants(GOOD + blurb, self.profile, self.RG, blurb,
+                                            "why_company", 20), GOOD + blurb)
+
+    def test_a_clause_cut_after_a_semicolon_leaves_a_full_stop(self):
+        def bullet(text):
+            return SourceBullet(id="x", text=text, tags=(), family="", strength=1,
+                                origin="project", parent="p")
+        notes = (bullet("Designed a service where a person approves every reply a "
+                        "language model drafts."),)
+        text = ("I designed a service where a person approves every reply a language model "
+                "drafts; a local dashboard shows a radius map with commute estimates.")
+        self.assertEqual(suggest.keep_to_notes(text, notes, 5),
+                         "I designed a service where a person approves every reply a "
+                         "language model drafts.")
+
     def test_a_project_answer_ends_on_the_work(self):
         result, seen = self.press([{"role": GOOD + self.DUTY, "project": PROJECT + self.DUTY}])
         options = self.by_angle(result)
@@ -316,7 +355,7 @@ class TestOptions(Press):
         text = self.by_angle(result)["about the role"]["text"]
         self.assertIn("no claim my own profile does not support", text)
         self.assertNotIn("candidate's", text)
-        self.assertEqual(suggest.first_person("The candidate's notes."), "My notes.")
+        self.assertEqual(suggest.first_person("The candidate's own notes."), "My own notes.")
 
     def test_an_explain_question_asks_for_the_rules_not_the_features(self):
         _, seen = self.press([{"project": GOOD, "role": PROJECT}],
