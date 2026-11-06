@@ -235,8 +235,14 @@ class Press(Ext):
     def job(self):
         return answers.job_row(self.con, 1)
 
-    def press(self, replies, question="Why do you want to work at Riverton Grid?", reason=""):
+    # Why this company is drafted only around a reason the person typed
+    # (2026-11-06); reason=None gives this one to such a question.
+    TYPED = "The microgrid work."
+
+    def press(self, replies, question="Why do you want to work at Riverton Grid?", reason=None):
         seen = []
+        if reason is None:
+            reason = self.TYPED if listing.kind(question, "Riverton Grid") == "why_company"                 else ""
 
         def fake(prompt, **k):
             seen.append(prompt + "\n" + (k.get("system") or ""))
@@ -338,7 +344,12 @@ class TestThePress(Press):
         self.assertEqual(result["options"][0]["text"], education_line(self.profile))
 
     def test_a_why_question_says_a_reason_of_your_own_would_help(self):
-        self.assertIn("type a line", self.press([self.ALL])[0]["hint"])
+        # Why this company: no draft, and no suggestion used, until one is typed.
+        result, seen = self.press([self.ALL], reason="")
+        self.assertEqual((result["state"], seen), ("need_reason", []))
+        self.assertEqual(result["left_today"], suggest.SUGGEST_DAILY)
+        self.assertIn("type a line", self.press([self.ALL],
+                                                question="Why do you want this role?")[0]["hint"])
         project = self.press([{"project": PROJECT, "role": GOOD}], question="Describe a project.")
         self.assertNotIn("hint", project[0])
 
@@ -356,8 +367,8 @@ class TestYourOwnReason(Press):
         self.assertIn(self.ALL["company"], [o["text"] for o in result["options"]])
         self.assertIn("first sentence of each answer says that reason", seen[0])
         self.assertNotIn("hint", result)
-        # Without the reason, the same words are refused as nothing supports them.
-        later, _ = self.press([self.ALL, self.ALL])
+        # With another reason, the same words are refused as nothing supports them.
+        later, _ = self.press([self.ALL, self.ALL], reason=self.TYPED)
         self.assertNotIn(self.ALL["company"], [o["text"] for o in later["options"]])
 
     def test_it_is_never_stored(self):
