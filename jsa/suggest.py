@@ -385,7 +385,7 @@ def _ask_split(items: list[listing.Material], company: str, kind: str, least: in
         # press of 2026-11-02 it was the sentence that claimed things the notes
         # don't say ("...which translates to stitching EDA tools into reliable
         # workflows"), so the owner had it dropped.
-        lines.append(
+        lines.append((
             "Build each answer in this order. (1) The first sentence, as above. (2) What the "
             "candidate did, from that answer's notes. (3) One specific duty from the posting "
             "excerpt that the notes really speak to, never one they don't meet, a different "
@@ -394,7 +394,9 @@ def _ask_split(items: list[listing.Material], company: str, kind: str, least: in
             "involves, never what it requires or expects of the candidate (no \"requires\", "
             "\"expects\", \"seeks\" or \"is looking for\"). End there: no "
             "sentence on how the work prepares, fits or translates to the role."
-            .replace("{company}", company))
+            + (' The "project" answer skips (3) and ends after (2): it is about the '
+               "candidate's work only." if any(i.angle == "project" for i in items) else "")
+            ).replace("{company}", company))
     else:
         # In the excerpt's words: 9 of 14 sentences removed on 2026-10-31 were
         # refused for a verb form alone ("takes" where the posting says "Take");
@@ -587,6 +589,28 @@ def drop_wants(text: str, profile: dict[str, Any], job: dict[str, Any],
             continue
         if len(text.split()) - len(s["text"].split()) >= least:
             text = " ".join(text.replace(s["text"], "", 1).split())
+    return text
+
+
+def drop_employer_end(text: str, profile: dict[str, Any], job: dict[str, Any],
+                      posting_text: str | None, least: int) -> str:
+    """The answer without the sentences about the employer it ends on.
+
+    For the "about your project" answer: its closing line on the role was the
+    one that wandered off ("This role integrates electronic design automation
+    tools ..." after the video pipeline; the Baseten GPU line), and 33 of 79
+    such closers in the trials of 2026-11-04/05 were on project answers. A
+    shared-word test was tried first and kept the EDA line on "generation"
+    (the owner's choice, 2026-11-06). Never below the answer's word floor.
+    """
+    from .letter import checked_sentences
+    for s in reversed(checked_sentences(text, profile, job, posting_text or "")):
+        if s["kind"] != "employer":
+            break
+        cut = text.rfind(s["text"])
+        if cut <= 0 or len(text[:cut].split()) < least:
+            break
+        text = text[:cut].rstrip()
     return text
 
 
@@ -996,7 +1020,10 @@ def options(profile: dict[str, Any], job: dict[str, Any], bullets: list[Any],
         if text:
             text = drop_wants(text, profile, job, posting_text,
                               listing.kind(question, job.get("company")), least)
-        return drop_closer(text, profile, job, posting_text) if text else text
+        text = drop_closer(text, profile, job, posting_text) if text else text
+        if text and angle == "project":
+            text = drop_employer_end(text, profile, job, posting_text, least)
+        return text
 
     def blocking(found_here: list[str]) -> list[str]:
         """What leaves an answer out. Marking, word problems are shown instead."""

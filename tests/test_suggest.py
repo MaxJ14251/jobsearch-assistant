@@ -271,6 +271,25 @@ class TestOptions(Press):
         self.assertEqual(suggest.drop_wants(GOOD + blurb, self.profile, job, posting,
                                             "why_company", 40), GOOD + blurb)
 
+    # OpenAI, 2026-11-03: a video-pipeline answer ended "This role integrates
+    # electronic design automation tools ...". Project answers end on the work.
+    DUTY = " This role involves building microgrid software for utilities."
+
+    def test_a_project_answer_ends_on_the_work(self):
+        result, seen = self.press([{"role": GOOD + self.DUTY, "project": PROJECT + self.DUTY}])
+        options = self.by_angle(result)
+        self.assertEqual(options["about your project"]["text"], PROJECT)
+        self.assertEqual(options["about the role"]["text"], GOOD + self.DUTY)
+        self.assertIn('The "project" answer skips (3)', seen[0])
+
+    def test_a_project_answer_keeps_its_ending_above_the_floor_only(self):
+        job = {"company": "Riverton Grid", "title": "Support Engineer", "location": ""}
+        short = "I sold replacement units to property managers."
+        self.assertEqual(suggest.drop_employer_end(short + self.DUTY, self.profile, job,
+                                                   self.DUTY, 40), short + self.DUTY)
+        self.assertEqual(suggest.drop_employer_end(GOOD + self.DUTY, self.profile, job,
+                                                   self.DUTY, 20), GOOD)
+
     def test_fifty_plus_keeps_the_notes_form(self):
         self.assertEqual(suggest.first_person("It polls 50-plus boards."), "It polls 50+ boards.")
 
