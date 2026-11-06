@@ -465,10 +465,18 @@ def unfinished_here(text: str, profile: dict[str, Any], notes: tuple[Any, ...]) 
 COPIED_SHARE = 0.8
 
 
+# The posting's own voice: "Cohere will take a hands-on approach to building
+# customer Proof of Concepts that showcase the business value of our platform"
+# closed an answer, all of its words from the posting (2026-11-06).
+_EMPLOYER_VOICE = tuple(f"first person ({w!r})" for w in ("our", "ours", "we", "us"))
+
+
 def copied_duty(sentence: dict[str, Any], posting_text: str) -> bool:
-    """A sentence with no subject whose words come from the posting."""
+    """A sentence with no subject, or in the employer's own "we" and "our",
+    whose words come from the posting."""
     from .tailor import _words as stem_words
-    if sentence["kind"] != "strict" or not sentence["why"].startswith("unclear"):
+    if sentence["kind"] != "strict" or not sentence["why"].startswith(
+            ("unclear", *_EMPLOYER_VOICE)):
         return False
     words = stem_words(sentence["text"])
     return bool(words) and len(words & stem_words(posting_text or "")) \
@@ -1353,6 +1361,16 @@ def suggest(con: sqlite3.Connection, profile: dict[str, Any], job: dict[str, Any
         return {"state": "need_reason", "left_today": left, "limit": limit,
                 "message": "This asks for your own pick. Type it in the box, with a few "
                            "words on why, then press Suggest. No suggestion was used."}
+    if answers.SUBJECT_AWARE and not reason and listing.kind(
+            question, job.get("company")) == "why_company":
+        # Nothing in a resume says why this employer: drafted from the notes
+        # alone, the reasons were the weakest answers of the 2026-11-04/05
+        # trials, and each cost a suggestion. Why this role stays drafted: the
+        # notes do say what work the person wants (the owner's call, 2026-11-06).
+        return {"state": "need_reason", "left_today": left, "limit": limit,
+                "message": "Why this company is yours to say: your resume can't. Type "
+                           "your reason in the box, a few words is enough, then press "
+                           "Suggest and it's built around them. No suggestion was used."}
     if left <= 0:
         return {"state": "limit", "left_today": 0, "limit": limit,
                 "message": f"Today's {limit} suggestions are used up; they come back "
@@ -1369,7 +1387,7 @@ def suggest(con: sqlite3.Connection, profile: dict[str, Any], job: dict[str, Any
            "earlier": earlier(con, question, profile, job, maxlength),
            "left_today": left - 1, "limit": limit}
     if answers.SUBJECT_AWARE and not reason and listing.kind(
-            question, job.get("company")) in ("why_company", "why_role"):
+            question, job.get("company")) == "why_role":
         # Nothing in a profile says why this employer; only the person can.
         out["hint"] = ("These reasons come only from your resume. For one that's really "
                        "yours, type a line in the box and press Suggest again.")

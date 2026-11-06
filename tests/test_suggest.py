@@ -39,8 +39,11 @@ class Press(Ext):
         from jsa import answers
         return answers.job_row(self.con, 1)
 
+    # Why this company is drafted only around a reason typed in the box (2026-11-06).
+    REASON = "The microgrid support tools."
+
     def press(self, reply, question="Anything else we should know?",
-              maxlength=None, profile=None):
+              maxlength=None, profile=None, reason=""):
         seen = []
 
         def capture(prompt, **k):
@@ -53,7 +56,7 @@ class Press(Ext):
 
         with mock.patch("jsa.suggest.llm.complete_json", side_effect=capture):
             result = suggest.suggest(self.con, profile or self.profile, self.job(),
-                                     question, maxlength)
+                                     question, maxlength, reason=reason)
         self.con.commit()
         return result, seen
 
@@ -113,7 +116,7 @@ class TestOptions(Press):
     def test_the_company_one_is_drafted_with_the_switch_on(self):
         # Plan 39, 2026-10-11: 7 of 10 company drafts passed, no leak.
         result, seen = self.press({"role": GOOD, "company": COMPANY},
-                                  question="What excites you about Riverton Grid?")
+                                  question="What excites you about Riverton Grid?", reason=self.REASON)
         got = self.by_angle(result)
         self.assertEqual(got["about the company"]["source"], "model")
         self.assertIn('"company"', seen[0])
@@ -121,7 +124,7 @@ class TestOptions(Press):
     def test_good_drafts_are_kept_and_the_company_one_is_composed(self):
         with mock.patch("jsa.answers.SUBJECT_AWARE", False):
             result, seen = self.press({"role": GOOD, "project": GOOD.replace("this", "the")},
-                                      question="What excites you about Riverton Grid?")
+                                      question="What excites you about Riverton Grid?", reason=self.REASON)
         self.assertEqual(result["state"], "ok")
         got = self.by_angle(result)
         self.assertEqual(set(got), {"about the role", "about your project",
@@ -275,6 +278,18 @@ class TestOptions(Press):
     # electronic design automation tools ...". Project answers end on the work.
     DUTY = " This role involves building microgrid software for utilities."
 
+    def test_a_closing_line_in_the_employers_own_voice_is_cut(self):
+        job = {"company": "Riverton Grid", "title": "Support Engineer", "location": ""}
+        voice = " Riverton Grid will show customers the value of our microgrid platform."
+        posting = "Riverton Grid will show customers the value of our microgrid platform."
+        text = GOOD + " " + PROJECT + voice
+        self.assertEqual(suggest.drop_closer(text, self.profile, job, posting),
+                         GOOD + " " + PROJECT)
+        # "Our" of the candidate's own, not from the posting, stays.
+        mine = " Our team sold replacement units to property managers."
+        self.assertEqual(suggest.drop_closer(GOOD + " " + PROJECT + mine, self.profile,
+                                             job, posting), GOOD + " " + PROJECT + mine)
+
     def test_a_project_answer_ends_on_the_work(self):
         result, seen = self.press([{"role": GOOD + self.DUTY, "project": PROJECT + self.DUTY}])
         options = self.by_angle(result)
@@ -396,7 +411,7 @@ class TestOptions(Press):
     def test_the_prompt_asks_for_an_answer_and_the_check_accepts_one(self):
         from jsa import answers
         _, seen = self.press({"role": GOOD, "project": PROJECT, "company": COMPANY},
-                             question="Why do you want to work at Riverton Grid?")
+                             question="Why do you want to work at Riverton Grid?", reason=self.REASON)
         self.assertIn("says the answer outright", seen[0])
         self.assertIn("I want to work at Riverton Grid because", seen[0])
         # The sentence the prompt asks for is not refused for its own frame.
@@ -464,7 +479,7 @@ class TestSubjectAwareSwitch(Press):
             result, _ = self.press([{"role": GOOD + " " + self.EMPLOYER,
                                      "company": COMPANY + " I built microgrid orchestration "
                                                           "software for utilities."}] * 2,
-                                   question="Why do you want to work at Riverton Grid?")
+                                   question="Why do you want to work at Riverton Grid?", reason=self.REASON)
         got = self.by_angle(result)
         self.assertEqual(got["about the role"]["source"], "model")
         self.assertIn("microgrid", got["about the role"]["text"])
@@ -567,7 +582,7 @@ class TestEarlierAnswers(Press):
         suggest.remember(self.con, self.Q, secret, "yours", job)
         row = self.con.execute("SELECT COUNT(*), MAX(use_count) FROM answer_bank").fetchone()
         self.assertEqual(tuple(row), (1, 2))
-        result, seen = self.press({"role": GOOD, "project": GOOD}, question=self.Q)
+        result, seen = self.press({"role": GOOD, "project": GOOD}, question=self.Q, reason=self.REASON)
         self.assertNotIn("BANKED-ANSWER-TEXT", seen[0])
         self.assertEqual(result["earlier"][0]["source"], "yours")
 
@@ -595,11 +610,20 @@ class TestRoutes(Press):
         self.assertEqual(r.status_code, 415)
 
     def test_suggest_through_the_route(self):
+        # Why this company with no reason typed: asked for one, nothing used.
+        with mock.patch("jsa.suggest.llm.complete_json") as call:
+            r = self.post("/ext/suggest", {"url": GREENHOUSE, "question": "Why Riverton Grid?",
+                                           "maxlength": ""}).json()
+        self.assertEqual(r["state"], "need_reason")
+        self.assertIn("yours to say", r["message"])
+        call.assert_not_called()
+        self.assertEqual(r["left_today"], suggest.SUGGEST_DAILY)
         with mock.patch("jsa.suggest.llm.complete_json",
                         return_value=({"role": GOOD, "project": PROJECT, "company": COMPANY},
                                       Usage(model="t"))):
             r = self.post("/ext/suggest", {"url": GREENHOUSE, "question": "Why Riverton Grid?",
-                                           "maxlength": ""}).json()
+                                           "maxlength": "",
+                                           "reason": "The microgrid support tools."}).json()
         self.assertEqual(r["state"], "ok")
         self.assertEqual(len(r["options"]), 2)
         self.assertEqual(r["left_today"], suggest.SUGGEST_DAILY - 1)
@@ -732,8 +756,8 @@ class TestLastShown(Press):
 
     def test_the_last_press_comes_back_as_it_was_and_costs_nothing(self):
         self.assertEqual(self.earlier()["last"], {})
-        first, _ = self.press({"role": GOOD, "company": COMPANY}, question=self.Q)
-        second, _ = self.press({"role": COMPANY, "company": GOOD}, question=self.Q)
+        first, _ = self.press({"role": GOOD, "company": COMPANY}, question=self.Q, reason=self.REASON)
+        second, _ = self.press({"role": COMPANY, "company": GOOD}, question=self.Q, reason=self.REASON)
         r = self.earlier()
         self.assertEqual(r["last"][self.Q]["options"], second["options"])
         self.assertTrue(r["last"][self.Q]["at"])
