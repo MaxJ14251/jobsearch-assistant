@@ -1,7 +1,7 @@
 # ADR 0037 — Canada, the second country pack
 
-Status: built 2026-10-30; accepted when the owner has looked at it in the
-dashboard
+Status: accepted 2026-11-07 (built 2026-10-30; the owner looked at a
+Toronto profile in the dashboard)
 Date: 2026-10-30
 Relates to: ADR 0036 (country packs), ADR 0013 and 0029 (nationwide
 sources), ADR 0020 (postings the tool may not read), ADR 0006 (pay).
@@ -150,6 +150,16 @@ Three pack names made this possible without touching the US:
   the US pack.
 - The US golden pages are identical to before Canada, apart from the map
   script's unit factor (phase 2), and the US baseline is unchanged.
+
+## Checked in the dashboard, 2026-11-07
+
+A scratch home (`JSA_HOME`) with the example profile set to Canada: postal
+area M5V, 50 km, remote in Canada, five target roles. `jsa init` seeded
+Canada's employer list, and one `jsa discover` read the 22 boards: 795
+postings fetched, 90 kept (16 employers with at least one). The dashboard
+showed kilometres, the map centred on M5V with drive-time rings, "anywhere
+in Canada", pay in the working country's dollars, the degree line and no
+role education line, with no console errors. The owner looked and accepted.
 
 ## Not done
 
