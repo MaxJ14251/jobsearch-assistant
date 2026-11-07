@@ -133,8 +133,8 @@ each from USD to the CAD the posting states.
    `jsa verify` (22 of 22). A clone working in Canada reads and verifies
    that file; the US list is untouched.
 8. **The national map** uses Canada Albers (parallels 50 and 70, origin
-   40 N 96 W) over the province outline; no ground layer is built yet, so
-   the live map draws without one.
+   40 N 96 W) over the province outline. The live map has Canada's own
+   ground since 2026-11-07 (below).
 
 Three pack names made this possible without touching the US:
 `FOLD_ACCENTS`, `ALIAS_SPLIT` and `POSTAL_AREA_ONLY`.
@@ -161,9 +161,46 @@ showed kilometres, the map centred on M5V with drive-time rings, "anywhere
 in Canada", pay in the working country's dollars, the degree line and no
 role education line, with no console errors. The owner looked and accepted.
 
+## The ground under the live map, 2026-11-07
+
+The owner asked for a Canadian map that looks exactly like the US one. It is
+built by `tools/build_ca_data.py --only basemap` into
+`data/ca/ca_basemap_{coarse,medium,fine}.json.gz`, in the US files' exact
+shape: the same three tiers, scales, simplification and layers
+(`tools/build_map_data.py` TIERS, ADR 0019), so the page and `jsa.basemap`
+draw it unchanged.
+
+| Layer | Source |
+|---|---|
+| land | Provinces, cartographic boundary file (shore-clipped): the outer rings |
+| lake | The same file's holes (the large lakes it cuts out), plus Natural Earth's 10m lakes that lie on Canada's land and in no hole |
+| urban | Population centres |
+| county (fine only) | Census divisions, without islands under 1% of a division's largest piece (their shore is the land's own) |
+| road | Road Network File: rank 1 (the Trans-Canada and freeways) at the coarse tier, ranks 1-2 at the others |
+| city names | Natural Earth populated places, 50,000 people or more, each on Statistics Canada's point for that town (4 aliases: Greater Sudbury, Trois-Rivières, Saint-Jérôme, Saguenay for Chicoutimi) |
+
+Fetched once from Statistics Canada's map service at half a pixel of the
+fine tier (0.000362 degrees), one province at a time (the whole country at
+that detail is refused), and simplified per tier from that.
+
+Sizes: coarse 573 KB, medium 2.3 MB, fine 8.9 MB (the US: 0.3, 1.5 and
+6.2 MB). The fine land is 1.8 million points against the US's 0.2 million:
+the Arctic islands. 42 city names, all on a town.
+
+Checked in the dashboard on the Toronto preview: Lakes Ontario, Erie and
+Simcoe, the 400-series highways and the population centres at metro
+zoom; the Toronto Islands at the fine tier; the provinces, Hudson Bay and
+the Montreal, Ottawa and Quebec City labels zoomed out; no server or console
+errors. Side by side with the US dashboard, the same colours and strokes.
+
+What it does not have that the US has: the fine tier's smaller lakes are
+Natural Earth's (1:10,000,000), not a national water file, so up close they
+are about a kilometre off; the US fine tier draws its lakes from the
+Census's own water areas. The map shows no ground across the border, as the
+US map shows none in Canada.
+
 ## Not done
 
 - French pay text ("80 000 $") and French page wording.
-- A ground layer under the live map (roads, water).
 - Role education data for Canada (Statistics Canada publishes a candidate
   table; not checked).

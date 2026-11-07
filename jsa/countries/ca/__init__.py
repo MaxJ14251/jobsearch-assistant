@@ -234,5 +234,5 @@ OUTLINE_FILE = DATA / "ca_outline.json.gz"
 
 
 def basemap_file(tier: str) -> Path:
-    # No ground layer is built for Canada yet: the live map draws without it.
+    # Built by tools/build_ca_data.py --only basemap (ADR 0037, 2026-11-07).
     return DATA / f"ca_basemap_{tier}.json.gz"

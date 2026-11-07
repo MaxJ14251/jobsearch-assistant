@@ -485,11 +485,14 @@ def check_basemap(report: Report) -> None:
     from . import basemap
 
     if not basemap.available():
+        folder = basemap.path("coarse").parent
+        tool = ("tools/build_ca_data.py" if folder.name == "ca"
+                else "tools/build_map_data.py")
         report.add(False, "The map has no land, water or roads under it",
-                   "The basemap files are missing from data/us/. Rebuild them "
-                   "with `python tools/build_map_data.py --only basemap` "
-                   "(downloads public Census and Natural Earth files once), "
-                   "or restore data/us/us_basemap_*.json.gz from the repository.")
+                   f"The basemap files are missing from data/{folder.name}/. Rebuild "
+                   f"them with `python {tool} --only basemap` (downloads the public "
+                   f"sources once), or restore data/{folder.name}/"
+                   f"{folder.name}_basemap_*.json.gz from the repository.")
     report.checked.append("map data")
 
 

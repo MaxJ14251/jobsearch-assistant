@@ -29,6 +29,20 @@ stores or looks up a full postal code (ADR 0037).
   layer 7,  population centres  -> data/ca/ca_places.csv.gz  (a point per town)
   layer 14, forward sortation   -> data/ca/ca_fsa.csv.gz     (a point per area)
   layer 0,  provinces           -> data/ca/ca_outline.json.gz (the national map)
+
+The ground under the live map (--only basemap): the US basemap's three tiers
+and layers, built the same way (tools/build_map_data.py TIERS, ADR 0019).
+  Cartographic boundary files
+    layer 0, provinces (shore-clipped; the big lakes are holes)
+                                -> land, and lake (those holes)
+    layer 4, census divisions   -> county (fine tier only, as in the US)
+    layer 7, population centres -> urban
+  Road Network File 2021 (same licence), served at
+    https://geo.statcan.gc.ca/geo_wa/rest/services/2021/Road_Network_File/MapServer
+    rank 1 (coarse), ranks 1-2  -> road
+  Natural Earth 10m populated places (public domain)
+                                -> city names
+                                -> data/ca/ca_basemap_{coarse,medium,fine}.json.gz
 """
 
 from __future__ import annotations
@@ -43,10 +57,15 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from build_map_data import _area, point_on_land, simplify, write_gz  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from build_map_data import (BASEMAP_URLS, CITIES_URL, CITY_MIN_POP,  # noqa: E402
+                            MILES_PER_DEGREE, TIERS, _area, _dbf_column, _features,
+                            _inside, _only_member, _shp_polygons, fetch,
+                            point_on_land, simplify, write_gz)
 
-SERVICE = ("https://geo.statcan.gc.ca/geo_wa/rest/services/2021/"
-           "Cartographic_boundary_files/MapServer")
+REST = "https://geo.statcan.gc.ca/geo_wa/rest/services/2021/"
+SERVICE = REST + "Cartographic_boundary_files/MapServer"
+ROADS = REST + "Road_Network_File/MapServer"
 UA = "jobsearch-assistant data build (tools/build_ca_data.py)"
 
 # Statistics Canada's province codes and the two-letter ones a posting uses.
@@ -71,17 +90,23 @@ POINT_OFFSET, OUTLINE_OFFSET = 0.002, 0.02
 MIN_RING = 0.05
 
 
-def query(layer: int, fields: str, offset: float, cache: Path | None) -> list[dict]:
-    """Every feature of a layer, in pages, as {attributes, rings}."""
+def query(layer: int, fields: str, offset: float, cache: Path | None,
+          service: str = SERVICE, where: str = "1=1", page: int = PAGE) -> list[dict]:
+    """Every feature of a layer, in pages, as {attributes, rings}; a line
+    layer's paths come back as its rings. A page the service refuses (an
+    error 500, which is how it says a page is too big) is asked for again
+    in halves."""
     out: list[dict] = []
     start = 0
+    tag = ("" if service == SERVICE else "roads_") + (
+        "" if where == "1=1" else "".join(c for c in where if c.isalnum()) + "_")
     while True:
-        params = {"where": "1=1", "outFields": fields, "returnGeometry": "true",
+        params = {"where": where, "outFields": fields, "returnGeometry": "true",
                   "outSR": "4326", "maxAllowableOffset": str(offset),
                   "geometryPrecision": "4", "orderByFields": "OBJECTID",
-                  "resultOffset": str(start), "resultRecordCount": str(PAGE), "f": "json"}
-        url = f"{SERVICE}/{layer}/query?{urllib.parse.urlencode(params)}"
-        name = f"statcan_{layer}_{offset}_{start}.json"
+                  "resultOffset": str(start), "resultRecordCount": str(page), "f": "json"}
+        url = f"{service}/{layer}/query?{urllib.parse.urlencode(params)}"
+        name = f"statcan_{tag}{layer}_{offset}_{start}_{page}.json"
         cached = cache / name if cache else None
         if cached and cached.exists():
             body = cached.read_bytes()
@@ -89,22 +114,27 @@ def query(layer: int, fields: str, offset: float, cache: Path | None) -> list[di
         else:
             print(f"  fetch   layer {layer}, from {start}")
             req = urllib.request.Request(url, headers={"User-Agent": UA})
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with urllib.request.urlopen(req, timeout=600) as resp:
                 body = resp.read()
-            if cached:
-                cached.parent.mkdir(parents=True, exist_ok=True)
-                cached.write_bytes(body)
         data = json.loads(body)
         if "error" in data:
+            if page > 1:
+                page = max(1, page // 2)
+                continue
             raise SystemExit(f"Statistics Canada refused the query: {data['error']}")
+        if cached and not cached.exists():
+            cached.parent.mkdir(parents=True, exist_ok=True)
+            cached.write_bytes(body)
         feats = data.get("features") or []
         for f in feats:
-            rings = [[(x, y) for x, y in ring] for ring in (f.get("geometry") or {}).get("rings", [])]
+            geometry = f.get("geometry") or {}
+            rings = [[(x, y) for x, y in ring]
+                     for ring in geometry.get("rings") or geometry.get("paths") or []]
             if rings:
                 out.append({"a": f["attributes"], "rings": rings})
-        if len(feats) < PAGE and not data.get("exceededTransferLimit"):
+        if len(feats) < page and not data.get("exceededTransferLimit"):
             return out
-        start += PAGE
+        start += page
 
 
 def _names(text: str) -> list[str]:
@@ -189,6 +219,129 @@ def build_outline(feats: list[dict]) -> dict[str, list[list[list[float]]]]:
     return dict(sorted(out.items()))
 
 
+# The basemap's ground is fetched once, simplified on the server to half a
+# pixel at the fine tier's scale, then each tier simplifies further from it,
+# exactly as tools/build_map_data.py does for the US.
+GROUND_OFFSET = round(0.5 / TIERS["fine"]["ppm"] / MILES_PER_DEGREE, 6)
+# Road Network File ranks: 1 is the Trans-Canada and the other freeways, the
+# interstates' counterpart (the coarse tier); 2 the other major highways,
+# the rest of what the US file's primary roads are.
+COARSE_RANKS, ROAD_RANKS = {"1"}, ("1", "2")
+
+
+def _signed(ring) -> float:
+    return 0.5 * sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(ring, ring[1:]))
+
+
+# An island smaller than this share of its division's largest piece is left
+# out of the county layer (its shore is the land's own edge).
+COUNTY_ISLAND = 0.01
+
+
+def _boxed(rings):
+    return [(min(p[0] for p in r), min(p[1] for p in r),
+             max(p[0] for p in r), max(p[1] for p in r), r) for r in rings]
+
+
+def _in_any(boxes, x: float, y: float) -> bool:
+    return any(x0 <= x <= x1 and y0 <= y <= y1 and _inside(r, x, y)
+               for x0, y0, x1, y1, r in boxes)
+
+
+def natural_earth_lakes(land, holes, cache) -> list:
+    """The lakes the boundary file leaves in the land: Natural Earth's
+    (public domain, the US map's own lakes at its two wider tiers), each
+    kept when a point inside it is on Canada's land and not in a lake the
+    boundary file already cut out, so no lake is drawn twice."""
+    land_boxes, hole_boxes = _boxed(land), _boxed(holes)
+    out = []
+    for name in ("lakes", "lakes_na"):
+        archive = fetch(BASEMAP_URLS[name], cache)
+        for shape in _shp_polygons(_only_member(archive, ".shp")):
+            if not shape:
+                continue
+            x, y = point_on_land(shape)
+            if _in_any(land_boxes, x, y) and not _in_any(hole_boxes, x, y):
+                out += shape
+    print(f"  lakes   {len(holes)} from the boundary file, {len(out)} rings from Natural Earth")
+    return out
+
+
+def ground(cache: Path | None) -> dict[str, list]:
+    """Every layer's raw parts, once, for all tiers to simplify from.
+
+    The provinces are shore-clipped, with the large lakes cut out as holes
+    (anticlockwise rings in Esri's geometry). The outer rings are the land;
+    the holes are the lake layer, drawn over it, so a lake has its own fill
+    and edge as a US one does, and its shore is the boundary file's own."""
+    land, holes = [], []
+    # One province at a time: the whole country at this detail is more than
+    # the service will answer in one go (it returns an error 500).
+    for code in PROVINCES:
+        for f in query(0, "PRUID", GROUND_OFFSET, cache, where=f"PRUID='{code}'"):
+            for ring in f["rings"]:
+                (holes if _signed(ring) > 0 else land).append(ring)
+    county = []
+    for f in query(4, "CDUID", GROUND_OFFSET, cache, page=25):
+        # A division's islands are only its coastline again, which the land
+        # already draws: the dashed line is for the division's own edge.
+        big = max(_area(r) for r in f["rings"])
+        county += [r for r in f["rings"] if _area(r) >= COUNTY_ISLAND * big]
+    urban = [r for f in query(7, "PCUID", GROUND_OFFSET, cache, page=100) for r in f["rings"]]
+    road, road_i = [], []
+    for rank in ROAD_RANKS:
+        for f in query(int(rank) - 1, "RANK", GROUND_OFFSET, cache, service=ROADS):
+            road += f["rings"]
+            if str(f["a"].get("RANK")) in COARSE_RANKS:
+                road_i += f["rings"]
+    lake = holes + natural_earth_lakes(land, holes, cache)
+    return {"land": land, "lake": lake, "county": county, "urban": urban,
+            "road": road, "road_i": road_i, "cities": cities(fetch(CITIES_URL, cache))}
+
+
+# Natural Earth names that differ from Statistics Canada's own: the town a
+# label must stand on. Chicoutimi has been part of Saguenay since 2002.
+CITY_ALIASES = {("Sudbury", "ON"): "Greater Sudbury",
+                ("Trois Rivieres", "QC"): "Trois-Rivières",
+                ("St.-Jerome", "QC"): "Saint-Jérôme",
+                ("Chicoutimi", "QC"): "Saguenay"}
+
+
+def cities(archive: bytes) -> list[tuple[str, str, int]]:
+    """(name, province code, metro population) for Canada's places of 50,000
+    people or more, biggest first, from Natural Earth (as the US's are)."""
+    from jsa.countries import ca
+    dbf = _only_member(archive, ".dbf")
+    names = _dbf_column(dbf, "nameascii")
+    provinces = _dbf_column(dbf, "adm1name")
+    countries = _dbf_column(dbf, "adm0_a3")
+    pops = _dbf_column(dbf, "pop_max")
+    out = []
+    for name, prov, country, pop in zip(names, provinces, countries, pops):
+        try:                        # the reader is Latin-1; the file is UTF-8
+            prov = prov.encode("latin-1").decode("utf-8")
+        except UnicodeError:
+            pass
+        code = ca.REGION_BY_NAME.get(prov.strip().lower())
+        people = int(float(pop or 0))
+        if country == "CAN" and code and people >= min(CITY_MIN_POP.values()):
+            out.append((CITY_ALIASES.get((name, code), name), code, people))
+    return sorted(out, key=lambda c: (-c[2], c[0]))
+
+
+def basemap_tier(name: str, raw: dict[str, list]) -> dict:
+    """One tier, in the US files' exact shape (tools/build_map_data.py)."""
+    tier = TIERS[name]
+    tolerance = 0.5 / tier["ppm"] / MILES_PER_DEGREE
+    layers = {}
+    for layer in tier["layers"]:
+        source = "road_i" if (layer, name) == ("road", "coarse") else layer
+        layers[layer] = _features(raw[source], tolerance, tier["q"], closed=layer != "road")
+    return {"tier": name, "ppm": tier["ppm"], "q": tier["q"],
+            "tolerance_deg": round(tolerance, 7), "layers": layers,
+            "cities": [list(c) for c in raw["cities"] if c[2] >= CITY_MIN_POP[name]]}
+
+
 def _csv(header: list[str], rows) -> bytes:
     buf = io.StringIO()
     w = csv.writer(buf, lineterminator="\n")
@@ -201,9 +354,26 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", type=Path, default=Path("jsa/resources/data"))
     ap.add_argument("--cache", type=Path, default=None)
+    ap.add_argument("--only", choices=("points", "basemap"), default=None,
+                    help="just the town, postal-area and outline files, or just the basemap")
     args = ap.parse_args()
     dest = args.out / "ca"
     dest.mkdir(parents=True, exist_ok=True)
+    if args.only != "points":
+        raw = ground(args.cache)
+        for name in TIERS:
+            tier = basemap_tier(name, raw)
+            file = f"ca_basemap_{name}.json.gz"
+            digest = write_gz(dest / file,
+                              json.dumps(tier, separators=(",", ":")).encode("utf-8"))
+            for layer, feats in tier["layers"].items():
+                print(f"  {name:7} {layer:7} {len(feats):6} features "
+                      f"{sum(len(f[4]) // 2 for f in feats):8} points")
+            print(f"{file:26} {(dest / file).stat().st_size / 1024:8.1f} KB  sha256 {digest}")
+        if args.only == "basemap":
+            print("Adapted from Statistics Canada, 2021 Census boundary files and "
+                  "Road Network File, 2021.")
+            return
 
     places = build_places(query(9, "CSDNAME,CSDTYPE,PRUID,LANDAREA", POINT_OFFSET, args.cache),
                           query(7, "PCNAME,PRUID,LANDAREA", POINT_OFFSET, args.cache))

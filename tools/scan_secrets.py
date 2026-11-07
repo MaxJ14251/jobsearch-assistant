@@ -84,6 +84,9 @@ SKIP_PERSONAL_FILES = {
     "ca_places.csv.gz",
     "ca_fsa.csv.gz",
     "ca_outline.json.gz",
+    "ca_basemap_coarse.json.gz",
+    "ca_basemap_medium.json.gz",
+    "ca_basemap_fine.json.gz",
 }
 
 # Credential shapes that are never acceptable, regardless of whose they are.

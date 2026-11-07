@@ -1030,7 +1030,7 @@ drafts stay, and discovery will not overwrite the text. See
 
 ## Test coverage
 
-About 2,000 Python tests and 41 extension tests (`node --test extension/test/*.test.mjs`).
+About 2,100 Python tests and 41 extension tests (`node --test extension/test/*.test.mjs`).
 Line coverage **89%**, measured 2026-10-24 with `coverage run --source=jsa -m
 unittest discover -s tests -t .` (80% at the 888-test run before it), reported as
 measured rather than tuned.
@@ -1193,7 +1193,7 @@ jobsearch/
       .env.example              #   the .env template
       coach.yaml                #   the resume report's word lists
       data/us/                  #   Census centroids, outline, basemap; public domain
-      data/ca/                  #   Statistics Canada towns, postal areas, outline
+      data/ca/                  #   Statistics Canada towns, postal areas, outline, basemap
     config.py                   # paths, .env loading, preferences
     db.py                       # all SQLite access + additive migrations
     sources.py                  # Greenhouse/Lever/Ashby/Workday/Workable/Recruitee/RSS/custom
@@ -1214,7 +1214,7 @@ jobsearch/
   tools/build_map_data.py       # rebuilds jsa/resources/data/ from its public sources
   tools/build_ca_data.py        # rebuilds jsa/resources/data/ca/ (Statistics Canada)
   tools/build_role_data.py      # rebuilds the role education data (BLS, O*NET)
-  tests/                        # about 2,000 tests
+  tests/                        # about 2,100 tests
 ```
 
 ## Configure it for yourself
@@ -1285,10 +1285,13 @@ links to this project; it adds a contact address only if you set
 `JSA_CONTACT_EMAIL`, and never sends your profile's email.
 
 For Canada (ADR 0037), `jsa/resources/data/ca/` holds 3,782 towns, the
-1,643 three-character postal areas (never full postal codes) and a province
-outline, rebuilt with `python tools/build_ca_data.py`. Adapted from
-Statistics Canada, 2021 Census boundary files, 2021, under the
+1,643 three-character postal areas (never full postal codes), a province
+outline and the ground under the live map (land, lakes, population centres,
+census divisions and the major highways, in the US map's three tiers),
+rebuilt with `python tools/build_ca_data.py`. Adapted from Statistics
+Canada, 2021 Census boundary files and Road Network File, 2021, under the
 [Statistics Canada Open Licence](https://www.statcan.gc.ca/en/terms-conditions/open-licence).
 This does not constitute an endorsement by Statistics Canada of this
 product. The postal-area file includes data copied with permission from
-Canada Post Corporation.
+Canada Post Corporation. The smaller lakes and the city names on the map are
+Natural Earth's (public domain), as the US map's are.
