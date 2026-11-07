@@ -233,6 +233,14 @@ application went through. Record it as applied, with resume v3?", with
 - The confirmation pages' real addresses and headings were not checked on
   a real submission when this was written; the owner's next one is the
   check.
+- **Checked on real submissions, 2026-11-07** (tracker events, read-only;
+  counts only). From 2026-10-13 to 2026-11-02, 16 applications were
+  recorded from the prompt: 9 Ashby, 5 Greenhouse, 2 Lever, so the
+  confirmation rules hold on all three boards. In the same period, 5 more
+  board applications were recorded with the panel's "I submitted this"
+  button instead (4 of them on 2026-10-13, the first day of real use). The
+  tracker cannot tell whether the prompt failed to show for those or the
+  owner clicked first. No application was recorded without a click.
 
 ## Add, save and draft from the panel, 2026-10-15
 
