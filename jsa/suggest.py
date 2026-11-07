@@ -468,7 +468,8 @@ COPIED_SHARE = 0.8
 # The posting's own voice: "Cohere will take a hands-on approach to building
 # customer Proof of Concepts that showcase the business value of our platform"
 # closed an answer, all of its words from the posting (2026-11-06).
-_EMPLOYER_VOICE = tuple(f"first person ({w!r})" for w in ("our", "ours", "we", "us"))
+_EMPLOYER_VOICE = tuple(f"first person ({w!r})" for w in (
+    "our", "ours", "ourselves", "we", "us", "we're", "we've", "we'd", "we'll"))
 
 
 def copied_duty(sentence: dict[str, Any], posting_text: str) -> bool:

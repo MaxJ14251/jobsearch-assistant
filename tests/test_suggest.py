@@ -419,6 +419,12 @@ class TestOptions(Press):
         self.assertTrue(role.endswith("I want this role."))
         self.assertIn("never a line copied from the posting", seen[0])
 
+    def test_a_copied_line_in_the_employers_contracted_voice_is_left_off(self):
+        for voice in ("We're", "We've", "We'll", "We’ll"):
+            with self.subTest(voice=voice):
+                role, _ = self.copied(f"{voice} orchestrate microgrid dispatch for utilities.")
+                self.assertNotIn("microgrid", role)
+
     def test_a_subjectless_line_not_from_the_posting_stays_marked(self):
         role, _ = self.copied("Wrangle quokka narwhal herds.")
         self.assertIn("quokka", role)
