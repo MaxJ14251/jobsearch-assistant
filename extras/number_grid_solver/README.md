@@ -65,6 +65,11 @@ Time per number ≈ `CLICK_DELAY_MS + MOVE_DURATION_MS + MOUSE_DOWN_MS`
   everything OCR saw. Use the raw image to read off the grid's pixel position
   for `CAPTURE_REGION`. Turn it off again afterwards.
 - Small digits missed → `UPSCALE = 1.5` or `2.0`. Wrong reads → raise `MIN_CONFIDENCE`.
+- The solver locates the 4×4 grid from the confident reads (same digit size,
+  evenly spaced rows/columns), ignores numbers off the grid (URL bar, hint text,
+  HUD), re-reads any empty cell on its own at 2× zoom, and fills a single last
+  gap by elimination. Clicks go to the cell centre. Change `GRID_SIZE` for 5×5 etc.
+  If no grid is found it prints a notice and falls back to raw OCR positions.
 - Set `REQUIRE_ALL_16 = True` if a partial solve is worse than none.
 
 ## Troubleshooting: clicks land in the wrong place
