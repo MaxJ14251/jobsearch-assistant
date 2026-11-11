@@ -1,12 +1,12 @@
 """
-Number Grid Solver - press F8 to read a 1..16 number grid off the screen and
+Number Grid Solver - press F8 to read a numbered grid (1..16, 1..12, ...) off the screen and
 click the numbers in ascending order. Press Esc to quit.
 
 Pipeline (all in memory, no files written unless DEBUG_SAVE_IMAGES is on):
     F8 -> mss screenshot of the primary monitor (or CAPTURE_REGION)
        -> OCR (EasyOCR by default, Tesseract optional) restricted to digits
-       -> keep integers 1..16, one box per number (highest confidence wins)
-       -> sort 1..16 -> move + left-click each box centre with your delays
+       -> find the grid lattice, one number per cell (re-read / deduce gaps)
+       -> sort ascending -> move + left-click each box centre with your delays
 
 Run from a terminal:  python grid_solver.py
 The OCR model is loaded and warmed up once at start-up, so the first F8 is as
@@ -80,6 +80,12 @@ CLICK_POSITION_JITTER_PX = 3
 CAPTURE_REGION = None
 # CAPTURE_REGION = dict(left=660, top=240, width=600, height=600)
 
+# Move the cursor to the right edge of the screen before the screenshot, so a
+# tile under the mouse isn't drawn in its faded "hover" colour (hard to read).
+# PARK_WAIT_MS gives the game time to redraw the tile. Only moves, never clicks.
+PARK_MOUSE = True
+PARK_WAIT_MS = 60
+
 # --- OCR -------------------------------------------------------------------
 OCR_ENGINE = "easyocr"            # "easyocr" (more accurate) or "tesseract" (lighter)
 USE_GPU = True                    # EasyOCR uses an NVIDIA GPU if CUDA torch is installed; falls back to CPU
@@ -89,15 +95,19 @@ UPSCALE = 1.0                     # >1 (e.g. 1.5 or 2) helps tiny digits, costs 
 TESSERACT_CMD = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 # --- Grid layout -------------------------------------------------------------
-# The numbers sit in a GRID_SIZE x GRID_SIZE lattice. The solver finds that
-# lattice from the confident reads, throws away numbers that are not on it
-# (URL bars, hint text, HUD), re-reads empty cells one by one, and fills a
-# single remaining gap by elimination. Clicks go to the cell centre.
-GRID_SIZE = 4
+# The numbers sit in a rows x columns lattice (e.g. 4x4 = 1..16, or 4 rows x 3
+# columns = 1..12). The solver finds that lattice from the confident reads,
+# throws away numbers that are not on it (URL bars, hint text, HUD), re-reads
+# empty cells one by one, and fills a single remaining gap by elimination.
+# Clicks go to the cell centre.
+# None = detect the size automatically on every F8 (works when it varies).
+# Set both (e.g. GRID_ROWS = 4, GRID_COLS = 3) to force a fixed size.
+GRID_ROWS = None
+GRID_COLS = None
 
-# If fewer than 16 numbers are found: True = click nothing (safe),
+# If not every cell's number is found: True = click nothing (safe),
 # False = click the ones that were found, in order.
-REQUIRE_ALL_16 = False
+REQUIRE_ALL = False
 
 # Save the screenshot plus an annotated copy (boxes + numbers) next to this
 # script on every F8. Turn on while setting up, off for speed.
@@ -105,7 +115,8 @@ DEBUG_SAVE_IMAGES = False
 
 # ===========================================================================
 
-NUMBERS = range(1, GRID_SIZE * GRID_SIZE + 1)
+MAX_NUMBER = 36  # largest number ever accepted from OCR (6x6 grid)
+NUMBERS = range(1, MAX_NUMBER + 1)
 _abort = threading.Event()
 _busy = threading.Lock()
 _mouse = mouse.Controller()
@@ -157,16 +168,27 @@ class EasyOcrEngine:
                         max(ys) - min(ys)))
         return out
 
-    def read_cell(self, crop):
-        """Read the single number in a cell crop. Returns (text, conf) or None."""
-        reads = self.reader.readtext(crop, allowlist="0123456789", detail=1,
-                                     paragraph=False, width_ths=0.7, mag_ratio=1.0)
-        reads = [(t, float(c)) for _, t, c in reads if t.strip()]
-        if not reads:  # detector missed it (lone "1"/"7" happen): recognise the whole crop
-            h, w = crop.shape[:2]
-            reads = [(t, float(c)) for _, t, c in self.reader.recognize(
-                crop, horizontal_list=[[0, w, 0, h]], free_list=[],
-                allowlist="0123456789", detail=1) if t.strip()]
+    def read_cell(self, crop, detect_only=False):
+        """Read the single number in a cell crop. Returns (text, conf, height) or None.
+
+        height is the text box height in original crop pixels (None when unknown).
+        Small lone digits ("1", "7") are often only detected at 3x, so 2x is
+        tried first, then 3x, then plain recognition of the whole crop.
+        """
+        for f in (2.0, 3.0):
+            reads = self.reader.readtext(resize(crop, f), allowlist="0123456789", detail=1,
+                                         paragraph=False, width_ths=0.7, mag_ratio=1.0)
+            reads = [(t, float(c), (max(p[1] for p in b) - min(p[1] for p in b)) / f)
+                     for b, t, c in reads if t.strip()]
+            if reads:
+                return max(reads, key=lambda r: r[1])
+        if detect_only:
+            return None
+        big = resize(crop, 3.0)
+        h, w = big.shape[:2]
+        reads = [(t, float(c), None) for _, t, c in self.reader.recognize(
+            big, horizontal_list=[[0, w, 0, h]], free_list=[],
+            allowlist="0123456789", detail=1) if t.strip() and c >= 0.5]
         return max(reads, key=lambda r: r[1]) if reads else None
 
 
@@ -191,11 +213,11 @@ class TesseractEngine:
             out.append((text, conf / 100.0, (cx, cy), data["height"][i]))
         return out
 
-    def read_cell(self, crop):
+    def read_cell(self, crop, detect_only=False):
         gray = crop.mean(axis=2).astype(np.uint8)
         data = self.pt.image_to_data(gray, config="--psm 7 --oem 3 -c tessedit_char_whitelist=0123456789",
                                      output_type=self.pt.Output.DICT)
-        reads = [(t, float(c) / 100.0) for t, c in zip(data["text"], data["conf"])
+        reads = [(t, float(c) / 100.0, hh) for t, c, hh in zip(data["text"], data["conf"], data["height"])
                  if t.strip() and float(c) >= 0]
         return max(reads, key=lambda r: r[1]) if reads else None
 
@@ -214,7 +236,7 @@ def resize(img, factor):
 
 
 def pick_numbers(reads, min_conf=MIN_CONFIDENCE):
-    """From raw OCR reads keep one position per number 1..16 (best confidence).
+    """From raw OCR reads keep one position per number (best confidence).
 
     Returns {number: (cx, cy)} in the same pixel space as the reads.
     """
@@ -242,20 +264,62 @@ def _groups(values, tol):
     return groups
 
 
-def _lattice_axis(values, tol):
-    """Pick the GRID_SIZE most populated clusters; return their centres if evenly spaced."""
-    groups = sorted(_groups(values, tol), key=len, reverse=True)[:GRID_SIZE]
-    if len(groups) < GRID_SIZE:
+def _lattice_axis(values, tol, min_spacing):
+    """Fit evenly spaced lines (rows or columns) through the read positions.
+
+    Stray reads off the lattice are ignored, and a row/column OCR missed
+    entirely is filled in (one missing line between two found ones).
+    Returns (line centres, spacing) or None.
+    """
+    groups = _groups(values, tol)
+    centres = np.array([float(np.median(g)) for g in groups])
+    counts = np.array([len(g) for g in groups])
+    if len(centres) < 2:
         return None
-    centres = sorted(float(np.median(g)) for g in groups)
-    gaps = np.diff(centres)
-    if gaps.min() <= 0 or gaps.max() / gaps.min() > 1.35:
+    anchor = centres[counts.argmax()]  # the best-populated line is surely on the grid
+    tries = {abs(a - b) / k for a in centres for b in centres for k in (1, 2)}
+    best = None
+    for s in tries:
+        if s < min_spacing:
+            continue
+        k = np.round((centres - anchor) / s)
+        inl = np.abs(centres - anchor - k * s) <= min(0.2 * s, tol)
+        # The run of lines around the anchor; it may skip one missing line
+        # but stops at a gap of 2+ (so far-away strays don't join).
+        ks = set(k[inl].astype(int))
+        lo = hi = 0
+        while lo - 1 in ks or lo - 2 in ks:
+            lo -= 1 if lo - 1 in ks else 2
+        while hi + 1 in ks or hi + 2 in ks:
+            hi += 1 if hi + 1 in ks else 2
+        if hi == lo or hi - lo + 1 > 8:
+            continue
+        sel = inl & (k >= lo) & (k <= hi)
+        score = (counts[sel].sum(), s)  # most reads on the run, then the widest spacing
+        if best is None or score > best[0]:
+            best = (score, s, k, sel, lo, hi)
+    if best is None:
         return None
-    return centres
+    _, s, k, sel, lo, hi = best
+    # Least-squares refine the spacing/offset on the lines that were seen.
+    if sel.sum() >= 2:
+        s, off = np.polyfit(k[sel], centres[sel], 1)
+    else:
+        off = anchor
+    return [float(off + i * s) for i in range(lo, hi + 1)], float(s)
+
+
+def _extend(lines, spacing, want, limit):
+    """Add candidate lines beyond both edges (rows/columns OCR missed entirely)."""
+    extra = max(1, want - len(lines)) if want else 1
+    before = [lines[0] - spacing * i for i in range(extra, 0, -1)]
+    after = [lines[-1] + spacing * i for i in range(1, extra + 1)]
+    inside = lambda v: 0.4 * spacing <= v <= limit - 0.4 * spacing
+    return [v for v in before if inside(v)] + lines + [v for v in after if inside(v)]
 
 
 def pick_grid(reads, img, engine):
-    """Locate the GRID_SIZE x GRID_SIZE lattice and return {number: (x, y)} at cell centres.
+    """Locate the number lattice; return ({number: (x, y)} at cell centres, (rows, cols)).
 
     Returns None if no lattice can be found (caller falls back to pick_numbers).
     """
@@ -264,27 +328,56 @@ def pick_grid(reads, img, engine):
         digits = re.sub(r"\D", "", text)
         if digits and conf >= MIN_CONFIDENCE and int(digits) in NUMBERS:
             cands.append((int(digits), conf, cx, cy, h))
-    if len(cands) < GRID_SIZE + 2:
+    if len(cands) < 3:
         return None
 
     # Grid digits share one font size; small text (URLs, hints) and huge HUD
     # numbers are dropped.
     strong = [c[4] for c in cands if c[1] >= 0.8] or [c[4] for c in cands]
     med_h = float(np.median(strong))
-    cands = [c for c in cands if 0.65 * med_h <= c[4] <= 1.5 * med_h]
 
-    rows = _lattice_axis([c[3] for c in cands], tol=0.8 * med_h)
-    cols = _lattice_axis([c[2] for c in cands], tol=0.8 * med_h)
-    if rows is None or cols is None:
+    def size_ok(h):
+        return 0.65 * med_h <= h <= 1.5 * med_h
+
+    cands = [c for c in cands if size_ok(c[4])]
+
+    # A cell is always bigger than its digit, so lines are >= 1.5 digit heights apart.
+    fit_r = _lattice_axis([c[3] for c in cands], tol=0.8 * med_h, min_spacing=1.5 * med_h)
+    fit_c = _lattice_axis([c[2] for c in cands], tol=0.8 * med_h, min_spacing=1.5 * med_h)
+    if fit_r is None or fit_c is None:
         return None
-    dy, dx = float(np.median(np.diff(rows))), float(np.median(np.diff(cols)))
+    (rows, dy), (cols, dx) = fit_r, fit_c
+
+    # An outer line backed by a single read is likely a stray (URL bar, HUD)
+    # that happens to line up; drop it. If it was a real row/column, the edge
+    # probe below finds it again from a properly sized digit.
+    def trim(lines, step, pos):
+        n_on = lambda v: sum(abs(p - v) <= 0.2 * step for p in pos)
+        if len(lines) > 2 and n_on(lines[0]) < 2:
+            lines = lines[1:]
+        if len(lines) > 2 and n_on(lines[-1]) < 2:
+            lines = lines[:-1]
+        return lines
+
+    rows = trim(rows, dy, [c[3] for c in cands])
+    cols = trim(cols, dx, [c[2] for c in cands])
+
+    # Probe one line beyond each edge (or up to GRID_ROWS/GRID_COLS) in case a
+    # whole outer row/column went unread; probes are kept only if a digit is found.
+    h_img, w_img = img.shape[:2]
+    all_rows = _extend(rows, dy, GRID_ROWS, h_img)
+    all_cols = _extend(cols, dx, GRID_COLS, w_img)
+    r_off, c_off = all_rows.index(rows[0]), all_cols.index(cols[0])
+    core = {(r + r_off, c + c_off) for r in range(len(rows)) for c in range(len(cols))}
+    rows, cols = all_rows, all_cols
+    nr, nc = len(rows), len(cols)
 
     # Assign each confident read to its cell; best confidence wins per cell and per number.
     slot = {}  # (r, c) -> (conf, n)
-    for n, conf, cx, cy, _ in cands:
-        r = min(range(GRID_SIZE), key=lambda i: abs(rows[i] - cy))
-        c = min(range(GRID_SIZE), key=lambda i: abs(cols[i] - cx))
-        if abs(rows[r] - cy) > 0.35 * dy or abs(cols[c] - cx) > 0.35 * dx:
+    for n, conf, x, y, _ in cands:
+        r = min(range(nr), key=lambda i: abs(rows[i] - y))
+        c = min(range(nc), key=lambda i: abs(cols[i] - x))
+        if abs(rows[r] - y) > 0.35 * dy or abs(cols[c] - x) > 0.35 * dx:
             continue
         if (r, c) not in slot or conf > slot[(r, c)][0]:
             slot[(r, c)] = (conf, n)
@@ -294,10 +387,12 @@ def pick_grid(reads, img, engine):
             by_num[n] = rc
     cells = {rc: n for n, rc in by_num.items()}
 
-    # Re-read every empty cell on its own, magnified (no confidence floor:
-    # the position is already known to be a grid cell).
-    for r in range(GRID_SIZE):
-        for c in range(GRID_SIZE):
+    # Re-read every empty cell on its own, magnified. Inside the lattice any
+    # digit is accepted (the spot is known to be a cell); on the probe lines it
+    # must be a confident read of the grid's digit size, so nearby status text
+    # or background is not mistaken for a cell.
+    for r in range(nr):
+        for c in range(nc):
             if (r, c) in cells:
                 continue
             x0, x1 = int(cols[c] - 0.4 * dx), int(cols[c] + 0.4 * dx)
@@ -305,19 +400,39 @@ def pick_grid(reads, img, engine):
             crop = img[max(0, y0):max(0, y1), max(0, x0):max(0, x1)]
             if crop.size == 0:
                 continue
-            got = engine.read_cell(resize(crop, 2.0))
-            if got:
-                digits = re.sub(r"\D", "", got[0])
-                if digits and int(digits) in NUMBERS and int(digits) not in cells.values():
-                    cells[(r, c)] = int(digits)
+            probe = (r, c) not in core
+            got = engine.read_cell(crop, detect_only=probe)
+            if not got:
+                continue
+            text, conf, h = got  # h is already in original image pixels
+            digits = re.sub(r"\D", "", text)
+            if not digits or int(digits) not in NUMBERS or int(digits) in cells.values():
+                continue
+            if probe and (conf < 0.6 or h is None or not size_ok(h)):
+                continue
+            cells[(r, c)] = int(digits)
+
+    # Drop probe rows/columns that turned out empty.
+    used_r = [r for r, _ in cells] + [r for r, _ in core]
+    used_c = [c for _, c in cells] + [c for _, c in core]
+    r_lo, r_hi, c_lo, c_hi = min(used_r), max(used_r), min(used_c), max(used_c)
+    nr, nc = r_hi - r_lo + 1, c_hi - c_lo + 1
+    if (GRID_ROWS and nr > GRID_ROWS) or (GRID_COLS and nc > GRID_COLS):
+        return None
+    cells = {(r - r_lo, c - c_lo): n for (r, c), n in cells.items()}
+    rows, cols = rows[r_lo:r_hi + 1], cols[c_lo:c_hi + 1]
+
+    # Numbers run 1..rows*cols; anything larger was a misread.
+    total = nr * nc
+    cells = {rc: n for rc, n in cells.items() if n <= total}
 
     # One cell left and one number left -> it must be that number.
-    empty = [(r, c) for r in range(GRID_SIZE) for c in range(GRID_SIZE) if (r, c) not in cells]
-    missing = [n for n in NUMBERS if n not in cells.values()]
+    empty = [(r, c) for r in range(nr) for c in range(nc) if (r, c) not in cells]
+    missing = [n for n in range(1, total + 1) if n not in cells.values()]
     if len(empty) == 1 and len(missing) == 1:
         cells[empty[0]] = missing[0]
 
-    return {n: (cols[c], rows[r]) for (r, c), n in cells.items()}
+    return {n: (cols[c], rows[r]) for (r, c), n in cells.items()}, (nr, nc)
 
 
 # ----------------------------------------------------------------------------- mouse
@@ -380,26 +495,34 @@ def solve(engine):
     try:
         _abort.clear()
         t0 = time.perf_counter()
+        if PARK_MOUSE:
+            with mss.mss() as sct:
+                mon = sct.monitors[1]
+            _mouse.position = (mon["left"] + mon["width"] - 2, mon["top"] + mon["height"] // 2)
+            _sleep_ms(PARK_WAIT_MS)
         img, (ox, oy) = grab_screen()
         t1 = time.perf_counter()
 
         reads = engine.read(resize(img, UPSCALE))
         if UPSCALE != 1.0:
             reads = [(t, c, (x / UPSCALE, y / UPSCALE), h / UPSCALE) for t, c, (x, y), h in reads]
-        found = pick_grid(reads, img, engine)
-        if found is None:
-            print("    no 4x4 grid found - falling back to plain OCR positions")
-            found = pick_numbers(reads)
+        grid = pick_grid(reads, img, engine)
+        if grid is None:
+            print("    no number grid found - falling back to plain OCR positions")
+            found, total, shape = pick_numbers(reads), None, "?"
+        else:
+            found, (nr, nc) = grid
+            total, shape = nr * nc, f"{nr}x{nc}"
         t2 = time.perf_counter()
 
-        missing = [n for n in NUMBERS if n not in found]
-        print(f"[F8] capture {1000*(t1-t0):.0f} ms | OCR {1000*(t2-t1):.0f} ms | "
-              f"found {len(found)}/16" + (f" | missing {missing}" if missing else ""))
+        missing = [n for n in range(1, total + 1) if n not in found] if total else []
+        print(f"[F8] capture {1000*(t1-t0):.0f} ms | OCR {1000*(t2-t1):.0f} ms | grid {shape} | "
+              f"found {len(found)}/{total or '?'}" + (f" | missing {missing}" if missing else ""))
         if DEBUG_SAVE_IMAGES:
             save_debug(img, found, reads)
 
-        if missing and REQUIRE_ALL_16:
-            print("    not clicking (REQUIRE_ALL_16 = True)")
+        if (missing or total is None) and REQUIRE_ALL:
+            print("    not clicking (REQUIRE_ALL = True)")
             return
 
         for n in sorted(found):

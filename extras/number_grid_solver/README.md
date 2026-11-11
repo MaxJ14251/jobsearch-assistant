@@ -1,8 +1,8 @@
 # Number Grid Solver (F8 hotkey)
 
 Standalone helper script, not part of the `jsa` package. Press **F8** while a
-1–16 number grid is on screen: it screenshots the primary monitor, reads the
-numbers with OCR, and left-clicks them in order 1 → 16. **Esc** quits.
+numbered grid (1–16, 1–12, …) is on screen: it screenshots the primary monitor, reads the
+numbers with OCR, and left-clicks them in ascending order. **Esc** quits.
 
 > Automating input can break a game's terms of service, especially online.
 > Your call where you use it.
@@ -68,9 +68,13 @@ Time per number ≈ `CLICK_DELAY_MS + MOVE_DURATION_MS + MOUSE_DOWN_MS`
 - The solver locates the 4×4 grid from the confident reads (same digit size,
   evenly spaced rows/columns), ignores numbers off the grid (URL bar, hint text,
   HUD), re-reads any empty cell on its own at 2× zoom, and fills a single last
-  gap by elimination. Clicks go to the cell centre. Change `GRID_SIZE` for 5×5 etc.
+  gap by elimination. Clicks go to the cell centre. The grid size (4×4, 4 rows × 3 columns…) is
+  detected on every F8; set `GRID_ROWS` and `GRID_COLS` to force one. A row or
+  column OCR missed entirely is still found (gaps and edges are probed).
+- `PARK_MOUSE = True` moves the cursor to the screen edge before the
+  screenshot so no tile is in its faded hover colour.
   If no grid is found it prints a notice and falls back to raw OCR positions.
-- Set `REQUIRE_ALL_16 = True` if a partial solve is worse than none.
+- Set `REQUIRE_ALL = True` if a partial solve is worse than none.
 
 ## Troubleshooting: clicks land in the wrong place
 
