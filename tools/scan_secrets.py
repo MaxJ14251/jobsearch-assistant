@@ -343,7 +343,11 @@ def personal_values() -> tuple[list[str], list[str]]:
     # profile itself ships ("State University") is a stand-in, not a secret:
     # on a fresh clone and in CI the example IS the profile.
     shipped = _example_values()
-    places_of = [(entry or {}).get("company") for entry in data.get("experience") or []]
+    # A self_employed entry ("Independent Projects") names no employer: its
+    # line is a label, and the plain phrase sat in old example comments
+    # (owner's decision, 2026-11-11).
+    places_of = [(entry or {}).get("company") for entry in data.get("experience") or []
+                 if not (entry or {}).get("self_employed")]
     places_of += [(entry or {}).get("institution") for entry in data.get("education") or []]
     LIFE.clear()
     LIFE_SHORT.clear()

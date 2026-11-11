@@ -133,6 +133,14 @@ class TestSecretScanner(unittest.TestCase):
         self.assertNotIn("Springfield, IL", never)
         self.assertIn("Harrowgate Instruments, Springfield, IL", never)
 
+    def test_a_self_employed_entry_names_no_employer(self):
+        """A gap-covering entry's line is a label, not a workplace."""
+        profile = ("experience:\n  - company: Independent Projects\n"
+                   "    self_employed: true\n  - company: Harrowgate Instruments\n")
+        _, (never, _) = self.life_scan(profile)
+        self.assertNotIn("Independent Projects", never)
+        self.assertIn("Harrowgate Instruments", never)
+
     def test_the_example_profile_is_checked_for_a_real_employer(self):
         """Exempt from the contact-detail scan (its placeholders match
         themselves), but not from this: it carried the operator's employer
