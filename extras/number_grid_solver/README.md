@@ -41,6 +41,14 @@ Wait for `Ready.` (the first launch downloads the EasyOCR model, ~100 MB, once).
 Then switch to the game (Borderless Windowed), press F8 when the grid shows.
 Each F8 prints timings, e.g. `capture 12 ms | OCR 240 ms | found 16/16`.
 
+## Total solve time (pacing)
+
+`TARGET_TOTAL_SECONDS = (8.0, 10.0)` makes each solve finish at a random time
+8–10 s after you press F8, screenshot and OCR included. The clicks are spread
+over the time left after OCR, with uneven gaps and slower glides. If OCR alone
+used up the time, it clicks at full speed instead, so it never runs much past
+the target. Keep the max below the game's limit (15 s). `None` turns pacing off.
+
 ## Adjusting click speed
 
 All settings are at the top of `grid_solver.py`:

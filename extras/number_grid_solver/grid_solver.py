@@ -49,7 +49,17 @@ from pynput import keyboard, mouse
 HOTKEY = keyboard.Key.f8          # trigger key
 EXIT_KEY = keyboard.Key.esc       # quits the program (also aborts a running click sequence)
 
-# --- Click speed -----------------------------------------------------------
+# --- Total solve time ------------------------------------------------------
+# TARGET_TOTAL_SECONDS = (min, max): the whole solve, counted from the moment
+#   you press F8 (screenshot + OCR included), finishes at a random time in this
+#   range. The clicks are spread over whatever time is left after OCR, with
+#   uneven gaps and slower glides so it looks hand-paced. If OCR alone already
+#   used the time, it falls back to the fast settings below.
+#   Keep the max under the game's limit (15 s) with some margin.
+#   None = no pacing: click as fast as the settings below allow.
+TARGET_TOTAL_SECONDS = (8.0, 10.0)
+
+# --- Click speed (used when TARGET_TOTAL_SECONDS is None, and as the floor) --
 # CLICK_DELAY_MS: pause AFTER each click before moving to the next number.
 #   Lower = faster. 16 numbers x (CLICK_DELAY_MS + MOVE_DURATION_MS) is the
 #   total click time. e.g. 60 + 40 = 100 ms per number -> ~1.6 s for all 16.
@@ -441,29 +451,57 @@ def _sleep_ms(ms):
         time.sleep(ms / 1000.0)
 
 
-def glide_to(x, y):
-    """Move the cursor to (x, y) over MOVE_DURATION_MS with a slight ease-out."""
+def glide_to(x, y, duration_ms=None):
+    """Move the cursor to (x, y) over duration_ms (default MOVE_DURATION_MS) with ease-out."""
     sx, sy = _mouse.position
-    if MOVE_DURATION_MS <= 0 or MOVE_STEPS <= 1:
+    duration_ms = MOVE_DURATION_MS if duration_ms is None else duration_ms
+    steps = max(MOVE_STEPS, int(duration_ms / 15))  # ~60 updates/s on slow glides
+    if duration_ms <= 0 or steps <= 1:
         _mouse.position = (x, y)
         return
-    step_time = MOVE_DURATION_MS / 1000.0 / MOVE_STEPS
-    for i in range(1, MOVE_STEPS + 1):
-        t = i / MOVE_STEPS
+    step_time = duration_ms / 1000.0 / steps
+    for i in range(1, steps + 1):
+        t = i / steps
         t = 1 - (1 - t) ** 2  # ease-out: fast start, gentle arrival
         _mouse.position = (round(sx + (x - sx) * t), round(sy + (y - sy) * t))
         time.sleep(step_time)
 
 
-def click_at(x, y):
+def click_at(x, y, glide_ms=None):
     j = CLICK_POSITION_JITTER_PX
     if j:
         x += random.randint(-j, j)
         y += random.randint(-j, j)
-    glide_to(int(x), int(y))
+    glide_to(int(x), int(y), glide_ms)
     _mouse.press(mouse.Button.left)
     _sleep_ms(MOUSE_DOWN_MS)
     _mouse.release(mouse.Button.left)
+
+
+def click_schedule(n, t0):
+    """Plan when each of n clicks lands so the solve ends TARGET_TOTAL_SECONDS after t0.
+
+    Returns [(click_time, glide_ms), ...] in perf_counter seconds, or None for
+    unpaced (fast) clicking: pacing off, nothing to click, or not enough time left.
+    """
+    if not TARGET_TOTAL_SECONDS or n == 0:
+        return None
+    lo, hi = TARGET_TOTAL_SECONDS
+    end = t0 + random.uniform(lo, hi)
+    start = time.perf_counter()
+    fast_gap = (CLICK_DELAY_MS + MOVE_DURATION_MS + MOUSE_DOWN_MS) / 1000.0
+    if end - start < n * fast_gap:
+        return None  # OCR ate the budget: click as fast as allowed
+    # Uneven gaps (some quick, some hesitant) that add up to the time left.
+    weights = [random.uniform(0.6, 1.4) for _ in range(n)]
+    scale = (end - start) / sum(weights)
+    plan, t = [], start
+    for w in weights:
+        gap = w * scale
+        t += gap
+        glide_ms = min(450.0, max(MOVE_DURATION_MS, 0.45 * gap * 1000.0))
+        plan.append((t - MOUSE_DOWN_MS / 1000.0, glide_ms))
+    return plan
 
 
 # ----------------------------------------------------------------------------- debug
@@ -525,14 +563,26 @@ def solve(engine):
             print("    not clicking (REQUIRE_ALL = True)")
             return
 
-        for n in sorted(found):
+        schedule = click_schedule(len(found), t0)
+        for i, n in enumerate(sorted(found)):
             if _abort.is_set():
                 print("    aborted")
                 return
             cx, cy = found[n]
-            click_at(ox + cx, oy + cy)  # image pixels -> screen pixels
-            _sleep_ms(max(0, CLICK_DELAY_MS + random.randint(-CLICK_DELAY_JITTER_MS, CLICK_DELAY_JITTER_MS)))
-        print(f"    clicked {len(found)} numbers in {1000*(time.perf_counter()-t2):.0f} ms")
+            if schedule:
+                due, glide_ms = schedule[i]
+                # Idle until it's time to start gliding, checking Esc while waiting.
+                while not _abort.is_set() and time.perf_counter() < due - glide_ms / 1000.0:
+                    time.sleep(min(0.02, max(0.0, due - glide_ms / 1000.0 - time.perf_counter())))
+                if _abort.is_set():
+                    continue
+                click_at(ox + cx, oy + cy, glide_ms)  # image pixels -> screen pixels
+            else:
+                click_at(ox + cx, oy + cy)
+                _sleep_ms(max(0, CLICK_DELAY_MS + random.randint(-CLICK_DELAY_JITTER_MS, CLICK_DELAY_JITTER_MS)))
+        now = time.perf_counter()
+        print(f"    clicked {len(found)} numbers in {1000*(now-t2):.0f} ms | "
+              f"total since F8 {now - t0:.2f} s" + (" (paced)" if schedule else ""))
     except Exception as exc:
         print(f"    error: {exc!r}")
     finally:
