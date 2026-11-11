@@ -921,9 +921,13 @@ def most_recent_job(profile: dict[str, Any]) -> dict[str, Any] | None:
     """The current job, else the one that ended last. None if there are none.
 
     A `self_employed` entry is not a job here: the work-history rule exists so
-    a resume shows an employer, and it must not displace the real one."""
+    a resume shows an employer, and it must not displace the real one. Nor is
+    an `always_include` entry: it is printed anyway, and its bullets are not
+    in the ranking the rule picks from, so choosing it would leave the resume
+    with no ranked employer at all."""
     jobs = [e for e in profile.get("experience") or []
-            if e.get("bullets") and not e.get("self_employed")]
+            if e.get("bullets") and not e.get("self_employed")
+            and not e.get("always_include")]
     if not jobs:
         return None
     return max(jobs, key=lambda e: (bool(e.get("current")),

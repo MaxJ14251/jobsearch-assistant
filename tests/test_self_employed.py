@@ -89,6 +89,20 @@ class Selection(unittest.TestCase):
                        keep_always=False)
         self.assertFalse(any(i.startswith("b_indep") for i in ids))
 
+    def test_always_included_employer_does_not_take_the_work_history_slot(self):
+        later = {"id": "exp_gig", "company": "Various", "title": "Crew",
+                 "family": "other", "start": "2023", "end": "2025",
+                 "always_include": True,
+                 "bullets": [{"id": "b_gig", "strength": 1,
+                              "text": "Moved people where they needed to be.",
+                              "tags": []}]}
+        p = profile(INDEPENDENT, later, EMPLOYER)
+        self.assertEqual(most_recent_job(p)["id"], "exp_sales")
+        ids = [b.id for b in select_bullets(p, self.POSTING, "engineering",
+                                            title="AI Engineer")]
+        self.assertIn("b_sales", ids)
+        self.assertIn("b_gig", ids)
+
     def test_flag_absent_changes_nothing(self):
         plain = {k: v for k, v in INDEPENDENT.items()
                  if k not in ("always_include", "self_employed")}
