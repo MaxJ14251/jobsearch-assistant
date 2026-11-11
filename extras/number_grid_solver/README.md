@@ -140,4 +140,6 @@ Time per number ≈ `CLICK_DELAY_MS + MOVE_DURATION_MS + MOUSE_DOWN_MS`
    terminal as Administrator too — Windows blocks input from lower-privilege
    programs.
 7. **F8 does nothing:** some games swallow keys; run the terminal as
-   Administrator, or change `HOTKEY` (e.g. `keyboard.Key.f9`).
+   Administrator, or change `HOTKEYS` (e.g. `keyboard.Key.f9`).
+   **FiveM:** F8 opens FiveM's console and FiveM swallows it, so the solver
+   never sees it — use **Insert** (the second default hotkey) in game.

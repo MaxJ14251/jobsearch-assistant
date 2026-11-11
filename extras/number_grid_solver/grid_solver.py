@@ -46,7 +46,10 @@ from pynput import keyboard, mouse
 # SETTINGS - edit these
 # ===========================================================================
 
-HOTKEY = keyboard.Key.f8          # trigger key
+# Trigger keys (any of them arms the solver). F8 is FiveM's console key and
+# FiveM swallows it, so in FiveM use Insert. Add/replace keys as needed,
+# e.g. keyboard.Key.f9 or keyboard.KeyCode.from_char('k').
+HOTKEYS = (keyboard.Key.f8, keyboard.Key.insert)
 EXIT_KEY = keyboard.Key.esc       # quits the program (also aborts a running click sequence)
 
 # --- Reveal-then-hide grids (chimp-test style) ---------------------------------
@@ -772,7 +775,7 @@ def solve(engine):
                 mon = sct.monitors[1]
             _mouse.position = (mon["left"] + mon["width"] - 2, mon["top"] + mon["height"] // 2)
             _sleep_ms(PARK_WAIT_MS)
-        print("[F8] armed - watching for the numbered grid (Esc = quit)")
+        print("[armed] watching for the numbered grid (Esc = quit)")
         t1 = time.perf_counter()
 
         # Fast path: watch for numbered tiles and read them the moment they show.
@@ -852,10 +855,11 @@ def main():
     engine = make_engine()
     # Warm-up pass so the first real F8 isn't slowed by lazy initialisation.
     engine.read(np.full((64, 64, 3), 255, dtype=np.uint8))
-    print("Ready. F8 = arm (press before or while the numbers show), Esc = quit.")
+    print("Ready. F8 or Insert = arm (press before or while the numbers show), Esc = quit.")
+    print("In FiveM use Insert - FiveM keeps F8 for its own console.")
 
     def on_press(key):
-        if key == HOTKEY:
+        if key in HOTKEYS:
             threading.Thread(target=solve, args=(engine,), daemon=True).start()
         elif key == EXIT_KEY:
             _abort.set()
