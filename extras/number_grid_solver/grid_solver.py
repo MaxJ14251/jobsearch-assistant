@@ -47,9 +47,11 @@ from pynput import keyboard, mouse
 # ===========================================================================
 
 # Trigger keys (any of them arms the solver). F8 is FiveM's console key and
-# FiveM swallows it, so in FiveM use Insert. Add/replace keys as needed,
+# FiveM swallows it, so in FiveM use Numpad 7. Add/replace keys as needed,
 # e.g. keyboard.Key.f9 or keyboard.KeyCode.from_char('k').
-HOTKEYS = (keyboard.Key.f8, keyboard.Key.insert)
+# Numpad keys are matched by virtual-key code (Numpad 0-9 = 96-105, NumLock on),
+# so the 7 on the top row does NOT trigger it.
+HOTKEYS = (keyboard.Key.f8, keyboard.KeyCode.from_vk(103))  # F8, Numpad 7
 EXIT_KEY = keyboard.Key.end       # quits the program (Esc is used too much in games)
 CLEAR_KEY = keyboard.Key.delete   # hides the path overlay
 
@@ -991,6 +993,16 @@ class PathOverlay:
         self.root.after(30, self._poll)
 
 
+def _is_hotkey(key):
+    """Match by virtual-key code where possible (tells Numpad 7 apart from the top-row 7)."""
+    vk = getattr(key, "vk", None)
+    for hk in HOTKEYS:
+        hk_vk = getattr(hk, "vk", None)
+        if key == hk if hk_vk is None or isinstance(hk, keyboard.Key) else vk == hk_vk:
+            return True
+    return False
+
+
 def main():
     print(f"Loading OCR engine ({OCR_ENGINE})...")
     engine = make_engine()
@@ -998,12 +1010,12 @@ def main():
     engine.read(np.full((64, 64, 3), 255, dtype=np.uint8))
     overlay = PathOverlay() if MODE == "overlay" else None
     what = "draw the path" if overlay else "solve and click"
-    print(f"Ready ({MODE} mode). F8 or Insert = arm + {what} "
+    print(f"Ready ({MODE} mode). F8 or Numpad 7 = arm + {what} "
           f"(press before or while the numbers show), Delete = hide path, End = quit.")
-    print("In FiveM use Insert - FiveM keeps F8 for its own console.")
+    print("In FiveM use Numpad 7 (NumLock on) - FiveM keeps F8 for its own console.")
 
     def on_press(key):
-        if key in HOTKEYS:
+        if _is_hotkey(key):
             _overlay_q.put(("clear",))
             threading.Thread(target=solve, args=(engine,), daemon=True).start()
         elif key == CLEAR_KEY:

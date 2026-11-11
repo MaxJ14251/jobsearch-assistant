@@ -43,7 +43,7 @@ Each F8 prints timings, e.g. `capture 12 ms | OCR 240 ms | found 16/16`.
 
 ## Overlay mode (default): it shows the path, you click
 
-`MODE = "overlay"` sends **no mouse input at all**. Press **Insert** (or F8)
+`MODE = "overlay"` sends **no mouse input at all**. Press **Numpad 7** (or F8)
 before or while the numbers show; the moment they appear it reads them and
 draws a path over the screen: arrows 1 → 2 → … with a number badge in each
 tile's corner and a green ring on the next tile. The overlay is click-through,
@@ -155,4 +155,4 @@ Time per number ≈ `CLICK_DELAY_MS + MOVE_DURATION_MS + MOUSE_DOWN_MS`
 7. **F8 does nothing:** some games swallow keys; run the terminal as
    Administrator, or change `HOTKEYS` (e.g. `keyboard.Key.f9`).
    **FiveM:** F8 opens FiveM's console and FiveM swallows it, so the solver
-   never sees it — use **Insert** (the second default hotkey) in game.
+   never sees it — use **Numpad 7** (the second default hotkey, NumLock on) in game.
