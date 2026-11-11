@@ -41,6 +41,24 @@ Wait for `Ready.` (the first launch downloads the EasyOCR model, ~100 MB, once).
 Then switch to the game (Borderless Windowed), press F8 when the grid shows.
 Each F8 prints timings, e.g. `capture 12 ms | OCR 240 ms | found 16/16`.
 
+## How it reads the grid
+
+1. **Tiles (fast, ~0.3 s):** finds the square tiles by shape, boxes the digit
+   in each one and recognises all digits in a single batch. No slow OCR
+   detection pass, and it handles faded/hovered tiles and lone 1s and 7s.
+2. **Full OCR (fallback, ~10+ s on CPU):** only if no tile grid is seen or the
+   tiles left numbers unread. Use `CAPTURE_REGION` to speed this up.
+
+Each F8 prints which method was used, e.g. `read (tiles) 280 ms | grid 4x3 | found 12/12`.
+
+## Practice pages
+
+- `test_game.html`: copies the in-game look: 3 columns × 4 rows (1–12), dark
+  tiles, a 15 s "Time Left" bar that starts as soon as the grid appears, light-grey hover,
+  blurry background. A wrong click or the timer running out ends the round. **R** = new
+  round, **F11** = fullscreen. URL options: `?cols=4&rows=4&time=15&tile=12`.
+- `test_grid.html`: simple 4×4 (1–16) grid.
+
 ## Total solve time (pacing)
 
 `TARGET_TOTAL_SECONDS = (8.0, 10.0)` makes each solve finish at a random time

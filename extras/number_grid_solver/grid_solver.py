@@ -201,6 +201,25 @@ class EasyOcrEngine:
             allowlist="0123456789", detail=1) if t.strip() and c >= 0.5]
         return max(reads, key=lambda r: r[1]) if reads else None
 
+    def recognize_boxes(self, img, boxes):
+        """Recognise text in known boxes [x0, x1, y0, y1] in one batch (no detection pass).
+
+        Returns {box index: (text, conf)}. Much faster than readtext on a full screen.
+        """
+        if not boxes:
+            return {}
+        res = self.reader.recognize(img, horizontal_list=boxes, free_list=[],
+                                    allowlist="0123456789", detail=1)
+        out = {}
+        for pts, text, conf in res:  # map results back to boxes by position
+            cx = (pts[0][0] + pts[1][0]) / 2
+            cy = (pts[0][1] + pts[2][1]) / 2
+            i = min(range(len(boxes)), key=lambda k: abs((boxes[k][0] + boxes[k][1]) / 2 - cx)
+                    + abs((boxes[k][2] + boxes[k][3]) / 2 - cy))
+            if i not in out or float(conf) > out[i][1]:
+                out[i] = (text, float(conf))
+        return out
+
 
 class TesseractEngine:
     def __init__(self):
@@ -230,6 +249,14 @@ class TesseractEngine:
         reads = [(t, float(c) / 100.0, hh) for t, c, hh in zip(data["text"], data["conf"], data["height"])
                  if t.strip() and float(c) >= 0]
         return max(reads, key=lambda r: r[1]) if reads else None
+
+    def recognize_boxes(self, img, boxes):
+        out = {}
+        for i, (x0, x1, y0, y1) in enumerate(boxes):
+            got = self.read_cell(resize(img[max(0, y0):y1, max(0, x0):x1], 2.0))
+            if got:
+                out[i] = (got[0], got[1])
+        return out
 
 
 def make_engine():
@@ -382,45 +409,65 @@ def pick_grid(reads, img, engine):
     rows, cols = all_rows, all_cols
     nr, nc = len(rows), len(cols)
 
-    # Assign each confident read to its cell; best confidence wins per cell and per number.
-    slot = {}  # (r, c) -> (conf, n)
+    # Assign each confident read on the core lattice to its cell; best
+    # confidence wins per cell and per number. Reads on probe lines wait.
+    slot, probe_reads = {}, {}  # (r, c) -> (conf, n)
     for n, conf, x, y, _ in cands:
         r = min(range(nr), key=lambda i: abs(rows[i] - y))
         c = min(range(nc), key=lambda i: abs(cols[i] - x))
         if abs(rows[r] - y) > 0.35 * dy or abs(cols[c] - x) > 0.35 * dx:
             continue
-        if (r, c) not in slot or conf > slot[(r, c)][0]:
-            slot[(r, c)] = (conf, n)
+        target = slot if (r, c) in core else probe_reads
+        if (r, c) not in target or conf > target[(r, c)][0]:
+            target[(r, c)] = (conf, n)
     by_num = {}
     for rc, (conf, n) in slot.items():
         if n not in by_num or conf > slot[by_num[n]][0]:
             by_num[n] = rc
     cells = {rc: n for n, rc in by_num.items()}
 
-    # Re-read every empty cell on its own, magnified. Inside the lattice any
-    # digit is accepted (the spot is known to be a cell); on the probe lines it
-    # must be a confident read of the grid's digit size, so nearby status text
-    # or background is not mistaken for a cell.
-    for r in range(nr):
-        for c in range(nc):
-            if (r, c) in cells:
-                continue
-            x0, x1 = int(cols[c] - 0.4 * dx), int(cols[c] + 0.4 * dx)
-            y0, y1 = int(rows[r] - 0.4 * dy), int(rows[r] + 0.4 * dy)
-            crop = img[max(0, y0):max(0, y1), max(0, x0):max(0, x1)]
-            if crop.size == 0:
-                continue
-            probe = (r, c) not in core
-            got = engine.read_cell(crop, detect_only=probe)
-            if not got:
-                continue
-            text, conf, h = got  # h is already in original image pixels
-            digits = re.sub(r"\D", "", text)
-            if not digits or int(digits) not in NUMBERS or int(digits) in cells.values():
-                continue
-            if probe and (conf < 0.6 or h is None or not size_ok(h)):
-                continue
-            cells[(r, c)] = int(digits)
+    def reread(r, c, probe):
+        x0, x1 = int(cols[c] - 0.4 * dx), int(cols[c] + 0.4 * dx)
+        y0, y1 = int(rows[r] - 0.4 * dy), int(rows[r] + 0.4 * dy)
+        crop = img[max(0, y0):max(0, y1), max(0, x0):max(0, x1)]
+        if crop.size == 0:
+            return None
+        got = engine.read_cell(crop, detect_only=probe)
+        if not got:
+            return None
+        text, conf, h = got  # h is already in original image pixels
+        digits = re.sub(r"\D", "", text)
+        if not digits or int(digits) not in NUMBERS:
+            return None
+        if probe and (conf < 0.6 or h is None or not size_ok(h)):
+            return None
+        return int(digits)
+
+    # Re-read every empty core cell on its own, magnified; any digit is
+    # accepted there (the spot is known to be a cell).
+    for rc in sorted(core):
+        if rc not in cells:
+            n = reread(*rc, probe=False)
+            if n is not None and n not in cells.values():
+                cells[rc] = n
+
+    # Only if numbers are still unaccounted for: probe the lines beyond the
+    # edges. A probe line counts only with 2+ numbers on it, so a status line
+    # or label next to the grid ("Next: 1", "Time Left") is not taken for a row.
+    core_total = len({r for r, _ in core}) * len({c for _, c in core})
+    if any(n not in cells.values() for n in range(1, core_total + 1)) or not core_total:
+        hits = {rc: n for rc, (conf, n) in probe_reads.items()}
+        for r in range(nr):
+            for c in range(nc):
+                if (r, c) not in core and (r, c) not in hits:
+                    n = reread(r, c, probe=True)
+                    if n is not None:
+                        hits[(r, c)] = n
+        lines_r = {r for r, _ in hits if sum(1 for rr, _ in hits if rr == r) >= 2 and r not in {q for q, _ in core}}
+        lines_c = {c for _, c in hits if sum(1 for _, cc in hits if cc == c) >= 2 and c not in {q for _, q in core}}
+        for (r, c), n in sorted(hits.items()):
+            if (r in lines_r or c in lines_c) and n not in cells.values():
+                cells[(r, c)] = n
 
     # Drop probe rows/columns that turned out empty.
     used_r = [r for r, _ in cells] + [r for r, _ in core]
@@ -442,6 +489,129 @@ def pick_grid(reads, img, engine):
     if len(empty) == 1 and len(missing) == 1:
         cells[empty[0]] = missing[0]
 
+    return {n: (cols[c], rows[r]) for (r, c), n in cells.items()}, (nr, nc)
+
+
+# ----------------------------------------------------------------------------- tile finder
+# Fast path: find the square tiles with plain image processing (a few ms), box
+# the digit inside each tile, and run only the OCR recogniser on those boxes in
+# one batch. Skips EasyOCR's slow, small-digit-blind detection pass entirely.
+
+def find_tiles(img):
+    """Return [(cx, cy, w, h)] for square-ish closed shapes (tile candidates)."""
+    import cv2
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    H, W = gray.shape
+    edges = cv2.Canny(cv2.GaussianBlur(gray, (5, 5), 0), 20, 60)
+    edges = cv2.dilate(edges, np.ones((3, 3), np.uint8))
+    cnts, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    max_side = 0.5 * min(H, W)
+    out = []
+    for c in cnts:
+        x, y, w, h = cv2.boundingRect(c)
+        if w < 30 or h < 30 or w > max_side or h > max_side or not 0.8 <= w / h <= 1.25:
+            continue
+        if cv2.contourArea(cv2.convexHull(c)) < 0.85 * w * h:
+            continue
+        out.append((x + w / 2, y + h / 2, w, h))
+    out.sort(key=lambda t: -t[2])  # inner and outer edge of one tile -> keep one
+    merged = []
+    for t in out:
+        if all(abs(t[0] - m[0]) > 0.3 * m[2] or abs(t[1] - m[1]) > 0.3 * m[3] for m in merged):
+            merged.append(t)
+    return merged
+
+
+def _tile_lattice(tiles):
+    """Biggest group of equal-size tiles on a regular lattice -> (rows, cols, size) or None."""
+    best = None
+    for ref in tiles:
+        grp = [t for t in tiles if abs(t[2] - ref[2]) <= 0.12 * ref[2] and abs(t[3] - ref[3]) <= 0.12 * ref[3]]
+        if len(grp) < 4:
+            continue
+        size = float(np.median([t[2] for t in grp]))
+        fr = _lattice_axis([t[1] for t in grp], tol=0.25 * size, min_spacing=0.9 * size)
+        fc = _lattice_axis([t[0] for t in grp], tol=0.25 * size, min_spacing=0.9 * size)
+        if not fr or not fc:
+            continue
+        rows, cols = fr[0], fc[0]
+        on = sum(1 for t in grp if min(abs(t[1] - r) for r in rows) <= 0.25 * size
+                 and min(abs(t[0] - c) for c in cols) <= 0.25 * size)
+        if on < 0.75 * len(rows) * len(cols):
+            continue  # a lattice of tiles should be mostly filled
+        score = (on, size)
+        if best is None or score > best[0]:
+            best = (score, rows, cols, size)
+    return best[1:] if best else None
+
+
+def _digit_box(img, cx, cy, size):
+    """Tight box [x0, x1, y0, y1] around the digit inside a tile, or None if blank."""
+    import cv2
+    half = size * 0.40
+    x0, y0 = max(0, int(cx - half)), max(0, int(cy - half))
+    x1, y1 = int(cx + half), int(cy + half)
+    crop = cv2.cvtColor(img[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY).astype(np.int16)
+    if crop.size == 0:
+        return None
+    border = np.concatenate([crop[:3].ravel(), crop[-3:].ravel(), crop[:, :3].ravel(), crop[:, -3:].ravel()])
+    mask = (np.abs(crop - np.median(border)) > 45).astype(np.uint8)  # pixels unlike the tile colour
+    n, _, stats, _ = cv2.connectedComponentsWithStats(mask)
+    keep = [i for i in range(1, n) if stats[i, cv2.CC_STAT_HEIGHT] >= 0.08 * size]
+    if not keep:
+        return None
+    bx0 = min(stats[i, 0] for i in keep)
+    bx1 = max(stats[i, 0] + stats[i, 2] for i in keep)
+    by0 = min(stats[i, 1] for i in keep)
+    by1 = max(stats[i, 1] + stats[i, 3] for i in keep)
+    pad = int(0.25 * (by1 - by0)) + 2
+    return [x0 + bx0 - pad, x0 + bx1 + pad, y0 + by0 - pad, y0 + by1 + pad]
+
+
+def pick_tiles(img, engine):
+    """Fast path. Returns ({number: (x, y)}, (rows, cols)) or None if no tile grid is seen."""
+    tiles = find_tiles(img)
+    lat = _tile_lattice(tiles)
+    if lat is None:
+        return None
+    rows, cols, size = lat
+    if (GRID_ROWS and len(rows) != GRID_ROWS) or (GRID_COLS and len(cols) != GRID_COLS):
+        return None
+    nr, nc = len(rows), len(cols)
+    total = nr * nc
+    boxes, where = [], []
+    for r, y in enumerate(rows):
+        for c, x in enumerate(cols):
+            b = _digit_box(img, x, y, size)
+            if b:
+                boxes.append(b)
+                where.append((r, c))
+    read = engine.recognize_boxes(img, boxes)
+    best = {}  # number -> (conf, cell)
+    for i, (text, conf) in read.items():
+        digits = re.sub(r"\D", "", text)
+        if digits and 1 <= int(digits) <= total:
+            n = int(digits)
+            if n not in best or conf > best[n][0]:
+                best[n] = (conf, where[i])
+    cells = {rc: n for n, (conf, rc) in best.items()}
+    # Cells that read badly or lost a duplicate: careful single-cell re-read.
+    for r in range(nr):
+        for c in range(nc):
+            if (r, c) in cells:
+                continue
+            half = 0.42 * size
+            crop = img[max(0, int(rows[r] - half)):int(rows[r] + half),
+                       max(0, int(cols[c] - half)):int(cols[c] + half)]
+            got = engine.read_cell(crop) if crop.size else None
+            if got:
+                digits = re.sub(r"\D", "", got[0])
+                if digits and 1 <= int(digits) <= total and int(digits) not in cells.values():
+                    cells[(r, c)] = int(digits)
+    empty = [(r, c) for r in range(nr) for c in range(nc) if (r, c) not in cells]
+    missing = [n for n in range(1, total + 1) if n not in cells.values()]
+    if len(empty) == 1 and len(missing) == 1:
+        cells[empty[0]] = missing[0]
     return {n: (cols[c], rows[r]) for (r, c), n in cells.items()}, (nr, nc)
 
 
@@ -541,10 +711,21 @@ def solve(engine):
         img, (ox, oy) = grab_screen()
         t1 = time.perf_counter()
 
-        reads = engine.read(resize(img, UPSCALE))
-        if UPSCALE != 1.0:
-            reads = [(t, c, (x / UPSCALE, y / UPSCALE), h / UPSCALE) for t, c, (x, y), h in reads]
-        grid = pick_grid(reads, img, engine)
+        # Fast path: tiles found by shape, digits recognised in one batch.
+        reads, method = [], "tiles"
+        grid = pick_tiles(img, engine)
+        if grid is not None and len(grid[0]) < grid[1][0] * grid[1][1]:
+            grid_tiles, grid = grid, None  # incomplete: try full OCR, keep the better result
+        else:
+            grid_tiles = None
+        if grid is None:
+            method = "full OCR"
+            reads = engine.read(resize(img, UPSCALE))
+            if UPSCALE != 1.0:
+                reads = [(t, c, (x / UPSCALE, y / UPSCALE), h / UPSCALE) for t, c, (x, y), h in reads]
+            grid = pick_grid(reads, img, engine)
+            if grid_tiles and (grid is None or len(grid_tiles[0]) >= len(grid[0])):
+                grid, method = grid_tiles, "tiles"
         if grid is None:
             print("    no number grid found - falling back to plain OCR positions")
             found, total, shape = pick_numbers(reads), None, "?"
@@ -554,7 +735,7 @@ def solve(engine):
         t2 = time.perf_counter()
 
         missing = [n for n in range(1, total + 1) if n not in found] if total else []
-        print(f"[F8] capture {1000*(t1-t0):.0f} ms | OCR {1000*(t2-t1):.0f} ms | grid {shape} | "
+        print(f"[F8] capture {1000*(t1-t0):.0f} ms | read ({method}) {1000*(t2-t1):.0f} ms | grid {shape} | "
               f"found {len(found)}/{total or '?'}" + (f" | missing {missing}" if missing else ""))
         if DEBUG_SAVE_IMAGES:
             save_debug(img, found, reads)

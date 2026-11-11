@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grid Game Practice</title>
+<style>
+  /* Look modelled on the in-game mini-game: dark square tiles with small bold
+     white digits, a "Time Left" bar, light-grey hover, blurry striped backdrop. */
+  :root {
+    --tile: 12vh;          /* tile size; change with ?tile=10 (vh) */
+    --gap: 1.7vh;
+    --tile-bg: #17151c;
+    --tile-edge: #3a3840;
+    --hover: #a7a2a8;
+    --digit: #f4f1ec;
+    --bar: #ece6d4;
+    --bar-empty: #8e8a93;
+  }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: #4f6366;
+    color: var(--digit);
+    display: flex; align-items: center; justify-content: center;
+  }
+  /* Corrugated-container wall, blurred like the game's depth of field */
+  #wall {
+    position: fixed; inset: -40px; z-index: 0; filter: blur(6px);
+    background:
+      radial-gradient(ellipse 18% 30% at 8% 70%, #12a57a 0 60%, transparent 61%),
+      radial-gradient(ellipse 9% 10% at 7% 32%, #3b3b3d 0 70%, transparent 71%),
+      linear-gradient(180deg, rgba(255,214,140,.45), transparent 18%),
+      repeating-linear-gradient(90deg, #5d7577 0 28px, #8aa0a0 28px 40px, #44585b 40px 64px, #6f8686 64px 76px);
+  }
+  #panel { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; }
+  #label { font-size: 2.2vh; font-weight: 600; letter-spacing: .02em; margin-bottom: 1.2vh;
+           text-shadow: 0 1px 2px rgba(0,0,0,.4); }
+  #bar { width: calc(var(--cols) * var(--tile) + (var(--cols) - 1) * var(--gap) + 3vh);
+         height: 2.4vh; border-radius: 2vh; background: var(--bar-empty); overflow: hidden;
+         margin-bottom: 6vh; }
+  #fill { height: 100%; width: 100%; background: var(--bar); border-radius: 2vh; }
+  #grid { display: grid; grid-template-columns: repeat(var(--cols), var(--tile)); gap: var(--gap); }
+  .cell {
+    height: var(--tile); background: var(--tile-bg); border: 1px solid var(--tile-edge);
+    border-radius: .5vh; box-shadow: 0 .4vh 1.2vh rgba(0,0,0,.35);
+    display: flex; align-items: center; justify-content: center;
+    font-size: calc(var(--tile) * 0.19); font-weight: 700; cursor: default; user-select: none;
+  }
+  .cell:hover { background: var(--hover); }
+  .cell.done { visibility: hidden; }
+  .cell.wrong { background: #b3362c; }
+  #msg { position: fixed; z-index: 2; bottom: 4vh; left: 0; right: 0; text-align: center;
+         font-size: 2.4vh; text-shadow: 0 1px 3px #000; }
+  #msg small { display: block; opacity: .75; font-size: 1.6vh; margin-top: .6vh; }
+</style>
+</head>
+<body>
+  <div id="wall"></div>
+  <div id="panel">
+    <div id="label">Time Left</div>
+    <div id="bar"><div id="fill"></div></div>
+    <div id="grid"></div>
+  </div>
+  <div id="msg"></div>
+<script>
+  // URL options: ?cols=3&rows=4&time=15&tile=12   (tile in % of screen height)
+  const q = new URLSearchParams(location.search);
+  const COLS = +q.get('cols') || 3, ROWS = +q.get('rows') || 4;
+  const LIMIT = +q.get('time') || 15;
+  if (q.get('tile')) document.documentElement.style.setProperty('--tile', q.get('tile') + 'vh');
+  document.documentElement.style.setProperty('--cols', COLS);
+
+  const grid = document.getElementById('grid');
+  const fill = document.getElementById('fill');
+  const msg = document.getElementById('msg');
+  const HELP = '<small>R = new round · F11 = fullscreen · round starts as soon as the grid appears, like the game</small>';
+  let next, start, timer, over;
+
+  function finish(text) {
+    over = true; clearInterval(timer);
+    msg.innerHTML = text + HELP;
+  }
+
+  function round() {
+    const total = COLS * ROWS;
+    const nums = Array.from({length: total}, (_, i) => i + 1);
+    for (let i = nums.length - 1; i > 0; i--) {         // Fisher-Yates shuffle
+      const j = Math.floor(Math.random() * (i + 1)); [nums[i], nums[j]] = [nums[j], nums[i]];
+    }
+    grid.innerHTML = '';
+    next = 1; over = false; start = performance.now();
+    msg.innerHTML = 'Next: 1' + HELP;
+    for (const n of nums) {
+      const c = document.createElement('div');
+      c.className = 'cell'; c.textContent = n;
+      c.onmousedown = () => {
+        if (over || c.classList.contains('done')) return;
+        if (n === next) {
+          c.classList.add('done'); next++;
+          if (next > total) finish(`Solved all ${total} in ${((performance.now() - start) / 1000).toFixed(2)} s`);
+          else msg.innerHTML = `Next: ${next}` + HELP;
+        } else {
+          c.classList.add('wrong');
+          finish(`Failed: clicked ${n}, expected ${next}`);
+        }
+      };
+      grid.appendChild(c);
+    }
+    clearInterval(timer);
+    timer = setInterval(() => {
+      const left = Math.max(0, LIMIT - (performance.now() - start) / 1000);
+      fill.style.width = (100 * left / LIMIT) + '%';
+      if (left <= 0) finish(`Time's up: got to ${next - 1} of ${total}`);
+    }, 50);
+  }
+
+  addEventListener('keydown', e => { if (e.key === 'r' || e.key === 'R') round(); });
+  round();
+</script>
+</body>
+</html>
