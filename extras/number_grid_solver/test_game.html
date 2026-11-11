@@ -48,6 +48,9 @@
     font-size: calc(var(--tile) * 0.19); font-weight: 700; cursor: default; user-select: none;
   }
   .cell:hover { background: var(--hover); }
+  /* After the reveal: numbers hidden, every tile turns plain white */
+  .hidden .cell { background: #f3f2ef; color: transparent; border-color: #d8d6d0; }
+  .hidden .cell:hover { background: #dcdad5; }
   .cell.done { visibility: hidden; }
   .cell.wrong { background: #b3362c; }
   #msg { position: fixed; z-index: 2; bottom: 4vh; left: 0; right: 0; text-align: center;
@@ -64,21 +67,27 @@
   </div>
   <div id="msg"></div>
 <script>
-  // URL options: ?cols=3&rows=4&time=15&tile=12   (tile in % of screen height)
+  // URL options: ?cols=3&rows=4&time=15&tile=12&show=2&early=fail
+  //   tile  = tile size in % of screen height
+  //   show  = seconds the numbers are visible before all tiles turn white (0 = never hide)
+  //   early = what a click during the reveal does: fail (default) or ignore
   const q = new URLSearchParams(location.search);
   const COLS = +q.get('cols') || 3, ROWS = +q.get('rows') || 4;
   const LIMIT = +q.get('time') || 15;
+  const SHOW = q.has('show') ? +q.get('show') : 2;
+  const EARLY = q.get('early') || 'fail';
+  let hideTimer;
   if (q.get('tile')) document.documentElement.style.setProperty('--tile', q.get('tile') + 'vh');
   document.documentElement.style.setProperty('--cols', COLS);
 
   const grid = document.getElementById('grid');
   const fill = document.getElementById('fill');
   const msg = document.getElementById('msg');
-  const HELP = '<small>R = new round · F11 = fullscreen · round starts as soon as the grid appears, like the game</small>';
+  const HELP = '<small>R = new round (wait 3 s) · F11 = fullscreen · press F8 to arm the solver before the grid appears</small>';
   let next, start, timer, over;
 
   function finish(text) {
-    over = true; clearInterval(timer);
+    over = true; clearInterval(timer); clearTimeout(hideTimer);
     msg.innerHTML = text + HELP;
   }
 
@@ -89,13 +98,25 @@
       const j = Math.floor(Math.random() * (i + 1)); [nums[i], nums[j]] = [nums[j], nums[i]];
     }
     grid.innerHTML = '';
+    grid.classList.remove('hidden');
     next = 1; over = false; start = performance.now();
-    msg.innerHTML = 'Next: 1' + HELP;
+    msg.innerHTML = (SHOW ? `Memorise! Numbers hide in ${SHOW} s` : 'Next: 1') + HELP;
+    clearTimeout(hideTimer);
+    if (SHOW) hideTimer = setTimeout(() => {
+      if (over) return;
+      grid.classList.add('hidden');
+      msg.innerHTML = 'Next: 1' + HELP;
+    }, SHOW * 1000);
     for (const n of nums) {
       const c = document.createElement('div');
       c.className = 'cell'; c.textContent = n;
       c.onmousedown = () => {
         if (over || c.classList.contains('done')) return;
+        if (SHOW && !grid.classList.contains('hidden')) {   // clicked during the reveal
+          if (EARLY === 'ignore') return;
+          c.classList.add('wrong');
+          return finish('Failed: clicked during the reveal (before the numbers hid)');
+        }
         if (n === next) {
           c.classList.add('done'); next++;
           if (next > total) finish(`Solved all ${total} in ${((performance.now() - start) / 1000).toFixed(2)} s`);
@@ -115,8 +136,17 @@
     }, 50);
   }
 
-  addEventListener('keydown', e => { if (e.key === 'r' || e.key === 'R') round(); });
-  round();
+  // R: blank screen for 3 s, then a new round appears - time to press F8 and
+  // let the solver arm before the numbers show, like waiting for the mini-game.
+  let pending;
+  function newRound() {
+    clearTimeout(pending); clearInterval(timer); clearTimeout(hideTimer);
+    over = true; grid.innerHTML = ''; fill.style.width = '100%';
+    msg.innerHTML = 'New round in 3 s... (press F8 now)' + HELP;
+    pending = setTimeout(round, 3000);
+  }
+  addEventListener('keydown', e => { if (e.key === 'r' || e.key === 'R') newRound(); });
+  newRound();
 </script>
 </body>
 </html>

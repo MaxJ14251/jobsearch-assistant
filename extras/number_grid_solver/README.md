@@ -41,6 +41,18 @@ Wait for `Ready.` (the first launch downloads the EasyOCR model, ~100 MB, once).
 Then switch to the game (Borderless Windowed), press F8 when the grid shows.
 Each F8 prints timings, e.g. `capture 12 ms | OCR 240 ms | found 16/16`.
 
+## Reveal-then-hide grids (memory / chimp-test style)
+
+F8 **arms** the solver. It watches the screen about 10 times a second until a
+grid of numbered tiles appears, reads it the moment it shows (~0.3 s), waits
+until the numbers are hidden (tiles go blank/white), then clicks from memory.
+Press F8 any time before or while the numbers are showing — not after.
+
+Settings: `ARM_TIMEOUT_S` (give up watching), `WAIT_FOR_HIDE` (don't click
+during the reveal), `HIDE_TIMEOUT_S` (grid that never hides: click after this),
+`HIDE_SETTLE_MS`. Pacing (`TARGET_TOTAL_SECONDS`) counts from when the numbers
+first appeared.
+
 ## How it reads the grid
 
 1. **Tiles (fast, ~0.3 s):** finds the square tiles by shape, boxes the digit
@@ -54,9 +66,12 @@ Each F8 prints which method was used, e.g. `read (tiles) 280 ms | grid 4x3 | fou
 ## Practice pages
 
 - `test_game.html`: copies the in-game look: 3 columns × 4 rows (1–12), dark
-  tiles, a 15 s "Time Left" bar that starts as soon as the grid appears, light-grey hover,
-  blurry background. A wrong click or the timer running out ends the round. **R** = new
-  round, **F11** = fullscreen. URL options: `?cols=4&rows=4&time=15&tile=12`.
+  tiles, a 15 s "Time Left" bar, numbers shown for 2 s then every tile turns
+  white, light-grey hover, blurry background. A wrong click, a click during the
+  reveal, or the timer running out ends the round. **R** = new round after a 3 s
+  blank (press F8 then), **F11** = fullscreen. URL options:
+  `?cols=4&rows=4&time=15&tile=12&show=2&early=fail` (`show=0` never hides,
+  `early=ignore` ignores clicks during the reveal).
 - `test_grid.html`: simple 4×4 (1–16) grid.
 
 ## Total solve time (pacing)

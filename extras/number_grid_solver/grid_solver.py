@@ -49,12 +49,23 @@ from pynput import keyboard, mouse
 HOTKEY = keyboard.Key.f8          # trigger key
 EXIT_KEY = keyboard.Key.esc       # quits the program (also aborts a running click sequence)
 
+# --- Reveal-then-hide grids (chimp-test style) ---------------------------------
+# F8 ARMS the solver: it watches the screen ~10x per second until a grid of
+# numbered tiles appears, reads it in that moment, then waits until the numbers
+# are hidden (tiles go blank/white) before clicking from memory.
+# Press F8 any time before or while the numbers are showing.
+ARM_TIMEOUT_S = 30       # stop watching if no numbered grid shows up in this time
+WAIT_FOR_HIDE = True     # don't click until the numbers have disappeared
+HIDE_TIMEOUT_S = 6       # numbers never disappear (normal grid)? click after this anyway
+HIDE_SETTLE_MS = 120     # short pause after they disappear, before the first click
+
 # --- Total solve time ------------------------------------------------------
 # TARGET_TOTAL_SECONDS = (min, max): the whole solve, counted from the moment
-#   you press F8 (screenshot + OCR included), finishes at a random time in this
-#   range. The clicks are spread over whatever time is left after OCR, with
-#   uneven gaps and slower glides so it looks hand-paced. If OCR alone already
-#   used the time, it falls back to the fast settings below.
+#   the numbers first appear on screen (or F8, if they were already up), finishes
+#   at a random time in this range. The clicks are spread over whatever time is
+#   left after reading and waiting for the hide, with uneven gaps and slower
+#   glides so it looks hand-paced. If no time is left, it falls back to the fast
+#   settings below.
 #   Keep the max under the game's limit (15 s) with some margin.
 #   None = no pacing: click as fast as the settings below allow.
 TARGET_TOTAL_SECONDS = (8.0, 10.0)
@@ -568,15 +579,29 @@ def _digit_box(img, cx, cy, size):
     return [x0 + bx0 - pad, x0 + bx1 + pad, y0 + by0 - pad, y0 + by1 + pad]
 
 
-def pick_tiles(img, engine):
-    """Fast path. Returns ({number: (x, y)}, (rows, cols)) or None if no tile grid is seen."""
-    tiles = find_tiles(img)
-    lat = _tile_lattice(tiles)
+def tile_lattice(img):
+    """(rows, cols, size) of the tile grid on screen, or None (honours GRID_ROWS/GRID_COLS)."""
+    lat = _tile_lattice(find_tiles(img))
+    if lat is None:
+        return None
+    rows, cols, _ = lat
+    if (GRID_ROWS and len(rows) != GRID_ROWS) or (GRID_COLS and len(cols) != GRID_COLS):
+        return None
+    return lat
+
+
+def digits_showing(img, lat):
+    """How many tiles of the lattice currently show a digit (cheap, no OCR)."""
+    rows, cols, size = lat
+    return sum(1 for y in rows for x in cols if _digit_box(img, x, y, size))
+
+
+def pick_tiles(img, engine, lat=None):
+    """Fast path. Returns ({number: (x, y)}, (rows, cols), lattice) or None if no tile grid."""
+    lat = lat or tile_lattice(img)
     if lat is None:
         return None
     rows, cols, size = lat
-    if (GRID_ROWS and len(rows) != GRID_ROWS) or (GRID_COLS and len(cols) != GRID_COLS):
-        return None
     nr, nc = len(rows), len(cols)
     total = nr * nc
     boxes, where = [], []
@@ -612,7 +637,46 @@ def pick_tiles(img, engine):
     missing = [n for n in range(1, total + 1) if n not in cells.values()]
     if len(empty) == 1 and len(missing) == 1:
         cells[empty[0]] = missing[0]
-    return {n: (cols[c], rows[r]) for (r, c), n in cells.items()}, (nr, nc)
+    return {n: (cols[c], rows[r]) for (r, c), n in cells.items()}, (nr, nc), lat
+
+
+# ----------------------------------------------------------------------------- arm / hide
+def watch_for_numbers(engine, deadline):
+    """Poll the screen until a tile grid with numbers shows; read it at once.
+
+    Returns (img, offset, found, (rows, cols), lattice, t_seen) or None.
+    Keeps watching while a read is incomplete (e.g. tiles still animating in).
+    """
+    best, t_seen, said = None, None, False
+    while not _abort.is_set() and time.perf_counter() < deadline:
+        t = time.perf_counter()
+        img, off = grab_screen()
+        lat = tile_lattice(img)
+        if lat:
+            cells = len(lat[0]) * len(lat[1])
+            if digits_showing(img, lat) >= 0.75 * cells:
+                t_seen = t_seen or t
+                found, shape, lat = pick_tiles(img, engine, lat)
+                if best is None or len(found) > len(best[2]):
+                    best = (img, off, found, shape, lat, t_seen)
+                if len(found) == cells:
+                    return best
+            elif not said:
+                print("    tiles found but numbers not showing - waiting for them...")
+                said = True
+        time.sleep(max(0.0, 0.1 - (time.perf_counter() - t)))  # ~10 checks per second
+    return best
+
+
+def wait_until_hidden(lat, deadline):
+    """Wait until the tiles stop showing numbers. True if they hid, False on timeout."""
+    cells = len(lat[0]) * len(lat[1])
+    while not _abort.is_set() and time.perf_counter() < deadline:
+        img, _ = grab_screen()
+        if digits_showing(img, lat) <= 0.1 * cells:
+            return True
+        time.sleep(0.05)
+    return False
 
 
 # ----------------------------------------------------------------------------- mouse
@@ -708,24 +772,25 @@ def solve(engine):
                 mon = sct.monitors[1]
             _mouse.position = (mon["left"] + mon["width"] - 2, mon["top"] + mon["height"] // 2)
             _sleep_ms(PARK_WAIT_MS)
-        img, (ox, oy) = grab_screen()
+        print("[F8] armed - watching for the numbered grid (Esc = quit)")
         t1 = time.perf_counter()
 
-        # Fast path: tiles found by shape, digits recognised in one batch.
-        reads, method = [], "tiles"
-        grid = pick_tiles(img, engine)
-        if grid is not None and len(grid[0]) < grid[1][0] * grid[1][1]:
-            grid_tiles, grid = grid, None  # incomplete: try full OCR, keep the better result
+        # Fast path: watch for numbered tiles and read them the moment they show.
+        reads, method, lat = [], "tiles", None
+        seen = watch_for_numbers(engine, t0 + ARM_TIMEOUT_S)
+        if seen:
+            img, (ox, oy), found, (nr, nc), lat, t_seen = seen
+            grid = (found, (nr, nc))
         else:
-            grid_tiles = None
-        if grid is None:
-            method = "full OCR"
+            # No tile grid at all: one full-OCR attempt on the current screen.
+            if _abort.is_set():
+                return
+            method, t_seen = "full OCR", time.perf_counter()
+            img, (ox, oy) = grab_screen()
             reads = engine.read(resize(img, UPSCALE))
             if UPSCALE != 1.0:
                 reads = [(t, c, (x / UPSCALE, y / UPSCALE), h / UPSCALE) for t, c, (x, y), h in reads]
             grid = pick_grid(reads, img, engine)
-            if grid_tiles and (grid is None or len(grid_tiles[0]) >= len(grid[0])):
-                grid, method = grid_tiles, "tiles"
         if grid is None:
             print("    no number grid found - falling back to plain OCR positions")
             found, total, shape = pick_numbers(reads), None, "?"
@@ -735,16 +800,28 @@ def solve(engine):
         t2 = time.perf_counter()
 
         missing = [n for n in range(1, total + 1) if n not in found] if total else []
-        print(f"[F8] capture {1000*(t1-t0):.0f} ms | read ({method}) {1000*(t2-t1):.0f} ms | grid {shape} | "
-              f"found {len(found)}/{total or '?'}" + (f" | missing {missing}" if missing else ""))
+        print(f"    numbers seen after {t_seen - t0:.2f} s | read ({method}) {1000*(t2-t_seen):.0f} ms | "
+              f"grid {shape} | found {len(found)}/{total or '?'}" + (f" | missing {missing}" if missing else ""))
         if DEBUG_SAVE_IMAGES:
             save_debug(img, found, reads)
 
         if (missing or total is None) and REQUIRE_ALL:
             print("    not clicking (REQUIRE_ALL = True)")
             return
+        if not found:
+            print("    nothing to click - press F8 before or while the numbers are showing")
+            return
 
-        schedule = click_schedule(len(found), t0)
+        if WAIT_FOR_HIDE and lat:
+            hid = wait_until_hidden(lat, time.perf_counter() + HIDE_TIMEOUT_S)
+            if _abort.is_set():
+                return
+            print(f"    numbers hidden after {time.perf_counter() - t_seen:.2f} s" if hid
+                  else f"    numbers still showing after {HIDE_TIMEOUT_S} s - clicking anyway")
+            if hid:
+                _sleep_ms(HIDE_SETTLE_MS)
+
+        schedule = click_schedule(len(found), t_seen)
         for i, n in enumerate(sorted(found)):
             if _abort.is_set():
                 print("    aborted")
@@ -762,8 +839,8 @@ def solve(engine):
                 click_at(ox + cx, oy + cy)
                 _sleep_ms(max(0, CLICK_DELAY_MS + random.randint(-CLICK_DELAY_JITTER_MS, CLICK_DELAY_JITTER_MS)))
         now = time.perf_counter()
-        print(f"    clicked {len(found)} numbers in {1000*(now-t2):.0f} ms | "
-              f"total since F8 {now - t0:.2f} s" + (" (paced)" if schedule else ""))
+        print(f"    clicked {len(found)} numbers | done {now - t_seen:.2f} s after the numbers appeared"
+              + (" (paced)" if schedule else ""))
     except Exception as exc:
         print(f"    error: {exc!r}")
     finally:
@@ -775,7 +852,7 @@ def main():
     engine = make_engine()
     # Warm-up pass so the first real F8 isn't slowed by lazy initialisation.
     engine.read(np.full((64, 64, 3), 255, dtype=np.uint8))
-    print("Ready. F8 = solve grid, Esc = quit.")
+    print("Ready. F8 = arm (press before or while the numbers show), Esc = quit.")
 
     def on_press(key):
         if key == HOTKEY:
