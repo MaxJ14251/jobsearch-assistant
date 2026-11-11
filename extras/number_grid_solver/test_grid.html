@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grid Solver Test</title>
+<style>
+  :root { --bg:#14161a; --cell:#262a31; --text:#f2f2f2; --ok:#2e9d5b; --bad:#c0392b; --muted:#9aa0a6; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui,sans-serif;
+         display:flex; flex-direction:column; align-items:center; gap:16px; padding:24px 16px; }
+  #grid { display:grid; grid-template-columns:repeat(4,110px); gap:14px; }
+  .cell { height:110px; background:var(--cell); border-radius:10px; display:flex; align-items:center;
+          justify-content:center; font-size:48px; font-weight:700; cursor:pointer; user-select:none; }
+  .cell.done { background:var(--ok); }
+  .cell.wrong { background:var(--bad); }
+  #status { font-size:20px; min-height:28px; }
+  #hint { color:var(--muted); max-width:520px; text-align:center; line-height:1.4; }
+  button { font-size:16px; padding:8px 18px; border-radius:8px; border:0; cursor:pointer; }
+</style>
+</head>
+<body>
+  <div id="status">Press F8 (with grid_solver.py running), or click 1 → 16 yourself.</div>
+  <div id="grid"></div>
+  <button id="new">New shuffled grid</button>
+  <div id="hint">Each cell turns green when clicked in the right order, red if out of order.
+    The timer starts on the first click. Press F11 for fullscreen to mimic the game.</div>
+<script>
+  const grid = document.getElementById('grid');
+  const status = document.getElementById('status');
+  let next, start;
+  function build() {
+    const nums = Array.from({length:16}, (_, i) => i + 1).sort(() => Math.random() - 0.5);
+    grid.innerHTML = '';
+    next = 1; start = null;
+    status.textContent = 'Press F8 (with grid_solver.py running), or click 1 → 16 yourself.';
+    for (const n of nums) {
+      const c = document.createElement('div');
+      c.className = 'cell'; c.textContent = n;
+      c.onclick = () => {
+        if (c.classList.contains('done')) return;
+        if (start === null) start = performance.now();
+        if (n === next) {
+          c.classList.add('done'); next++;
+          if (next > 16) status.textContent = `Solved all 16 in ${((performance.now() - start) / 1000).toFixed(2)} s`;
+          else status.textContent = `Next: ${next}`;
+        } else {
+          c.classList.add('wrong');
+          status.textContent = `Wrong: clicked ${n}, expected ${next}`;
+          setTimeout(() => c.classList.remove('wrong'), 400);
+        }
+      };
+      grid.appendChild(c);
+    }
+  }
+  document.getElementById('new').onclick = build;
+  build();
+</script>
+</body>
+</html>
