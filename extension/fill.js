@@ -38,11 +38,17 @@
     ["website", /\b(website|personal site|blog)\b/],
     ["sponsorship", /\bsponsor(ship)?\b/],
     ["relocation", /\brelocat(e|ion|ing)\b/],
-    ["authorized", /\b(authori[sz]ed|eligible|legally able|legally permitted) to work\b|\bright to work\b|\bwork authori[sz]ation\b/],
+    ["authorized", /\b(authori[sz]ed|eligible|entitled|legally able|legally permitted) to work\b|\bright to work\b|\bwork authori[sz]ation\b/],
     ["why_role", /\bwhy\b.*\b(role|position|this job|opportunity)\b|\binterest(ed)? in (this|the) (role|position)\b/],
     ["why_company", /\bwhy\b.*\b(work|join|company|us|here)\b|\bwhat (draws|attracts) you\b/],
     ["relevant_project", /\b(project|accomplishment)s?\b.*\b(proud|relevant|tell|describe)\b|\b(tell|describe)\b.*\b(project|accomplishment)\b/],
-    ["location", /\b(current )?location\b|\bwhere are you (located|based)\b|^city$|\bcity( and|,) (state|province)\b/],
+    // Measured on 30 Greenhouse forms from Canadian postings (2026-11-11):
+    // "Please select your current province of residence" (6), "City &
+    // Country in which you are currently located" (6), "What City,
+    // Province are you located in?" (2). No form asked for a postal code.
+    ["region", /^(current )?(province|state|province territory|state province|province state)( of residence)?$|\b(province|state) of residence\b|\bselect your (current )?(province|state)\b/],
+    ["city_country", /\bcity (and |& )?country\b/],
+    ["location", /\b(current )?location\b|\bwhere are you (currently )?(located|based)\b|^city$|\bcity (and |& )?(state|province)\b/],
   ];
 
   // Two of these in one label ("Are you authorized to work here, and will
@@ -79,6 +85,11 @@
   function keyForLabel(label) {
     const text = normalize(label);
     if (!text) return null;
+    // "Please select your current province of residence. Select 'Not in
+    // Canada' if you reside outside of Canada.": the question is the first
+    // sentence; the "if" after it is a note, not a follow-up.
+    const region = RULES.find((r) => r[0] === "region")[1];
+    if (region.test(normalize(String(label).split(/[.?!]\s/)[0]))) return "region";
     if (FOLLOW_UP.test(text)) {
       return RULES[0][1].test(text) ? "salary" : null;     // salary still flagged, never filled
     }
@@ -106,9 +117,21 @@
                         authorized: "authorized_to_work_us" };
   const WRITTEN_KEYS = ["why_role", "why_company", "relevant_project"];
 
+  // A yes/no about working in one named country answers only for that one:
+  // Canadian postings ask "authorized to work in the United States?" too
+  // (2 of 30 measured), and your yes is for your own country.
+  const COUNTRY_NAMES = { US: /\b(united states|usa|u s a|u s|america)\b/, CA: /\bcanada\b/ };
+
+  function namesOtherCountry(label, home) {
+    const text = normalize(label);
+    const own = COUNTRY_NAMES[home];
+    if (own && own.test(text)) return false;
+    return Object.keys(COUNTRY_NAMES).some((code) => code !== home && COUNTRY_NAMES[code].test(text));
+  }
+
   // What to put in a field for `key`, from the dashboard's /ext/fill answer:
   // {value, source, kind} or null. kind is "text", "yesno" or "file".
-  function valueFor(key, data, fieldType) {
+  function valueFor(key, data, fieldType, label) {
     if (!key || !data || data.state !== "ready" || key === "salary") return null;
     const id = data.identity || {};
     const facts = data.facts || {};
@@ -135,11 +158,24 @@
       const place = [id.city, id.state].filter(Boolean).join(", ");
       return place ? { kind: "text", value: place, source: "profile" } : null;
     }
+    if (key === "region") {
+      const names = [id.region_name, id.state].filter(Boolean);
+      if (!names.length) return null;
+      return fieldType === "select" || fieldType === "radio"
+        ? { kind: "choice", options: names, source: "profile" }
+        : { kind: "text", value: names[0], source: "profile" };
+    }
+    if (key === "city_country") {
+      const country = (data.country || {}).name;
+      return id.city && country
+        ? { kind: "text", value: id.city + ", " + country, source: "profile" } : null;
+    }
     if (LINK_KEYS.includes(key)) {
       const url = (id.links || {})[key];
       return url ? { kind: "text", value: url, source: "profile" } : null;
     }
     if (key in YES_NO_KEYS) {
+      if (namesOtherCountry(label, (data.country || {}).code || "US")) return null;
       const answer = facts[YES_NO_KEYS[key]];
       return answer === "Yes" || answer === "No"
         ? { kind: "yesno", value: answer, source: "profile" } : null;
@@ -164,6 +200,15 @@
       const words = normalize(text).split(" ");
       if (words[0] === want) matches.push(i);
     });
+    return matches.length === 1 ? matches[0] : -1;
+  }
+
+  // The option naming one of `names` ("Ontario" or "ON"), compared whole;
+  // -1 unless exactly one option matches.
+  function chooseOption(options, names) {
+    const want = (names || []).map(normalize).filter(Boolean);
+    const matches = [];
+    options.forEach((text, i) => { if (want.includes(normalize(text))) matches.push(i); });
     return matches.length === 1 ? matches[0] : -1;
   }
 
@@ -204,7 +249,8 @@
   // write an answer to.
   const CLOSED_KEYS = ["salary", "cover_letter", "resume", "preferred_name", "first_name",
     "last_name", "full_name", "email", "phone", "linkedin", "github", "portfolio",
-    "website", "sponsorship", "relocation", "authorized", "location"];
+    "website", "sponsorship", "relocation", "authorized", "location", "region",
+    "city_country"];
 
   const QUESTION_START = /^(what|why|how|describe|tell|explain|share|give an example|walk us|in your own words)\b/;
 
@@ -286,7 +332,8 @@
     return age >= 0 && age <= FILL_MEMORY_MS ? memory : null;
   }
 
-  const api = { normalize, keyForLabel, keyFor, valueFor, chooseYesNo, isRequired, isActionLabel,
+  const api = { normalize, keyForLabel, keyFor, valueFor, chooseYesNo, chooseOption,
+                namesOtherCountry, isRequired, isActionLabel,
                 isOpenEnded, isQuestionLike, questionKey, questionText, REFUSED,
                 looksSubmitted, rememberedFor, FILL_MEMORY_MS,
                 RULES, BOARD_FIELDS };

@@ -13,6 +13,7 @@
 #   4. `jsa serve --host 0.0.0.0` refuses without JSA_ALLOW_PUBLIC_BIND=1
 #   5. ...and starts with it, published on 127.0.0.1 only
 #   6. the tracker on the /data volume survives a container restart
+#   7. a Canadian profile: its data, init, matches and a km dashboard
 #
 # The layer, non-root and bind-guard assertions were each pushed once against
 # deliberately broken input, and failed, before this was trusted. The README
@@ -183,6 +184,46 @@ print(sqlite3.connect('/data/jobsearch.db').execute(
     \"SELECT COUNT(*) FROM companies WHERE slug = 'persistence-check'\").fetchone()[0])")"
 [ "$count" = "1" ] || fail "a new container did not see the tracker (count=$count)"
 ok "the /data tracker survives a restart and a new container"
+
+# --- 7. a Canadian profile works in the image (ADR 0037) ----------------------------------
+# Its own data files, setup and matches with no key, and a dashboard that
+# speaks kilometres and postal codes and draws Canada's map.
+has="$(docker run --rm --entrypoint python "$IMAGE" -c \
+  'from jsa import basemap, countries, places; countries.activate("CA"); print(places.data_is_present(), basemap.available())')"
+[ "$has" = "True True" ] || fail "the image is missing Canada's map data (places, basemap: $has)"
+mkdir -p "$WORK/profile_ca"
+docker run --rm --entrypoint python "$IMAGE" -c '
+import sys, yaml
+d = yaml.safe_load(open("jsa/resources/master_profile.example.yaml", encoding="utf-8"))
+d["job_search_preferences"].update(country="CA", home_location="M5V", radius=50,
+                                   locations=["Toronto, ON", "Remote (Canada)"])
+d["identity"]["location"].update(city="Toronto", state="ON", postal_code="M5V", country="Canada")
+yaml.safe_dump(d, sys.stdout, allow_unicode=True, sort_keys=False)' > "$WORK/profile_ca/master_profile.yaml"
+chmod -R a+rX "$WORK/profile_ca"
+CA_VOLUME="$VOLUME-ca"
+CA_DASH="$DASH-ca"
+trap 'docker rm -f "$CA_DASH" >/dev/null 2>&1 || true; docker volume rm -f "$CA_VOLUME" >/dev/null 2>&1 || true; cleanup' EXIT
+docker volume create "$CA_VOLUME" >/dev/null
+run_ca() {
+  docker run --rm -v "$CA_VOLUME:/data" -v "$WORK/profile_ca:/app/profile:ro" "$IMAGE" "$@"
+}
+run_ca init >/dev/null
+out="$(run_ca matches --limit 5)" || fail "jsa matches (Canada) exited non-zero: $out"
+echo "$out" | grep -q "no unreviewed matches" || fail "unexpected matches output (Canada): $out"
+docker run -d --name "$CA_DASH" -e JSA_ALLOW_PUBLIC_BIND=1 \
+  -v "$CA_VOLUME:/data" -v "$WORK/profile_ca:/app/profile:ro" -p "127.0.0.1:$PORT:8765" \
+  "$IMAGE" serve --host 0.0.0.0 --port 8765 >/dev/null
+DASH="$CA_DASH" wait_up || fail "the Canadian dashboard did not answer on 127.0.0.1:$PORT"
+page="$(curl -s "http://127.0.0.1:$PORT/")"
+echo "$page" | grep -q 'placeholder="postal code or City, PR"' \
+  || fail "the Canadian dashboard does not ask for a postal code"
+echo "$page" | grep -q ' km' || fail "the Canadian dashboard does not speak kilometres"
+curl -s "http://127.0.0.1:$PORT/?anywhere=1" | grep -q "across Canada" \
+  || fail "the whole-country map is not Canada's"
+code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/basemap/coarse")"
+[ "$code" = "200" ] || fail "Canada's basemap answered $code"
+docker rm -f "$CA_DASH" >/dev/null
+ok "a Canadian profile: data in the image, init and matches with no key, a km dashboard and Canada's map"
 
 echo
 echo "all container checks passed"

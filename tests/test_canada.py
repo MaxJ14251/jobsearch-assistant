@@ -41,6 +41,24 @@ class TestPlaces(InCanada):
         self.assertEqual(places.parse("Austin, TX").places, [])
         self.assertEqual(places.parse("Vancouver, WA").places, [])
 
+    def test_a_list_of_towns_with_commas_only(self):
+        # Shapes from the 22 employers' postings, 2026-11-11.
+        for text, want in [
+                ("Vancouver, BC, Toronto, ON", ["Vancouver, BC", "Toronto, ON"]),
+                ("Toronto, Ontario, Canada, Vancouver, British Columbia, Canada",
+                 ["Toronto, ON", "Vancouver, BC"]),
+                ("Kitchener Ontario,  Toronto, Ontario, Ontario (Remote)",
+                 ["Kitchener, ON", "Toronto, ON"]),
+                ("Toronto, ON", ["Toronto, ON"])]:
+            with self.subTest(text):
+                self.assertEqual([str(p) for p in places.parse(text).places], want)
+        # Provinces alone are not towns.
+        self.assertEqual(places.parse("Alberta, British Columbia").places, [])
+
+    def test_a_list_of_towns_is_read_only_in_canada(self):
+        with countries.using("US"):
+            self.assertEqual(places.parse("Austin, TX, Seattle, WA").places, [])
+
     def test_postal_areas_only(self):
         self.assertEqual(str(places.origin("M5V 2T6")), "M5V")
         self.assertEqual(places.origin("m5v"), places.origin("M5V 2T6"))
@@ -54,7 +72,8 @@ class TestScoring(InCanada):
     def test_the_us_is_abroad_and_canada_is_home(self):
         from jsa import scoring
         for loc in ("Austin, TX", "New York, NY", "Remote (US)", "Vancouver, WA",
-                    "Seattle", "Berlin"):
+                    "Seattle", "Berlin", "US - Remote", "Remote in the US",
+                    "Ghent", "Glasgow", "The Hague"):
             with self.subTest(loc):
                 self.assertTrue(scoring.outside_home_country(loc))
         for loc in ("Toronto, ON", "Remote (United States | Canada)", "Remote (Canada)",
@@ -144,6 +163,31 @@ class TestSetupAndForms(InCanada):
         from jsa import answers
         facts = answers.fact_answers(profile(), {})
         self.assertEqual(facts[0].question, "Are you legally entitled to work in Canada?")
+
+    def test_every_fact_answer_for_a_canadian_profile(self):
+        from jsa import answers
+        prof = profile(work_authorization="Canadian citizen", needs_visa_sponsorship=False,
+                       willing_to_relocate=True, work_arrangement=["remote", "hybrid"])
+        got = {a.key: a for a in answers.fact_answers(
+            prof, {"salary_min": 80000, "salary_max": 95000, "salary_currency": "CAD",
+                   "salary_period": "year"})}
+        self.assertEqual(got["work_authorization"].body, "Canadian citizen")
+        self.assertEqual((got["sponsorship"].body, got["relocation"].body), ("No", "Yes"))
+        self.assertEqual(got["arrangement"].body, "remote, hybrid")
+        self.assertEqual(got["salary"].body,
+                         "Your call. The posting states $80,000–$95,000 CAD per year.")
+        self.assertNotIn("United States", " ".join(a.question + a.body for a in got.values()))
+
+    def test_the_extension_gets_the_province_name_and_the_country(self):
+        from jsa.web.routes_ext import identity
+        ident = identity({"identity": {"full_name": "Robin Example",
+                                       "location": {"city": "Barrie", "state": "on"}}})
+        self.assertEqual((ident["city"], ident["state"], ident["region_name"]),
+                         ("Barrie", "on", "Ontario"))
+        self.assertNotIn("postal_code", ident)
+        with countries.using("US"):
+            self.assertEqual(identity({"identity": {"location": {"state": "ID"}}})
+                             ["region_name"], "Idaho")
 
 
 class TestEmployers(InCanada):

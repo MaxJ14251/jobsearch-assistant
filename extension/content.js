@@ -170,6 +170,7 @@
   function apply(q, value) {
     const el = q.els[0];
     if (value.kind === "text") {
+      if (q.type === "select" || q.type === "radio") return false;   // not a free answer
       if (el.value && el.value.trim()) return false;        // never over your typing
       const before = el.value;
       native(el, "value", value.value);
@@ -183,6 +184,23 @@
       const before = el.value;
       native(el, "value", el.options[pick].value);
       undo.push({ restore: () => native(el, "value", before) });
+      return true;
+    }
+    if (value.kind === "choice" && q.type === "select") {
+      if (el.selectedIndex > 0) return false;
+      const pick = F.chooseOption(Array.from(el.options, (o) => o.text), value.options);
+      if (pick < 0) return false;
+      const before = el.value;
+      native(el, "value", el.options[pick].value);
+      undo.push({ restore: () => native(el, "value", before) });
+      return true;
+    }
+    if (value.kind === "choice" && q.type === "radio") {
+      if (q.els.some((r) => r.checked)) return false;
+      const pick = F.chooseOption(q.els.map((r) => labelOf(r) || r.value), value.options);
+      if (pick < 0) return false;
+      native(q.els[pick], "checked", true);
+      undo.push({ restore: () => native(q.els[pick], "checked", false) });
       return true;
     }
     if (value.kind === "yesno" && q.type === "radio") {
@@ -210,7 +228,7 @@
         q.els.forEach((el) => mark(el, AMBER));
         continue;
       }
-      const value = F.valueFor(key, data, q.type);
+      const value = F.valueFor(key, data, q.type, q.label);
       let done = false;
       if (value && value.kind === "file" && q.type === "file") {
         try {

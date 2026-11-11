@@ -133,6 +133,26 @@ class TestTorontoEndToEnd(unittest.TestCase):
         page = self.client.get("/").text
         self.assertIn('placeholder="postal code or City, PR"', page)
 
+    def test_no_page_speaks_us_wording(self):
+        # Every dashboard page a Canadian sees, its visible text and hover
+        # text. Job 4 is a US posting: its own words may say USD.
+        import html
+        import re
+        terms = re.compile(r"\bZIP\b|\bzip code|\bmiles?\b|\bmi\b|USAJOBS|lower 48|\bU\.S\.|"
+                           r"United States|\bstates?\b|\bUSD\b", re.I)
+        paths = ["/", "/?anywhere=1", "/add", "/companies", "/extension", "/import",
+                 "/pipeline", "/replies", "/review", "/setup", "/today", "/turbo",
+                 "/job/1", "/job/2", "/job/3", "/job/5", "/job/6"]
+        for path in paths:
+            with self.subTest(path):
+                page = self.client.get(path)
+                self.assertEqual(page.status_code, 200)
+                text = re.sub(r"(?is)<(script|style)\b.*?</\1>|<!--.*?-->", " ", page.text)
+                hover = " ".join(re.findall(
+                    r'(?:placeholder|title|aria-label|alt)="([^"]*)"', text))
+                text = html.unescape(re.sub(r"<[^>]+>", " ", text) + " " + hover)
+                self.assertEqual(terms.findall(text), [])
+
     def test_resume_dates_and_paper(self):
         from docx import Document
 

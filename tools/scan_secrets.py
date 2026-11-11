@@ -352,6 +352,12 @@ def personal_values() -> tuple[list[str], list[str]]:
                 or value.strip().lower() in shipped):
             continue
         value = value.strip()
+        if JUST_A_PLACE.match(value):
+            # "Los Angeles, CA" on an acting entry is where the work was,
+            # not who it was for: blocking it blocked every place example in
+            # the repo (owner's decision, 2026-11-11). A real employer named
+            # beside its town ("Acme Tools, Austin, TX") is still caught.
+            continue
         if len(value) >= 5:
             never.append(value)
             LIFE.append(value)
@@ -369,6 +375,9 @@ def personal_values() -> tuple[list[str], list[str]]:
 # employer is exactly what it carried for twelve days (n15).
 LIFE: list[str] = []
 LIFE_SHORT: list[str] = []
+
+# An employer line that is only a town and a two-letter region code.
+JUST_A_PLACE = re.compile(r"^[A-Za-z][A-Za-z .'-]*, [A-Z]{2}$")
 
 
 def _short_hits(rel: str, text: str) -> list[str]:

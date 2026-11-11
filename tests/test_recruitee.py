@@ -76,6 +76,13 @@ class TestFetch(unittest.TestCase):
                                         "state_code": "NY"}])).jobs[0]
         self.assertEqual(job["location"], "Utrecht, Netherlands; Albany, NY")
 
+    def test_a_canadian_place_keeps_its_province_and_country(self):
+        job = fetched(offer(locations=[{"city": "Toronto", "country_code": "CA",
+                                        "country": "Canada", "state_code": "ON"},
+                                       {"city": "Halifax", "country_code": "CA",
+                                        "country": "Canada"}])).jobs[0]
+        self.assertEqual(job["location"], "Toronto, ON, Canada; Halifax, Canada")
+
     def test_a_board_is_required(self):
         result = sources.fetch({"kind": "recruitee"})
         self.assertFalse(result.ok)

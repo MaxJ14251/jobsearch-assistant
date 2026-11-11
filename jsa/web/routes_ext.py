@@ -42,6 +42,9 @@ def identity(profile: dict[str, Any]) -> dict[str, Any]:
         "city": str(loc.get("city") or "").strip(),
         "state": str(loc.get("state") or "").strip(),
         "country": str(loc.get("country") or "").strip(),
+        # "Ontario" for "ON": the name a province or state dropdown lists.
+        "region_name": countries.active().SUBDIVISIONS.get(
+            str(loc.get("state") or "").strip().upper(), ""),
         "links": {k: str(v) for k, v in (profile.get("links") or {}).items()
                   if k in ("linkedin", "github", "portfolio", "website") and v},
     }
@@ -215,6 +218,9 @@ def register(app, ctx) -> None:
             "job": summary,
             "board": link.kind,
             "identity": identity(prof),
+            # The home country: a yes/no naming another one is left alone,
+            # and "City & Country" is answered with this name.
+            "country": {"code": countries.active().CODE, "name": countries.active().NAME},
             "facts": facts,
             "left_out": left_out,
             "written": [{"key": a.key, "question": a.question, "body": a.body,

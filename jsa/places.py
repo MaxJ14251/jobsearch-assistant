@@ -324,16 +324,57 @@ def parse(text: str) -> Placement:
             out.remote = True
             # "Mesa, AZ (Remote)" still names a place; "US Remote" does not.
             stripped = REMOTE.sub("", part).strip(" ,-–—()")
-            place = _one(stripped) if stripped else None
-            if place and place not in out.places:
-                out.places.append(place)
+            for place in (_many(stripped) if stripped else []):
+                if place not in out.places:
+                    out.places.append(place)
             continue
-        place = _one(part)
-        if place is None:
+        found = _many(part)
+        if not found:
             out.unplaced.append(part)
-        elif place not in out.places:
-            out.places.append(place)
+        for place in found:
+            if place not in out.places:
+                out.places.append(place)
     return out
+
+
+def _region_groups(part: str) -> list[str] | None:
+    """"Vancouver, BC, Toronto, ON" -> ["Vancouver, BC", "Toronto, ON"]: a
+    list of towns written with commas only, each closed by its region. None
+    unless every town is one name followed by its region and there are two or
+    more; the country's own name between them is dropped."""
+    pack = _pack()
+    bits = [b.strip() for b in re.sub(r"\s*\(.*?\)\s*", " ", part).split(",")]
+    bits = [b for b in bits if b and fold(b) != fold(pack.NAME)]
+    groups, pending = [], []
+    for bit in bits:
+        region = _state_of(bit)
+        if region is None:
+            # "Kitchener Ontario": the region written without its comma.
+            head, _, tail = bit.rpartition(" ")
+            if head and not pending and _state_of(tail):
+                groups.append(f"{head}, {_state_of(tail)}")
+            else:
+                pending.append(bit)
+            continue
+        if not pending and groups:
+            continue                 # "..., Toronto, Ontario, Ontario": said twice
+        if len(pending) != 1:
+            return None
+        groups.append(f"{pending[0]}, {region}")
+        pending = []
+    return groups if len(groups) >= 2 and not pending else None
+
+
+def _many(part: str) -> list[Place]:
+    """The places one fragment names: usually one, or a comma-only list of
+    towns where the working country's pack reads them (ADR 0037)."""
+    groups = _region_groups(part) if getattr(_pack(), "CITY_LISTS", False) else None
+    if groups:
+        found = [p for p in map(_one, groups) if p]
+        if found:
+            return list(dict.fromkeys(found))
+    place = _one(part)
+    return [place] if place else []
 
 
 def nearest(home: Place, placement: Placement | str) -> float | None:

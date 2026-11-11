@@ -59,6 +59,11 @@ FOLD_ACCENTS = True
 # Canada that is half of every French name ("Saint-Jean-sur-Richelieu" must
 # not answer to "Saint"). Bilingual "A / B" names are split by the build.
 ALIAS_SPLIT = r"/"
+# "Vancouver, BC, Toronto, ON": a list of towns with commas only, each with
+# its province. Measured 2026-11-11 on the 22 employers' 727 postings: 5
+# such lists placed nothing before. Read only here; the US pack leaves it
+# off, so US placements stay exactly as they were.
+CITY_LISTS = True
 
 COUNTRY_NOISE = (
     r"^(ca|can|canada)\s*[-–—,]\s*|"
@@ -108,7 +113,8 @@ _US_CODES = ("al|ak|az|ar|co|ct|de|dc|fl|ga|id|il|ia|ks|ky|la|md|ma|mi|mn|"
 ABROAD = (
     # "Remote (US)" is remote somewhere else: checked after HOME_SIGNAL, so
     # "Remote (US or Canada)" is still home.
-    r"(\bremote[ ,–-]*\(?us\b|\(us\)|"
+    r"(\bremote[ ,–-]*\(?us\b|\(us\)|\bus\s*[-–—]\s*remote\b|"
+    r"\bremote (?:in|within) (?:the )?(?:us|u\.s\.)(?![\w.])|"
     r"\b(united states|usa|u\.s\.a?\.?|us only|us[- ]remote|"
     r"alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|"
     r"florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|"
@@ -119,11 +125,11 @@ ABROAD = (
     r"virginia|washington|west virginia|wisconsin|wyoming|"
     r"nyc|san francisco|seattle|boston|chicago|austin|los angeles|denver|"
     r"atlanta|miami|dallas|houston|san diego|san jose|palo alto|mountain view|"
-    r"u\.?k\.?|united kingdom|london|manchester|edinburgh|"
-    r"ireland|dublin|france|paris|germany|berlin|munich|"
-    r"netherlands|amsterdam|spain|madrid|barcelona|portugal|lisbon|"
-    r"italy|rome|milan|switzerland|zurich|geneva|austria|vienna|"
-    r"belgium|brussels|sweden|stockholm|norway|oslo|denmark|copenhagen|"
+    r"u\.?k\.?|united kingdom|london|manchester|edinburgh|glasgow|"
+    r"ireland|dublin|france|paris|lyon|germany|berlin|munich|hamburg|bonn|"
+    r"netherlands|amsterdam|rotterdam|the hague|spain|madrid|barcelona|"
+    r"portugal|lisbon|italy|rome|milan|switzerland|zurich|geneva|austria|vienna|"
+    r"belgium|brussels|ghent|sweden|stockholm|norway|oslo|denmark|copenhagen|"
     r"finland|helsinki|poland|warsaw|czech|prague|hungary|budapest|"
     r"romania|bucharest|greece|athens|turkey|istanbul|ukraine|kyiv|"
     r"israel|tel aviv|uae|dubai|abu dhabi|saudi|qatar|doha|egypt|cairo|"

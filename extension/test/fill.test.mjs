@@ -158,3 +158,62 @@ test("required fields", () => {
   assert.equal(fill.isRequired({ label: "Email \u2731" }), true);
   assert.equal(fill.isRequired({ label: "Website" }), false);
 });
+
+// --- Canadian forms (ADR 0037). Labels as measured on 30 Greenhouse forms
+// from the Canadian employers' postings, 2026-11-11.
+
+const CANADIAN = {
+  ...READY,
+  identity: { ...READY.identity, city: "Barrie", state: "ON", region_name: "Ontario" },
+  facts: { ...READY.facts, authorized_to_work_us: "Yes" },
+  country: { code: "CA", name: "Canada" },
+};
+
+test("Canadian location labels", () => {
+  const cases = {
+    "Please select your current province of residence. Select “Not in Canada” if you reside outside of Canada.": "region",
+    "Province": "region", "State": "region", "Province/Territory": "region",
+    "City & Country in which you are currently located": "city_country",
+    "What City, Province are you located in?": "location",
+    "Where are you currently located?": "location",
+    "Are you legally entitled to work in Canada?": "authorized",
+    "Please state your reason for applying": null,
+  };
+  for (const [label, key] of Object.entries(cases)) assert.equal(fill.keyForLabel(label), key, label);
+});
+
+test("a province dropdown picks the province, by name or code", () => {
+  const value = fill.valueFor("region", CANADIAN, "select");
+  assert.deepEqual(value, { kind: "choice", options: ["Ontario", "ON"], source: "profile" });
+  assert.equal(fill.chooseOption(["Select...", "Alberta", "Ontario", "Not in Canada"], value.options), 2);
+  assert.equal(fill.chooseOption(["--", "AB", "ON", "QC"], value.options), 2);
+  // Nothing that plainly names it: left for the person.
+  assert.equal(fill.chooseOption(["Eastern Canada", "Western Canada"], value.options), -1);
+  assert.deepEqual(fill.valueFor("region", CANADIAN, "text"),
+                   { kind: "text", value: "Ontario", source: "profile" });
+});
+
+test("city and country come from the profile and the home country", () => {
+  assert.equal(fill.valueFor("city_country", CANADIAN, "text").value, "Barrie, Canada");
+  assert.equal(fill.valueFor("location", CANADIAN, "text").value, "Barrie, ON");
+  assert.equal(fill.valueFor("city_country", { ...CANADIAN, country: undefined }, "text"), null);
+});
+
+test("a yes/no naming another country is left alone", () => {
+  const us = "Are you currently legally authorized to work in the United States for any employer?";
+  const ca = "Are you currently legally authorized to work in Canada for any employer?";
+  assert.equal(fill.valueFor("authorized", CANADIAN, "radio", us), null);
+  assert.equal(fill.valueFor("authorized", CANADIAN, "radio", ca).value, "Yes");
+  assert.equal(fill.valueFor("authorized", CANADIAN, "radio",
+    "Are you legally authorized to work in the region in which the position is located?").value, "Yes");
+  // And the other way round, for a US profile.
+  const american = { ...READY, facts: { ...READY.facts, authorized_to_work_us: "Yes" },
+                     country: { code: "US", name: "United States" } };
+  assert.equal(fill.valueFor("authorized", american, "radio", ca), null);
+  assert.equal(fill.valueFor("authorized", american, "radio", us).value, "Yes");
+  assert.equal(fill.valueFor("sponsorship", american, "radio",
+    "Will you require sponsorship to work in Canada?"), null);
+  // Both named: the person's own country is one of them.
+  assert.equal(fill.valueFor("authorized", american, "radio",
+    "Are you authorized to work in the U.S. or Canada?").value, "Yes");
+});

@@ -460,10 +460,15 @@ def recruitee_url(entry: dict[str, Any]) -> str:
 
 def _recruitee_place(place: dict[str, Any]) -> str:
     city = (place.get("city") or "").strip()
-    if (place.get("country_code") or "").upper() == "US":
-        state = (place.get("state_code") or "").strip()
+    code = (place.get("country_code") or "").upper()
+    state = (place.get("state_code") or "").strip()
+    if code == "US":
         return ", ".join(p for p in (city, state) if p)
     country = (place.get("country") or "").strip()
+    if code == "CA" and state:
+        # City, province, country: the province places it for a Canadian
+        # profile, and the country still reads as abroad to a US one.
+        return ", ".join(p for p in (city, state, country) if p)
     return ", ".join(p for p in (city, country) if p)
 
 

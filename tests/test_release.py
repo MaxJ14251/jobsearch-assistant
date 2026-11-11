@@ -124,6 +124,15 @@ class TestSecretScanner(unittest.TestCase):
         self.assertNotIn("Pellworth College", never)
         self.assertIn("Harrowgate Instruments", never)
 
+    def test_an_employer_line_that_is_only_a_town_is_not_an_employer(self):
+        """An acting entry's employer line can be where the work was
+        ("Springfield, IL"); blocking it blocked every place example."""
+        profile = ("experience:\n  - company: Springfield, IL\n"
+                   "  - company: Harrowgate Instruments, Springfield, IL\n")
+        _, (never, _) = self.life_scan(profile)
+        self.assertNotIn("Springfield, IL", never)
+        self.assertIn("Harrowgate Instruments, Springfield, IL", never)
+
     def test_the_example_profile_is_checked_for_a_real_employer(self):
         """Exempt from the contact-detail scan (its placeholders match
         themselves), but not from this: it carried the operator's employer

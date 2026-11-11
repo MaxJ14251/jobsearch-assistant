@@ -96,6 +96,13 @@ class TestFactAnswers(unittest.TestCase):
         self.assertEqual(hourly["salary"].body, "Your call. The posting states $75 per hour.")
         none = self.by_key(profile, {})["salary"].body
         self.assertEqual(none, "Your call. The posting states no pay.")
+        # Dollars that are not US dollars say which (ADR 0037).
+        cad = self.by_key(profile, {"salary_min": 90000, "salary_max": 110000,
+                                    "salary_currency": "CAD", "salary_period": "year"})
+        self.assertEqual(cad["salary"].body,
+                         "Your call. The posting states $90,000–$110,000 CAD per year.")
+        usd = self.by_key(profile, {"salary_min": 90000, "salary_currency": "USD"})
+        self.assertEqual(usd["salary"].body, "Your call. The posting states $90,000.")
         everything = " ".join(a.body + a.note for a in answers.fact_answers(profile, {}))
         self.assertNotIn("95", everything)          # the floor never appears
 

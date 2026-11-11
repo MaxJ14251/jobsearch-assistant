@@ -127,6 +127,12 @@ def _salary_note(job: dict[str, Any]) -> str:
         from . import countries
         sym = countries.active().CURRENCY_SYMBOL
         text = f"{sym}{low:,.0f}" + (f"–{sym}{high:,.0f}" if high and high != low else "")
+        # "$90,000 CAD": a dollar sign alone reads as the default pack's
+        # currency, and 73 of 578 Canadian postings measured stated US
+        # dollars (ADR 0037), so any other currency is named.
+        currency = (job.get("salary_currency") or "").upper()
+        if currency and currency != countries.get().CURRENCY:
+            text += f" {currency}"
         if job.get("salary_period"):
             text += f" per {job['salary_period']}"
     text = text or (job.get("salary_text") or "").strip()

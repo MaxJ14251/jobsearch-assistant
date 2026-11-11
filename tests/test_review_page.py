@@ -4,6 +4,7 @@ every resume card (20 times, 5 distinct), and the 9 flagged drafts were
 mixed in with the rest. Unchanged lines fold, the advice shows once, and
 flagged drafts come first. Every line is still one click away."""
 
+import html
 import json
 import re
 
@@ -26,7 +27,8 @@ class TestTheReviewPage(SandboxCase):
         fold = card[card.index("2 lines are your profile"):]
         fold = fold[:fold.index("</details>")]
         for _, text in pairs:
-            self.assertIn(text, fold)                    # still there, inside the fold
+            # As the page reads: a profile line can hold an escaped apostrophe.
+            self.assertIn(text, html.unescape(fold))     # still there, inside the fold
 
     def test_a_flagged_line_is_never_folded(self):
         (bid, text), = self.bullets(1)
