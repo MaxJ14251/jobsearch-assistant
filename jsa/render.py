@@ -62,6 +62,8 @@ def _heading(doc: Document, text: str) -> None:
     run.font.size = Pt(HEADING_PT)
     p.paragraph_format.space_before = Pt(10)
     p.paragraph_format.space_after = Pt(2)
+    # A heading stranded at the foot of a page, its content on the next.
+    p.paragraph_format.keep_with_next = True
 
 
 def _body(doc: Document, text: str, *, bullet: bool = False) -> None:
@@ -207,6 +209,7 @@ def render_resume(
             r = line.add_run(f"{exp.get('title')} — {exp.get('company')}")
             r.bold = True
             r.font.size = Pt(BODY_PT)
+            line.paragraph_format.keep_with_next = True
             meta = doc.add_paragraph()
             m = meta.add_run(
                 "  |  ".join(
@@ -218,6 +221,7 @@ def render_resume(
             m.italic = True
             m.font.size = Pt(9)
             meta.paragraph_format.space_after = Pt(1)
+            meta.paragraph_format.keep_with_next = True
             write_bullets(where, texts)
 
     def write_projects() -> None:
@@ -245,6 +249,7 @@ def render_resume(
                 link = line.add_run(" — " + repo.split("://", 1)[1].rstrip("/"))
                 link.font.size = Pt(BODY_PT)
             line.paragraph_format.space_after = Pt(1)
+            line.paragraph_format.keep_with_next = True
             write_bullets(where, texts)
 
     # Whichever section holds more of the selected bullets leads. Experience
@@ -291,7 +296,9 @@ def render_resume(
             line += f" ({issued})" if issued else ""
             parts = [str(x.get("name")) for x in c.get("components") or []
                      if isinstance(x, dict) and x.get("name")]
-            if parts:
+            # `show_components: false` keeps the list in the profile but off
+            # the page, for a bundle whose display_name already says what it is.
+            if parts and c.get("show_components", True):
                 line += ": " + "; ".join(parts)
             _body(doc, line)
 
