@@ -1,6 +1,6 @@
 """
 Number Grid Solver - press F8 to read a numbered grid (1..16, 1..12, ...) off the screen and
-click the numbers in ascending order. Press Esc to quit.
+click the numbers in ascending order. Press End to quit. MODE = "overlay" (default) only draws the path for you to click.
 
 Pipeline (all in memory, no files written unless DEBUG_SAVE_IMAGES is on):
     F8 -> mss screenshot of the primary monitor (or CAPTURE_REGION)
@@ -50,7 +50,17 @@ from pynput import keyboard, mouse
 # FiveM swallows it, so in FiveM use Insert. Add/replace keys as needed,
 # e.g. keyboard.Key.f9 or keyboard.KeyCode.from_char('k').
 HOTKEYS = (keyboard.Key.f8, keyboard.Key.insert)
-EXIT_KEY = keyboard.Key.esc       # quits the program (also aborts a running click sequence)
+EXIT_KEY = keyboard.Key.end       # quits the program (Esc is used too much in games)
+CLEAR_KEY = keyboard.Key.delete   # hides the path overlay
+
+# --- What to do once the numbers are read --------------------------------------
+# "overlay": draw the 1 -> N path on top of the screen and YOU click the tiles
+#            (the overlay is click-through). No mouse input is sent at all.
+# "click":   click the tiles automatically (settings further down).
+MODE = "overlay"
+OVERLAY_SECONDS = 15              # path disappears after this (or press CLEAR_KEY)
+OVERLAY_COLOR = "#00e5ff"         # line colour; badges show the numbers
+OVERLAY_START_COLOR = "#39ff6a"   # ring around the first tile
 
 # --- Reveal-then-hide grids (chimp-test style) ---------------------------------
 # F8 ARMS the solver: it watches the screen ~10x per second until a grid of
@@ -770,12 +780,12 @@ def solve(engine):
     try:
         _abort.clear()
         t0 = time.perf_counter()
-        if PARK_MOUSE:
+        if PARK_MOUSE and MODE == "click":
             with mss.mss() as sct:
                 mon = sct.monitors[1]
             _mouse.position = (mon["left"] + mon["width"] - 2, mon["top"] + mon["height"] // 2)
             _sleep_ms(PARK_WAIT_MS)
-        print("[armed] watching for the numbered grid (Esc = quit)")
+        print("[armed] watching for the numbered grid (End = quit)")
         t1 = time.perf_counter()
 
         # Fast path: watch for numbered tiles and read them the moment they show.
@@ -815,6 +825,13 @@ def solve(engine):
             print("    nothing to click - press F8 before or while the numbers are showing")
             return
 
+        if MODE == "overlay":
+            size = lat[2] if lat else _min_gap(list(found.values()))
+            pts = [(ox + found[n][0], oy + found[n][1], n) for n in sorted(found)]
+            _overlay_q.put(("show", pts, size))
+            print(f"    path shown for {OVERLAY_SECONDS} s - click the tiles yourself (Delete = hide)")
+            return
+
         if WAIT_FOR_HIDE and lat:
             hid = wait_until_hidden(lat, time.perf_counter() + HIDE_TIMEOUT_S)
             if _abort.is_set():
@@ -832,7 +849,7 @@ def solve(engine):
             cx, cy = found[n]
             if schedule:
                 due, glide_ms = schedule[i]
-                # Idle until it's time to start gliding, checking Esc while waiting.
+                # Idle until it is time to start gliding, checking End while waiting.
                 while not _abort.is_set() and time.perf_counter() < due - glide_ms / 1000.0:
                     time.sleep(min(0.02, max(0.0, due - glide_ms / 1000.0 - time.perf_counter())))
                 if _abort.is_set():
@@ -850,23 +867,163 @@ def solve(engine):
         _busy.release()
 
 
+def _min_gap(points):
+    """Smallest distance between two points (tile spacing estimate)."""
+    gaps = [((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
+            for i, a in enumerate(points) for b in points[i + 1:]]
+    return min(gaps) if gaps else 100.0
+
+
+# ----------------------------------------------------------------------------- overlay
+import queue
+_overlay_q = queue.Queue()
+
+
+class PathOverlay:
+    """Transparent, always-on-top, click-through window that draws the 1 -> N path.
+
+    Shows over borderless/windowed games; exclusive-fullscreen games draw over it.
+    Runs in the main thread (Tk requirement); other threads talk to it via _overlay_q.
+    """
+    KEY = "#ff00fe"  # this colour is made fully transparent
+
+    def __init__(self):
+        import tkinter as tk
+        with mss.mss() as sct:
+            mon = sct.monitors[1]
+        self.root = root = tk.Tk()
+        root.withdraw()
+        root.overrideredirect(True)
+        root.geometry(f"{mon['width']}x{mon['height']}+{mon['left']}+{mon['top']}")
+        root.configure(bg=self.KEY)
+        root.attributes("-topmost", True)
+        root.attributes("-transparentcolor", self.KEY)
+        self.canvas = tk.Canvas(root, bg=self.KEY, highlightthickness=0)
+        self.canvas.pack(fill="both", expand=True)
+        self.origin = (mon["left"], mon["top"])
+        self.hide_job = None
+        self.styled = False
+        self.pts, self.size, self.idx = [], 100.0, 0
+        root.after(50, self._poll)
+
+    def _make_click_through(self):
+        if sys.platform != "win32" or self.styled:
+            return
+        u32 = ctypes.windll.user32
+        hwnd = u32.GetParent(self.root.winfo_id()) or self.root.winfo_id()
+        GWL_EXSTYLE = -20
+        style = u32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+        # layered + transparent (mouse passes through) + tool window (no taskbar) + no-activate
+        u32.SetWindowLongW(hwnd, GWL_EXSTYLE, style | 0x80000 | 0x20 | 0x80 | 0x08000000)
+        self.styled = True
+
+    def show(self, pts, size):
+        ox, oy = self.origin
+        self.pts = [(x - ox, y - oy, n) for x, y, n in pts]
+        self.size, self.idx = size, 0
+        self._draw()
+        self.root.deiconify()
+        self.root.lift()
+        self.root.attributes("-topmost", True)
+        self.root.update_idletasks()
+        self._make_click_through()
+        if self.hide_job:
+            self.root.after_cancel(self.hide_job)
+        self.hide_job = self.root.after(int(OVERLAY_SECONDS * 1000), self.clear)
+
+    def on_click(self, x, y):
+        """Your click on the next tile removes that step from the path."""
+        if not self.pts or self.idx >= len(self.pts):
+            return
+        nx, ny, _ = self.pts[self.idx]
+        ox, oy = self.origin
+        if abs(x - ox - nx) <= 0.5 * self.size and abs(y - oy - ny) <= 0.5 * self.size:
+            self.idx += 1
+            if self.idx >= len(self.pts):
+                self.clear()
+            else:
+                self._draw()
+
+    def _draw(self):
+        c, size = self.canvas, self.size
+        c.delete("all")
+        pts = self.pts[self.idx:]
+        w = max(3, int(size * 0.035))
+        arrow = (w * 4, w * 5, w * 2)
+        for (x1, y1, _), (x2, y2, _) in zip(pts, pts[1:]):
+            c.create_line(x1, y1, x2, y2, fill="#000000", width=w + 4, capstyle="round")
+        for (x1, y1, _), (x2, y2, _) in zip(pts, pts[1:]):
+            c.create_line(x1, y1, x2, y2, fill=OVERLAY_COLOR, width=w, arrow="last",
+                          arrowshape=arrow, capstyle="round")
+        x, y, _ = pts[0]
+        r = size * 0.22
+        c.create_oval(x - r, y - r, x + r, y + r, outline=OVERLAY_START_COLOR, width=w + 1)
+        br = max(10, size * 0.12)  # number badge in the tile's top-left corner
+        for x, y, n in pts:
+            bx, by = x - size * 0.30, y - size * 0.30
+            c.create_oval(bx - br, by - br, bx + br, by + br, fill="#000000", outline=OVERLAY_COLOR, width=2)
+            c.create_text(bx, by, text=str(n), fill="#ffffff",
+                          font=("Segoe UI", -int(br * 1.2), "bold"))
+
+    def clear(self):
+        self.pts = []
+        self.canvas.delete("all")
+        self.root.withdraw()
+        if self.hide_job:
+            self.root.after_cancel(self.hide_job)
+            self.hide_job = None
+
+    def _poll(self):
+        try:
+            while True:
+                msg = _overlay_q.get_nowait()
+                if msg[0] == "show":
+                    self.show(msg[1], msg[2])
+                elif msg[0] == "clear":
+                    self.clear()
+                elif msg[0] == "click":
+                    self.on_click(msg[1], msg[2])
+                elif msg[0] == "quit":
+                    self.root.destroy()
+                    return
+        except queue.Empty:
+            pass
+        self.root.after(30, self._poll)
+
+
 def main():
     print(f"Loading OCR engine ({OCR_ENGINE})...")
     engine = make_engine()
     # Warm-up pass so the first real F8 isn't slowed by lazy initialisation.
     engine.read(np.full((64, 64, 3), 255, dtype=np.uint8))
-    print("Ready. F8 or Insert = arm (press before or while the numbers show), Esc = quit.")
+    overlay = PathOverlay() if MODE == "overlay" else None
+    what = "draw the path" if overlay else "solve and click"
+    print(f"Ready ({MODE} mode). F8 or Insert = arm + {what} "
+          f"(press before or while the numbers show), Delete = hide path, End = quit.")
     print("In FiveM use Insert - FiveM keeps F8 for its own console.")
 
     def on_press(key):
         if key in HOTKEYS:
+            _overlay_q.put(("clear",))
             threading.Thread(target=solve, args=(engine,), daemon=True).start()
+        elif key == CLEAR_KEY:
+            _overlay_q.put(("clear",))
         elif key == EXIT_KEY:
             _abort.set()
-            print("Esc pressed - exiting.")
-            return False  # stops the listener -> main() returns
+            _overlay_q.put(("quit",))
+            print("End pressed - exiting.")
+            return False  # stops the listener
 
-    with keyboard.Listener(on_press=on_press) as listener:
+    listener = keyboard.Listener(on_press=on_press)
+    listener.start()
+    if overlay:
+        # Passive: only watches your clicks so finished steps drop off the path.
+        def on_click(x, y, button, pressed):
+            if pressed and button == mouse.Button.left:
+                _overlay_q.put(("click", x, y))
+        mouse.Listener(on_click=on_click).start()
+        overlay.root.mainloop()  # returns after "quit"
+    else:
         listener.join()
     os._exit(0)  # make sure no worker thread keeps the process alive
 

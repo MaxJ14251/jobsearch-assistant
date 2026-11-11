@@ -2,7 +2,7 @@
 
 Standalone helper script, not part of the `jsa` package. Press **F8** while a
 numbered grid (1–16, 1–12, …) is on screen: it screenshots the primary monitor, reads the
-numbers with OCR, and left-clicks them in ascending order. **Esc** quits.
+numbers with OCR, and left-clicks them in ascending order (or, in overlay mode, just shows you the path). **End** quits.
 
 > Automating input can break a game's terms of service, especially online.
 > Your call where you use it.
@@ -40,6 +40,19 @@ python grid_solver.py
 Wait for `Ready.` (the first launch downloads the EasyOCR model, ~100 MB, once).
 Then switch to the game (Borderless Windowed), press F8 when the grid shows.
 Each F8 prints timings, e.g. `capture 12 ms | OCR 240 ms | found 16/16`.
+
+## Overlay mode (default): it shows the path, you click
+
+`MODE = "overlay"` sends **no mouse input at all**. Press **Insert** (or F8)
+before or while the numbers show; the moment they appear it reads them and
+draws a path over the screen: arrows 1 → 2 → … with a number badge in each
+tile's corner and a green ring on the next tile. The overlay is click-through,
+so you click the tiles yourself; each correct click removes that step so only
+the rest of the path stays. It hides after `OVERLAY_SECONDS` (15), after the
+last tile, or on **Delete**. **End** quits.
+
+Works over borderless/windowed games; an exclusive-fullscreen game draws over
+it. `MODE = "click"` restores automatic clicking.
 
 ## Reveal-then-hide grids (memory / chimp-test style)
 
