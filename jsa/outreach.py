@@ -142,7 +142,8 @@ def build(profile: dict[str, Any], job: Any, contact: Any, *, channel: str,
     bullets = select_bullets(profile, description, track, limit=3,
                              title=job["title"] if job else "",
                              # A three-line note is not a resume.
-                             keep_work_history=False, keep_project=False)
+                             keep_work_history=False, keep_project=False,
+                             keep_always=False)
     limit = CHANNEL_LIMITS.get(channel, 2000)
     prompt = (PROMPT_SPLIT if split else PROMPT).format(
         purpose=purpose.replace("_", " "), channel=channel.replace("_", " "),

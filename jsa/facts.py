@@ -94,10 +94,17 @@ def _is_current(e: dict[str, Any]) -> bool:
 
 def _jobs(profile: dict[str, Any], today: dt.date) -> list[tuple[int, int, dict]]:
     """(start, end, entry) in months, clamped so a typo can't make a negative
-    span: no start after today, no end before its start (review R-28)."""
+    span: no start after today, no end before its start (review R-28).
+
+    Employment only. An entry marked `self_employed: true` (independent
+    projects shown on the resume so the timeline reads whole) is skipped: it
+    must not raise "years of experience", and the interview drill for the
+    gap since the last employer still applies."""
     now = today.year * 12 + today.month - 1
     out = []
     for e in profile.get("experience") or []:
+        if e.get("self_employed"):
+            continue
         start = _month(e.get("start"))
         if start is None:
             continue

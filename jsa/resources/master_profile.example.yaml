@@ -225,6 +225,12 @@ summaries:
 #     Keep the `id:` on each entry.
 #   - `family` decides which bullets a track prefers: engineering favours
 #     ai_engineering and data_ml, sales favours sales and technical_field.
+#   - Two optional flags for an entry that is not an employer, such as a
+#     period of independent projects that covers a gap:
+#       self_employed: true    not counted in years of experience, and never
+#                              treated as "the most recent job"
+#       always_include: true   its bullets are printed on every resume,
+#                              instead of only when they match a posting
 # ---------------------------------------------------------------------------
 experience:
   - id: exp_riverton_sales

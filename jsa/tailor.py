@@ -792,6 +792,7 @@ def select_bullets(
     profile: dict[str, Any], description: str, track: str, limit: int = 6,
     weights: dict[str, float] | None = None, title: str = "",
     keep_work_history: bool = True, keep_project: bool = True,
+    keep_always: bool = True,
 ) -> list[SourceBullet]:
     """Rank profile bullets against the posting. Deterministic, no model call.
 
@@ -801,7 +802,34 @@ def select_bullets(
 
     Safe by construction: this only chooses among the operator's own bullets.
     Nothing here produces text.
+
+    Bullets of an entry marked `always_include: true` are not ranked: they are
+    added after the pick, outside `limit`, so the entry is printed on every
+    resume (a timeline entry that matching alone would drop). `keep_always`
+    False leaves them out entirely, for a short note that is not a resume.
     """
+    always = always_included(profile)
+    picked = _rank_bullets(profile, description, track, limit, weights, title,
+                           keep_work_history, keep_project, exclude=always)
+    return picked + ([b for b in collect_bullets(profile).values() if b.id in always]
+                     if keep_always else [])
+
+
+def always_included(profile: dict[str, Any]) -> set[str]:
+    """Ids of bullets on entries marked `always_include: true`."""
+    out: set[str] = set()
+    for key in ("experience", "projects"):
+        for entry in profile.get(key) or []:
+            if entry.get("always_include"):
+                out.update(b["id"] for b in entry.get("bullets") or [] if b.get("id"))
+    return out
+
+
+def _rank_bullets(
+    profile: dict[str, Any], description: str, track: str, limit: int,
+    weights: dict[str, float] | None, title: str,
+    keep_work_history: bool, keep_project: bool, exclude: set[str],
+) -> list[SourceBullet]:
     blob = (description or "").lower()
     bonus = ROLE_FAMILY_BONUS[role_kind(title, track)]
     weights = weights or {}
@@ -815,6 +843,8 @@ def select_bullets(
     }
     scored: list[tuple[float, float, tuple[bool, bool], int, bool, str, SourceBullet]] = []
     for bullet in collect_bullets(profile).values():
+        if bullet.id in exclude:
+            continue
         hit_value = sum(tag_value(tag, blob, weights) for tag in bullet.tags)
         # Strength is deliberately NOT in the score. As (4 - strength) it added
         # +3 to almost every bullet, compressing a 7.09-to-4.96 range in which
@@ -888,8 +918,12 @@ def select_bullets(
 
 
 def most_recent_job(profile: dict[str, Any]) -> dict[str, Any] | None:
-    """The current job, else the one that ended last. None if there are none."""
-    jobs = [e for e in profile.get("experience") or [] if e.get("bullets")]
+    """The current job, else the one that ended last. None if there are none.
+
+    A `self_employed` entry is not a job here: the work-history rule exists so
+    a resume shows an employer, and it must not displace the real one."""
+    jobs = [e for e in profile.get("experience") or []
+            if e.get("bullets") and not e.get("self_employed")]
     if not jobs:
         return None
     return max(jobs, key=lambda e: (bool(e.get("current")),
