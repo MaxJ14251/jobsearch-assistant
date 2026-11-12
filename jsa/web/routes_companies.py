@@ -36,5 +36,5 @@ def register(app, ctx) -> None:
         from ..degree import CAVEAT
         year = next(iter(roles._education().values())).year if roles.available() else ""
         return render("about_data", "companies", title="About this data",
-                      sources=roles.SOURCE_URLS, year=year,
+                      sources=roles.source_urls(), year=year,
                       min_confidence=roles.MIN_CONFIDENCE, degree_caveat=CAVEAT)

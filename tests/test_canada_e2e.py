@@ -140,7 +140,7 @@ class TestTorontoEndToEnd(unittest.TestCase):
         import re
         terms = re.compile(r"\bZIP\b|\bzip code|\bmiles?\b|\bmi\b|USAJOBS|lower 48|\bU\.S\.|"
                            r"United States|\bstates?\b|\bUSD\b", re.I)
-        paths = ["/", "/?anywhere=1", "/add", "/companies", "/extension", "/import",
+        paths = ["/", "/?anywhere=1", "/about-data", "/add", "/companies", "/extension", "/import",
                  "/pipeline", "/replies", "/review", "/setup", "/today", "/turbo",
                  "/job/1", "/job/2", "/job/3", "/job/5", "/job/6"]
         for path in paths:
@@ -152,6 +152,14 @@ class TestTorontoEndToEnd(unittest.TestCase):
                     r'(?:placeholder|title|aria-label|alt)="([^"]*)"', text))
                 text = html.unescape(re.sub(r"<[^>]+>", " ", text) + " " + hover)
                 self.assertEqual(terms.findall(text), [])
+
+    def test_role_education_credits_statistics_canada(self):
+        page = self.client.get("/about-data").text
+        self.assertIn("Statistics Canada Open Licence", page)
+        self.assertNotIn("O*NET", page)
+        job = self.client.get("/job/1").text
+        self.assertIn("This role, nationwide", job)
+        self.assertIn("trades, college or CEGEP", job)
 
     def test_resume_dates_and_paper(self):
         from docx import Document

@@ -124,6 +124,12 @@ _TOTAL_LABEL_WORDS = (
     r"(?:base|salary)\s*(?:and|\+|&|plus)\s*(?:equity|stock|bonus)|"
     r"including\s+(?:equity|stock|bonus))\b")
 LABEL_WINDOW = 70
+# ...unless the range names itself base pay right after: Achievers heads its
+# pay "Our Approach to Total Rewards", then "$96,000 - $130,000 reflects the
+# salary range for this role" (ADR 0037, 2026-11-11: 5 postings). Rocket
+# Lab's total is followed by "USD Base Salary $...", which this doesn't match.
+_SAYS_SALARY = re.compile(r"\s*(?:reflects|is)\s+the\s+(?:base\s+)?(?:salary|pay)\s+range\b",
+                          re.I)
 
 HOURLY_WINDOW = 90
 _HOURLY = re.compile(r"(per\s+hour|/\s?h(?:ou)?r\b|an\s+hour|hourly)", re.I)
@@ -229,7 +235,8 @@ def _candidates(text: str):
             continue
         if _VETO.search(near):
             continue
-        if rx.total_label.search(text[max(0, m.start() - LABEL_WINDOW):m.start()]):
+        if (rx.total_label.search(text[max(0, m.start() - LABEL_WINDOW):m.start()])
+                and not _SAYS_SALARY.match(after)):
             continue
         if high < low:
             continue
@@ -319,6 +326,73 @@ def _singles(text: str, taken: list[tuple[int, int]]):
                _currency_after(text, m.end()))
 
 
+# --- Pay written the French way (a pack with FRENCH_PAY) ----------------------
+# The symbol follows the figure, thousands are split by a space (often a
+# no-break or narrow no-break one) and cents by a comma: "80 000 $ à
+# 95 000 $", "de 80 000 à 95 000 $ par année", "20,00 $/heure". Read only
+# when the English reading found nothing, so no English reading changes.
+_FR_NUMBER = r"(\d{1,3}(?:[   .]\d{3})+(?:,\d{1,2})?|\d+(?:,\d{1,2})?)"
+
+
+@lru_cache(maxsize=None)
+def _fr_patterns(code: str) -> tuple[re.Pattern, re.Pattern]:
+    pack = countries.get(code)
+    symbol = (r"\s?" + re.escape(pack.CURRENCY_SYMBOL)
+              + rf"(?:\s?{re.escape(pack.CURRENCY)}\b)?")
+    return (re.compile(_FR_NUMBER + rf"(?:{symbol})?\s*(?:à|au|et|-|–|—)\s*"
+                       + _FR_NUMBER + symbol, re.I),
+            re.compile(_FR_NUMBER + symbol + r"(?![\d])", re.I))
+_FR_CUE = re.compile(
+    r"\b(salaire|rémunération|rémunérations|taux|horaire|fourchette|échelle|"
+    r"annuel(?:le)?|par\s+an(?:née)?|traitement)\b", re.I)
+_FR_HOURLY = re.compile(
+    r"^\s?(?:/\s?h(?:eure|r)?\b|de\s+l['’]heure|par\s+heure|l['’]heure|horaire)", re.I)
+_FR_UNIT = re.compile(
+    r"^\s?(?:/\s?h(?:eure|r)?\b|de\s+l['’]heure|par\s+heure|/\s?an\b|par\s+an(?:née)?|"
+    r"annuel)", re.I)
+# Not base pay: funding, budgets, and pay that includes commission ("rémunération
+# cible moyenne: 36,00 $/heure" sat under a base of 20,00 $/heure).
+_FR_VETO = re.compile(
+    r"\b(levée|financement|chiffre\s+d['’]affaires|budget|rembours\w*|allocation|"
+    r"prime|primes|commission|commissions|bonis|bonus|cible|variable)\b", re.I)
+
+
+def _fr_amount(digits: str) -> int:
+    whole, _, cents = re.sub(r"[   .]", "", digits).partition(",")
+    return round(float(whole + ("." + cents if cents else "")))
+
+
+def _french(text: str):
+    annual_bounds, hourly_bounds = _bounds("year"), _bounds("hour")
+    ranges, singles = _fr_patterns(_pack().CODE)
+    taken: list[tuple[int, int]] = []
+    found = []
+    for m in ranges.finditer(text):
+        found.append((m, _fr_amount(m.group(1)), _fr_amount(m.group(2))))
+        taken.append((m.start(), m.end()))
+    for m in singles.finditer(text):
+        if not any(a <= m.start() < b for a, b in taken):
+            value = _fr_amount(m.group(1))
+            found.append((m, value, value))
+    for m, low, high in sorted(found, key=lambda f: f[0].start()):
+        before = text[max(0, m.start() - SINGLE_CUE_WINDOW):m.start()]
+        after = text[m.end():m.end() + 25]
+        if not (_FR_CUE.search(before) or _FR_UNIT.search(after)):
+            continue
+        if _FR_VETO.search(text[max(0, m.start() - VETO_WINDOW):m.end() + SINGLE_VETO_AFTER]):
+            continue
+        if not low <= high <= low * 4:
+            continue
+        if annual_bounds[0] <= low and high <= annual_bounds[1]:
+            period = "year"
+        elif hourly_bounds[0] <= low and high <= hourly_bounds[1] and (
+                _FR_HOURLY.search(after) or "," in m.group(0)):
+            period = "hour"
+        else:
+            continue
+        yield (low, high, period, _snippet(text, m.start(), m.end()), _pack().CURRENCY)
+
+
 def _snippet(text: str, start: int, end: int) -> str:
     """The pay figure with a little of its own line around it. Never across a
     line break: a posting's title or a heading above the pay is not part of
@@ -344,6 +418,8 @@ def extract(text: str | None) -> Salary | None:
     if not found:
         taken = [(m.start(), m.end()) for m in _rx().range.finditer(text)]
         found = list(_singles(text, taken))
+    if not found and getattr(_pack(), "FRENCH_PAY", False):
+        found = list(_french(text))
     if not found:
         return None
     # Figures in the working currency win over figures in another; a posting

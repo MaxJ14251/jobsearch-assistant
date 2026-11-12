@@ -408,6 +408,9 @@ def keyword_score(description: str, have: list[str]) -> tuple[float, list[str]]:
 def required_years(description: str) -> int | None:
     """Largest 'N years' requirement mentioned, if any."""
     values = [int(m.group(1)) for m in _YEARS_RE.finditer(description or "")]
+    extra = getattr(_pack(), "YEARS_ASKED", None)     # a pack's other language
+    if extra:
+        values += [int(m.group(1)) for m in _pattern(extra).finditer(description or "")]
     values = [v for v in values if v <= 30]
     return max(values) if values else None
 
@@ -463,6 +466,13 @@ def title_matches(title: str | None, query: str | None) -> bool:
     return any(all(word_ok(w) for w in words) for words in terms)
 
 
+def scoring_title(title: str | None) -> str:
+    """The title as scoring reads it: in the working country's other language
+    (a French title in Canada), its words in English; otherwise as written."""
+    read = getattr(_pack(), "title_in_english", None)
+    return (read(title) if read else None) or (title or "")
+
+
 def title_rejection(title: str, prefs: Preferences) -> str | None:
     """Why the TITLE alone rejects a posting, or None.
 
@@ -472,12 +482,13 @@ def title_rejection(title: str, prefs: Preferences) -> str | None:
     that merely matches no target role is NOT here: such postings are kept on
     location, keywords and seniority.
     """
+    read = scoring_title(title)          # the reasons quote the title as posted
     for bad in prefs.exclude_keywords:
-        if _norm(bad) and _norm(bad) in _norm(title):
+        if _norm(bad) and (_norm(bad) in _norm(title) or _norm(bad) in _norm(read)):
             return f"rejected: title contains {bad!r}"
-    if _SENIOR_TITLE_RE.search(title) and not _JUNIOR_HINT_RE.search(title):
+    if _SENIOR_TITLE_RE.search(read) and not _JUNIOR_HINT_RE.search(read):
         return f"rejected: {title!r} reads as a senior/lead title"
-    if _PEOPLE_MANAGER_RE.search(title):
+    if _PEOPLE_MANAGER_RE.search(read):
         return f"rejected: {title!r} is a people-management role"
     return None
 
@@ -488,12 +499,12 @@ def score_job(job: dict[str, Any], prefs: Preferences) -> tuple[float, list[str]
     Reads pay from job["salary_min"/"salary_max"/"salary_period"], which the
     caller fills from jsa.salary.extract. Absent means unknown, never zero.
     """
-    title = job.get("title") or ""
+    title = scoring_title(job.get("title"))
     description = job.get("description") or ""
     reasons: list[str] = []
 
     # --- hard rejects --------------------------------------------------
-    rejected = title_rejection(title, prefs)
+    rejected = title_rejection(job.get("title") or "", prefs)
     if rejected is not None:
         return 0.0, [rejected]
 
@@ -591,6 +602,7 @@ def score_job(job: dict[str, Any], prefs: Preferences) -> tuple[float, list[str]
 
 def job_track(title: str, prefs: Preferences) -> str:
     """'engineering' or 'sales' — which title tier this role came from."""
+    title = scoring_title(title)
     if title_score(title, prefs.target_titles)[0] > 0:
         return "engineering"
     if prefs.fallback_titles and title_score(title, prefs.fallback_titles)[0] > 0:

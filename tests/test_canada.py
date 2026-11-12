@@ -122,11 +122,118 @@ class TestPayShapesMeasured(InCanada):
         self.assertEqual(pay.label(), "$120,000–$150,000/yr USD")
         self.assertIsNone(salary.from_row(salary.columns(pay)))
 
+    def test_a_total_rewards_heading_over_a_salary_range(self):
+        from jsa import salary
+        pay = salary.extract("Our Approach to Total Rewards\n\xa0\n$96,000 - $130,000 reflects "
+                             "the salary range for this role, depending on experience.")
+        self.assertEqual((pay.minimum, pay.maximum), (96000, 130000))
+        # A labelled total stays refused, as Rocket Lab's is.
+        self.assertIsNone(salary.extract("Total Compensation (base and equity) "
+                                         "$93,275 - $132,025 USD"))
+
     def test_canadian_dollars_win_over_us_ones(self):
         from jsa import salary
         pay = salary.extract("Salary range: $90,000 - $110,000 CAD in Toronto; "
                              "$100,000 - $125,000 USD in Seattle.")
         self.assertEqual((pay.minimum, pay.maximum, pay.currency), (90000, 110000, "CAD"))
+
+
+class TestFrenchPay(InCanada):
+    """Pay written the French way (2026-11-11: one of 28 French postings
+    among the 22 employers' 727 stated it; the rest are the shapes French
+    postings use)."""
+
+    def test_the_measured_posting_keeps_its_base_and_not_its_target(self):
+        from jsa import salary
+        pay = salary.extract("Rémunération: Salaire de base de 20,00 $/heure + commission "
+                             "instantanée et non plafonnée\n\nRémunération cible moyenne: "
+                             "36,00 $/heure")
+        self.assertEqual((pay.minimum, pay.maximum, pay.period), (20, 20, "hour"))
+
+    def test_french_shapes(self):
+        from jsa import salary
+        for text, want in [
+                ("Salaire : 80 000 $ à 95 000 $ par année", (80000, 95000, "year")),
+                ("La fourchette salariale est de 80 000 à 95 000 $ CAD.",
+                 (80000, 95000, "year")),
+                ("Salaire annuel entre 72 500 $ et 90 000 $", (72500, 90000, "year")),
+                ("Taux horaire : 45 $/h", (45, 45, "hour"))]:
+            with self.subTest(text):
+                pay = salary.extract(text)
+                self.assertEqual((pay.minimum, pay.maximum, pay.period, pay.currency),
+                                 want + ("CAD",))
+
+    def test_not_pay(self):
+        from jsa import salary
+        for text in ("Une levée de financement de 50 000 000 $.",
+                     "Allocation de 500 $ par année pour le bien-être.",
+                     "60 jours par année; contribution REER jusqu'à 4 %"):
+            with self.subTest(text):
+                self.assertIsNone(salary.extract(text))
+
+    def test_read_only_in_canada(self):
+        from jsa import salary
+        with countries.using("US"):
+            self.assertIsNone(salary.extract("Salaire : 80 000 $ à 95 000 $ par année"))
+
+
+class TestFrenchTitles(InCanada):
+    """A French posting scores as its English twin does (2026-11-11: 27 of
+    Lightspeed's Montreal postings are French, most with an English twin)."""
+
+    def prefs(self, *targets):
+        from jsa.config import Preferences
+        return Preferences.from_profile(profile(target_titles=list(targets)))
+
+    def test_a_french_title_meets_its_english_target(self):
+        from jsa import scoring
+        for french, target in [("Spécialiste du soutien à la facturation",
+                                 "Billing Support Specialist"),
+                                ("Gestionnaire du développement logiciel",
+                                 "Software Development Manager"),
+                                ("Administrateur(trice) réseau", "Network Administrator"),
+                                ("Graphiste débutant(e)", "Graphic Designer"),
+                                ("Représentant(e) au développement des ventes",
+                                 "Sales Development Representative")]:
+            with self.subTest(french):
+                self.assertEqual(scoring.title_score(scoring.scoring_title(french),
+                                                     [target])[0], 1.0)
+
+    def test_the_senior_and_manager_rules_read_french(self):
+        from jsa import scoring
+        prefs = self.prefs("Analytics Engineer")
+        for title in ("Ingénieur(e) Analytics Sénior", "Analyste Financier(ère) principal(e)",
+                      "Chef d'équipe, Ventes - Restauration",
+                      "Gestionnaire, Ingénierie de la fiabilité des sites (SRE)"):
+            with self.subTest(title):
+                why = scoring.title_rejection(title, prefs)
+                self.assertIn(repr(title), why)          # quoted as posted
+
+    def test_a_bilingual_title_uses_its_english_half(self):
+        from jsa import scoring
+        self.assertEqual(scoring.scoring_title(
+            "Gestionnaire, Finance et stratégie// Finance & Strategy Manager"),
+            "Finance & Strategy Manager")
+
+    def test_english_titles_are_left_alone(self):
+        from jsa import scoring
+        for title in ("Senior Analytics Engineer", "Principal Engineer",
+                      "Commercial Account Executive", "Client Success Manager"):
+            with self.subTest(title):
+                self.assertEqual(scoring.scoring_title(title), title)
+
+    def test_years_asked_in_french(self):
+        from jsa import scoring
+        self.assertEqual(scoring.required_years(
+            "Vous avez au moins 5 ans d'expérience en vente, ou 3 à 4 années d’expérience."), 5)
+        self.assertIsNone(scoring.required_years("Fondée il y a 20 ans à Montréal."))
+
+    def test_read_only_in_canada(self):
+        from jsa import scoring
+        with countries.using("US"):
+            self.assertEqual(scoring.scoring_title("Graphiste débutant(e)"),
+                             "Graphiste débutant(e)")
+            self.assertIsNone(scoring.required_years("5 ans d'expérience"))
 
 
 class TestPayInTheUS(unittest.TestCase):
@@ -152,12 +259,23 @@ class TestSetupAndForms(InCanada):
         self.assertIn("Remote (Canada)", prefs["locations"])
         self.assertEqual(prefs["radius"], 65)
 
-    def test_no_nationwide_source_and_no_role_data(self):
-        from jsa import roles
+    def test_no_nationwide_source(self):
         self.assertTrue(countries.source_is_elsewhere("usajobs"))
         self.assertTrue(countries.source_is_elsewhere("themuse"))
         self.assertFalse(countries.source_is_elsewhere("ashby"))
-        self.assertFalse(roles.available())
+
+    def test_role_education_from_statistics_canada(self):
+        # 2021 Census by NOC 2021 occupation (ADR 0037, 2026-11-11).
+        from jsa import roles
+        self.assertTrue(roles.available())
+        role = roles.for_title("Technical Support Specialist")
+        self.assertEqual(role["soc"], "22221")          # not wholesale technical sales
+        self.assertIn("trades, college or CEGEP", role["line"])
+        self.assertNotIn("associate's", role["line"])
+        self.assertIn("Statistics Canada", role["attribution"])
+        self.assertEqual(roles.for_title("Customer Service Representative")["soc"], "64409")
+        with countries.using("US"):
+            self.assertEqual(roles.for_title("Software Engineer")["soc"], "15-1252")
 
     def test_the_authorization_question(self):
         from jsa import answers

@@ -209,17 +209,19 @@ run_ca() {
 }
 run_ca init >/dev/null
 out="$(run_ca matches --limit 5)" || fail "jsa matches (Canada) exited non-zero: $out"
-echo "$out" | grep -q "no unreviewed matches" || fail "unexpected matches output (Canada): $out"
+grep -q "no unreviewed matches" <<<"$out" || fail "unexpected matches output (Canada): $out"
 docker run -d --name "$CA_DASH" -e JSA_ALLOW_PUBLIC_BIND=1 \
   -v "$CA_VOLUME:/data" -v "$WORK/profile_ca:/app/profile:ro" -p "127.0.0.1:$PORT:8765" \
   "$IMAGE" serve --host 0.0.0.0 --port 8765 >/dev/null
 DASH="$CA_DASH" wait_up || fail "the Canadian dashboard did not answer on 127.0.0.1:$PORT"
+# Here-strings, not `echo | grep -q`: grep -q stops at the first match, the
+# writer gets a broken pipe, and pipefail fails the check (CI, 2026-11-12).
 page="$(curl -s "http://127.0.0.1:$PORT/")"
-echo "$page" | grep -q 'placeholder="postal code or City, PR"' \
+grep -q 'placeholder="postal code or City, PR"' <<<"$page" \
   || fail "the Canadian dashboard does not ask for a postal code"
-echo "$page" | grep -q ' km' || fail "the Canadian dashboard does not speak kilometres"
-curl -s "http://127.0.0.1:$PORT/?anywhere=1" | grep -q "across Canada" \
-  || fail "the whole-country map is not Canada's"
+grep -q ' km' <<<"$page" || fail "the Canadian dashboard does not speak kilometres"
+whole="$(curl -s "http://127.0.0.1:$PORT/?anywhere=1")"
+grep -q "across Canada" <<<"$whole" || fail "the whole-country map is not Canada's"
 code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/basemap/coarse")"
 [ "$code" = "200" ] || fail "Canada's basemap answered $code"
 docker rm -f "$CA_DASH" >/dev/null

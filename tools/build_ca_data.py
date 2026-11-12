@@ -350,15 +350,193 @@ def _csv(header: list[str], rows) -> bytes:
     return buf.getvalue().encode("utf-8")
 
 
+# --- Who holds each kind of job (--only roles) ------------------------------------
+# The Canadian twin of tools/build_role_data.py (plan 33), in the US files'
+# exact columns so jsa.roles reads it unchanged (ADR 0037, 2026-11-11):
+#   Census 2021, table 98-10-0449-01: highest certificate by occupation (NOC
+#     2021 unit group), Canada, all genders, employed, ages 25-64 plus 65+
+#     (workers 25 and older, as BLS) -> data/ca/role_education.csv.gz
+#   NOC 2021 V1.0 classification structure and elements: class titles,
+#     illustrative examples and the index of titles -> data/ca/role_titles.csv.gz
+# Statistics Canada Open Licence; "Adapted from Statistics Canada, ...".
+CENSUS_TABLE = ("https://www150.statcan.gc.ca/t1/tbl1/en/"
+                "dtl!downloadDbLoadingData-nonTraduit.action")
+NOC_URLS = {
+    "structure": "https://www.statcan.gc.ca/en/subjects/standard/noc/2021/indexV1/"
+                 "noc-2021-v1.0-classification-structure.csv",
+    "elements": "https://www.statcan.gc.ca/en/subjects/standard/noc/2021/indexV1/"
+                "noc-2021-v1.0-elements.csv",
+}
+# Member ids of the table's dimensions (WDS getCubeMetadata, productId
+# 98100449): geography Canada; all 16 certificate rows; ages 25-64 and 65+;
+# all genders; occupations 1-821; employed. More than about 100 occupations in
+# one request is refused (502).
+CENSUS_OCCUPATIONS = 821
+CENSUS_BATCH = 100
+# Census certificate rows -> the US file's columns. Canada has no "some
+# college, no credential" row, and its trades certificates sit where the US
+# has some college: the pack's level words say so ("trades, college or CEGEP").
+CERTIFICATE_COLUMN = {
+    "No certificate, diploma or degree": "less_than_hs",
+    "High (secondary) school diploma or equivalency certificate": "hs",
+    "Apprenticeship or trades certificate or diploma": "some_college",
+    "College, CEGEP or other non-university certificate or diploma": "associate",
+    "University certificate or diploma below bachelor level": "associate",
+    "Bachelor's degree": "bachelor",
+    "University certificate or diploma above bachelor level": "master",
+    "Master's degree": "master",
+    "Degree in medicine, dentistry, veterinary medicine or optometry": "doctoral",
+    "Earned doctorate": "doctoral",
+}
+ROLE_LEVELS = ("less_than_hs", "hs", "some_college", "associate", "bachelor", "master",
+               "doctoral")
+# The census reports NOC 00011-00015 (senior managers by sector) as one group.
+NOC_CENSUS_GROUP = {code: "00018" for code in ("00011", "00012", "00013", "00014", "00015")}
+# How much a title counts toward its occupation: a class title, an
+# illustrative example, any other index title.
+CLASS_WEIGHT, ILLUSTRATIVE_WEIGHT, INDEX_WEIGHT = 10, 5, 2
+# Posting usage, as the US build's OVERRIDES: the occupation a posting means.
+ROLE_OVERRIDES = {
+    "account executive": "62100", "account manager": "62100",
+    "customer success manager": "62100",          # as the US files it with sales
+    "support engineer": "22221", "customer support engineer": "22221",
+    "technical support specialist": "22221",      # NOC: wholesale technical sales
+    "solutions engineer": "21311",
+    "customer service representative": "64409",   # NOC: financial institutions
+}
+
+
+def _census_part(index: int, cache: Path | None) -> bytes:
+    cached = cache / f"census_98100449_{index:02d}.csv" if cache else None
+    if cached and cached.exists():
+        print(f"  cached  {cached.name}")
+        return cached.read_bytes()
+    low = 1 + index * CENSUS_BATCH
+    members = [[1], list(range(1, 17)), [5, 13], [1],
+               list(range(low, min(low + CENSUS_BATCH, CENSUS_OCCUPATIONS + 1))), [2]]
+    url = CENSUS_TABLE + "?" + urllib.parse.urlencode({
+        "pid": "9810044901", "latestN": "5", "startDate": "", "endDate": "",
+        "csvLocale": "en", "selectedMembers": str(members).replace(" ", ""),
+        "checkedLevels": ""})
+    print(f"  fetch   census occupations {low}-{low + CENSUS_BATCH - 1}")
+    request = urllib.request.Request(url, headers={"User-Agent": UA})
+    with urllib.request.urlopen(request, timeout=300) as response:
+        data = response.read()
+    if cached:
+        cache.mkdir(parents=True, exist_ok=True)
+        cached.write_bytes(data)
+    return data
+
+
+def build_roles(cache: Path | None) -> tuple[list[list], list[list]]:
+    """(education rows, title rows) in the US files' columns."""
+    import re
+    from collections import defaultdict
+
+    from jsa.roles import normalize
+
+    occupation_col = ("Occupation - Unit group - National Occupational Classification "
+                      "(NOC) 2021 (821A)")
+    certificate_col = "Highest certificate, diploma or degree (16)"
+    counts: dict = defaultdict(lambda: defaultdict(float))
+    totals: dict = defaultdict(float)
+    names: dict = {}
+    parts = (CENSUS_OCCUPATIONS + CENSUS_BATCH - 1) // CENSUS_BATCH
+    for index in range(parts):
+        text = _census_part(index, cache).decode("utf-8-sig")
+        for row in csv.DictReader(io.StringIO(text)):
+            found = re.match(r"(\d{5}) (.+)", row[occupation_col])
+            if not found or row["VALUE"] == "":
+                continue
+            code, name = found.groups()
+            names[code] = name
+            certificate = row[certificate_col].replace("’", "'")
+            value = float(row["VALUE"])        # 25-64 and 65+ rows add up
+            if certificate.startswith("Total"):
+                totals[code] += value
+            elif certificate in CERTIFICATE_COLUMN:
+                counts[code][CERTIFICATE_COLUMN[certificate]] += value
+    education = []
+    for code in sorted(names):
+        held = sum(counts[code].values())
+        if held <= 0:
+            continue
+        # The census rounds every count to 5: the rows meet the total closely.
+        if abs(held - totals[code]) > max(50, 0.02 * totals[code]):
+            raise SystemExit(f"census rows for {code} add to {held}, total {totals[code]}")
+        education.append([code, names[code],
+                          *[round(100 * counts[code][k] / held, 1) for k in ROLE_LEVELS],
+                          "2021"])
+    known = {row[0] for row in education}
+
+    votes: dict = defaultdict(lambda: defaultdict(int))
+    qualified: dict = defaultdict(lambda: defaultdict(int))
+
+    def add(title: str, code: str, weight: int, table: dict) -> None:
+        variants = [title]
+        # "development and operations (DevOps) engineer" is also "DevOps engineer".
+        short = re.search(r"\(([A-Za-z0-9-]+)\)", title)
+        if short:
+            variants.append(re.sub(r"[^()]*\(" + re.escape(short.group(1)) + r"\)",
+                                   short.group(1), title, count=1))
+        for variant in variants:
+            if normalize(variant):
+                table[normalize(variant)][code] += weight
+
+    def noc_rows(name: str):
+        text = fetch(NOC_URLS[name], cache).decode("utf-8-sig")
+        return csv.DictReader(io.StringIO(text))
+
+    for row in noc_rows("structure"):
+        code = NOC_CENSUS_GROUP.get(row["Code - NOC 2021 V1.0"], row["Code - NOC 2021 V1.0"])
+        if row["Level"] == "5" and code in known:
+            add(row["Class title"], code, CLASS_WEIGHT, votes)
+    for row in noc_rows("elements"):
+        kind = row["Element Type Label English"]
+        code = NOC_CENSUS_GROUP.get(row["Code - NOC 2021 V1.0"], row["Code - NOC 2021 V1.0"])
+        if row["Level"] != "5" or code not in known or kind not in (
+                "All examples", "Illustrative example(s)"):
+            continue
+        title = row["Element Description English"].strip()
+        if " - " in title:
+            # "technical support specialist - wholesale trade": normalize()
+            # keeps the part before " - ", so it counts only where no plain
+            # title exists, and only if every such title names one occupation.
+            add(title, code, 1, qualified)
+        else:
+            add(title, code, ILLUSTRATIVE_WEIGHT if kind.startswith("Illustrative")
+                else INDEX_WEIGHT, votes)
+    titles = {t: min(b.items(), key=lambda kv: (-kv[1], kv[0])) for t, b in votes.items()}
+    for title, by_code in qualified.items():
+        if title not in titles and len(by_code) == 1:
+            titles[title] = next(iter(by_code.items()))
+    for title, code in ROLE_OVERRIDES.items():
+        key = normalize(title)
+        titles[key] = (code, titles.get(key, (code, CLASS_WEIGHT))[1])
+    return education, [[t, c, w] for t, (c, w) in sorted(titles.items())]
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", type=Path, default=Path("jsa/resources/data"))
     ap.add_argument("--cache", type=Path, default=None)
-    ap.add_argument("--only", choices=("points", "basemap"), default=None,
-                    help="just the town, postal-area and outline files, or just the basemap")
+    ap.add_argument("--only", choices=("points", "basemap", "roles"), default=None,
+                    help="just the town, postal-area and outline files, the basemap, "
+                         "or the education-by-occupation files")
     args = ap.parse_args()
     dest = args.out / "ca"
     dest.mkdir(parents=True, exist_ok=True)
+    if args.only in (None, "roles"):
+        education, titles = build_roles(args.cache)
+        for name, payload, count in (
+                ("role_education.csv.gz",
+                 _csv(["soc", "occupation", *ROLE_LEVELS, "year"], education), len(education)),
+                ("role_titles.csv.gz", _csv(["title", "soc", "weight"], titles), len(titles))):
+            print(f"{name:22} {count:6} rows  sha256 {write_gz(dest / name, payload)}")
+        print("Adapted from Statistics Canada, Table 98-10-0449-01 (2021 Census) and "
+              "National Occupational Classification (NOC) 2021 Version 1.0, 2021.")
+        if args.only == "roles":
+            return
     if args.only != "points":
         raw = ground(args.cache)
         for name in TIERS:

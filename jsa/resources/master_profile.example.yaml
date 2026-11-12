@@ -41,7 +41,8 @@ links:
 # ---------------------------------------------------------------------------
 job_search_preferences:
   # Your home country, as a two-letter code. One per profile; left out, it is
-  # the US. Only US is available so far (more countries are planned).
+  # the US. Available: US, and CA (Canada: home_location is a postal code's
+  # first three characters, radius is in kilometres).
   # country: US
   target_titles:
     - "AI Engineer"

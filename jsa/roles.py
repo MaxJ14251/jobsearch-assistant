@@ -162,9 +162,29 @@ class Mix:
 
     def line(self) -> str:
         pct = lambda v: f"{round(100 * v)}%"
-        return (f"{self.name} ({self.soc}): {pct(self.hs_or_less)} high school or less · "
-                f"{pct(self.some_college_or_associate)} some college or associate's · "
-                f"{pct(self.bachelors)} bachelor's · {pct(self.graduate)} graduate degree.")
+        shares = (self.hs_or_less, self.some_college_or_associate, self.bachelors,
+                  self.graduate)
+        return (f"{self.name} ({self.soc}): "
+                + " · ".join(f"{pct(v)} {w}" for v, w in zip(shares, _levels())) + ".")
+
+
+# What each of the four shares is called. A pack whose data counts other
+# certificates in a column says so in its own words (ROLE_LEVELS).
+LEVELS = ("high school or less", "some college or associate's", "bachelor's",
+          "graduate degree")
+
+
+def _levels() -> tuple[str, ...]:
+    return getattr(countries.active(), "ROLE_LEVELS", LEVELS)
+
+
+def attribution(year: str) -> str:
+    """The working country's credit line for the figures (its pack may set its own)."""
+    return getattr(countries.active(), "ROLE_ATTRIBUTION", ATTRIBUTION).format(year=year)
+
+
+def source_urls() -> dict[str, str]:
+    return getattr(countries.active(), "ROLE_SOURCES", SOURCE_URLS)
 
 
 def _rows(name: str):
@@ -267,4 +287,4 @@ def for_title(title: str | None) -> dict | None:
         return None
     return {"soc": mix.soc, "occupation": mix.name, "line": mix.line(), "year": mix.year,
             "caveat": CAVEAT, "confidence": occupation.confidence,
-            "attribution": ATTRIBUTION.format(year=mix.year), "sources": SOURCE_URLS}
+            "attribution": attribution(mix.year), "sources": source_urls()}

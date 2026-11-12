@@ -1,7 +1,7 @@
 # ADR 0037 — Canada, the second country pack
 
 Status: accepted 2026-11-07 (built 2026-10-30; the owner looked at a
-Toronto profile in the dashboard)
+Toronto profile in the dashboard); second pass 2026-11-11
 Date: 2026-10-30
 Relates to: ADR 0036 (country packs), ADR 0013 and 0029 (nationwide
 sources), ADR 0020 (postings the tool may not read), ADR 0006 (pay).
@@ -199,8 +199,116 @@ are about a kilometre off; the US fine tier draws its lakes from the
 Census's own water areas. The map shows no ground across the border, as the
 US map shows none in Canada.
 
+## Second pass, 2026-11-11
+
+Measured on the 22 employers' boards (727 postings, 407 of them in Canada)
+and 30 real Canadian application forms. The owner's US results were
+checked before and after with a read-only copy of the tracker: 0 of 2,488
+scores, reasons or pay readings changed.
+
+**Places.** A list of towns joined by commas ("Vancouver, BC, Toronto, ON")
+places every town, in Canada only (`CITY_LISTS`); "US - Remote", "Remote
+in the US" and more European cities count as abroad; Recruitee keeps the
+province.
+
+| Board | Postings | Placed in Canada | Abroad | Unplaced |
+|---|---|---|---|---|
+| Ashby | 422 | 250 | 75 -> 89 | 25 -> 11 |
+| Lever | 108 | 57 | 47 | 0 |
+| Greenhouse | 197 | 60 -> 62 | 120 | 4 |
+
+The unplaced left are bare towns two provinces share (Red Deer,
+Lethbridge, by design) and "Remote" or "Multiple".
+
+**Forms.** Prepared answers ask "Are you legally entitled to work in
+Canada?" and name the currency when it isn't Canadian dollars. The
+extension recognised 314 of the 30 forms' questions before and 329 after:
+the province (a dropdown gets the province's name), "City & Country",
+"Where are you currently located?" and "legally entitled". A yes/no that
+names another country ("authorized to work in the United States?") is left
+for the person, in both countries. None of the 30 asked for a postal code.
+
+**French.** 28 of the 727 postings are in French (27 Lightspeed, 1 Neo).
+- Pay written the French way ("80 000 $ à 95 000 $", "20,00 $/heure") is
+  read after the English reading finds nothing (`FRENCH_PAY`). One posting
+  states pay that way, and it is now read; pay that includes commission
+  ("rémunération cible") is not taken as base.
+- Titles are scored in English (`title_in_english`): French words become
+  English, the role noun moves to the end, a bilingual title uses its
+  English half, and the senior and manager rules read the result. Against
+  the 18 French postings that have an English twin, the score was within
+  0.03 of the twin's for 4 before and 13 after, and the title's verdict
+  agrees for 16. The two that differ are wording: "Gestionnaire, X" is a
+  people-manager title as "Manager, X" is, while the twin says "X Manager";
+  "Analyse de données" names the field, not the analyst.
+- "5 ans d'expérience" counts as five years (`YEARS_ASKED`).
+- Owner's decision: score French postings fairly (option A); the pages
+  stay in English.
+
+**Who holds each kind of job.** Statistics Canada's 2021 Census table
+98-10-0449-01 (highest certificate by NOC 2021 occupation; employed, 25 and
+older, Canada) and the NOC 2021 V1.0 titles, built by
+`tools/build_ca_data.py --only roles` into the US files' columns: 512
+occupations, 25,945 titles. The second share is "trades, college or CEGEP":
+Canada has no "some college, no credential" row (those people count as
+high school), and its trades certificates sit where the US has some
+college. Eight titles postings use differently are set by hand, as in the
+US build. Checked: support engineer and technical support specialist (user
+support technicians, not wholesale technical sales), software engineer,
+customer service representative, data analyst, registered nurse,
+electrician, accountant. Questionable, kept because it is NOC's own:
+"Product Manager" is filed under corporate sales managers. Adapted from
+Statistics Canada, Table 98-10-0449-01 and NOC 2021 Version 1.0, under the
+Statistics Canada Open Licence; the about page says so.
+
+**The 22 employers, as US employers are checked.**
+
+| Employer | Board | Postings | In Canada | Pay found |
+|---|---|---|---|---|
+| Lightspeed | Ashby | 129 | 88 | 30% |
+| Neo Financial | Ashby | 59 | 57 | 79% |
+| PointClickCare | Lever | 77 | 46 | 91% |
+| Jobber | Ashby | 38 | 29 | 100% |
+| Benevity | Ashby | 23 | 21 | 43% |
+| Trulioo | Ashby | 28 | 20 | 100% |
+| D2L | Greenhouse | 25 | 19 | 95% |
+| Later | Greenhouse | 30 | 18 | 83% |
+| Geotab | Greenhouse | 62 | 17 | 100% |
+| Float | Ashby | 16 | 16 | 75% |
+| Achievers | Lever | 14 | 13 | 62% -> 85% |
+| Faire | Greenhouse | 69 | 12 | 100% |
+| Hopper | Ashby | 21 | 9 | 78% |
+| Procurify | Ashby | 8 | 8 | 75% |
+| 1Password | Ashby | 80 | 7 | 100% |
+| Klue | Ashby | 9 | 7 | 100% |
+| Hootsuite | Greenhouse | 11 | 7 | 86% |
+| Clearco | Ashby | 6 | 6 | 50% |
+| Rewind | Ashby | 3 | 3 | 67% |
+| Wattpad | Lever | 17 | 2 | 100% |
+| Visier | Ashby | 2 | 2 | 0% |
+| Unbounce | Greenhouse | 0 | 0 | — |
+
+Pay is found for 72% of the Canadian postings, 73% after this pass. Every
+missing one was read by hand: the postings state no pay (Lightspeed 57,
+Benevity 12, Neo 10), or the only dollar figures are benefits, funding
+rounds or an "up to" across levels. One shape was a miss and is fixed:
+Achievers heads its range "Our Approach to Total Rewards" and the total
+label refused it; a range followed by "reflects the salary range" is now
+read (Rocket Lab's labelled total still is not). Every description came
+through whole (median about 1,100 words, none too short to read).
+Unbounce's board is live with no openings that day.
+
+**End to end.** A made-up Toronto profile in a scratch home: `jsa init`
+seeded the 22, `jsa discover` read all of them (731 fetched, 93 kept),
+matches ranked in km and Canadian dollars, every dashboard page and the
+three map tiers answered, job pages showed the role line, `jsa answers`
+asked about Canada and named CAD, and `jsa tailor` stopped at the missing
+model key, before any call.
+
+**Docker.** `tools/docker_check.sh` builds a Canadian profile in the image
+and checks setup, matches with no key, the km dashboard, the postal box and
+Canada's map, in CI.
+
 ## Not done
 
-- French pay text ("80 000 $") and French page wording.
-- Role education data for Canada (Statistics Canada publishes a candidate
-  table; not checked).
+- French page wording (option B; the owner chose A).

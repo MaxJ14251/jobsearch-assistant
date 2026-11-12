@@ -1129,10 +1129,10 @@ Worth knowing before you rely on this.
   part. `NULL` means "unknown", never "no".
 - **Nothing is submitted for you.** By design. The tool drafts and tracks; you apply
   and you send. There is no code path that transmits an application or a message.
-- **US-only, and it excludes rather than deprioritises.** A job in Berlin scores 0,
-  not "low". Internationalising is not a translation job: salary currency, what
-  "work authorization" means outside one country, and US-shaped city/state matching
-  all have to change together.
+- **One country per profile, and it excludes rather than deprioritises.** The US
+  or Canada. A job in Berlin scores 0, not "low". The pages and documents are in
+  English; in Canada, French postings are read for pay, titles and years asked,
+  not translated.
 - **Pay is read with patterns, not understood.** Measured on 514 postings: 1 of
   253 postings that state pay was missed (a typo in the posting), and a random
   hand-check found no wrong figure after two list-handling fixes. Equity, bonus
@@ -1238,12 +1238,26 @@ and an older `radius_miles` is still read), and `regions`
 instead), and `country`.
 
 **Your country.** `country` is a two-letter code, one per profile, and left
-out it is the US. The US is the only country so far: everything the tool
+out it is the US. Two are available, `US` and `CA`. Everything the tool
 assumes about one (places and postal codes, pay and its currency, the
 work-authorization question, nationwide job sources, the map, contact
 formats on a resume) sits in one country pack, so another country can be
 added without touching the rest. See
 [ADR 0036](docs/decisions/0036-country-packs.md).
+
+**Canada** (`country: CA`, [ADR 0037](docs/decisions/0037-canada.md)). Set
+`home_location` to the first three characters of your postal code (the tool
+never stores a full one) and `radius` in kilometres. `jsa init` seeds 22
+Canadian employers' boards (Greenhouse, Lever and Ashby); there is no
+nationwide source, because Job Bank's terms refuse automated access. Pay is
+read in Canadian dollars, a US-dollar range is labelled as such and not
+compared, and pay written the French way ("80 000 $ à 95 000 $") is read
+too. French titles are scored in English ("Spécialiste du soutien à la
+facturation" meets "Billing Support Specialist"), and "5 ans d'expérience"
+counts as five years. Prepared answers ask whether you are legally entitled
+to work in Canada, and the extension fills the province and "City &
+Country" questions. Job pages show the education of people in the role from
+the 2021 Census. The pages themselves are in English.
 A degree requirement is never a filter: it is shown on the job as "asks for a
 degree" and changes neither whether a job appears nor its score.
 
@@ -1294,4 +1308,8 @@ Canada, 2021 Census boundary files and Road Network File, 2021, under the
 This does not constitute an endorsement by Statistics Canada of this
 product. The postal-area file includes data copied with permission from
 Canada Post Corporation. The smaller lakes and the city names on the map are
-Natural Earth's (public domain), as the US map's are.
+Natural Earth's (public domain), as the US map's are. The education of people
+in each kind of job (`role_education.csv.gz`, `role_titles.csv.gz`, built
+with `--only roles`) is adapted from Statistics Canada, Table 98-10-0449-01
+(2021 Census) and the National Occupational Classification 2021 Version 1.0,
+under the same licence.

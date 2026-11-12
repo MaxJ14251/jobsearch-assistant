@@ -11,6 +11,8 @@ Canadian postings, and what Canadian pay text looks like.
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from pathlib import Path
 
 CODE = "CA"
@@ -155,6 +157,95 @@ REGION_WORDS = {
 TITLE_REGION_SUFFIX = r"\s*[-–—,]\s*(remote|canada|ca|emea|apac|latam)\b.*$"
 
 
+# --- French titles ---------------------------------------------------------------
+# Scoring reads a French title in English, so "Spécialiste du soutien à la
+# facturation" meets the target "Billing Support Specialist" and "Ingénieur(e)
+# Analytics Sénior" meets the senior rule. Measured 2026-11-11: 27 of
+# Lightspeed's Montreal postings are French, most with an English twin, and
+# none matched a target or the senior and manager rules. Words, folded to
+# plain letters; longer phrases are replaced first.
+FRENCH_TITLE_WORDS = {
+    "service a la clientele": "customer service", "fiabilite des sites": "site reliability",
+    "relations publiques": "public relations", "ressources humaines": "human resources",
+    "assurance qualite": "quality assurance", "voix du client": "voice of customer",
+    "apprentissage automatique": "machine learning", "chef d'equipe": "team lead",
+    "commerce de detail": "retail", "directeur ou directrice": "director", "charge de comptes": "account executive",
+    "charge de compte": "account executive", "gestionnaire": "manager",
+    "directeur": "director", "directrice": "director", "responsable": "lead",
+    "analyste": "analyst", "ingenieur": "engineer", "developpeur": "developer",
+    "specialiste": "specialist", "technicien": "technician",
+    "administrateur": "administrator", "representant": "representative",
+    "conseiller": "advisor", "coordonnateur": "coordinator", "coordinateur": "coordinator",
+    "graphiste": "graphic designer", "concepteur": "designer", "stagiaire": "intern",
+    "adjoint": "assistant", "scientifique": "scientist", "comptable": "accountant",
+    "principal": "senior", "debutant": "junior", "logiciel": "software",
+    "logiciels": "software", "donnees": "data", "soutien": "support",
+    "technique": "technical", "techniques": "technical", "clientele": "customer",
+    "client": "customer", "clients": "customer", "ventes": "sales", "vente": "sales",
+    "commercial": "sales", "developpement": "development", "affaires": "business",
+    "strategie": "strategy", "entreprise": "enterprise", "financier": "financial",
+    "financiere": "financial", "facturation": "billing", "paiements": "payments",
+    "juridiques": "legal", "juridique": "legal", "reseau": "network",
+    "securite": "security", "ingenierie": "engineering", "produit": "product",
+    "produits": "product", "programmes": "program", "programme": "program",
+    "projet": "project", "projets": "project", "croissance": "growth",
+    "analyse": "analysis", "analytique": "analytics", "optimisation": "optimization",
+    "recrutement": "recruiting", "comptes": "accounts", "compte": "account",
+    "externe": "outside", "interne": "inside", "restauration": "hospitality",
+    "detaillants": "retail", "equipe": "team", "automatisation": "automation",
+    "informatique": "it", "systemes": "systems", "et": "and",
+}
+# Words that are English too: a title holding only these is not French.
+_ALSO_ENGLISH = {"principal", "commercial", "client", "et"}
+# Joining words French titles put between a role and what it is of.
+_FRENCH_JOINS = {"de", "du", "des", "d", "la", "le", "les", "l", "a", "au", "aux",
+                 "en", "pour"}
+# The role a French title names first, and English names last.
+_ROLE_NOUNS = {"manager", "director", "lead", "analyst", "engineer", "developer",
+               "specialist", "technician", "administrator", "representative",
+               "advisor", "coordinator", "account executive", "graphic designer",
+               "designer", "intern", "assistant", "scientist", "accountant"}
+
+
+def title_in_english(title: str) -> str | None:
+    """A French title in English words, for scoring; None if it isn't French."""
+    if "//" in (title or ""):
+        # "Scientifique de données principal(e)// Senior Data Scientist":
+        # a bilingual title carries its own English half.
+        halves = [h.strip() for h in title.split("//") if h.strip()]
+        english = [h for h in halves if title_in_english(h) is None]
+        if english and len(english) < len(halves):
+            return english[0]
+    text = unicodedata.normalize("NFKD", title or "")
+    text = "".join(c for c in text if not unicodedata.combining(c)).lower()
+    text = re.sub(r"\((?:e|trice|ere|euse|ne)\)|[·.](?:e|ne)\b", "", text)
+    text = text.replace("’", "'")
+    words = re.findall(r"[a-z]+", text)
+    if not any(w in FRENCH_TITLE_WORDS and w not in _ALSO_ENGLISH for w in words) \
+            and not any(" " in k and k in text for k in FRENCH_TITLE_WORDS):
+        return None
+    for french in sorted(FRENCH_TITLE_WORDS, key=len, reverse=True):
+        text = re.sub(rf"(?<![a-z]){re.escape(french)}(?![a-z])",
+                      FRENCH_TITLE_WORDS[french], text)
+    parts = re.split(r"(\s*[,(—–-]\s*)", text, maxsplit=1)
+    head = [w for w in re.split(r"[\s']+", parts[0]) if w and w not in _FRENCH_JOINS]
+    joined = " ".join(head)
+    for role in sorted(_ROLE_NOUNS, key=len, reverse=True):
+        if joined.startswith(role + " "):
+            joined = joined[len(role) + 1:] + " " + role
+            break
+    tail = "".join(parts[1:])
+    tail = re.sub(r"(?<![a-z])(?:" + "|".join(sorted(_FRENCH_JOINS, key=len, reverse=True))
+                  + r")(?:\s+|')", "", tail)
+    return joined + tail
+
+
+# "5 ans d'expérience", "3 à 5 années d'expérience": the years a French
+# posting asks for, read as "5 years of experience" is.
+YEARS_ASKED = (r"(\d+)\s*\+?\s*(?:(?:à|-)\s*\d+\s*)?(?:ans|années?)\s+"
+               r"(?:d['’]\s*)?expérience")
+
+
 # --- pay ----------------------------------------------------------------------
 # Postings state pay in dollars, Canadian unless they say otherwise: "$100,000
 # TO $140,000 CAD"; 73 of the 578 measured mention USD (ADR 0037).
@@ -166,6 +257,10 @@ HOURS_PER_YEAR = 2080
 ANNUAL_BOUNDS = (20_000, 1_000_000)
 # Minimum wage is $15-$17.75 an hour across provinces (2025-2026).
 HOURLY_BOUNDS = (14, 500)
+# Pay written the French way ("80 000 $ à 95 000 $", "20,00 $/heure") is read
+# too, after the English reading finds nothing. Measured 2026-11-11: 28 of
+# the 22 employers' 727 postings are in French, one states pay that way.
+FRENCH_PAY = True
 # The pay ranking's scale. Measured on the 203 yearly minimums in Canadian
 # postings (ADR 0037): 5th percentile $55,000, 95th $215,040 -- the US band
 # fits them, so it is kept.
@@ -187,8 +282,24 @@ PAPER = "letter"
 NUMERIC_DATE = "{year}-{month:02d}"
 
 # --- who holds each kind of job -----------------------------------------------
-# No Canadian education-by-occupation data ships yet: no line is shown.
-ROLE_EDUCATION = False
+# Education of workers 25 and older by occupation, from the 2021 Census, and
+# job titles from the NOC 2021 index (tools/build_ca_data.py --only roles,
+# ADR 0037, 2026-11-11), in the US files' columns.
+ROLE_EDUCATION = True
+# The second share holds trades certificates, college and CEGEP diplomas and
+# university certificates below a bachelor's; Canada has no "some college, no
+# credential" row, so those people count as high school.
+ROLE_LEVELS = ("high school or less", "trades, college or CEGEP", "bachelor's",
+               "graduate degree")
+ROLE_ATTRIBUTION = ("Adapted from Statistics Canada, Table 98-10-0449-01, Census of "
+                    "Population {year}, and National Occupational Classification (NOC) "
+                    "2021 Version 1.0. This does not constitute an endorsement by "
+                    "Statistics Canada of this product.")
+ROLE_SOURCES = {
+    "census": "https://doi.org/10.25318/9810044901-eng",
+    "noc": "https://www.statcan.gc.ca/en/subjects/standard/noc/2021/indexV1",
+    "license": "https://www.statcan.gc.ca/en/terms-conditions/open-licence",
+}
 
 # --- the national map -----------------------------------------------------------
 # Canada Albers Equal Area Conic (ESRI:102001), the projection Canadian maps
