@@ -54,6 +54,19 @@ from pynput import keyboard, mouse
 HOTKEYS = (keyboard.Key.f8, keyboard.KeyCode.from_vk(103))  # F8, Numpad 7
 EXIT_KEY = keyboard.Key.end       # quits the program (Esc is used too much in games)
 CLEAR_KEY = keyboard.Key.delete   # hides the path overlay
+# PAUSE_KEY toggles pause. While paused the trigger keys are ignored, any armed
+# watch stops, and nothing is captured or read - the program just sleeps until
+# you press it again. Numpad 9 = virtual-key 105 (NumLock on).
+PAUSE_KEY = keyboard.KeyCode.from_vk(105)
+START_PAUSED = False
+
+# --- Keep the game smooth ------------------------------------------------------
+# LOW_PRIORITY: run this program at "below normal" CPU priority so the game
+#   always gets the CPU first (Windows only).
+# OCR_THREADS: CPU threads the text reader may use while it is armed. Fewer =
+#   lighter on the game but a little slower to read. None = use every core.
+LOW_PRIORITY = True
+OCR_THREADS = 2
 
 # --- What to do once the numbers are read --------------------------------------
 # "overlay": draw the 1 -> N path on top of the screen and YOU click the tiles
@@ -181,6 +194,12 @@ def grab_screen():
 class EasyOcrEngine:
     def __init__(self):
         import easyocr
+        if OCR_THREADS:
+            try:
+                import torch
+                torch.set_num_threads(OCR_THREADS)
+            except Exception:
+                pass
         try:
             self.reader = easyocr.Reader(["en"], gpu=USE_GPU, verbose=False)
         except Exception:
@@ -906,7 +925,20 @@ class PathOverlay:
         self.hide_job = None
         self.styled = False
         self.pts, self.size, self.idx = [], 100.0, 0
+        self.mouse_listener = None
         root.after(50, self._poll)
+
+    def _watch_clicks(self, on):
+        """Listen to your clicks only while a path is showing (no idle mouse hook)."""
+        if on and self.mouse_listener is None:
+            def on_click(x, y, button, pressed):
+                if pressed and button == mouse.Button.left:
+                    _overlay_q.put(("click", x, y))
+            self.mouse_listener = mouse.Listener(on_click=on_click)
+            self.mouse_listener.start()
+        elif not on and self.mouse_listener is not None:
+            self.mouse_listener.stop()
+            self.mouse_listener = None
 
     def _make_click_through(self):
         if sys.platform != "win32" or self.styled:
@@ -929,6 +961,7 @@ class PathOverlay:
         self.root.attributes("-topmost", True)
         self.root.update_idletasks()
         self._make_click_through()
+        self._watch_clicks(True)
         if self.hide_job:
             self.root.after_cancel(self.hide_job)
         self.hide_job = self.root.after(int(OVERLAY_SECONDS * 1000), self.clear)
@@ -971,6 +1004,7 @@ class PathOverlay:
         self.pts = []
         self.canvas.delete("all")
         self.root.withdraw()
+        self._watch_clicks(False)
         if self.hide_job:
             self.root.after_cancel(self.hide_job)
             self.hide_job = None
@@ -1003,7 +1037,29 @@ def _is_hotkey(key):
     return False
 
 
+_paused = threading.Event()
+
+
+def _set_low_priority():
+    if LOW_PRIORITY and sys.platform == "win32":
+        try:
+            k32 = ctypes.windll.kernel32
+            k32.SetPriorityClass(k32.GetCurrentProcess(), 0x4000)  # BELOW_NORMAL_PRIORITY_CLASS
+        except Exception:
+            pass
+
+
+def _is_key(key, target):
+    vk = getattr(target, "vk", None)
+    if vk is not None and not isinstance(target, keyboard.Key):
+        return getattr(key, "vk", None) == vk
+    return key == target
+
+
 def main():
+    _set_low_priority()
+    if START_PAUSED:
+        _paused.set()
     print(f"Loading OCR engine ({OCR_ENGINE})...")
     engine = make_engine()
     # Warm-up pass so the first real F8 isn't slowed by lazy initialisation.
@@ -1014,8 +1070,22 @@ def main():
           f"(press before or while the numbers show), Delete = hide path, End = quit.")
     print("In FiveM use Numpad 7 (NumLock on) - FiveM keeps F8 for its own console.")
 
+    print("Numpad 9 = pause / resume." + ("  [PAUSED]" if _paused.is_set() else ""))
+
     def on_press(key):
-        if _is_hotkey(key):
+        if _is_key(key, PAUSE_KEY):
+            if _paused.is_set():
+                _paused.clear()
+                print("[resumed] Numpad 7 / F8 works again.")
+            else:
+                _paused.set()
+                _abort.set()  # stop an armed watch right away
+                _overlay_q.put(("clear",))
+                print("[paused] trigger keys ignored - Numpad 9 to resume.")
+        elif _is_hotkey(key):
+            if _paused.is_set():
+                print("[paused] press Numpad 9 to resume first.")
+                return
             _overlay_q.put(("clear",))
             threading.Thread(target=solve, args=(engine,), daemon=True).start()
         elif key == CLEAR_KEY:
@@ -1029,11 +1099,6 @@ def main():
     listener = keyboard.Listener(on_press=on_press)
     listener.start()
     if overlay:
-        # Passive: only watches your clicks so finished steps drop off the path.
-        def on_click(x, y, button, pressed):
-            if pressed and button == mouse.Button.left:
-                _overlay_q.put(("click", x, y))
-        mouse.Listener(on_click=on_click).start()
         overlay.root.mainloop()  # returns after "quit"
     else:
         listener.join()

@@ -54,6 +54,24 @@ last tile, or on **Delete**. **End** quits.
 Works over borderless/windowed games; an exclusive-fullscreen game draws over
 it. `MODE = "click"` restores automatic clicking.
 
+## Pausing and game performance
+
+Press **Numpad 9** (NumLock on) to pause; press it again to resume. While
+paused the trigger keys do nothing and no screenshots or reads happen, but
+the text reader stays loaded, so resuming is instant (no reload wait).
+
+Even unpaused, it does almost nothing until you press the trigger key: the
+overlay window is hidden and your mouse isn't watched. The real work (about 10
+screenshots and reads a second) only runs while it is armed, which ends once
+the grid is read or after `ARM_TIMEOUT_S`. To keep that from costing frames:
+
+- `LOW_PRIORITY = True` (default) runs it below the game's CPU priority.
+- `OCR_THREADS = 2` (default) caps the CPU cores the reader uses. Lower it to 1
+  if you still see stutter during the mini-game; raise it (or `None`) for
+  faster reads on a strong CPU.
+- The loaded reader holds about 1–2 GB of RAM (and some VRAM with a CUDA GPU)
+  the whole time it's running. Only quitting (**End**) frees that.
+
 ## Reveal-then-hide grids (memory / chimp-test style)
 
 F8 **arms** the solver. It watches the screen about 10 times a second until a
