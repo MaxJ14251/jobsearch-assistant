@@ -87,7 +87,9 @@ first appeared.
 ## How it reads the grid
 
 1. **Tiles (fast, ~0.3 s):** finds the square tiles by shape, boxes the digit
-   in each one and recognises all digits in a single batch. No slow OCR
+   in each one and recognises all digits in a single batch. It reads the real
+   tiles, so uneven grids work too (the game's 11-tile version has a last row of
+   2 tiles centred under 3); numbers run 1..number of tiles. No slow OCR
    detection pass, and it handles faded/hovered tiles and lone 1s and 7s.
 If no numbered tile grid shows up within `ARM_TIMEOUT_S` (30 s) the solver
 simply disarms - press the hotkey again. (It used to fall back to a full-screen

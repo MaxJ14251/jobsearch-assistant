@@ -568,7 +568,12 @@ def find_tiles(img):
 
 
 def _tile_lattice(tiles):
-    """Biggest group of equal-size tiles on a regular lattice -> (rows, cols, size) or None."""
+    """Biggest group of equal-size tiles in evenly spaced rows -> (rows, cols, size, cells) or None.
+
+    cells are the real tile centres, so rows that are shorter or shifted (the
+    game's last row of 2 tiles centred under 3) are handled. A tile the shape
+    finder missed in a row that sits on the columns is filled in from them.
+    """
     best = None
     for ref in tiles:
         grp = [t for t in tiles if abs(t[2] - ref[2]) <= 0.12 * ref[2] and abs(t[3] - ref[3]) <= 0.12 * ref[3]]
@@ -580,13 +585,21 @@ def _tile_lattice(tiles):
         if not fr or not fc:
             continue
         rows, cols = fr[0], fc[0]
-        on = sum(1 for t in grp if min(abs(t[1] - r) for r in rows) <= 0.25 * size
-                 and min(abs(t[0] - c) for c in cols) <= 0.25 * size)
-        if on < 0.75 * len(rows) * len(cols):
-            continue  # a lattice of tiles should be mostly filled
-        score = (on, size)
+        x_lo, x_hi = cols[0] - 0.6 * size, cols[-1] + 0.6 * size
+        cells = []
+        for y in rows:
+            row = sorted(t[0] for t in grp if abs(t[1] - y) <= 0.25 * size and x_lo <= t[0] <= x_hi)
+            if not row:
+                continue
+            on_cols = all(min(abs(x - c) for c in cols) <= 0.25 * size for x in row)
+            if on_cols and len(row) < len(cols) and len(row) >= len(cols) - 1:
+                row = list(cols)  # one tile missed in an aligned row: use the column spots
+            cells += [(x, y) for x in row]
+        if len(cells) < 0.6 * len(rows) * len(cols):
+            continue  # a grid of tiles should be mostly filled
+        score = (len(cells), size)
         if best is None or score > best[0]:
-            best = (score, rows, cols, size)
+            best = (score, rows, cols, size, cells)
     return best[1:] if best else None
 
 
@@ -614,64 +627,54 @@ def _digit_box(img, cx, cy, size):
 
 
 def tile_lattice(img):
-    """(rows, cols, size) of the tile grid on screen, or None (honours GRID_ROWS/GRID_COLS)."""
+    """(rows, cols, size, cells) of the tile grid on screen, or None (honours GRID_ROWS/GRID_COLS)."""
     lat = _tile_lattice(find_tiles(img))
     if lat is None:
         return None
-    rows, cols, _ = lat
+    rows, cols = lat[0], lat[1]
     if (GRID_ROWS and len(rows) != GRID_ROWS) or (GRID_COLS and len(cols) != GRID_COLS):
         return None
     return lat
 
 
 def digits_showing(img, lat):
-    """How many tiles of the lattice currently show a digit (cheap, no OCR)."""
-    rows, cols, size = lat
-    return sum(1 for y in rows for x in cols if _digit_box(img, x, y, size))
+    """How many tiles currently show a digit (cheap, no OCR)."""
+    size, cells = lat[2], lat[3]
+    return sum(1 for x, y in cells if _digit_box(img, x, y, size))
 
 
 def pick_tiles(img, engine, lat=None):
-    """Fast path. Returns ({number: (x, y)}, (rows, cols), lattice) or None if no tile grid."""
+    """Fast path. Returns ({number: (x, y)}, (rows, cols), lattice) or None if no tile grid.
+
+    Numbers run 1..number of tiles. Only one batched recognise call - no slow
+    per-tile re-reads (on CPU next to a game those took ~10 s each); the
+    caller simply reads the next frame again if something was missed.
+    """
     lat = lat or tile_lattice(img)
     if lat is None:
         return None
-    rows, cols, size = lat
-    nr, nc = len(rows), len(cols)
-    total = nr * nc
+    rows, cols, size, cells = lat
+    total = len(cells)
     boxes, where = [], []
-    for r, y in enumerate(rows):
-        for c, x in enumerate(cols):
-            b = _digit_box(img, x, y, size)
-            if b:
-                boxes.append(b)
-                where.append((r, c))
-    read = engine.recognize_boxes(img, boxes)
-    best = {}  # number -> (conf, cell)
+    for i, (x, y) in enumerate(cells):
+        b = _digit_box(img, x, y, size)
+        if b:
+            boxes.append(b)
+            where.append(i)
+    read = engine.recognize_boxes(img, boxes) if boxes else {}
+    best = {}  # number -> (conf, tile index)
     for i, (text, conf) in read.items():
         digits = re.sub(r"\D", "", text)
         if digits and 1 <= int(digits) <= total:
             n = int(digits)
             if n not in best or conf > best[n][0]:
                 best[n] = (conf, where[i])
-    cells = {rc: n for n, (conf, rc) in best.items()}
-    # Cells that read badly or lost a duplicate: careful single-cell re-read.
-    for r in range(nr):
-        for c in range(nc):
-            if (r, c) in cells:
-                continue
-            half = 0.42 * size
-            crop = img[max(0, int(rows[r] - half)):int(rows[r] + half),
-                       max(0, int(cols[c] - half)):int(cols[c] + half)]
-            got = engine.read_cell(crop) if crop.size else None
-            if got:
-                digits = re.sub(r"\D", "", got[0])
-                if digits and 1 <= int(digits) <= total and int(digits) not in cells.values():
-                    cells[(r, c)] = int(digits)
-    empty = [(r, c) for r in range(nr) for c in range(nc) if (r, c) not in cells]
-    missing = [n for n in range(1, total + 1) if n not in cells.values()]
+    got = {i: n for n, (conf, i) in best.items()}
+    empty = [i for i in range(total) if i not in got]
+    missing = [n for n in range(1, total + 1) if n not in got.values()]
     if len(empty) == 1 and len(missing) == 1:
-        cells[empty[0]] = missing[0]
-    return {n: (cols[c], rows[r]) for (r, c), n in cells.items()}, (nr, nc), lat
+        got[empty[0]] = missing[0]
+    return {n: cells[i] for i, n in got.items()}, (len(rows), len(cols)), lat
 
 
 # ----------------------------------------------------------------------------- arm / hide
@@ -687,7 +690,7 @@ def watch_for_numbers(engine, deadline):
         img, off = grab_screen()
         lat = tile_lattice(img)
         if lat:
-            cells = len(lat[0]) * len(lat[1])
+            cells = len(lat[3])
             if digits_showing(img, lat) >= 0.75 * cells:
                 t_seen = t_seen or t
                 found, shape, lat = pick_tiles(img, engine, lat)
@@ -704,7 +707,7 @@ def watch_for_numbers(engine, deadline):
 
 def wait_until_hidden(lat, deadline):
     """Wait until the tiles stop showing numbers. True if they hid, False on timeout."""
-    cells = len(lat[0]) * len(lat[1])
+    cells = len(lat[3])
     while not _abort.is_set() and time.perf_counter() < deadline:
         img, _ = grab_screen()
         if digits_showing(img, lat) <= 0.1 * cells:
@@ -827,7 +830,8 @@ def solve(engine):
             found, total, shape = pick_numbers(reads), None, "?"
         else:
             found, (nr, nc) = grid
-            total, shape = nr * nc, f"{nr}x{nc}"
+            total = len(lat[3]) if lat else nr * nc
+            shape = f"{nr}x{nc}" + (f" ({total} tiles)" if total != nr * nc else "")
         t2 = time.perf_counter()
 
         missing = [n for n in range(1, total + 1) if n not in found] if total else []
