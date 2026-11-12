@@ -75,7 +75,12 @@ OCR_THREADS = 2
 MODE = "overlay"
 OVERLAY_SECONDS = 15              # path disappears after this (or press CLEAR_KEY)
 OVERLAY_COLOR = "#00e5ff"         # line colour; badges show the numbers
-OVERLAY_START_COLOR = "#39ff6a"   # ring around the first tile
+OVERLAY_START_COLOR = "#39ff6a"   # ring around the tile to click now
+# "rings": only a bright ring on the tile to click now and a faint, smaller ring
+#          on the one after it (moves on with each correct click).
+# "path":  arrows through every tile plus number badges.
+OVERLAY_STYLE = "rings"
+OVERLAY_NEXT_COLOR = "#1d7a36"    # faint ring on the tile after that
 
 # --- Reveal-then-hide grids (chimp-test style) ---------------------------------
 # F8 ARMS the solver: it watches the screen ~10x per second until a grid of
@@ -985,6 +990,18 @@ class PathOverlay:
         c.delete("all")
         pts = self.pts[self.idx:]
         w = max(3, int(size * 0.035))
+        if OVERLAY_STYLE == "rings":
+            # Faint ring first, so the bright one stays on top if they touch.
+            if len(pts) > 1:
+                x, y, _ = pts[1]
+                r = size * 0.16
+                c.create_oval(x - r, y - r, x + r, y + r, outline="#000000", width=w + 3)
+                c.create_oval(x - r, y - r, x + r, y + r, outline=OVERLAY_NEXT_COLOR, width=w)
+            x, y, _ = pts[0]
+            r = size * 0.24
+            c.create_oval(x - r, y - r, x + r, y + r, outline="#000000", width=w + 5)
+            c.create_oval(x - r, y - r, x + r, y + r, outline=OVERLAY_START_COLOR, width=w + 2)
+            return
         arrow = (w * 4, w * 5, w * 2)
         for (x1, y1, _), (x2, y2, _) in zip(pts, pts[1:]):
             c.create_line(x1, y1, x2, y2, fill="#000000", width=w + 4, capstyle="round")

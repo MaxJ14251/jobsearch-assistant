@@ -45,10 +45,11 @@ Each F8 prints timings, e.g. `capture 12 ms | OCR 240 ms | found 16/16`.
 
 `MODE = "overlay"` sends **no mouse input at all**. Press **Numpad 7** (or F8)
 before or while the numbers show; the moment they appear it reads them and
-draws a path over the screen: arrows 1 → 2 → … with a number badge in each
-tile's corner and a green ring on the next tile. The overlay is click-through,
-so you click the tiles yourself; each correct click removes that step so only
-the rest of the path stays. It hides after `OVERLAY_SECONDS` (15), after the
+draws over the screen: a bright green ring on the tile to click now and a
+faint, smaller ring on the one after it (`OVERLAY_STYLE = "rings"`, the
+default; `"path"` draws arrows 1 → 2 → … with number badges instead). The
+overlay is click-through, so you click the tiles yourself; each correct click
+moves the rings on. It hides after `OVERLAY_SECONDS` (15), after the
 last tile, or on **Delete**. **End** quits.
 
 Works over borderless/windowed games; an exclusive-fullscreen game draws over
