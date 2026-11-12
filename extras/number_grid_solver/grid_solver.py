@@ -816,15 +816,12 @@ def solve(engine):
             img, (ox, oy), found, (nr, nc), lat, t_seen = seen
             grid = (found, (nr, nc))
         else:
-            # No tile grid at all: one full-OCR attempt on the current screen.
-            if _abort.is_set():
-                return
-            method, t_seen = "full OCR", time.perf_counter()
-            img, (ox, oy) = grab_screen()
-            reads = engine.read(resize(img, UPSCALE))
-            if UPSCALE != 1.0:
-                reads = [(t, c, (x / UPSCALE, y / UPSCALE), h / UPSCALE) for t, c, (x, y), h in reads]
-            grid = pick_grid(reads, img, engine)
+            # No numbered grid showed up: give up. (A full-screen OCR fallback
+            # used to run here; on a game screen it took ~45 s of CPU and
+            # never found the grid, so it only caused lag.)
+            if not _abort.is_set():
+                print(f"    no numbered grid seen in {ARM_TIMEOUT_S} s - disarmed (press Numpad 7 to try again)")
+            return
         if grid is None:
             print("    no number grid found - falling back to plain OCR positions")
             found, total, shape = pick_numbers(reads), None, "?"

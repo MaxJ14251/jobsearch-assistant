@@ -89,8 +89,9 @@ first appeared.
 1. **Tiles (fast, ~0.3 s):** finds the square tiles by shape, boxes the digit
    in each one and recognises all digits in a single batch. No slow OCR
    detection pass, and it handles faded/hovered tiles and lone 1s and 7s.
-2. **Full OCR (fallback, ~10+ s on CPU):** only if no tile grid is seen or the
-   tiles left numbers unread. Use `CAPTURE_REGION` to speed this up.
+If no numbered tile grid shows up within `ARM_TIMEOUT_S` (30 s) the solver
+simply disarms - press the hotkey again. (It used to fall back to a full-screen
+OCR pass, but on a game screen that took ~45 s of CPU and caused lag.)
 
 Each F8 prints which method was used, e.g. `read (tiles) 280 ms | grid 4x3 | found 12/12`.
 
