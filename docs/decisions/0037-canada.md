@@ -327,11 +327,18 @@ tier does. Distance from the drawn shore to CanVec's at full detail, every
 | Muskoka | 153 / 495 / 888 | 6 / 24 / 41 |
 | Great Slave | 238 / 930 / 2260 | 5 / 24 / 41 |
 | Winnipeg | 494 / 1433 / 2627 | 7 / 36 / 696 |
-| Lake of the Woods | 135 / 7689 / 16447 | 6 / 35 / 868 |
+| Lake of the Woods | 135 / 7689 / 16447 | 5 / 23 / 42 |
 | Rice Lake | not drawn | 6 / 23 / 40 |
 
 Lake Manitoba and Lake Nipigon have no town within 10 km and are unchanged.
-The worst figures on Winnipeg and Lake of the Woods were not traced. Fine
+Winnipeg's worst figure is not its own shore: Weaver Lake (52 km², no
+town within 10 km, so Natural Earth's outline) lies inside the box the
+measurement takes. Lake of the Woods first measured 868 m worst: a
+boundary-file hole north of Kenora and four slivers, generalized by
+Statistics Canada and drawn under the CanVec water. A hole a redrawn lake
+covers (a point inside it in a CanVec piece, 80% of its shore within a
+mile of that water) is now left out at the fine tier: 21 holes, 5 of them
+big enough to be drawn, all in Lake of the Woods. Fine
 tier 9.12 MB → 9.75 MB; coarse and medium are byte-identical. Redrawing every
 matching lake would have cost about 4 MB, all lakes over 5 km² 13 MB.
 Statistics Canada's own lakes file answers automated downloads with a

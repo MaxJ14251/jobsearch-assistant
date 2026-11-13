@@ -391,7 +391,28 @@ def fine_lakes(holes, ne_shapes, urban, cache) -> list:
         redrawn |= grown
     drawn = [rings for rings, lakes in pieces if lakes & redrawn]
     redrawn &= set().union(*(lakes for _, lakes in pieces if lakes & redrawn))
-    out = list(holes) + [r for rings in drawn for r in rings]
+    # A boundary-file hole that a redrawn lake already covers is left out:
+    # the boundary file is generalized (a hole north of Kenora was 870 m off
+    # CanVec's shore), and drawn under the CanVec water it showed land as
+    # water. Covered: a point inside it is in a CanVec piece, and most of its
+    # shore is within twice the match distance of that water.
+    outers = _boxed([rings[0] for rings in drawn])
+    reach = 2 * LAKE_MATCH_MILES
+
+    def covered(hole) -> bool:
+        if not _in_any(outers, *point_on_land([hole])):
+            return False
+        box = _padded_box([hole], reach / MILES_PER_DEGREE * 2)
+        near = [rings for rings in drawn if _meets(box, _padded_box(rings[:1], 0))]
+        sample = hole[::max(1, len(hole) // 20)]
+        close = sum(any(_miles_outside(rings[:1], x, y) <= reach for rings in near)
+                    for x, y in sample)
+        return close >= 0.8 * len(sample)
+
+    kept = [hole for hole in holes if not covered(hole)]
+    print(f"  lakes   fine: {len(holes) - len(kept)} boundary-file holes left out, "
+          "covered by redrawn lakes")
+    out = kept + [r for rings in drawn for r in rings]
     out += [r for i, shape in enumerate(ne_shapes) if i not in redrawn for r in shape]
     print(f"  lakes   fine: {len(redrawn)} of {len(ne_shapes)} Natural Earth lakes redrawn "
           f"from {len(drawn)} CanVec pieces, {len(out)} rings")
