@@ -1307,8 +1307,12 @@ Canada, 2021 Census boundary files and Road Network File, 2021, under the
 [Statistics Canada Open Licence](https://www.statcan.gc.ca/en/terms-conditions/open-licence).
 This does not constitute an endorsement by Statistics Canada of this
 product. The postal-area file includes data copied with permission from
-Canada Post Corporation. The smaller lakes and the city names on the map are
-Natural Earth's (public domain), as the US map's are. The education of people
+Canada Post Corporation. Up close, the lakes near towns are drawn from
+Natural Resources Canada's CanVec 1:250,000 waterbodies: contains information
+licensed under the
+[Open Government Licence – Canada](https://open.canada.ca/en/open-government-licence-canada).
+The other smaller lakes and the city names on the map are Natural Earth's
+(public domain), as the US map's are. The education of people
 in each kind of job (`role_education.csv.gz`, `role_titles.csv.gz`, built
 with `--only roles`) is adapted from Statistics Canada, Table 98-10-0449-01
 (2021 Census) and the National Occupational Classification 2021 Version 1.0,

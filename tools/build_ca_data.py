@@ -40,9 +40,17 @@ and layers, built the same way (tools/build_map_data.py TIERS, ADR 0019).
   Road Network File 2021 (same licence), served at
     https://geo.statcan.gc.ca/geo_wa/rest/services/2021/Road_Network_File/MapServer
     rank 1 (coarse), ranks 1-2  -> road
+  Natural Earth 10m lakes (public domain)
+                                -> lake, coarse and medium tiers
+  Natural Resources Canada, CanVec 1:250 000 Hydro Features, waterbodies
+  (Open Government Licence - Canada,
+  https://open.canada.ca/en/open-government-licence-canada), served at
+    https://ftp.maps.canada.ca/pub/nrcan_rncan/vector/canvec/shp/Hydro/
+                                -> lake, fine tier
   Natural Earth 10m populated places (public domain)
                                 -> city names
                                 -> data/ca/ca_basemap_{coarse,medium,fine}.json.gz
+"Contains information licensed under the Open Government Licence - Canada."
 """
 
 from __future__ import annotations
@@ -51,6 +59,8 @@ import argparse
 import csv
 import io
 import json
+import math
+import struct
 import sys
 import urllib.parse
 import urllib.request
@@ -59,9 +69,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from build_map_data import (BASEMAP_URLS, CITIES_URL, CITY_MIN_POP,  # noqa: E402
-                            MILES_PER_DEGREE, TIERS, _area, _dbf_column, _features,
-                            _inside, _only_member, _shp_polygons, fetch,
-                            point_on_land, simplify, write_gz)
+                            LAKE_MATCH_MILES, MILES_PER_DEGREE, TIERS, _area,
+                            _dbf_column, _features, _inside, _miles_outside,
+                            _only_member, _shp_polygons, fetch, point_on_land,
+                            simplify, write_gz)
 
 REST = "https://geo.statcan.gc.ca/geo_wa/rest/services/2021/"
 SERVICE = REST + "Cartographic_boundary_files/MapServer"
@@ -252,7 +263,8 @@ def natural_earth_lakes(land, holes, cache) -> list:
     """The lakes the boundary file leaves in the land: Natural Earth's
     (public domain, the US map's own lakes at its two wider tiers), each
     kept when a point inside it is on Canada's land and not in a lake the
-    boundary file already cut out, so no lake is drawn twice."""
+    boundary file already cut out, so no lake is drawn twice. A list of
+    shapes (each a list of rings)."""
     land_boxes, hole_boxes = _boxed(land), _boxed(holes)
     out = []
     for name in ("lakes", "lakes_na"):
@@ -262,8 +274,127 @@ def natural_earth_lakes(land, holes, cache) -> list:
                 continue
             x, y = point_on_land(shape)
             if _in_any(land_boxes, x, y) and not _in_any(hole_boxes, x, y):
-                out += shape
-    print(f"  lakes   {len(holes)} from the boundary file, {len(out)} rings from Natural Earth")
+                out.append(shape)
+    print(f"  lakes   {len(holes)} from the boundary file, "
+          f"{sum(map(len, out))} rings from Natural Earth")
+    return out
+
+
+# The fine tier's lakes. Natural Earth's are 1:10,000,000, a kilometre off
+# up close (Lake Simcoe's shore: median 0.7 km, worst 3 km from the national
+# 1:50,000 water, NHN). As the US fine tier draws the SAME lakes from the
+# Census's own water, Canada's redraws them from NRCan's CanVec 1:250,000
+# waterbodies (Simcoe: median 15 m from the NHN shore, 95% within 330 m;
+# stated accuracy 150 to 250 m, NTDB). The 1:50,000 series is 6.6 GB of
+# waterbodies for the country, and Statistics Canada's own "lakes and
+# rivers" file sits behind a browser check, so neither suits a build.
+CANVEC_URL = ("https://ftp.maps.canada.ca/pub/nrcan_rncan/vector/canvec/shp/Hydro/"
+              "canvec_250K_{}_Hydro_shp.zip")
+KM_PER_DEGREE = 111.32
+# Only the lakes near where people live are redrawn: within LAKE_NEAR_KM of
+# a population centre, where the fine tier is looked at. Every lake redrawn
+# costs its whole shore (Lake Winnipeg alone is 20,000 points at this tier),
+# and all of them came to 4 MB more; these come to 0.6 MB (2026-11-12).
+# The rest keep Natural Earth's outline, as at the medium tier.
+LAKE_NEAR_KM = 10.0
+# CanVec cuts a lake at its 1:250,000 sheet lines: every piece of a redrawn
+# lake down to PIECE_MIN_KM2 is drawn, or the lake has gaps. An island under
+# ISLAND_MIN_KM2 is drawn as water: the thousands of islands of Lake of the
+# Woods and its like were half the bytes.
+PIECE_MIN_KM2, ISLAND_MIN_KM2 = 1.0, 1.0
+
+
+def _km2(ring) -> float:
+    ys = [p[1] for p in ring]
+    return _area(ring) * KM_PER_DEGREE ** 2 * math.cos(math.radians((min(ys) + max(ys)) / 2))
+
+
+def _big_polygons(shp: bytes, min_km2: float):
+    """Each polygon in a shapefile whose bounding box could hold `min_km2`,
+    as a list of rings. The others are skipped from their record header,
+    unread: a province's waterbodies are up to 320 MB, nearly all ponds."""
+    at = 100
+    while at < len(shp):
+        length = struct.unpack_from(">i", shp, at + 4)[0]
+        body, at = at + 8, at + 8 + length * 2
+        if struct.unpack_from("<i", shp, body)[0] not in (5, 15, 25):
+            continue
+        x0, y0, x1, y1 = struct.unpack_from("<4d", shp, body + 4)
+        if (x1 - x0) * (y1 - y0) * KM_PER_DEGREE ** 2 * math.cos(math.radians(y1)) < min_km2:
+            continue
+        parts, count = struct.unpack_from("<ii", shp, body + 36)
+        starts = list(struct.unpack_from(f"<{parts}i", shp, body + 44)) + [count]
+        flat = struct.unpack_from(f"<{count * 2}d", shp, body + 44 + 4 * parts)
+        yield [[(flat[2 * p], flat[2 * p + 1]) for p in range(starts[i], starts[i + 1])]
+               for i in range(parts)]
+
+
+def _padded_box(rings, pad: float):
+    boxes = _boxed(rings)
+    return (min(b[0] for b in boxes) - pad, min(b[1] for b in boxes) - pad,
+            max(b[2] for b in boxes) + pad, max(b[3] for b in boxes) + pad)
+
+
+def _meets(a, b) -> bool:
+    return not (a[2] < b[0] or a[0] > b[2] or a[3] < b[1] or a[1] > b[3])
+
+
+def fine_lakes(holes, ne_shapes, urban, cache) -> list:
+    """The fine tier's lake rings: the boundary file's holes; every Natural
+    Earth lake within LAKE_NEAR_KM of a population centre, redrawn from the
+    CanVec waterbodies that lie in it (within LAKE_MATCH_MILES, its error),
+    so a lake sharpens as you zoom in rather than appearing; and the other
+    Natural Earth lakes as they are. Rings keep their winding, so an island
+    stays land under the page's nonzero fill."""
+    near_deg = LAKE_NEAR_KM / KM_PER_DEGREE
+    urban_boxes = _boxed(urban)
+    near = set()
+    for index, shape in enumerate(ne_shapes):
+        reach = _padded_box(shape, near_deg / math.cos(math.radians(shape[0][0][1])))
+        for x0, y0, x1, y1, ring in urban_boxes:
+            if _meets(reach, (x0, y0, x1, y1)) and any(
+                    _miles_outside(shape, x, y) * 1.609 <= LAKE_NEAR_KM
+                    for x, y in ring[::max(1, len(ring) // 20)]):
+                near.add(index)
+                break
+    pad = LAKE_MATCH_MILES / MILES_PER_DEGREE
+    ne_boxes = [_padded_box(shape, pad) for shape in ne_shapes]
+    pieces, seen = [], set()        # (rings kept, the Natural Earth lakes it lies in)
+    for code in PROVINCES.values():
+        shp = _only_member(fetch(CANVEC_URL.format(code), cache), "waterbody_2.shp")
+        for rings in _big_polygons(shp, PIECE_MIN_KM2):
+            outer = max(rings, key=_area)
+            if _km2(outer) < PIECE_MIN_KM2:
+                continue
+            key = (round(outer[0][0], 6), round(outer[0][1], 6), len(outer))
+            if key in seen:             # a lake on a provincial line, in both files
+                continue
+            seen.add(key)
+            box = _padded_box([outer], 0)
+            hits = [i for i, nbox in enumerate(ne_boxes) if _meets(box, nbox)]
+            if not hits:
+                continue
+            sample = [point_on_land([outer])] + outer[::max(1, len(outer) // 10)]
+            lakes = {i for i in hits
+                     if any(_miles_outside(ne_shapes[i], x, y) <= LAKE_MATCH_MILES
+                            for x, y in sample)}
+            if lakes:
+                pieces.append(([outer] + [r for r in rings if r is not outer
+                                          and _km2(r) >= ISLAND_MIN_KM2], lakes))
+    # A piece in a redrawn lake and in another (two lakes joined in CanVec)
+    # redraws that one too, or both would be drawn.
+    redrawn = set(near)
+    while True:
+        grown = set().union(*(lakes for _, lakes in pieces if lakes & redrawn))
+        if grown <= redrawn:
+            break
+        redrawn |= grown
+    drawn = [rings for rings, lakes in pieces if lakes & redrawn]
+    redrawn &= set().union(*(lakes for _, lakes in pieces if lakes & redrawn))
+    out = list(holes) + [r for rings in drawn for r in rings]
+    out += [r for i, shape in enumerate(ne_shapes) if i not in redrawn for r in shape]
+    print(f"  lakes   fine: {len(redrawn)} of {len(ne_shapes)} Natural Earth lakes redrawn "
+          f"from {len(drawn)} CanVec pieces, {len(out)} rings")
     return out
 
 
@@ -294,8 +425,10 @@ def ground(cache: Path | None) -> dict[str, list]:
             road += f["rings"]
             if str(f["a"].get("RANK")) in COARSE_RANKS:
                 road_i += f["rings"]
-    lake = holes + natural_earth_lakes(land, holes, cache)
-    return {"land": land, "lake": lake, "county": county, "urban": urban,
+    ne = natural_earth_lakes(land, holes, cache)
+    lake = holes + [ring for shape in ne for ring in shape]
+    return {"land": land, "lake": lake, "lake_fine": fine_lakes(holes, ne, urban, cache),
+            "county": county, "urban": urban,
             "road": road, "road_i": road_i, "cities": cities(fetch(CITIES_URL, cache))}
 
 
@@ -335,7 +468,8 @@ def basemap_tier(name: str, raw: dict[str, list]) -> dict:
     tolerance = 0.5 / tier["ppm"] / MILES_PER_DEGREE
     layers = {}
     for layer in tier["layers"]:
-        source = "road_i" if (layer, name) == ("road", "coarse") else layer
+        source = {("road", "coarse"): "road_i",
+                  ("lake", "fine"): "lake_fine"}.get((layer, name), layer)
         layers[layer] = _features(raw[source], tolerance, tier["q"], closed=layer != "road")
     return {"tier": name, "ppm": tier["ppm"], "q": tier["q"],
             "tolerance_deg": round(tolerance, 7), "layers": layers,
@@ -550,7 +684,8 @@ def main() -> None:
             print(f"{file:26} {(dest / file).stat().st_size / 1024:8.1f} KB  sha256 {digest}")
         if args.only == "basemap":
             print("Adapted from Statistics Canada, 2021 Census boundary files and "
-                  "Road Network File, 2021.")
+                  "Road Network File, 2021. Contains information licensed under the "
+                  "Open Government Licence - Canada (NRCan CanVec).")
             return
 
     places = build_places(query(9, "CSDNAME,CSDTYPE,PRUID,LANDAREA", POINT_OFFSET, args.cache),

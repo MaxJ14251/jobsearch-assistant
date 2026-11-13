@@ -173,7 +173,7 @@ draw it unchanged.
 | Layer | Source |
 |---|---|
 | land | Provinces, cartographic boundary file (shore-clipped): the outer rings |
-| lake | The same file's holes (the large lakes it cuts out), plus Natural Earth's 10m lakes that lie on Canada's land and in no hole |
+| lake | The same file's holes (the large lakes it cuts out), plus Natural Earth's 10m lakes that lie on Canada's land and in no hole; at the fine tier, the Natural Earth lakes within 10 km of a population centre are redrawn from NRCan CanVec 1:250,000 waterbodies (second pass, below) |
 | urban | Population centres |
 | county (fine only) | Census divisions, without islands under 1% of a division's largest piece (their shore is the land's own) |
 | road | Road Network File: rank 1 (the Trans-Canada and freeways) at the coarse tier, ranks 1-2 at the others |
@@ -183,7 +183,8 @@ Fetched once from Statistics Canada's map service at half a pixel of the
 fine tier (0.000362 degrees), one province at a time (the whole country at
 that detail is refused), and simplified per tier from that.
 
-Sizes: coarse 573 KB, medium 2.3 MB, fine 8.9 MB (the US: 0.3, 1.5 and
+Sizes: coarse 573 KB, medium 2.3 MB, fine 8.9 MB (9.3 MB after the second
+pass's lakes; the US: 0.3, 1.5 and
 6.2 MB). The fine land is 1.8 million points against the US's 0.2 million:
 the Arctic islands. 42 city names, all on a town.
 
@@ -196,7 +197,8 @@ errors. Side by side with the US dashboard, the same colours and strokes.
 What it does not have that the US has: the fine tier's smaller lakes are
 Natural Earth's (1:10,000,000), not a national water file, so up close they
 are about a kilometre off; the US fine tier draws its lakes from the
-Census's own water areas. The map shows no ground across the border, as the
+Census's own water areas. (The second pass redraws those near towns from
+CanVec; see below.) The map shows no ground across the border, as the
 US map shows none in Canada.
 
 ## Second pass, 2026-11-11
@@ -308,6 +310,34 @@ model key, before any call.
 **Docker.** `tools/docker_check.sh` builds a Canadian profile in the image
 and checks setup, matches with no key, the km dashboard, the postal box and
 Canada's map, in CI.
+
+**Lakes up close (2026-11-12).** The fine tier now redraws every Natural
+Earth lake within 10 km of a population centre from NRCan's CanVec
+1:250,000 waterbodies (Open Government Licence – Canada): 111 of 1,234
+lakes, from 457 CanVec pieces, every piece of 1 km² or more, islands under
+1 km² drawn as water. The rest keep Natural Earth's outline, as the medium
+tier does. Distance from the drawn shore to CanVec's at full detail, every
+20 m (median / 95% / worst, metres):
+
+| Lake | Before | After |
+|---|---|---|
+| Simcoe | 477 / 1606 / 2425 | 6 / 25 / 41 |
+| Lac Saint-Jean | 720 / 1829 / 2484 | 6 / 24 / 41 |
+| Okanagan | 163 / 515 / 940 | 4 / 21 / 43 |
+| Muskoka | 153 / 495 / 888 | 6 / 24 / 41 |
+| Great Slave | 238 / 930 / 2260 | 5 / 24 / 41 |
+| Winnipeg | 494 / 1433 / 2627 | 7 / 36 / 696 |
+| Lake of the Woods | 135 / 7689 / 16447 | 6 / 35 / 868 |
+| Rice Lake | not drawn | 6 / 23 / 40 |
+
+Lake Manitoba and Lake Nipigon have no town within 10 km and are unchanged.
+The worst figures on Winnipeg and Lake of the Woods were not traced. Fine
+tier 9.12 MB → 9.75 MB; coarse and medium are byte-identical. Redrawing every
+matching lake would have cost about 4 MB, all lakes over 5 km² 13 MB.
+Statistics Canada's own lakes file answers automated downloads with a
+browser check, and CanVec 1:50,000 is 6.6 GB of waterbodies, so neither
+suits a build. CanVec's stated accuracy is 150–250 m; against the
+1:50,000 National Hydro Network on Lake Simcoe the median is 15 m.
 
 ## Not done
 
