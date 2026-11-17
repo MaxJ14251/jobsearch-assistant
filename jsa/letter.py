@@ -268,6 +268,11 @@ def allowed_stems(profile: dict[str, Any], job: dict[str, Any]) -> set[str]:
     stems = set(_whole_profile_stems(profile))
     for digits in {m.group() for s in stems if (m := re.match(r"\d+", s))}:
         stems |= {_stem(w) for w in number_words(int(digits))}
+    # "100+" is one word to the profile, but a sentence says it "100-plus" or
+    # "more than 100". Neither says more than the profile does ("100" alone
+    # says less), and refusing them threw out drafted letters (2026-11-16).
+    for digits in {m.group(1) for s in stems if (m := re.fullmatch(r"(\d+)\+", s))}:
+        stems |= {_stem(digits), _stem("plus")}
     stems |= {_stem(w) for w in CONNECTIVES}
     stems |= {_stem(w) for w in identity_words(profile)}
     # own_words: a reason the person typed for this one answer (suggest.py):

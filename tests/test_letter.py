@@ -276,6 +276,21 @@ class TestAllowedWords(unittest.TestCase):
         self.assertEqual(letter.number_words(912), {"nine", "hundred", "twelve"})
         self.assertEqual(letter.number_words(1000), set())
 
+    def test_a_number_with_a_plus_may_be_said_in_words(self):
+        # Measured 2026-11-16: three letters were thrown out for writing a
+        # profile's "100+" as "100-plus" or "more than 100".
+        profile = copy.deepcopy(PROFILE)
+        profile["projects"][0]["bullets"][1]["text"] += " Uses 100+ job boards."
+        for said in ("I use 100+ job boards.", "I use 100-plus job boards.",
+                     "I use more than 100 job boards.", "I use over 100 job boards."):
+            self.assertEqual(letter.unsupported_words(said, profile, JOB), [], said)
+        self.assertEqual(letter.unsupported_words("I use 200 job boards.", profile, JOB),
+                         ["200"])
+        # Without the "+" in the profile, neither word is allowed.
+        refused = letter.unsupported_words("I use 100-plus job boards.", PROFILE, JOB)
+        self.assertIn("100", refused)
+        self.assertIn("plus", refused)
+
     def test_saying_what_a_role_requires_is_not_a_claim(self):
         self.assertEqual(letter.unsupported_words(
             "This role requires Python.", PROFILE, JOB), [])
