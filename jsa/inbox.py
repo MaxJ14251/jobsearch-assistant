@@ -92,6 +92,23 @@ RULES: list[tuple[str, str, re.Pattern[str], str]] = [
     )
 ]
 
+# A message no rule matched is kept only if it talks about an application.
+# The employer's name in a sender domain is not enough: redditmail.com carries
+# Reddit's daily digests, and email.openai.com its product news (20 of 38
+# pending suggestions on 2026-11-16 were those). A real "other" reply says
+# what it is about: a security code for your application, important
+# information about your application. "Interview" counts in the subject only:
+# a digest's post can say it (two did), and a real invitation in the body is
+# caught by the interview rules above.
+ABOUT_AN_APPLICATION = re.compile(
+    r"\b(?:application|applied|applying|candidate|candidacy|recruit(?:er|ing))\b", re.I)
+INTERVIEW_IN_SUBJECT = re.compile(r"\binterview", re.I)
+
+
+def about_an_application(subject: str, text: str) -> bool:
+    return bool(ABOUT_AN_APPLICATION.search(f"{subject}\n{text}")
+                or INTERVIEW_IN_SUBJECT.search(subject))
+
 _CORP_SUFFIX = re.compile(r"\b(inc|llc|ltd|corp|corporation|co|company|plc|gmbh)\b\.?", re.I)
 _TAGS = re.compile(r"<[^>]+>")
 
@@ -125,6 +142,7 @@ class Report:
     stored: int = 0
     already: int = 0
     ambiguous: int = 0
+    skipped: int = 0      # named the employer, but not about an application
     user: str = ""
 
 
@@ -434,8 +452,11 @@ def fetch(con: sqlite3.Connection, imap: imaplib.IMAP4 | None = None) -> Report:
             app, ambiguous = match(head, text, apps)
             if app is None and not ambiguous:
                 continue
-            report.matched += 1
             kind, rule = classify(head["subject"], text)
+            if kind == "other" and not about_an_application(head["subject"], text):
+                report.skipped += 1
+                continue
+            report.matched += 1
             status = app["status"] if app else by_id[ambiguous[0]]["status"]
             rows.append(
                 (head["message_id"], app["id"] if app else None,

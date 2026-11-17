@@ -269,6 +269,42 @@ class TestFetch(InboxCase):
                                 body="Globex shares rose today.", mid="a4")])
         self.assertEqual(self.replies(), [])
 
+    def test_a_digest_from_the_employers_mail_domain_is_not_stored(self):
+        """Found 2026-11-16: redditmail.com's daily digests were matched to
+        the Reddit applications by their domain, 21 of them."""
+        report = self.run_fetch([message(
+            sender="Acme Robotics <noreply@acmeroboticsmail.com>",
+            subject='"LAX is shut down - Nationwide ground stop"',
+            body="Top posts in your communities today.", mid="n1")])
+        self.assertEqual(self.replies(), [])
+        self.assertEqual((report.skipped, report.matched), (1, 0))
+
+    def test_a_digest_post_that_says_interview_is_not_stored(self):
+        self.run_fetch([message(
+            sender="Acme Robotics <noreply@acmeroboticsmail.com>",
+            subject='"The United States Is About to Be Blindsided."',
+            body="In an interview, the senator said...", mid="n4")])
+        self.assertEqual(self.replies(), [])
+
+    def test_an_interview_named_in_the_subject_is_kept(self):
+        self.run_fetch([message(sender="Acme Robotics <no-reply@acmerobotics.com>",
+                                subject="Your interview confirmation",
+                                body="See you Tuesday at 10.", mid="n5")])
+        self.assertEqual(len(self.replies()), 1)
+
+    def test_product_news_from_the_employer_is_not_stored(self):
+        self.run_fetch([message(sender="Acme Robotics <no-reply@email.acmerobotics.com>",
+                                subject="4 new image styles to try",
+                                body="Try them today in the app.", mid="n2")])
+        self.assertEqual(self.replies(), [])
+
+    def test_an_unclassified_reply_about_the_application_is_kept(self):
+        self.run_fetch([message(sender="Acme Robotics <no-reply@acmerobotics.com>",
+                                subject="Security code for your application to Acme Robotics",
+                                body="Your code is 123456.", mid="n3")])
+        (row,) = self.replies()
+        self.assertEqual((row["kind"], row["application_id"]), ("other", self.apps[1]))
+
     def test_two_applications_at_one_employer_choose_by_title(self):
         self.run_fetch([message(sender="Globex Careers <no-reply@globex.com>",
                                 subject="Your Support Engineer application",
@@ -379,6 +415,33 @@ class TestConfirmAndDismiss(InboxCase):
         self.assertEqual(self.replies()[0]["state"], "dismissed")
         self.assertEqual(self.con.execute(
             "SELECT status FROM applications WHERE job_id = 1").fetchone()[0], "applied")
+
+    def dismiss_from_the_command_line(self, *ids):
+        import argparse
+        import contextlib
+        import io
+        from unittest import mock
+
+        from jsa import cli
+        args = argparse.Namespace(action="dismiss", reply_id=list(ids), no_fetch=True)
+        path, real = self.dir / "t.db", db.connect
+        with mock.patch.object(cli.db, "upgrade", return_value=[]), \
+             mock.patch.object(cli.db, "connect", side_effect=lambda *a, **k: real(path)), \
+             contextlib.redirect_stdout(io.StringIO()), \
+             contextlib.redirect_stderr(io.StringIO()):
+            return cli.cmd_inbox(args)
+
+    def test_several_replies_are_dismissed_at_once(self):
+        self.run_fetch([message(sender="Acme Robotics <no-reply@acmerobotics.com>",
+                                subject="Acme Robotics: your availability",
+                                body="Another note.", mid="b2")])
+        ids = [r["id"] for r in self.replies()]
+        self.assertEqual(self.dismiss_from_the_command_line(*ids), 0)
+        self.assertEqual({r["state"] for r in self.replies()}, {"dismissed"})
+
+    def test_a_wrong_number_dismisses_none(self):
+        self.assertEqual(self.dismiss_from_the_command_line(self.reply, 999), 1)
+        self.assertEqual(self.replies()[0]["state"], "pending")
 
 
 class TestNoSilentMoveBack(InboxCase):

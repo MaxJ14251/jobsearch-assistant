@@ -1348,9 +1348,16 @@ def cmd_inbox(args: argparse.Namespace) -> int:
                 print(f"noted reply {args.reply_id}; no stage moved")
             return 0
         if action == "dismiss":
-            inbox.dismiss(con, args.reply_id)
+            ids = args.reply_id
+            for reply_id in ids:      # all or none: a wrong number stops before any change
+                if not con.execute("SELECT 1 FROM inbox_replies WHERE id = ? AND "
+                                   "state = 'pending'", (reply_id,)).fetchone():
+                    raise inbox.InboxError(f"there is no pending reply {reply_id}")
+            for reply_id in ids:
+                inbox.dismiss(con, reply_id)
             con.commit()
-            print(f"dismissed reply {args.reply_id}")
+            print(f"dismissed {plural(len(ids), 'reply', 'replies')}: "
+                  + ", ".join(map(str, ids)))
             return 0
         if not args.no_fetch:
             report = inbox.fetch(con)
@@ -1964,8 +1971,8 @@ def main(argv: list[str] | None = None) -> int:
         "ack", help="note a reply that moves nothing (a 'thank you for applying'); "
                     "with no number, every pending receipt")
     p_ia.add_argument("reply_id", type=int, nargs="?")
-    p_id = inbox_sub.add_parser("dismiss", help="ignore this reply")
-    p_id.add_argument("reply_id", type=int)
+    p_id = inbox_sub.add_parser("dismiss", help="ignore these replies")
+    p_id.add_argument("reply_id", type=int, nargs="+")
     p_inbox.set_defaults(func=cmd_inbox)
 
     p_next = sub.add_parser("next", help="set the next action for a job")
