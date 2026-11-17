@@ -260,12 +260,57 @@ def identity_words(profile: dict[str, Any]) -> set[str]:
     location = ident.get("location") or {}
     parts += [str(v or "") for v in location.values()]
     parts += [str(v or "") for v in (profile.get("links") or {}).values()]
-    return _words(" ".join(parts))
+    return _claim_words(" ".join(parts))
+
+
+_TOKEN = re.compile(r"[a-z0-9+#.]+")
+
+
+def short_numbers(text: str) -> set[str]:
+    """The numbers `_words` skips: tokens of one or two characters with a digit.
+
+    `_words` drops every word shorter than three characters, which is right
+    for "go" and "up" but let "50 tickets" through while "100 tickets" was
+    refused (2026-11-16). A number is a claim at any length.
+    """
+    out = set()
+    for token in _TOKEN.findall((text or "").lower()):
+        token = token.rstrip(".")
+        if len(token) <= 2 and any(ch.isdigit() for ch in token):
+            out.add(token)
+    return out
+
+
+def _claim_words(text: str) -> set[str]:
+    """What the fabrication check holds a text to: `_words`, and its short numbers."""
+    return _words(text) | short_numbers(text)
+
+
+def profile_numbers(profile: dict[str, Any]) -> set[str]:
+    """The short numbers of the text `_whole_profile_stems` reads.
+
+    Same sources, kept beside it here so the shared tokenizer that resume
+    rewrites are checked with does not change.
+    """
+    from .tailor import collect_bullets
+
+    parts = []
+    for bullet in collect_bullets(profile).values():
+        parts.append(bullet.text)
+        parts += [str(tag).replace("-", " ") for tag in bullet.tags]
+    parts += [str(s.get("text", "")) for s in profile.get("summaries") or []]
+    for values in (profile.get("skills") or {}).values():
+        parts += [str(v) for v in values or []]
+    for entry in profile.get("experience") or []:
+        parts.append(f"{entry.get('title', '')} {entry.get('company', '')}")
+    parts += [str(e.get("name", "")) for e in profile.get("projects") or []]
+    return short_numbers(" ".join(parts))
 
 
 def allowed_stems(profile: dict[str, Any], job: dict[str, Any]) -> set[str]:
     """Every stem a letter may use."""
     stems = set(_whole_profile_stems(profile))
+    stems |= {_stem(n) for n in profile_numbers(profile)}
     for digits in {m.group() for s in stems if (m := re.match(r"\d+", s))}:
         stems |= {_stem(w) for w in number_words(int(digits))}
     # "100+" is one word to the profile, but a sentence says it "100-plus" or
@@ -278,7 +323,7 @@ def allowed_stems(profile: dict[str, Any], job: dict[str, Any]) -> set[str]:
     # own_words: a reason the person typed for this one answer (suggest.py):
     # their own claim, still held to the degree and do-not-claim checks.
     for key in ("title", "company", "location", "own_words"):
-        stems |= {_stem(w) for w in _words(str(job.get(key) or ""))}
+        stems |= {_stem(w) for w in _claim_words(str(job.get(key) or ""))}
     return stems
 
 
@@ -286,7 +331,7 @@ def unsupported_words(text: str, profile: dict[str, Any],
                       job: dict[str, Any]) -> list[str]:
     """The letter's own words that nothing supports."""
     allowed = allowed_stems(profile, job)
-    return sorted({w for w in _words(text) if _stem(w) not in allowed})
+    return sorted({w for w in _claim_words(text) if _stem(w) not in allowed})
 
 
 # At most this share of a draft's sentences may be about the employer, and
@@ -312,7 +357,7 @@ def checked_sentences(text: str, profile: dict[str, Any], job: dict[str, Any],
     from . import subject
 
     allowed = allowed_stems(profile, job)
-    posting_stems = {_stem(w) for w in _words(posting_text or "")}
+    posting_stems = {_stem(w) for w in _claim_words(posting_text or "")}
     posting_numbers = set(subject.numbers(posting_text or ""))
     ident = profile.get("identity") or {}
     person = [str(ident.get(k) or "") for k in ("full_name", "preferred_name")]
@@ -320,7 +365,7 @@ def checked_sentences(text: str, profile: dict[str, Any], job: dict[str, Any],
     for i, s in enumerate(subject.sort(text, job.get("company"), person, attitude_frame), 1):
         problems: list[str] = []
         if s.kind == "employer":
-            refused = sorted({w for w in _words(s.body)
+            refused = sorted({w for w in _claim_words(s.body)
                               if _stem(w) not in allowed and _stem(w) not in posting_stems})
             if refused:
                 problems.append(f"employer sentence {i}: {', '.join(refused[:8])} "
@@ -333,7 +378,7 @@ def checked_sentences(text: str, profile: dict[str, Any], job: dict[str, Any],
                 problems.append(f"employer sentence {i}: the number {stray[0]} is not in "
                                 "the posting")
         else:
-            refused = sorted({w for w in _words(s.body) if _stem(w) not in allowed})
+            refused = sorted({w for w in _claim_words(s.body) if _stem(w) not in allowed})
             if refused:
                 problems.append(f"sentence {i} ({s.why}): {', '.join(refused[:8])} "
                                 "not in your profile")

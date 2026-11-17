@@ -296,5 +296,78 @@ class TestAllowedWords(unittest.TestCase):
             "This role requires Python.", PROFILE, JOB), [])
 
 
+class TestShortNumbers(unittest.TestCase):
+    """A number is a claim at any length (2026-11-16): the tokenizer skips
+    words under three characters, so "50 tickets" got through while
+    "100 tickets" was refused."""
+
+    def _with(self, sentence):
+        profile = copy.deepcopy(PROFILE)
+        profile["experience"][0]["bullets"][1]["text"] += " " + sentence
+        return profile
+
+    def test_a_one_or_two_digit_number_the_profile_lacks_is_refused(self):
+        for said, number in (("I closed 50 tickets a week.", "50"),
+                             ("I closed 100 tickets a week.", "100"),
+                             ("I led 7 technicians.", "7"),
+                             ("I hit Q4 targets.", "q4")):
+            self.assertIn(number, letter.unsupported_words(said, PROFILE, JOB), said)
+
+    def test_a_number_the_profile_has_may_be_said_as_digits_or_words(self):
+        profile = self._with("Closed 50 tickets a week.")
+        for said in ("I closed 50 tickets a week.", "I closed fifty tickets a week."):
+            self.assertEqual(letter.unsupported_words(said, profile, JOB), [], said)
+        self.assertEqual(letter.unsupported_words("I closed 60 tickets a week.",
+                                                  profile, JOB), ["60"])
+
+    def test_a_short_number_with_a_plus_follows_the_plus_rule(self):
+        profile = self._with("Trained 5+ technicians.")
+        for said in ("I trained 5+ technicians.", "I trained 5-plus technicians.",
+                     "I trained more than 5 technicians.", "I trained five technicians."):
+            self.assertEqual(letter.unsupported_words(said, profile, JOB), [], said)
+        self.assertEqual(letter.unsupported_words("I trained 6 technicians.",
+                                                  profile, JOB), ["6"])
+
+    def test_numbers_in_skills_tags_and_titles_count_as_the_profile_s(self):
+        profile = copy.deepcopy(PROFILE)
+        profile["skills"]["technical"].append("Python 3")
+        profile["experience"][0]["bullets"][0]["tags"].append("tier-2")
+        profile["experience"][0]["title"] = "Technician 2"
+        self.assertEqual(letter.unsupported_words(
+            "I write Python 3 and work tier 2 as a Technician 2.", profile, JOB), [])
+
+    def test_short_ordinary_words_are_still_skipped(self):
+        self.assertEqual(letter.unsupported_words(
+            "I am up to it, so we go on.", PROFILE, JOB), [])
+
+    def test_the_job_s_own_numbers_are_allowed(self):
+        job = dict(JOB, title="Support Engineer 2")
+        self.assertEqual(letter.unsupported_words(
+            "I am applying for Support Engineer 2.", PROFILE, job), [])
+
+    def test_a_sentence_about_the_person_is_checked_sentence_by_sentence(self):
+        posting = "Replit has 40 offices. You will support customers."
+        sentences = letter.checked_sentences(
+            "I closed 50 tickets a week.", PROFILE, JOB, posting)
+        self.assertIn("50", sentences[0]["refused"])
+
+    def test_an_employer_sentence_keeps_the_posting_number_rule(self):
+        posting = "Replit has 40 offices. You will support customers."
+        ok = letter.checked_sentences("Replit has 40 offices.", PROFILE, JOB, posting)
+        self.assertEqual(ok[0]["kind"], "employer")
+        self.assertEqual(ok[0]["problems"], [])
+        stray = letter.checked_sentences("Replit has 30 offices.", PROFILE, JOB, posting)
+        self.assertEqual(stray[0]["kind"], "employer")
+        self.assertIn("30", stray[0]["refused"])
+        self.assertTrue(any("number 30" in p for p in stray[0]["problems"]))
+
+    def test_answers_and_outreach_refuse_a_short_number_too(self):
+        from jsa import answers, outreach
+        text = "I closed 50 tickets a week."
+        self.assertIn("50", outreach.unsupported_words(text, PROFILE, JOB))
+        problems = answers.check(text, PROFILE, JOB, min_words=1)
+        self.assertTrue(any("50" in p for p in problems), problems)
+
+
 if __name__ == "__main__":
     unittest.main()

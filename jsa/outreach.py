@@ -331,7 +331,7 @@ def strict_vocabulary(profile: dict[str, Any], job: dict[str, Any] | None,
     stems = letter.allowed_stems(profile, job or {})
     stems |= {letter._stem(w) for w in OUTREACH_CONNECTIVES}
     for value in _names(profile, contact):
-        stems |= {letter._stem(w) for w in letter._words(value)}
+        stems |= {letter._stem(w) for w in letter._claim_words(value)}
     return stems
 
 
@@ -367,7 +367,7 @@ def allowed_vocabulary(profile: dict[str, Any], job: dict[str, Any] | None,
     from . import letter
 
     return strict_vocabulary(profile, job, contact) | {
-        letter._stem(w) for w in letter._words(_about_them(job, contact))}
+        letter._stem(w) for w in letter._claim_words(_about_them(job, contact))}
 
 
 def checked_sentences(body: str, profile: dict[str, Any], job: dict[str, Any] | None,
@@ -385,7 +385,7 @@ def checked_sentences(body: str, profile: dict[str, Any], job: dict[str, Any] | 
 
     strict = strict_vocabulary(profile, job, contact)
     source = _about_them(job, contact)
-    about = strict | {letter._stem(w) for w in letter._words(source)}
+    about = strict | {letter._stem(w) for w in letter._claim_words(source)}
     others = [str(contact[k]) for k in ("name", "company_name")
               if contact is not None and _has(contact, k) and contact[k]]
     if contact is not None and _has(contact, "name") and contact["name"]:
@@ -395,7 +395,7 @@ def checked_sentences(body: str, profile: dict[str, Any], job: dict[str, Any] | 
     out = []
     for i, s in enumerate(subject.sort(body, (job or {}).get("company") if job else None,
                                        person, attitude_frame=False, others=others), 1):
-        words = letter._words(s.body)
+        words = letter._claim_words(s.body)
         problems: list[str] = []
         if s.kind == "employer":
             refused = sorted({w for w in words if not _supported(w, about)})

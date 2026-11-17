@@ -45,6 +45,10 @@ version number lives in one place, `jsa/__init__.py`.
   eight.
 - The word check no longer marks "requires", or a number your profile states
   written out in words ("fifty" for "50+").
+- The word check now checks one- and two-digit numbers too: "50 tickets" in a
+  cover letter, answer or outreach message is refused unless your profile, the
+  job, or (for a sentence about the employer) the posting says 50. Before, only
+  numbers of three or more characters were checked.
 - Suggested answers no longer end with a sentence on how your work prepares you
   for the role: on real forms it was the one that claimed things your profile
   doesn't say.
