@@ -220,7 +220,10 @@ def discover(
                 con.commit()
                 continue
 
-            seen: list[str] = list(result.skipped_ids)
+            seen: list[str] = list(result.skipped_ids) + list(result.deferred_ids)
+            if result.deferred_ids:
+                report.status = (f"ok, {len(result.deferred_ids)} postings left for "
+                                 "the next run (Workday rate limit)")
             for job in result.jobs:
                 # An aggregator names a different employer on every posting.
                 job_company_id = company_id

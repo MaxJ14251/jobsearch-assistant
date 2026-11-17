@@ -98,6 +98,10 @@ class FetchResult:
     # and their ids count as seen, so a stored one is not closed as vanished.
     skipped: int = 0
     skipped_ids: list[str] = field(default_factory=list)
+    # Listings seen but left for the next run because the board stopped
+    # answering partway (Workday's rate limit). Seen, so not closed as
+    # vanished; never stored without their description.
+    deferred_ids: list[str] = field(default_factory=list)
 
 
 # A caller that must limit where requests go (jsa find's host allowlist)
@@ -276,6 +280,47 @@ def fetch_ashby(entry: dict[str, Any]) -> FetchResult:
 # the real location and description need one detail request per job.
 
 
+# Every tenant sits behind the same Cloudflare front, which answers 429 to one
+# address across ALL tenants after a burst, with no Retry-After, and lets up
+# within minutes (measured 2026-11-16: 9 of 13 tenants refused after a
+# `jsa verify`; all three probed answered 200 a few minutes later). So a 429
+# waits and retries, and one that persists pauses every Workday board for the
+# rest of the run instead of each one hammering it again.
+WORKDAY_BACKOFF_S = (20.0, 60.0)
+WORKDAY_PAUSE_S = 600.0
+_workday_paused_until = 0.0
+
+
+class WorkdayRateLimited(Exception):
+    pass
+
+
+def _retry_after(resp: Any) -> float | None:
+    value = getattr(resp, "headers", {}).get("Retry-After")
+    if isinstance(value, str) and value.strip().isdigit():
+        return min(float(value), 120.0)
+    return None
+
+
+def _workday_send(send: Callable[[], Any]) -> Any:
+    """`send()`'s response, waiting out a 429; raises WorkdayRateLimited."""
+    global _workday_paused_until
+    if time.monotonic() < _workday_paused_until:
+        raise WorkdayRateLimited("Workday is rate limiting this address; "
+                                 "paused for the rest of this run, try again later")
+    for wait in (*WORKDAY_BACKOFF_S, None):
+        resp = send()
+        if resp.status_code != 429:
+            return resp
+        if wait is None:
+            break
+        time.sleep(_retry_after(resp) or wait)
+    _workday_paused_until = time.monotonic() + WORKDAY_PAUSE_S
+    raise WorkdayRateLimited("rate limited by Workday (429) after waiting "
+                             f"{sum(WORKDAY_BACKOFF_S):.0f} s; Workday boards "
+                             "paused for the rest of this run")
+
+
 def workday_url(entry: dict[str, Any]) -> str:
     t, wd, site = entry["tenant"], entry.get("wd", "wd1"), entry["site"]
     return f"https://{t}.{wd}.myworkdayjobs.com/wday/cxs/{t}/{site}/jobs"
@@ -297,7 +342,7 @@ def fetch_workday(entry: dict[str, Any]) -> FetchResult:
             offset, total, page = 0, None, 0
             postings: list[dict[str, Any]] = []
             while page < 20:  # 20 * 20 = 400 listings, plenty for one company
-                resp = client.post(
+                resp = _workday_send(lambda: client.post(
                     base,
                     json={
                         "appliedFacets": {},
@@ -311,7 +356,7 @@ def fetch_workday(entry: dict[str, Any]) -> FetchResult:
                         "searchText": entry.get("search") or "",
                     },
                     headers=headers,
-                )
+                ))
                 resp.raise_for_status()
                 data = resp.json()
                 batch = data.get("jobPostings") or []
@@ -342,12 +387,21 @@ def fetch_workday(entry: dict[str, Any]) -> FetchResult:
                 skipped = len(skipped_ids)
                 postings = viable
 
-            for posting in postings[:MAX_DETAIL_FETCHES]:
+            deferred_ids: list[str] = []
+            capped = postings[:MAX_DETAIL_FETCHES]
+            for n, posting in enumerate(capped):
                 path = posting.get("externalPath") or ""
                 info: dict[str, Any] = {}
                 if path:
                     try:
                         info = workday_detail(client, detail_base, path)
+                    except WorkdayRateLimited:
+                        # Not stored without a description: seen, left for
+                        # the next run, and the jobs read so far are kept.
+                        deferred_ids = [
+                            workday_job({}, detail_base, p.get("externalPath") or "", p)
+                            ["external_id"] for p in capped[n:]]
+                        break
                     except Exception:  # noqa: BLE001 — degrade, don't abort
                         info = {}
                     time.sleep(DETAIL_DELAY_S)
@@ -355,12 +409,13 @@ def fetch_workday(entry: dict[str, Any]) -> FetchResult:
     except Exception as exc:  # noqa: BLE001
         return _fail(exc)
 
-    return FetchResult(True, jobs, "ok", skipped=skipped, skipped_ids=skipped_ids)
+    return FetchResult(True, jobs, "ok", skipped=skipped, skipped_ids=skipped_ids,
+                       deferred_ids=deferred_ids)
 
 
 def workday_detail(client: httpx.Client, detail_base: str, path: str) -> dict[str, Any]:
     """One posting's jobPostingInfo, or {} when Workday does not return it."""
-    d = client.get(detail_base + path)
+    d = _workday_send(lambda: client.get(detail_base + path))
     if d.status_code != 200:
         return {}
     return (d.json() or {}).get("jobPostingInfo") or {}

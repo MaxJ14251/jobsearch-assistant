@@ -75,7 +75,7 @@ def _discover(db_path: Path | None = None) -> Step:
     reports = discover.discover(db_path=db_path)
     failed = [r.company for r in reports if str(r.status).startswith("FAIL")]
     new = sum(getattr(r, "new", 0) for r in reports)
-    polled = sum(1 for r in reports if r.status == "ok" or str(r.status).startswith("FAIL"))
+    polled = sum(1 for r in reports if str(r.status).startswith(("ok", "FAIL")))
     detail = f"{plural(polled, 'feed')}, {plural(new, 'new posting')}"
     if failed:
         return Step("discover", "failed",
